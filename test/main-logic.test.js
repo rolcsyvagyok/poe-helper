@@ -344,3 +344,25 @@ test('price tiers in divines are converted with the poe.ninja divine price', asy
   assert.match(seen['The Wolf'], /100-200c/, '0.5 divine = 100c');
   assert.match(seen['The Gambler'], /20-100c/, '0.1 divine = 20c');
 });
+
+test('thresholds can be typed as 200c, 1 div, 1,5 div or 0.5 ex', () => {
+  const { svc } = setup();
+  const u = { chaos: 1, divine: 400, exalted: 12 };
+  assert.equal(svc.parsePrice('200c', u), 200);
+  assert.equal(svc.parsePrice('1 div', u), 400);
+  assert.equal(svc.parsePrice('1,5 divine', u), 600);
+  assert.equal(svc.parsePrice('0.5ex', u), 6);
+  assert.equal(svc.parsePrice('300', u), 300, 'a bare number is chaos');
+  assert.equal(svc.parsePrice(2, u, 'divine'), 800, 'old numeric thresholds keep their category unit');
+  assert.equal(svc.parsePrice('lots', u), null);
+});
+
+test('cluster jewel rules use base, item level and passives, and can hide', () => {
+  const { myBaseRule } = require('../src/core/filter/manager');
+  const r = myBaseRule({ id: 'c1', group: 'cluster', base: 'Large Cluster Jewel', ilvlMin: 84, passivesMin: 8, passivesMax: 8, action: 'Show' });
+  assert.equal(r.label, 'Cluster jewels: Large Cluster Jewel ilvl 84+, 8 passives');
+  assert.ok(r.conditions.some((c) => c.keyword === 'EnchantmentPassiveNum' && c.op === '>=' && c.values[0] === '8'));
+  const hide = myBaseRule({ id: 'c2', group: 'cluster', base: 'Small Cluster Jewel', ilvlMax: 67, action: 'Hide' });
+  assert.equal(hide.action, 'Hide');
+  assert.match(hide.label, /hide Small Cluster Jewel ilvl up to 67/);
+});

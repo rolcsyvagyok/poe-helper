@@ -59,11 +59,16 @@ function unslug(id) {
  */
 function parseExchange(json) {
   const core = json.core || {};
-  const items = core.items || json.items || [];
+  // core.items only holds the reference currencies (chaos, divine); every listed item's real name
+  // and picture is in the top-level items list. Read both, top-level last so it wins.
   const byId = new Map();
-  for (const it of Array.isArray(items) ? items : Object.entries(items).map(([k, v]) => (v && typeof v === 'object' ? { id: v.id ?? k, ...v } : null))) {
-    if (it && it.id != null) byId.set(String(it.id), it);
-  }
+  const add = (items) => {
+    for (const it of Array.isArray(items) ? items : Object.entries(items || {}).map(([k, v]) => (v && typeof v === 'object' ? { id: v.id ?? k, ...v } : null))) {
+      if (it && it.id != null) byId.set(String(it.id), it);
+    }
+  };
+  add(core.items);
+  add(json.items);
   const primary = String(core.primary || 'chaos').toLowerCase();
   let toChaos = 1;
   if (!primary.includes('chaos')) {
@@ -88,12 +93,19 @@ function parseExchange(json) {
       guessed: !real,
       slug: slugify(slug),
       chaos: Number(l.primaryValue) * toChaos,
-      icon: meta.icon || meta.image || null,
+      icon: imageUrl(meta.icon || meta.image),
       volume: l.volumePrimaryValue ?? null,
       sparkline: l.sparkline || l.sparkLine || null,
     });
   }
   return out;
+}
+
+/** poe.ninja gives pictures as "/gen/image/..." on GGG's image server. */
+function imageUrl(p) {
+  if (!p) return null;
+  const s = String(p);
+  return s.startsWith('/') ? `https://web.poecdn.com${s}` : s;
 }
 
 /** Stash currency overview (Currency/Fragment) -> same shape */

@@ -145,7 +145,6 @@ function render(p) {
   const actions = h('div', { class: 'ov-actions' },
     gear ? h('button', { title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases…') : null,
     inTier ? null : h('button', { title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
-    inTier ? null : h('button', { title: 'Choose rarities and item levels, then highlight', onclick: () => openQuick('highlight', quickBox) }, 'Highlight…'),
     h('span', { class: 'spacer' }),
     h('button', { class: 'quiet', onclick: () => call('app:show') }, 'App'));
   if (tierControls) body.append(tierControls);

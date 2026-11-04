@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS = {
   trayHintShown: false,
   categoryIcons: {}, // type -> built-in icon name or "img:<file>"
   baseFilterName: null, // the chosen filter's name, to find it again if the game renames the file
+  economyRetired: false,
   gameSoundFiles: {}, // game sound number -> your own recording (my-*.mp3) used for previews only
   versionSeen: null, // {version, at, from}: when this copy first ran its current version
   notesShownFor: null, // version whose patch notes you already saw
@@ -115,6 +116,13 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
   }
 
   const pricer = new Pricer({ ninja, getLeague });
+
+  // 1.0.3 retired the "Price tiers" tab: its highlights sat on top of your tiers. Switch them off once.
+  if (!settings.get('economyRetired')) {
+    const eco = settings.get('economy');
+    if (eco?.enabled) settings.set('economy', { ...eco, enabled: false });
+    settings.set('economyRetired', true);
+  }
 
   // Net worth uses the snapshot store but reads tab selection from settings
   const nwStore = {
@@ -256,7 +264,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const league = await getLeague();
     const want = new Set(names);
     const out = {};
-    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory']) {
+    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'BaseType']) {
       if (Object.keys(out).length >= want.size) break;
       let list = [];
       try { list = await ninja.category(league, c); } catch { continue; }
@@ -437,7 +445,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return { ...myBases(), target, leftOut: filters.lastDropped };
   }
   /** From the price check (text) or typed in (base). Same base + same range isn't added twice. */
-  function addMyBase({ text = null, base = null, ilvlMin = null, ilvlMax = null, rarities = null } = {}) {
+  function addMyBase({ text = null, base = null, ilvlMin = null, ilvlMax = null, rarities = null, group = 'mybases', passivesMin = null, passivesMax = null, action = 'Show' } = {}) {
     let b = base ? String(base).trim() : null;
     let itemClass = null;
     if (text) {
@@ -450,13 +458,15 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     }
     if (!b) throw new Error('Type a base name.');
     const num = (v) => (v === '' || v == null || !Number.isFinite(+v) ? null : Math.max(1, Math.min(100, Math.round(+v))));
-    const entry = { id: `b_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, base: b, itemClass, ilvlMin: num(ilvlMin), ilvlMax: num(ilvlMax), rarities: Array.isArray(rarities) && rarities.length ? rarities : ['Normal', 'Magic', 'Rare'], enabled: true, addedAt: Date.now() };
+    const small = (v) => (v === '' || v == null || !Number.isFinite(+v) ? null : Math.max(1, Math.min(12, Math.round(+v))));
+    const entry = { id: `b_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, group: group === 'cluster' ? 'cluster' : 'mybases', base: b, itemClass, ilvlMin: num(ilvlMin), ilvlMax: num(ilvlMax), passivesMin: small(passivesMin), passivesMax: small(passivesMax), action: action === 'Hide' ? 'Hide' : 'Show', rarities: Array.isArray(rarities) && rarities.length ? rarities : ['Normal', 'Magic', 'Rare'], enabled: true, addedAt: Date.now() };
     const list = settings.get('myBases') || [];
-    if (list.some((e) => e.base === entry.base && e.ilvlMin === entry.ilvlMin && e.ilvlMax === entry.ilvlMax)) throw new Error(`${entry.base} with that item level range is already in My bases.`);
+    const same = (e) => e.base === entry.base && e.ilvlMin === entry.ilvlMin && e.ilvlMax === entry.ilvlMax && (e.passivesMin ?? null) === entry.passivesMin && (e.passivesMax ?? null) === entry.passivesMax && (e.action || 'Show') === entry.action;
+    if (list.some(same)) throw new Error(`${entry.base} with those settings is already there.`);
     return { ...saveMyBases([entry, ...list]), entry };
   }
   function updateMyBase(id, patch = {}) {
-    const keep = ['ilvlMin', 'ilvlMax', 'rarities', 'enabled', 'base'];
+    const keep = ['ilvlMin', 'ilvlMax', 'rarities', 'enabled', 'base', 'passivesMin', 'passivesMax', 'action'];
     return saveMyBases((settings.get('myBases') || []).map((e) => (e.id === id ? { ...e, ...Object.fromEntries(Object.entries(patch).filter(([k]) => keep.includes(k))) } : e)));
   }
   function removeMyBase(id) {
@@ -625,8 +635,14 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
         try { data[c] = await ninja.category(league, c); } catch (e) { log('price review', c, e.message); }
       }
       // thresholds are typed in the category's unit ("worth at least 2 divine"); the plan works in chaos
+      // each threshold is typed with its own unit ("200c", "1 div", "0.5 ex"); a bare number uses the
+      // category's old unit setting, else chaos
       const unit = units[catCfg.unit] ? catCfg.unit : 'chaos';
-      const thresholds = Object.fromEntries(Object.entries(catCfg.thresholds || {}).filter(([, v]) => v !== '' && v != null && Number.isFinite(+v)).map(([k, v]) => [k, +v * units[unit]]));
+      const thresholds = {};
+      for (const [k, v] of Object.entries(catCfg.thresholds || {})) {
+        const c = parsePrice(v, units, unit);
+        if (c != null) thresholds[k] = c;
+      }
       const plan = tierPricing.autoTierPlan(t, tierPricing.priceIndex(t.type, data), {
         thresholds, include: catCfg.include || {}, rest: catCfg.rest || 'keep', minListings: cfg.minListings, margin: cfg.margin,
         // names the filter already lists anywhere are never "new"; uniques are priced by base so they never add names
@@ -640,6 +656,18 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       out.push({ type: t.type, label: t.label, enabled, auto, rest: catCfg.rest || 'keep', unit, raw: catCfg.thresholds || {}, ageMs: ages.length ? Math.max(...ages) : null, tierLooks: Object.fromEntries(t.tiers.map((x) => [x.tier, x.style])), ...plan, prices: undefined });
     }
     return { league, filterUpdated: filterLastUpdate(), cfg, categories: out, units, divine: units.divine };
+  }
+
+  /** "200c", "1 div", "1,5 divine", "0.5ex", "300" -> chaos (null if it isn't a price). */
+  function parsePrice(v, units, defaultUnit = 'chaos') {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return Number.isFinite(v) ? v * (units[defaultUnit] || 1) : null;
+    const m = /^\s*(\d+(?:[.,]\d+)?)\s*(c|ch|chaos|d|div|divs|divine|divines|e|ex|exa|exalt|exalted|exalts)?\s*$/i.exec(String(v));
+    if (!m) return null;
+    const n = Number(m[1].replace(',', '.'));
+    const u = !m[2] ? defaultUnit : /^c/i.test(m[2]) ? 'chaos' : /^d/i.test(m[2]) ? 'divine' : 'exalted';
+    if (!units[u]) return null;
+    return n * units[u];
   }
 
   /** Chaos value of one of each unit thresholds can be typed in. */
@@ -871,7 +899,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

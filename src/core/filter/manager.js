@@ -275,7 +275,15 @@ function myBaseRule(e, style = MY_BASES_STYLE) {
     ...(hi ? [{ keyword: 'ItemLevel', op: '<=', values: [String(hi)] }] : []),
     { keyword: 'BaseType', op: '==', values: [e.base] },
   ];
-  return { id: e.id, enabled: e.enabled !== false, action: 'Show', label: `My bases: ${e.base}${lv}`, conditions, style: e.style || style, group: 'mybases' };
+  // cluster jewels: how many passives the enchant adds
+  const pLo = Number(e.passivesMin) || null;
+  const pHi = Number(e.passivesMax) || null;
+  if (pLo) conditions.push({ keyword: 'EnchantmentPassiveNum', op: '>=', values: [String(pLo)] });
+  if (pHi) conditions.push({ keyword: 'EnchantmentPassiveNum', op: '<=', values: [String(pHi)] });
+  const pv = pLo && pHi ? (pLo === pHi ? `, ${pLo} passives` : `, ${pLo}-${pHi} passives`) : pLo ? `, ${pLo}+ passives` : pHi ? `, up to ${pHi} passives` : '';
+  const hide = e.action === 'Hide';
+  const label = `${e.group === 'cluster' ? 'Cluster jewels' : 'My bases'}: ${hide ? 'hide ' : ''}${e.base}${lv}${pv}`;
+  return { id: e.id, enabled: e.enabled !== false, action: hide ? 'Hide' : 'Show', label, conditions, style: hide ? { disableDropSound: true } : e.style || style, group: e.group || 'mybases' };
 }
 
 /** Lower-case letters and digits only: "Gemcutters Mercy" and "Gemcutter's Mercy" compare equal. */

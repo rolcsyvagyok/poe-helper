@@ -392,3 +392,16 @@ test('gems: description lines are not mods; trade uses level, quality and corrup
   assert.deepEqual(misc.corrupted, { option: 'true' });
   assert.equal(q.query.stats[0].filters.length, 0);
 });
+
+test('poe.ninja exchange: names and pictures come from the top-level items list', () => {
+  const { parseExchange } = require('../src/core/ninja');
+  const json = {
+    core: { primary: 'chaos', items: [{ id: 'chaos', name: 'Chaos Orb' }, { id: 'divine', name: 'Divine Orb' }], rates: { divine: 0.005 } },
+    items: [{ id: 'gemcutters-mercy', name: "Gemcutter's Mercy", image: '/gen/image/abc/Mercy.png' }],
+    lines: [{ id: 'gemcutters-mercy', primaryValue: 12 }],
+  };
+  const [x] = parseExchange(json);
+  assert.equal(x.name, "Gemcutter's Mercy");
+  assert.equal(x.guessed, false);
+  assert.equal(x.icon, 'https://web.poecdn.com/gen/image/abc/Mercy.png');
+});

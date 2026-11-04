@@ -624,3 +624,4 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .gs-row { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 8px; font-size: 13px; }
 .gs-row.has { border-color: var(--line); }
 .gs-row .sound-drop { font-size: 12px; padding: 6px 8px; }
+.bad-input { border-color: var(--bad) !important; }
