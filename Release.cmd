@@ -14,8 +14,10 @@ for /f "tokens=2*" %%a in ('reg query HKCU\Environment /v GH_TOKEN 2^>nul ^| fin
 if "%GH_TOKEN%"=="" goto notoken
 echo GH_TOKEN found >> "%LOG%"
 echo Committing and pushing...
+git rm --cached -q release-log.txt >nul 2>&1
 git add -A >> "%LOG%" 2>&1
-git commit -m "PoE Helper 1.0.0" >> "%LOG%" 2>&1
+for /f "delims=" %%v in ('node -p "require('./package.json').version"') do set "VER=%%v"
+git commit -m "PoE Helper %VER%" >> "%LOG%" 2>&1
 git push >> "%LOG%" 2>&1
 echo git push exit %ERRORLEVEL% >> "%LOG%"
 echo Installing build tools, this takes a few minutes the first time...

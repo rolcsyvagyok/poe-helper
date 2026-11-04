@@ -3,3 +3,4 @@ dist/
 *.log
 .env
 build/release-notes.md
+release-log.txt
