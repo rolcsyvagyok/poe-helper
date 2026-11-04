@@ -263,4 +263,12 @@ async function openTrade(box) {
   await window.TradePanel.mount(box, { text: current.text, divine: current.price?.divine, onFit: fit });
 }
 
-window.poe.on('overlay:show', render);
+// your recordings of the game's drop sounds, so ▶ works for "Game sound N" here too
+let gameSoundsLoaded = false;
+window.poe.on('overlay:show', (p) => {
+  if (!gameSoundsLoaded) {
+    gameSoundsLoaded = true;
+    window.poe.call('state:get').then((st) => window.UI.setGameSounds(st?.settings?.gameSoundFiles || {})).catch(() => { gameSoundsLoaded = false; });
+  }
+  render(p);
+});

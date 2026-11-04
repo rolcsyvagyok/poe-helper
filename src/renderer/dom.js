@@ -189,7 +189,14 @@ function dropLabel(name, style, { rarity, scale = 1, hidden = false } = {}) {
 // ---------- tinks ----------
 
 let playing = null;
+// Your own recordings of the game's built-in drop sounds, for previews only: { "1": "my-game-sound-1.mp3" }.
+// The filter still uses the real in-game sound (PlayAlertSound N); nothing from the game is shipped.
+const gameSoundFiles = {};
+function setGameSounds(map) { for (const k of Object.keys(gameSoundFiles)) delete gameSoundFiles[k]; Object.assign(gameSoundFiles, map || {}); }
+const gameSoundFile = (id) => (String(id).startsWith('game:') ? gameSoundFiles[String(id).slice(5)] || null : null);
+
 function playSound(id) {
+  if (gameSoundFile(id)) id = gameSoundFile(id);
   if (!id || id === 'none' || id.startsWith('game:') || id === 'custom') return false;
   try {
     playing?.pause();
@@ -207,7 +214,11 @@ function playSound(id) {
 /** Small button that plays a tink, or a note for built-in game sounds (we can't ship those). */
 function soundButton(id) {
   if (!id || id === 'none') return null;
-  if (id.startsWith('game:')) return h('span', { class: 'sound-chip', title: 'Built-in game sound. It can only be heard in game.' }, `Game sound ${id.slice(5)}`);
+  if (id.startsWith('game:')) {
+    const n = id.slice(5);
+    if (gameSoundFile(id)) return h('span', { class: 'row', style: { gap: '4px', flexWrap: 'nowrap' } }, h('span', { class: 'sound-chip' }, `Game sound ${n}`), h('button', { class: 'play', type: 'button', title: `Play your recording of game sound ${n}`, 'aria-label': `Play game sound ${n}`, onclick: (e) => { e.stopPropagation(); playSound(id); } }, '▶'));
+    return h('span', { class: 'sound-chip', title: `Built-in game sound ${n}. To preview it here, add a recording of it in Settings → Game sound previews.` }, `Game sound ${n}`);
+  }
   if (id === 'custom') return h('span', { class: 'sound-chip' }, 'Custom sound');
   return h('button', { class: 'play', type: 'button', title: 'Play this sound', 'aria-label': 'Play sound', onclick: (e) => { e.stopPropagation(); playSound(id); } }, '▶');
 }
@@ -350,5 +361,5 @@ async function keepScroll(fn) {
   }
 }
 
-window.UI = { setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
+window.UI = { setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
 })();

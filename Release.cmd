@@ -3,12 +3,13 @@ setlocal
 cd /d "%~dp0"
 set "LOG=%~dp0release-log.txt"
 echo PoE Helper release %DATE% %TIME% > "%LOG%"
-if not exist "%~dp0poe-helper-1.0.0.zip" goto unpacked
-echo Unpacking 1.0.0...
-powershell -NoProfile -Command "$t = Join-Path $env:TEMP 'poeh-100'; Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue; Expand-Archive -Force -LiteralPath '%~dp0poe-helper-1.0.0.zip' -DestinationPath $t" >> "%LOG%" 2>&1
+if exist "%~dp0poe-helper-1.0.0.zip" ren "%~dp0poe-helper-1.0.0.zip" poe-helper-update.zip
+if not exist "%~dp0poe-helper-update.zip" goto unpacked
+echo Unpacking the new version...
+powershell -NoProfile -Command "$t = Join-Path $env:TEMP 'poeh-100'; Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue; Expand-Archive -Force -LiteralPath '%~dp0poe-helper-update.zip' -DestinationPath $t" >> "%LOG%" 2>&1
 robocopy "%TEMP%\poeh-100\poe-helper" "%~dp0." /E /NFL /NDL /NJH /NJS >> "%LOG%" 2>&1
 echo unpack robocopy exit %ERRORLEVEL% >> "%LOG%"
-del "%~dp0poe-helper-1.0.0.zip"
+del "%~dp0poe-helper-update.zip"
 :unpacked
 for /f "tokens=2*" %%a in ('reg query HKCU\Environment /v GH_TOKEN 2^>nul ^| find "GH_TOKEN"') do set "GH_TOKEN=%%b"
 if "%GH_TOKEN%"=="" goto notoken

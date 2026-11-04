@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS = {
   trayHintShown: false,
   categoryIcons: {}, // type -> built-in icon name or "img:<file>"
   baseFilterName: null, // the chosen filter's name, to find it again if the game renames the file
+  gameSoundFiles: {}, // game sound number -> your own recording (my-*.mp3) used for previews only
   versionSeen: null, // {version, at, from}: when this copy first ran its current version
   notesShownFor: null, // version whose patch notes you already saw
   gigaDone: false, // the default Giga tier in currency was set up once
@@ -206,8 +207,17 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       filters.setEconomy([]);
       return [];
     }
-    const prices = await economyPrices(await getLeague());
-    const rules = economyRules(prices, { ...eco?.thresholds, sounds: { ...DEFAULT_TIER_SOUNDS, ...(eco?.thresholds?.sounds || {}) } });
+    const league = await getLeague();
+    const prices = await economyPrices(league);
+    // thresholds can be typed in divines; poe.ninja's current Divine Orb price turns them into chaos
+    const th = { ...(eco?.thresholds || {}) };
+    if (th.unit === 'divine') {
+      const units = await currencyUnits(league);
+      const div = units.divine || 0;
+      if (!div) throw new Error('poe.ninja has no Divine Orb price right now, so divine thresholds can\'t be used. Try again later or switch to chaos.');
+      for (const k of ['top', 'high', 'mid', 'hideDivBelow']) if (Number(th[k])) th[k] = Number(th[k]) * div;
+    }
+    const rules = economyRules(prices, { ...th, sounds: { ...DEFAULT_TIER_SOUNDS, ...(eco?.thresholds?.sounds || {}) } });
     filters.setEconomy(eco?.enabled ? rules : []);
     return rules;
   }
@@ -246,7 +256,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const league = await getLeague();
     const want = new Set(names);
     const out = {};
-    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'DivinationCard', 'UniqueAccessory']) {
+    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory']) {
       if (Object.keys(out).length >= want.size) break;
       let list = [];
       try { list = await ninja.category(league, c); } catch { continue; }
@@ -861,7 +871,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

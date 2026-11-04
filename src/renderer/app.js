@@ -33,6 +33,7 @@ function go(page) {
 async function refreshState() {
   Object.assign(S, await call('state:get'));
   if (!S.sounds.length) S.sounds = await call('sounds:list').catch(() => []);
+  window.UI.setGameSounds(S.settings.gameSoundFiles || {});
   if (!S.iconsLoaded) { S.userIcons = await call('icons:list').catch(() => []); UI.setUserIcons(S.userIcons); S.iconsLoaded = true; }
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
@@ -428,12 +429,32 @@ async function renderFilterExtras(el, which) {
   const newRule = ruleForm(null, { saveLabel: 'Add rule', onSave: async (rule) => { overrides.unshift(rule); await save(overrides); toast(`Added "${rule.label}"`); renderFilters(); } });
 
   // --- value tiers ---
-  const th = { top: 100, high: 20, mid: 5, hideDivBelow: 0, ...(eco.thresholds || {}) };
+  const th = { top: 100, high: 20, mid: 5, hideDivBelow: 0, unit: 'chaos', ...(eco.thresholds || {}) };
+  let unit = th.unit === 'divine' ? 'divine' : 'chaos';
   const tierSounds = { top: 'divine-tink', high: 'chime', mid: 'soft-bell', multi: 'coin', ...(th.sounds || {}) };
-  const inputs = { top: h('input', { type: 'number', min: 1, value: th.top }), high: h('input', { type: 'number', min: 1, value: th.high }), mid: h('input', { type: 'number', min: 1, value: th.mid }), hide: h('input', { type: 'number', min: 0, step: 0.5, value: th.hideDivBelow || '', placeholder: 'Off' }) };
+  const inputs = { top: h('input', { type: 'number', min: 0, step: 'any', value: th.top }), high: h('input', { type: 'number', min: 0, step: 'any', value: th.high }), mid: h('input', { type: 'number', min: 0, step: 'any', value: th.mid }), hide: h('input', { type: 'number', min: 0, step: 'any', value: th.hideDivBelow || '', placeholder: 'Off' }) };
   const saveEco = async (enabled = eco.enabled) => {
-    await call('settings:set', { economy: { enabled, thresholds: { top: Number(inputs.top.value) || 100, high: Number(inputs.high.value) || 20, mid: Number(inputs.mid.value) || 5, hideDivBelow: Number(inputs.hide.value) || 0, sounds: tierSounds } } });
+    const d = (k, fb) => (inputs[k].value === '' ? fb : Number(inputs[k].value));
+    await call('settings:set', { economy: { enabled, thresholds: { unit, top: d('top', unit === 'divine' ? 1 : 100), high: d('high', unit === 'divine' ? 0.2 : 20), mid: d('mid', unit === 'divine' ? 0.05 : 5), hideDivBelow: d('hide', 0), sounds: tierSounds } } });
   };
+  // chaos or divine thresholds; switching converts the numbers at poe.ninja's current divine price
+  const unitLabels = [];
+  const divNote = h('span', { class: 'small muted' }, 'Getting the Divine Orb price from poe.ninja…');
+  let divine = null;
+  call('prices:units').then((u) => { divine = u?.divine || null; divNote.textContent = divine ? `1 Divine Orb = ${Math.round(divine)} chaos on poe.ninja now` : 'poe.ninja has no Divine Orb price right now'; }).catch(() => { divNote.textContent = 'Could not reach poe.ninja'; });
+  const unitSel = h('select', { 'aria-label': 'Price unit', onchange: (e) => {
+    const to = e.target.value;
+    if (to === unit) return;
+    if (!divine) { e.target.value = unit; return toast('No Divine Orb price from poe.ninja yet, try again in a moment.'); }
+    for (const k of ['top', 'high', 'mid', 'hide']) {
+      if (inputs[k].value === '') continue;
+      const v = Number(inputs[k].value);
+      inputs[k].value = String(to === 'divine' ? +(v / divine).toFixed(3) : Math.round(v * divine * 10) / 10);
+    }
+    unit = to;
+    for (const l of unitLabels) l.textContent = unit === 'divine' ? 'divine' : 'chaos';
+  } }, h('option', { value: 'chaos', selected: unit === 'chaos' }, 'Chaos'), h('option', { value: 'divine', selected: unit === 'divine' }, 'Divine'));
+  const unitLabel = () => { const l = h('span', {}, unit === 'divine' ? 'divine' : 'chaos'); unitLabels.push(l); return l; };
   const byTier = {};
   for (const r of ecoRules || []) {
     const names = (r.conditions.find((c) => c.keyword === 'BaseType')?.values) || [];
@@ -457,12 +478,12 @@ async function renderFilterExtras(el, which) {
     return h('div', { class: 'tier' },
       h('div', {}, h('div', { class: 'name', style: { color: '#e6e3d6' } }, name), h('div', { class: 'count', style: { color: '#8d927f' } }, ecoRules ? `${names.length} items` : loadTiersLater ? h('span', {}, h('span', { class: 'spin' }), ' Loading prices') : '')),
       dropLabel(sample, LOOKS[key], { rarity: key === 'multi' ? 'Unique' : 'Divination Card', scale: 0.8 }),
-      key === 'multi' ? h('span', { class: 'small', style: { color: '#a9ad9c' } }, 'Bases where some uniques pass Top') : h('label', { class: 'row small', style: { color: '#a9ad9c', flexWrap: 'nowrap' } }, 'At least', inputs[key], 'chaos'),
+      key === 'multi' ? h('span', { class: 'small', style: { color: '#a9ad9c' } }, 'Bases where some uniques pass Top') : h('label', { class: 'row small', style: { color: '#a9ad9c', flexWrap: 'nowrap' } }, 'At least', inputs[key], unitLabel()),
       soundPicker(tierSounds[key], (v) => { tierSounds[key] = v; }));
   }), h('div', { class: 'tier' },
     h('div', {}, h('div', { class: 'name', style: { color: '#e6e3d6' } }, 'Hide cheap cards')),
     dropLabel(byTier.hide?.[0] || 'Rain of Chaos', { fontSize: 32 }, { rarity: 'Divination Card', scale: 0.8, hidden: true }),
-    h('label', { class: 'row small', style: { color: '#a9ad9c', flexWrap: 'nowrap' } }, 'Below', inputs.hide, 'chaos'),
+    h('label', { class: 'row small', style: { color: '#a9ad9c', flexWrap: 'nowrap' } }, 'Below', inputs.hide, unitLabel()),
     h('span')));
 
   // --- check an item ---
@@ -474,6 +495,7 @@ async function renderFilterExtras(el, which) {
     rules: [section('Your rules', 'Extra rules placed above everything else. The first rule that matches an item wins.', rulesBox), section('New rule', null, newRule)],
     price: [sectionWith('Value tiers', 'Highlights valuable drops using current poe.ninja prices.',
       toggle(!!eco.enabled, async (v) => { await saveEco(v); if (v) ecoRules = await call('filter:economyRules'); renderFilters(); }, 'Use in my filter'),
+      h('div', { class: 'row small', style: { marginBottom: '10px' } }, h('span', { class: 'muted' }, 'Prices in'), unitSel, divNote),
       tiersBox,
       h('div', { class: 'row', style: { marginTop: '10px' } },
         h('span', { class: 'small faint' }, 'Prices refresh at most every ', `${st.ninjaTtlMin} minutes. Writing the filter uses the latest prices.`),
@@ -715,6 +737,28 @@ function updateBox() {
   return [h('span', {}, h('b', {}, `Version ${S.settings.version}`)), text, btns];
 }
 
+function gameSoundRows(st) {
+  const map = st.gameSoundFiles || {};
+  const save = async (next) => { await call('settings:set', { gameSoundFiles: next }); S.settings.gameSoundFiles = next; window.UI.setGameSounds(next); renderSettings(); };
+  return h('div', { class: 'gs-grid' }, Array.from({ length: 16 }, (_, i) => {
+    const n = String(i + 1);
+    const file = map[n];
+    return h('div', { class: 'gs-row' + (file ? ' has' : '') },
+      h('b', {}, `Game sound ${n}`),
+      file ? h('span', { class: 'row', style: { gap: '6px' } },
+        h('button', { class: 'play', type: 'button', 'aria-label': `Play game sound ${n}`, onclick: () => window.UI.playSound(`game:${n}`) }, '▶'),
+        h('button', { class: 'quiet sm', onclick: () => { const next = { ...map }; delete next[n]; save(next); } }, 'Remove'))
+        : window.UI.fileDropZone('Drop a recording or click', '.mp3,.wav,.ogg', async (f) => {
+          if (!/\.(mp3|wav|ogg)$/i.test(f.name)) return toast('Use an .mp3, .wav or .ogg file', true);
+          try {
+            const snd = await call('sounds:import', { name: `game sound ${n}.${f.name.split('.').pop()}`, data: await window.UI.fileToBase64(f) });
+            await save({ ...map, [n]: snd.id });
+            window.UI.playSound(`game:${n}`);
+          } catch { /* toast */ }
+        }));
+  }));
+}
+
 function appIconBox(st) {
   const img = h('img', { alt: 'Current icon', width: 48, height: 48, style: { borderRadius: '8px', background: '#0003', objectFit: 'contain' } });
   call('appIcon:get').then((u) => { img.src = u; }).catch(() => {});
@@ -789,6 +833,8 @@ async function renderSettingsNow() {
     notesSection(await call('app:changelog').catch(() => [])),
     section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
       h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
+    section('Game sound previews', 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). They are part of the game, so PoE Helper can\'t include them. Drop in your own recording of a sound once and every ▶ for it plays that recording. Previews only: the filter keeps the real in-game sound.',
+      h('div', { class: 'panel' }, gameSoundRows(st))),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',
       h('div', { class: 'panel row', style: { gap: '16px' } }, appIconBox(st))),
     section('Map warnings', 'Turn on the mods your build can\'t run. A # stands for any number.',

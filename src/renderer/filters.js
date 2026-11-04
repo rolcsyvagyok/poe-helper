@@ -481,38 +481,51 @@ async function renderMyBases(body, view) {
 // $type groups; anything not listed lands in Miscellaneous. `art` is the item whose in-game
 // picture is the icon (loaded from GGG's image server via poe.ninja); `icon` is the fallback.
 const CATEGORIES = [
-  ['Currency & Rewards', [
+  ['Currency', [
     { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], art: 'Divine Orb', icon: 'coin' },
-    { id: 'harvest', name: 'Harvest', match: ['currency->harvest', 'harvest'], art: ['Sacred Crystallised Lifeforce', 'Primal Crystallised Lifeforce'], icon: 'leaf' },
-    { id: 'delirium', name: 'Delirium', match: ['currency->deliriumorbs', 'delirium'], art: ["Diviner's Delirium Orb", 'Fine Delirium Orb', '*DeliriumOrb'], icon: 'orb' },
-    { id: 'scarab', name: 'Scarab', match: ['fragments->scarabs', 'scarabs'], art: ['*Scarab'], icon: 'scarab' },
-    { id: 'essence', name: 'Essence', match: ['currency->essence', 'essence'], art: ['Deafening Essence of Greed', 'Essence of Horror', '*Essence'], icon: 'flame' },
-    { id: 'fossil', name: 'Fossil', match: ['currency->fossil', 'fossil'], art: ['Fractured Fossil', 'Faceted Fossil', '*Fossil'], icon: 'rock' },
-    { id: 'oil', name: 'Oil', match: ['currency->oil', 'oil'], art: ['Golden Oil', 'Silver Oil', '*Oil'], icon: 'drop' },
-    { id: 'trial', name: 'Trial', match: ['currency->trial'], art: ['Omen of Amelioration', '*Omen'], icon: 'eye' },
-    { id: 'splinter', name: 'Splinter', match: ['currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Timeless Maraketh Splinter', 'Splinter of Xoph', '*Fragment'], icon: 'shard' },
-    { id: 'uniques', name: 'Unique items', match: ['uniques'], art: ['Headhunter', 'Mageblood', '*UniqueAccessory'], icon: 'crown' },
+  ]],
+  ['Fragments', [
+    { id: 'scarab', name: 'Scarab', match: ['fragments->scarabs', 'scarabs'], art: ['Delirium Scarab of Paranoia', '*Scarab'], icon: 'scarab' },
+    { id: 'fragments', name: 'Other fragments', match: ['fragments', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
+  ]],
+  ['League mechanics', [
+    { id: 'delirium', name: 'Delirium', match: ['currency->deliriumorbs', 'delirium'], art: ['Fine Delirium Orb', '*DeliriumOrb'], icon: 'orb' },
+    { id: 'harvest', name: 'Harvest', match: ['currency->harvest', 'harvest'], art: ['Vivid Crystallised Lifeforce', 'Primal Crystallised Lifeforce'], icon: 'leaf' },
+    { id: 'blight', name: 'Blight', match: ['currency->oil', 'oil'], art: ['Golden Oil', '*Oil'], icon: 'drop' },
+    { id: 'ritual', name: 'Ritual', match: ['corpses', 'currency->trial->omen', 'omen'], art: ['Ritual Vessel', '*Omen'], icon: 'eye' },
+    { id: 'essence', name: 'Essence', match: ['currency->essence', 'essence'], art: ['Deafening Essence of Dread', '*Essence'], icon: 'flame' },
+    { id: 'kingsmarch', name: 'Kingsmarch', match: ['currency->trial->tattoo', 'runesgrafts', 'tattoo'], art: ['Tattoo of the Kitava Blood Drinker', '*Tattoo'], icon: 'heart' },
+    { id: 'delve', name: 'Delve', match: ['currency->fossil', 'fossil'], art: ['Aetheric Fossil', '*Fossil'], icon: 'rock' },
+  ]],
+  ['Cards & gems', [
     { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['The Doctor', 'The Apothecary', '*DivinationCard'], icon: 'card' },
     { id: 'gems', name: 'Gems', match: ['gems'], art: "Gemcutter's Prism", icon: 'gem' },
-    { id: 'recipes', name: 'Vendor Recipes', match: ['rr', '6l', 'socketslinks', 'endgamergb'], art: 'Chromatic Orb', icon: 'link' },
+  ]],
+  ['Rare items', [
+    { id: 'mybases', name: 'My bases', match: [], special: 'mybases', art: null, icon: 'hammer' },
+    { id: 'rares', name: 'Rares', match: ['rare', 'rareid', 'rareblendid', 'rareoptional', 'corruptedid', 'influenced', 'animatedweapons'], art: 'Orb of Alchemy', icon: 'sword' },
+    { id: 'crafting', name: 'Crafting bases', match: ['crafting', 'normalcraft', 'gear', 'magicid'], art: 'Orb of Fusing', icon: 'hammer' },
+    { id: 'special', name: 'Special bases', match: ['exoticbases', 'exoticbaseslower', 'exotic', 'exoticmods'], art: 'Fracturing Orb', icon: 'bolt' },
+    { id: 'chancing', name: 'Chancing bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
+    { id: 'recipes', name: 'Vendor recipes', match: ['rr', '6l', 'socketslinks', 'endgamergb'], art: 'Chromatic Orb', icon: 'link' },
+    { id: 'jewels', name: 'Jewels, flasks, tinctures', match: ['jewels', 'endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
+    { id: 'highlight', name: 'Highlight specific bases', match: ['decorators'], art: 'Orb of Annulment', icon: 'sparkle' },
+  ]],
+  ['Uniques & endgame', [
+    { id: 'uniques', name: 'Unique items', match: ['uniques'], art: ['Headhunter', 'Mageblood', '*UniqueAccessory'], icon: 'crown' },
+    { id: 'maps', name: 'Maps, contracts, logbooks', match: ['maps', 'exoticmap', 'charts', 'heist', 'heisttarget', 'expedition', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'map' },
     { id: 'gold', name: 'Gold', match: ['gold'], art: null, icon: 'coins' },
-    { id: 'league', name: 'Current League', match: ['event'], art: null, icon: 'star' },
-    { id: 'fragments', name: 'Fragments', match: ['fragments'], art: ['Sacrifice at Dawn', 'Fragment of the Phoenix', '*Fragment'], icon: 'shard' },
-    { id: 'maps', name: 'Endgame - Maps, Contracts, Logbooks etc', match: ['maps', 'exoticmap', 'charts', 'heist', 'heisttarget', 'expedition', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'map' },
-    { id: 'rares', name: 'Endgame - Rares', match: ['rare', 'rareid', 'rareblendid', 'rareoptional', 'corruptedid', 'influenced', 'animatedweapons'], art: 'Orb of Alchemy', icon: 'sword' },
-    { id: 'crafting', name: 'Endgame - Special Bases & Crafting', match: ['exoticbases', 'exoticbaseslower', 'crafting', 'exotic', 'exoticmods', 'magicid', 'normalcraft', 'gear'], art: 'Orb of Fusing', icon: 'hammer' },
-    { id: 'jewels', name: 'Endgame - Jewels, Flasks, Tinctures', match: ['jewels', 'endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
-    { id: 'highlight', name: 'Endgame - Highlight specific bases', match: ['decorators'], art: 'Orb of Annulment', icon: 'sparkle' },
+    { id: 'league', name: 'Current league', match: ['event'], art: null, icon: 'star' },
   ]],
   ['Campaign (level 1-67)', [
     { id: 'leveling', name: 'Campaign & Leveling', match: ['leveling'], art: 'Scroll of Wisdom', icon: 'leaf' },
   ]],
   ['Miscellaneous', [
-    { id: 'leaguespecific', name: 'League-specific items and mods', match: ['vials', 'runesgrafts', 'corpses', 'enshrouded', 'artefact'], art: 'Vaal Orb', icon: 'bolt' },
-    { id: 'chancing', name: 'Chancing Bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
+    { id: 'leaguespecific', name: 'League-specific items and mods', match: ['vials', 'enshrouded', 'artefact'], art: 'Vaal Orb', icon: 'bolt' },
     { id: 'misc', name: 'Miscellaneous', match: [], art: 'Orb of Scouring', icon: 'box' },
   ]],
 ];
+
 // ---- your own layout on top of the defaults (Edit categories) ----
 // categoryLayout = { names: {catId: name}, assign: {type: catId}, custom: [{id, name, section}], order: {section: [catId]} }
 const layout = () => S.settings.categoryLayout || {};
@@ -710,6 +723,14 @@ function sidebar(view, changedTypes) {
       open ? h('div', { class: 'fb-cat-subs' }, list.map((t) => row(t, { sub: true, label: subLabel(t, cat) }))) : null);
   };
 
+  // My bases: your own list, opens its own page
+  const myBasesRow = (cat) => h('div', { class: 'fb-cat' + (FB.type === MY_BASES ? ' current' : '') },
+    h('div', { class: 'fb-cat-bar' + (FB.type === MY_BASES ? ' active' : '') },
+      h('button', { class: 'fb-cat-main', onclick: () => select(MY_BASES) },
+        h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
+        h('span', { class: 'n' }, cat.name),
+        h('span', { class: 'c small faint' }, String((S.settings.myBases || []).filter((e) => e.enabled !== false).length || '')))));
+
   // ---- edit mode: rename, add, reorder, and move subcategories ----
   const sections = effectiveCategories();
   const L = layout();
@@ -740,19 +761,19 @@ function sidebar(view, changedTypes) {
         h('button', { class: 'fb-mini', title: 'Move up', 'aria-label': `Move ${cat.name} up`, disabled: idx === 0, onclick: () => move(-1) }, '↑'),
         h('button', { class: 'fb-mini', title: 'Move down', 'aria-label': `Move ${cat.name} down`, disabled: idx === count - 1, onclick: () => move(1) }, '↓'),
         cat.custom ? h('button', { class: 'fb-mini danger', title: 'Delete this category', 'aria-label': `Delete ${cat.name}`, onclick: remove }, '×') : null),
-      h('div', { class: 'fb-cat-subs' },
+      cat.special ? null : h('div', { class: 'fb-cat-subs' },
         list.length ? list.map((t) => {
           const sel = h('select', { 'aria-label': `Move ${t.label} to`, onchange: (e) => {
             const to = e.target.value;
             const assign = { ...(L.assign || {}), [t.type]: to };
             saveLayout({ ...L, assign });
-          } }, sections.map(([sec, cats]) => h('optgroup', { label: sec }, cats.map((c) => h('option', { value: c.id, selected: c.id === cat.id }, c.name)))));
+          } }, sections.map(([sec, cats]) => h('optgroup', { label: sec }, cats.filter((c) => !c.special).map((c) => h('option', { value: c.id, selected: c.id === cat.id }, c.name)))));
           const r = h('div', { class: 'fb-editsub', draggable: 'true', title: 'Drag onto another category, or pick one' },
             h('span', { class: 'grip', 'aria-hidden': 'true' }, '⠿'), h('span', { class: 'n' }, t.label), sel);
           r.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-poe-type', t.type); e.dataTransfer.effectAllowed = 'move'; });
           return r;
         }) : h('div', { class: 'small faint', style: { padding: '6px 8px' } }, 'Empty. Drag subcategories here.')));
-    box.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-type')) { e.preventDefault(); box.classList.add('drop-target'); } });
+    if (!cat.special) box.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-type')) { e.preventDefault(); box.classList.add('drop-target'); } });
     box.addEventListener('dragleave', (e) => { if (!box.contains(e.relatedTarget)) box.classList.remove('drop-target'); });
     box.addEventListener('drop', (e) => {
       const type = e.dataTransfer.getData('text/x-poe-type');
@@ -783,17 +804,12 @@ function sidebar(view, changedTypes) {
   const pinned = pins.map((p) => view.types.find((t) => t.type === p)).filter(Boolean);
   return h('nav', { class: 'fb-cats fb-cats-v2' + (editing ? ' edit' : ''), 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(), editBar,
     editing ? h('p', { class: 'small muted', style: { margin: 0 } }, 'Rename categories, reorder them, add your own, and drag subcategories between them. This only changes how the list is organised, not your filter.') : null,
-    !editing ? h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-body' },
-      h('div', { class: 'fb-cat' + (FB.type === MY_BASES ? ' current' : '') }, h('div', { class: 'fb-cat-bar' + (FB.type === MY_BASES ? ' active' : '') },
-        h('button', { class: 'fb-cat-main', onclick: () => select(MY_BASES) },
-          h('span', { class: 'fb-cat-ic' }, window.UI.icon('hammer', { size: 22 })), h('span', { class: 'n' }, 'My bases'),
-          h('span', { class: 'c small faint' }, String((S.settings.myBases || []).filter((e) => e.enabled !== false).length || ''))))))) : null,
     !editing && pinned.length ? h('div', { class: 'fb-sec pinned' }, h('div', { class: 'fb-sec-title' }, 'Pinned'), h('div', { class: 'fb-sec-body' }, pinned.map((t) => row(t)))) : null,
     sections.map(([title, cats]) => {
-      const present = editing ? cats : cats.filter((c) => byCat.has(c.id));
+      const present = editing ? cats : cats.filter((c) => byCat.has(c.id) || c.special);
       if (!present.length) return null;
       return h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-title' }, title),
-        h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : catRow(c, byCat.get(c.id))))),
+        h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : c.special === 'mybases' ? myBasesRow(c) : catRow(c, byCat.get(c.id))))),
         editing ? addBox(title) : null);
     }));
 

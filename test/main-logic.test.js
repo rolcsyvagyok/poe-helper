@@ -330,3 +330,17 @@ test('patch notes and version info come from CHANGELOG.md', () => {
   assert.equal(svc.versionInfo().justUpdated, true);
   assert.equal(svc.versionInfo().updatedFrom, '0.9.0');
 });
+
+test('price tiers in divines are converted with the poe.ninja divine price', async () => {
+  const { svc } = setup();
+  svc.settings.set('economy', { enabled: true, thresholds: { unit: 'divine', top: 1, high: 0.5, mid: 0.1 } });
+  const seen = {};
+  svc.ninja.category = async (league, c) => (c === 'Currency'
+    ? [{ name: 'Divine Orb', chaos: 200 }, { name: 'Exalted Orb', chaos: 12 }]
+    : c === 'DivinationCard' ? [{ name: 'The Doctor', chaos: 250 }, { name: 'The Wolf', chaos: 150 }, { name: 'The Gambler', chaos: 30 }] : []);
+  const rules = await svc.regenerateEconomy({ preview: true });
+  for (const r of rules) for (const c of r.conditions) if (c.keyword === 'BaseType') for (const v of c.values) seen[v] = r.label;
+  assert.match(seen['The Doctor'], />= 200c/, '1 divine = 200c');
+  assert.match(seen['The Wolf'], /100-200c/, '0.5 divine = 100c');
+  assert.match(seen['The Gambler'], /20-100c/, '0.1 divine = 20c');
+});

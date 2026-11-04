@@ -502,6 +502,7 @@ function registerIpc() {
   handle('icons:list', () => services.listIcons());
   handle('update:status', () => updater?.status() || { state: 'idle' });
   handle('app:version', () => services.versionInfo());
+  handle('prices:units', async () => services.currencyUnits(await services.getLeague()));
   handle('app:changelog', () => services.changelog());
   handle('app:notesSeen', () => { s.set('notesShownFor', services.VERSION); return true; });
   handle('update:check', () => updater?.check());
