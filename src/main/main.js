@@ -501,6 +501,9 @@ function registerIpc() {
   handle('sounds:import', (a) => services.importSound(a || {}));
   handle('icons:list', () => services.listIcons());
   handle('update:status', () => updater?.status() || { state: 'idle' });
+  handle('app:version', () => services.versionInfo());
+  handle('app:changelog', () => services.changelog());
+  handle('app:notesSeen', () => { s.set('notesShownFor', services.VERSION); return true; });
   handle('update:check', () => updater?.check());
   handle('update:install', () => { quitting = true; return updater?.install() || false; });
   handle('tiers:add', (a) => services.addTier(a || {}));

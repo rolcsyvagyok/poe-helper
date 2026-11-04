@@ -609,3 +609,14 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .fb-newtier-btn { display: flex; justify-content: flex-end; margin: -4px 0 8px; }
 .fb-preview { width: 290px; }
 .update-banner { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--accent); box-shadow: 0 12px 30px #000a; font-size: 13.5px; }
+/* version + patch notes */
+.version-line { all: unset; cursor: pointer; display: block; font-size: 12px; line-height: 1.45; color: var(--muted); border-radius: 4px; }
+.version-line:hover { color: var(--text); }
+.version-line:focus-visible { outline: 2px solid var(--accent); }
+.notes-entry { border-top: 1px solid var(--line-soft); padding: 8px 0; }
+.notes-entry:first-child { border-top: 0; }
+.notes-entry summary { cursor: pointer; font-size: 14px; }
+.notes-body { padding: 6px 0 2px; font-size: 13.5px; color: var(--muted); }
+.notes-body p { margin: 4px 0; }
+.notes-list { margin: 4px 0; padding-left: 20px; display: grid; gap: 5px; }
+.notes-list b { color: var(--text); }

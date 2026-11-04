@@ -38,7 +38,76 @@ async function refreshState() {
   mount($('sideFoot'),
     h('div', {}, h('span', { class: 'league-chip' }, S.league), S.settings.leagueOverride ? '' : h('span', { class: 'faint' }, ' (auto)')),
     h('div', {}, `${u?.total ?? 0} of ${S.usage?.ggg?.dailyBudget ?? '–'} GGG requests today`),
-    h('div', { class: 'faint' }, `Version ${S.settings.version}`));
+    versionLine());
+  if (!S.ver) {
+    S.ver = await call('app:version').catch(() => null);
+    if (S.ver) {
+      mount($('sideFoot').lastChild, versionLine());
+      // just updated: point at the patch notes once
+      if (S.ver.justUpdated && !S.ver.notesShown) whatsNewBanner();
+    }
+  }
+}
+
+// ---------------- version and patch notes ----------------
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
+function versionLine() {
+  const v = S.ver;
+  return h('button', { class: 'version-line', title: 'Read the patch notes', onclick: () => openNotes() },
+    h('span', {}, `Version ${v?.version || S.settings.version}`),
+    v?.releasedAt ? h('span', { class: 'faint' }, ` · released ${fmtDate(v.releasedAt)}`) : null,
+    v?.updatedAt ? h('div', { class: 'faint' }, v.updatedFrom ? `Updated from ${v.updatedFrom} on ${fmtDate(v.updatedAt)}` : `Installed ${fmtDate(v.updatedAt)}`) : null);
+}
+function openNotes() {
+  go('settings');
+  // the settings page builds asynchronously; scroll once the notes are there
+  let tries = 0;
+  const jump = () => { const n = document.getElementById('patch-notes'); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); else if (tries++ < 20) setTimeout(jump, 100); };
+  setTimeout(jump, 50);
+  call('app:notesSeen').catch(() => {});
+  document.querySelector('.whatsnew-banner')?.remove();
+}
+function whatsNewBanner() {
+  const bar = h('div', { class: 'update-banner whatsnew-banner', role: 'status' },
+    h('span', {}, `Updated to ${S.ver.version}.`),
+    h('button', { class: 'primary sm', onclick: () => openNotes() }, "See what's new"),
+    h('button', { class: 'quiet sm', onclick: () => { call('app:notesSeen').catch(() => {}); bar.remove(); } }, 'Close'));
+  document.body.append(bar);
+}
+/** Tiny, safe markdown: "- " bullets, **bold**, `code`. Built from DOM nodes, never innerHTML. */
+function mdInline(text) {
+  const out = [];
+  const re = /\*\*([^*]+)\*\*|`([^`]+)`/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(m[1] != null ? h('b', {}, m[1]) : h('code', {}, m[2]));
+    last = re.lastIndex;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+function mdBlock(md) {
+  const nodes = [];
+  let list = null;
+  for (const line of String(md || '').split('\n')) {
+    const t = line.trim();
+    if (!t) { list = null; continue; }
+    if (/^[-*] /.test(t)) {
+      if (!list) { list = h('ul', { class: 'notes-list' }); nodes.push(list); }
+      list.append(h('li', {}, mdInline(t.slice(2))));
+    } else { list = null; nodes.push(h('p', {}, mdInline(t))); }
+  }
+  return nodes;
+}
+function notesSection(entries) {
+  const open = new Set([entries[0]?.version]);
+  return section('Patch notes', 'What changed in each version. The newest is on top.',
+    h('div', { class: 'panel stack notes', id: 'patch-notes' },
+      entries.length ? entries.map((e, i) => h('details', { open: open.has(e.version) || null, class: 'notes-entry' },
+        h('summary', {}, h('b', {}, `Version ${e.version}`), e.date ? h('span', { class: 'faint' }, ` · ${fmtDate(e.date)}`) : null, e.version === S.ver?.version ? h('span', { class: 'pill', style: { marginLeft: '8px' } }, 'yours') : null),
+        h('div', { class: 'notes-body' }, mdBlock(e.notes)))) : h('p', { class: 'small muted' }, 'No patch notes in this copy.')));
 }
 
 // ---------------- shared bits ----------------
@@ -717,6 +786,7 @@ async function renderSettingsNow() {
         toggle(!!st.minimizeToTray, (v) => call('settings:set', { minimizeToTray: v }).then(() => toast(v ? 'Minimizing now hides PoE Helper in the tray' : 'Minimizing keeps PoE Helper in the taskbar')), 'Minimize to the tray instead of the taskbar'),
         h('div', { class: 'row' }, h('button', { onclick: () => call('tray:hide') }, 'Hide to tray now'),
           h('span', { class: 'small muted' }, 'Closing the window also keeps PoE Helper running in the tray, so Alt+E keeps working. Click the tray icon to open it again; right-click it and choose Quit to close it for good.')))),
+    notesSection(await call('app:changelog').catch(() => [])),
     section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
       h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',

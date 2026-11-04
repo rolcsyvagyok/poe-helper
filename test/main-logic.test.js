@@ -304,3 +304,29 @@ test('currency gets a Giga tier above Tier 1 once, with the mirror-level items',
   svc.removeTier({ type: 'currency', tier: 'poehelper-giga' });
   assert.notEqual(svc.tierViewNow().types.find((t) => t.type === 'currency').tiers[0].tier, 'poehelper-giga', 'stays deleted');
 });
+
+test('a synced filter renamed on FilterBlade is still found when it is the only one', () => {
+  const { FilterManager } = require('../src/core/filter/manager');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-online2-'));
+  fs.mkdirSync(path.join(dir, 'OnlineFilters'));
+  fs.writeFileSync(path.join(dir, 'OnlineFilters', 'NewId123'), '#Online Item Filter\n#name:3.29 Mapping\nShow # $type->currency $tier->t1\n\tBaseType == "Divine Orb"\n');
+  const st = { filterDir: dir, baseFilter: 'OnlineFilters/go8d2vcE', baseFilterName: '3.29 Leg Start' };
+  const m = new FilterManager({ store: { get: (k) => st[k], set: (k, v) => { st[k] = v; } } });
+  assert.equal(m.basePath(), path.join(dir, 'OnlineFilters', 'NewId123'));
+  assert.equal(st.baseFilterName, '3.29 Mapping');
+});
+
+test('patch notes and version info come from CHANGELOG.md', () => {
+  const { svc } = setup();
+  const notes = svc.changelog();
+  assert.ok(notes.length >= 1);
+  assert.equal(notes[0].version, require('../package.json').version, 'the current version has patch notes');
+  assert.match(notes[0].date, /^\d{4}-\d{2}-\d{2}$/);
+  const v = svc.versionInfo();
+  assert.equal(v.version, notes[0].version);
+  assert.equal(v.releasedAt, notes[0].date);
+  assert.equal(v.justUpdated, false, 'first run is an install, not an update');
+  svc.settings.set('versionSeen', { version: '0.9.0', at: 1 });
+  assert.equal(svc.versionInfo().justUpdated, true);
+  assert.equal(svc.versionInfo().updatedFrom, '0.9.0');
+});

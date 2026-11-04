@@ -39,6 +39,8 @@ const DEFAULT_SETTINGS = {
   trayHintShown: false,
   categoryIcons: {}, // type -> built-in icon name or "img:<file>"
   baseFilterName: null, // the chosen filter's name, to find it again if the game renames the file
+  versionSeen: null, // {version, at, from}: when this copy first ran its current version
+  notesShownFor: null, // version whose patch notes you already saw
   gigaDone: false, // the default Giga tier in currency was set up once
   myBases: [], // [{id, base, ilvlMin, ilvlMax, rarities, enabled}]
   myBasesStyle: null, // look of My bases (null = the default teal)
@@ -208,6 +210,33 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const rules = economyRules(prices, { ...eco?.thresholds, sounds: { ...DEFAULT_TIER_SOUNDS, ...(eco?.thresholds?.sounds || {}) } });
     filters.setEconomy(eco?.enabled ? rules : []);
     return rules;
+  }
+
+  // ---------- version and patch notes ----------
+  /** CHANGELOG.md -> [{version, date, notes: markdown lines}] newest first. */
+  function changelog() {
+    let text = '';
+    try { text = require('fs').readFileSync(path.join(__dirname, '..', '..', 'CHANGELOG.md'), 'utf8'); } catch { return []; }
+    const out = [];
+    for (const part of text.split(/^## /m).slice(1)) {
+      const [head, ...body] = part.split('\n');
+      const m = /^(\S+)\s*(?:-\s*(\d{4}-\d{2}-\d{2}))?/.exec(head.trim());
+      if (m) out.push({ version: m[1], date: m[2] || null, notes: body.join('\n').trim() });
+    }
+    return out;
+  }
+  /** Remembers when this copy first ran each version, so the app can say "updated on ...". */
+  function versionInfo() {
+    const notes = changelog();
+    const mine = notes.find((n) => n.version === VERSION) || null;
+    let seen = settings.get('versionSeen') || null;
+    let justUpdated = false;
+    if (!seen || seen.version !== VERSION) {
+      justUpdated = !!seen; // a previous version ran here before
+      seen = { version: VERSION, at: Date.now(), from: seen?.version || null };
+      settings.set('versionSeen', seen);
+    }
+    return { version: VERSION, releasedAt: mine?.date || null, updatedAt: seen.at, updatedFrom: seen.from, justUpdated, notesShown: settings.get('notesShownFor') === VERSION };
   }
 
   // ---------- item pictures for the category list ----------
@@ -683,6 +712,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       for (const [g, n] of counts) groups.push({ id: g, label: tiers.typeLabel(g), tiers: n });
     }
     return {
+      missing: filters.missing(),
       presets: designer.PRESETS,
       themes: settings.get('designerThemes') || [],
       draft: { levels: d.lockTier1 === false ? levels : designer.lockTier1(levels), presetId: d.presetId || null, lockTier1: d.lockTier1 !== false, groups: d.groups || null },
@@ -831,7 +861,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

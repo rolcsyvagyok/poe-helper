@@ -51,6 +51,12 @@ function draw() {
   if (D.lock) lockT1();
   mount(el,
     pageHead('Tier designer', 'Design how Tier 1 to Tier 6 look, then apply it to every category in your filter at once.'),
+    !D.state.hasFilter || !D.state.groups?.length ? h('div', { class: 'panel row', style: { borderColor: 'var(--warn)', marginBottom: '16px' } },
+      h('span', { style: { flex: 1 } }, D.state.missing
+        ? `Your filter${D.state.missing.name ? ` "${D.state.missing.name}"` : ''} isn't in the filter folder any more (the game may have saved it under a new name when it synced). Pick it again on the Loot filter page and its tiers show up here.`
+        : !D.state.hasFilter ? 'Choose your FilterBlade filter on the Loot filter page first; the designer works on its tiers.'
+          : 'Your filter has no tiers named Tier 1 to Tier 6, so there is nothing for a design to restyle.'),
+      h('button', { class: 'primary sm', onclick: () => document.querySelector('button[data-page="filters"]')?.click() }, 'Open Loot filter')) : null,
     gallery(),
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', {}, 'Design'), h('p', {}, 'Click a drop in the preview or a tier below to edit it.')),

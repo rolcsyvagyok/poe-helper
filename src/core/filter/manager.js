@@ -389,6 +389,8 @@ class FilterManager {
     if (!found) return null;
     this.log('chosen filter moved', this.store.get('baseFilter'), '->', found.name);
     this.store.set('baseFilter', found.name);
+    this.store.set('baseFilterName', String(found.display).replace(/ \(synced from FilterBlade\)$/, ''));
+    this._nameNoted = found.path;
     this.lastSwitch = { from: path.basename(p), to: found.display, at: Date.now() };
     return found.path;
   }
@@ -397,9 +399,14 @@ class FilterManager {
   findReplacement() {
     const helper = this.store.get('lastWrite')?.target;
     const wanted = this.store.get('baseFilterName') || (helper ? path.basename(helper).replace(new RegExp(`${HELPER_SUFFIX.replace(/[()]/g, '\\$&')}\\.filter$`), '') : null);
-    if (!wanted) return null;
     const key = (x) => String(x).toLowerCase().replace(/ \(synced from filterblade\)$/, '').trim();
-    return this.list().find((f) => key(f.display) === key(wanted)) || null;
+    const all = this.list();
+    const byName = wanted ? all.find((f) => key(f.display) === key(wanted)) : null;
+    if (byName) return byName;
+    // renamed on FilterBlade too: if the old one was synced and there is exactly one synced filter now, it's that one
+    const wasOnline = /^OnlineFilters[\\/]/.test(String(this.store.get('baseFilter') || ''));
+    const online = all.filter((f) => f.online);
+    return wasOnline && online.length === 1 ? online[0] : null;
   }
 
   /** Name of the chosen filter if its file is gone and nothing could replace it. */

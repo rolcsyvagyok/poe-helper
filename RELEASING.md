@@ -56,9 +56,19 @@ npm install
 
 ## 5. Publish a version (every time)
 
-1. Open `package.json` and raise `"version"`, for example `0.7.0` → `0.7.1`. It must be higher than
+1. Open `package.json` and raise `"version"`, for example `1.0.0` → `1.0.1`. It must be higher than
    the last release, or nobody gets the update.
-2. In the PoE Helper folder run:
+2. Open `CHANGELOG.md` and add a section on top for that version, for example:
+
+   ```
+   ## 1.0.1 - 2026-11-10
+
+   - **Fixed** the tier designer not finding your filter.
+   ```
+
+   This text becomes the GitHub release text and the patch notes everyone sees in the app
+   (Settings → Patch notes). The release stops with a message if the section is missing.
+3. In the PoE Helper folder run:
 
 ```
 npm run release
@@ -68,8 +78,6 @@ This builds `PoE-Helper-Setup-<version>.exe` and uploads it with `latest.yml` (w
 copies read) to a new release at https://github.com/rolcsyvagyok/poe-helper/releases.
 It takes a few minutes the first time.
 
-Optional: on the release page press **Edit** and write what changed. That text is shown to people
-when the update is ready.
 
 ## For your friends (once)
 

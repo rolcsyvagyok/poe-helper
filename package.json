@@ -1,7 +1,7 @@
 {
   "name": "poe-helper",
   "productName": "PoE Helper",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "description": "Path of Exile helper: price check overlay, net worth tracking, local loot filter overrides. Built to make as few API calls as possible.",
   "main": "src/main/main.js",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "dist": "electron-builder --win --publish never",
     "dist:dir": "electron-builder --win --dir",
     "dist:linux": "electron-builder --linux AppImage",
-    "release": "electron-builder --win --publish always"
+    "release": "node scripts/release-notes.js && electron-builder --win --publish always"
   },
   "devDependencies": {
     "electron": "^42.0.0",
@@ -29,7 +29,8 @@
     "files": [
       "src/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "CHANGELOG.md"
     ],
     "asarUnpack": [
       "node_modules/uiohook-napi/**"
@@ -68,7 +69,10 @@
         "repo": "poe-helper",
         "releaseType": "release"
       }
-    ]
+    ],
+    "releaseInfo": {
+      "releaseNotesFile": "build/release-notes.md"
+    }
   },
   "repository": {
     "type": "git",
