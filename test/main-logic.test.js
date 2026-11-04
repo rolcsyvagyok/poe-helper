@@ -1,0 +1,306 @@
+'use strict';
+// End-to-end tests of the wired services (everything except Electron itself).
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const F = require('./fixtures');
+const { createServices } = require('../src/main/services');
+
+function fakeFetch(log) {
+  return async (url, opts = {}) => {
+    log.push(url);
+    const ok = (body, headers = {}) => ({ status: 200, ok: true, headers: new Map(Object.entries({ etag: 'e1', ...headers })), json: async () => body });
+    if (url.includes('/economy/leagues')) return ok([{ id: 'Allflame', name: 'Curse of the Allflame' }, { id: 'Standard', name: 'Standard' }]);
+    if (url.includes('currency/overview')) return ok({ lines: [{ currencyTypeName: 'Divine Orb', chaosEquivalent: 180 }, { currencyTypeName: 'Exalted Orb', chaosEquivalent: 12 }] });
+    if (url.includes('type=DivinationCard')) return ok({ core: { primary: 'chaos', items: [{ id: 'a', name: 'The Apothecary' }, { id: 'w', name: 'The Wolf' }] }, lines: [{ id: 'a', primaryValue: 9000 }, { id: 'w', primaryValue: 30 }] });
+    if (url.includes('/exchange/')) return ok({ core: { primary: 'chaos', items: [] }, lines: [] });
+    if (url.includes('type=UniqueArmour')) return ok({ lines: [{ name: "Kaom's Heart", baseType: 'Glorious Plate', chaosValue: 50, listingCount: 30 }] });
+    if (url.includes('/item/overview')) return ok({ lines: [] });
+    if (url.includes('get-stash-items')) {
+      assert.equal(opts.headers.Cookie, 'POESESSID=0123456789abcdef0123456789abcdef');
+      const rl = { 'x-rate-limit-rules': 'Account', 'x-rate-limit-account': '30:60:60', 'x-rate-limit-account-state': '1:60:0' };
+      if (url.includes('tabs=1')) return ok({ tabs: [{ i: 0, n: 'Currency', id: 't0', type: 'CurrencyStash' }, { i: 1, n: 'Dump', id: 't1', type: 'PremiumStash' }], items: [{ frameType: 5, typeLine: 'Divine Orb', stackSize: 5 }] }, rl);
+      return ok({ items: [{ frameType: 6, typeLine: 'The Apothecary', stackSize: 1 }] }, rl);
+    }
+    return { status: 404, ok: false, headers: new Map(), json: async () => ({}) };
+  };
+}
+
+function setup(opts = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-svc-'));
+  const filterDir = path.join(dir, 'filters');
+  fs.mkdirSync(filterDir);
+  fs.writeFileSync(path.join(filterDir, 'NeverSink.filter'), F.filter);
+  const log = [];
+  const secrets = { encrypt: (s) => 'x:' + s, decrypt: (v) => (v ? v.slice(2) : null) };
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets, fetchImpl: fakeFetch(log), log: () => {} });
+  // older tests check exact tier lists; the default Giga tier has its own test
+  if (!opts.giga) svc.settings.set('gigaDone', true);
+  return { svc, log, filterDir };
+}
+
+test('price check uses poe.ninja only and auto-detects league', async () => {
+  const { svc, log } = setup();
+  const r = await svc.priceText(F.divCard);
+  assert.equal(r.price.league, 'Allflame');
+  assert.equal(r.price.chaos, 9000);
+  assert.ok(log.every((u) => u.includes('poe.ninja')), 'no GGG calls');
+  assert.equal(svc.usageSnapshot().ggg.today.total, 0);
+  assert.equal(svc.settings.get('history')[0].name, 'The Apothecary');
+});
+
+test('net worth snapshot: tab list + tab 0 reused, 1 extra request for tab 1', async () => {
+  const { svc, log } = setup();
+  svc.settings.patch({ accountName: 'Me#1234', sessionEnc: 'x:0123456789abcdef0123456789abcdef', selectedTabs: [0, 1] });
+  const snap = await svc.networth.takeSnapshot();
+  const stashCalls = log.filter((u) => u.includes('get-stash-items'));
+  assert.equal(stashCalls.length, 2, 'tab list (incl. tab 0 items) + tab 1');
+  assert.equal(snap.totalChaos, 5 * 180 + 9000);
+  assert.equal(snap.byTab.Currency, 900);
+  // Accidental double snapshot within 60s: everything is reused, zero new requests
+  await svc.networth.takeSnapshot();
+  assert.equal(log.filter((u) => u.includes('get-stash-items')).length, 2);
+  const rep = svc.networth.report('Allflame');
+  assert.equal(rep.series.length, 2);
+  assert.equal(svc.usageSnapshot().ggg.today.byKey.stash, 2);
+});
+
+test('filter quick rule + economy tiers write a valid helper file next to the base', async () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter', economy: { enabled: true, thresholds: { top: 100, high: 20, mid: 5 } } });
+  await svc.regenerateEconomy();
+  const { target } = svc.quickFilter('hide', F.normalBase);
+  assert.equal(path.basename(target), 'NeverSink (helper).filter');
+  const out = fs.readFileSync(target, 'utf8');
+  assert.match(out, /Hide # Hide normal Vermillion Ring/);
+  assert.match(out, /BaseType == "The Apothecary"/);
+  assert.ok(out.endsWith(F.filter), 'base filter appended untouched');
+  assert.equal(fs.readFileSync(path.join(filterDir, 'NeverSink.filter'), 'utf8'), F.filter, 'base file never modified');
+  // The explainer now reads the helper file, so the override wins
+  const r = await svc.priceText(F.normalBase);
+  assert.equal(r.filterHit.action, 'Hide');
+});
+
+test('tink sounds are referenced with CustomAlertSound and copied next to the filter', async () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter', economy: { enabled: true, thresholds: { top: 100, high: 20, mid: 5, sounds: { top: 'sparkle' } } } });
+  await svc.regenerateEconomy();
+  svc.filters.addOverride({ id: 'x', enabled: true, action: 'Show', label: 'Divines', conditions: [{ keyword: 'BaseType', op: '==', values: ['Divine Orb'] }], style: { customSound: 'poehelper-sounds/coin.mp3' } });
+  const target = svc.filters.write();
+  const out = fs.readFileSync(target, 'utf8');
+  assert.match(out, /CustomAlertSound "poehelper-sounds\/coin\.mp3"/);
+  assert.match(out, /CustomAlertSound "poehelper-sounds\/sparkle\.mp3"/, 'per-tier sound choice used');
+  for (const f of ['coin.mp3', 'sparkle.mp3']) assert.ok(fs.statSync(path.join(filterDir, 'poehelper-sounds', f)).size > 1000, `${f} copied`);
+});
+
+test('FilterBlade flow: move, hide, restyle, theme round-trip; original file untouched', async () => {
+  const { svc, filterDir } = setup();
+  fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter' });
+  const v0 = svc.tierViewNow();
+  assert.equal(v0.types.length, 3);
+
+  svc.moveBases('currency', ['Chaos Orb'], 't2');
+  svc.moveBases('divination', ['Rain of Chaos'], '__hide__');
+  const { target } = svc.setTierStyle('currency|t2', { fontSize: 44, text: [255, 255, 255, 255], background: [120, 0, 200, 255], customSound: 'poehelper-sounds/sparkle.mp3' });
+  const out = fs.readFileSync(target, 'utf8');
+  assert.equal(path.basename(target), 'FilterBlade (helper).filter');
+  assert.match(out, /BaseType == "Exalted Orb" "Orb of Annulment" "Chaos Orb"/);
+  assert.match(out, /\$tier->poehelper-hidden/);
+  assert.match(out, /CustomAlertSound "poehelper-sounds\/sparkle\.mp3"/);
+  assert.ok(fs.existsSync(path.join(filterDir, 'poehelper-sounds', 'sparkle.mp3')));
+  assert.equal(fs.readFileSync(path.join(filterDir, 'FilterBlade.filter'), 'utf8'), F.nsFilter, 'FilterBlade file untouched');
+
+  // Moving back to the original tier removes the edit instead of stacking it
+  svc.moveBases('currency', ['Chaos Orb'], 't4');
+  assert.equal(svc.settings.get('tierPatch').moves['currency\tChaos Orb'], undefined);
+
+  // Overlay info for an item
+  const r = await svc.priceText(`Item Class: Stackable Currency\nRarity: Currency\nExalted Orb\n--------\nStack Size: 1/20`);
+  assert.equal(r.tierInfo.type, 'currency');
+  assert.equal(r.tierInfo.tier, 't2');
+  assert.deepEqual(r.tierInfo.options.map((o) => o.tier), ['t1', 't2', 't4', 't6']);
+
+  // Theme: save, export, wipe, import, apply
+  const theme = svc.saveTheme('Purple currency', { onlyEdited: true });
+  assert.deepEqual(Object.keys(theme.styles), ['currency|t2']);
+  const json = svc.exportTheme(theme.id);
+  svc.resetTiers({ key: 'currency|t2' });
+  const imported = svc.importTheme(json);
+  const res = svc.applyTheme(imported.id);
+  assert.equal(res.applied, 1);
+  assert.deepEqual(res.view.types[0].tiers.find((t) => t.tier === 't2').style.background, [120, 0, 200, 255]);
+  assert.throws(() => svc.importTheme('{"styles":{}}'), /not a PoE Helper theme/);
+});
+
+test('overlay never offers a tier whose conditions the item fails (rare base listed only under uniques)', async () => {
+  const { svc, filterDir } = setup();
+  fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter' });
+  const rare = `Item Class: Body Armours\nRarity: Rare\nGrim Shell\nGlorious Plate\n--------\nItem Level: 86\n--------\nUnidentified`;
+  const r = await svc.priceText(rare);
+  assert.equal(r.tierInfo, null, 'Glorious Plate is only listed in "Rarity Unique" tiers');
+  const uni = await svc.priceText(F.unique);
+  assert.equal(uni.tierInfo.type, 'uniques');
+});
+
+test('Highlight on a random rare matches rares of that base only; Hide covers rare and below', async () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
+  const rare = `Item Class: Two Hand Axes\nRarity: Rare\nCorpse Bite\nVaal Axe\n--------\nItem Level: 86\n--------\nUnidentified`;
+  const normal = `Item Class: Two Hand Axes\nRarity: Normal\nVaal Axe\n--------\nItem Level: 86`;
+  svc.quickFilter('highlight', rare);
+  assert.equal((await svc.priceText(rare)).filterHit.comment, 'Highlight rare Vaal Axe');
+  assert.notEqual((await svc.priceText(normal)).filterHit.comment, 'Highlight rare Vaal Axe', 'normal Vaal Axes are not highlighted');
+  svc.filters.saveOverrides([]);
+  svc.quickFilter('hide', rare);
+  assert.equal((await svc.priceText(normal)).filterHit.action, 'Hide');
+});
+
+test('quick rule with chosen rarities and item level range', async () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
+  const axe = (rar, ilvl, name = '') => `Item Class: Two Hand Axes\nRarity: ${rar}\n${name ? name + '\n' : ''}Vaal Axe\n--------\nItem Level: ${ilvl}`;
+  const { rule } = svc.quickFilter('highlight', axe('Rare', 86, 'Corpse Bite'), { rarities: ['Magic', 'Rare'], ilvlMin: 84, ilvlMax: 86 });
+  assert.equal(rule.label, 'Highlight magic/rare Vaal Axe, ilvl 84-86');
+  const hit = async (t) => (await svc.priceText(t)).filterHit.comment === rule.label;
+  assert.equal(await hit(axe('Rare', 86, 'Corpse Bite')), true);
+  assert.equal(await hit(axe('Magic', 84)), true);
+  assert.equal(await hit(axe('Rare', 83, 'Corpse Bite')), false, 'below the range');
+  assert.equal(await hit(axe('Rare', 87, 'Corpse Bite')), false, 'above the range');
+  assert.equal(await hit(axe('Normal', 85)), false, 'normal not ticked');
+});
+
+test('price review: plans moves from poe.ninja prices, applies them, logs and undoes', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-review-'));
+  const filterDir = path.join(dir, 'filters');
+  fs.mkdirSync(filterDir);
+  // realistic tier sizes: real filters have dozens of cards in the low tiers
+  fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter.replace('BaseType == "Rain of Chaos" "The Carrion Crow"', 'BaseType == "Rain of Chaos" "The Carrion Crow" "Her Mask" "The Gambler" "The Scholar"'));
+  const ex = (pairs) => ({ core: { primary: 'chaos', items: pairs.map(([n], i) => ({ id: 'i' + i, name: n })) }, lines: pairs.map(([, c], i) => ({ id: 'i' + i, primaryValue: c, volumePrimaryValue: 100 })) });
+  const prices = {
+    DivinationCard: [['The Apothecary', 9000], ['House of Mirrors', 4000], ['Rain of Chaos', 0.3], ['The Carrion Crow', 2500], ['Her Mask', 0.5], ['The Gambler', 0.4], ['The Scholar', 0.6]],
+    Currency: [['Divine Orb', 180], ['Mirror of Kalandra', 20000], ['Mirror Shard', 1000], ['Exalted Orb', 14], ['Orb of Annulment', 40], ['Chaos Orb', 1], ['Orb of Alchemy', 0.3], ['Orb of Fusing', 30], ['Portal Scroll', 0.05], ['Scroll of Wisdom', 0.02]],
+  };
+  const fetchImpl = async (url) => {
+    const ok = (b) => ({ status: 200, ok: true, headers: new Map(), json: async () => b });
+    if (url.includes('/economy/leagues')) return ok([{ id: 'Test', name: 'Test' }]);
+    if (url.includes('currency/overview')) return ok({ lines: [] }); // force the exchange fallback for Currency
+    const type = /type=([A-Za-z]+)/.exec(url)?.[1];
+    return ok(prices[type] ? ex(prices[type]) : { core: { items: [] }, lines: [] });
+  };
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl, log: () => {} });
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', gigaDone: true });
+
+  const r = await svc.priceReview();
+  const byType = Object.fromEntries(r.categories.map((c) => [c.type, c]));
+  assert.ok(byType.divination.enabled && byType.currency.enabled, 'default categories are enabled');
+  const divMoves = Object.fromEntries(byType.divination.moves.map((m) => [m.base, m.to]));
+  assert.equal(divMoves['The Carrion Crow'], 't1', 'a hidden card that spiked is promoted');
+  const curMoves = Object.fromEntries(byType.currency.moves.map((m) => [m.base, m.to]));
+  assert.equal(curMoves['Orb of Fusing'], 't2');
+  assert.equal(curMoves['Divine Orb'], undefined, 'items that fit stay put');
+
+  const all = r.categories.flatMap((c) => c.moves.map((m) => ({ ...m, type: c.type })));
+  const { count } = svc.applyReviewMoves(all);
+  assert.equal(count, all.length);
+  const crow = await svc.priceText('Item Class: Divination Cards\nRarity: Divination Card\nThe Carrion Crow\n--------\nStack Size: 1/4');
+  assert.match(crow.filterHit.comment, /\$tier->t1/, 'the game now shows it as tier 1');
+  assert.equal(svc.settings.get('priceReviewLog').length, 1);
+
+  // A second review right after finds nothing left to move
+  const again = await svc.priceReview();
+  assert.equal(again.categories.reduce((a, c) => a + c.moves.length, 0), 0);
+
+  const u = svc.undoLastReview();
+  assert.equal(u.undone, all.length);
+  assert.equal(Object.keys(svc.settings.get('tierPatch').moves).length, 0, 'undo puts everything back');
+
+  // user floors per category change the plan
+  const strict = await svc.priceReview({ overrides: { currency: { thresholds: { t1: 5000 } } } });
+  const sm = Object.fromEntries(strict.categories.find((c) => c.type === 'currency').moves.map((m) => [m.base, m.to]));
+  assert.equal(sm['Divine Orb'], 't2', 'with a 5000c floor for tier 1, Divine Orb drops a tier');
+});
+
+test('tier designer: apply a preset to the whole filter, Tier 1 locked white + tink, undo', async () => {
+  const { svc, filterDir } = setup();
+  fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter' });
+  const st = svc.designerState();
+  assert.equal(st.presets.length, 6);
+  assert.deepEqual(st.groups.map((g) => g.id).sort(), ['currency', 'divination', 'uniques']);
+  // a design that tries to make Tier 1 black gets locked back to white with the tink
+  const levels = { ...st.presets[2].levels, 1: { fontSize: 40, text: [255, 0, 0, 255], background: [0, 0, 0, 255] } };
+  const r = svc.designerApply({ levels, lockTier1: true });
+  assert.equal(r.count, 8);
+  const out = fs.readFileSync(r.target, 'utf8');
+  assert.match(out, /Show # %D5 \$type->currency \$tier->t1\n(?:\t.*\n)*?\tSetBackgroundColor 255 255 255 255\n(?:\t.*\n)*?\tCustomAlertSound "poehelper-sounds\/divine-tink\.mp3"/);
+  assert.ok(fs.existsSync(path.join(filterDir, 'poehelper-sounds', 'divine-tink.mp3')), 'tink copied next to the filter');
+  const divine = await svc.priceText(`Item Class: Stackable Currency\nRarity: Currency\nDivine Orb\n--------\nStack Size: 1/20`);
+  assert.deepEqual(divine.filterHit.style.SetBackgroundColor, ['255', '255', '255', '255']);
+  svc.designerUndo();
+  assert.deepEqual(svc.settings.get('tierPatch').styles, {});
+});
+
+test('magic items: base read from the name; your own sounds are stored and copied next to the filter', () => {
+  const { svc, filterDir } = setup();
+  svc.settings.set('filterDir', filterDir);
+  svc.settings.set('baseFilter', 'NeverSink.filter');
+  const base = svc.tierViewNow().types.flatMap((t) => t.tiers.flatMap((x) => x.bases))[0];
+  assert.equal(svc.magicBaseOf(`Seething ${base} of Grounding`), base);
+  const snd = svc.importSound({ name: 'My Big Drop!.wav', data: Buffer.from('RIFFxxxxWAVE').toString('base64') });
+  assert.equal(snd.id, 'my-big-drop.wav');
+  assert.ok(svc.listSounds().some((s) => s.id === 'my-big-drop.wav' && s.user));
+  assert.match(svc.soundData(snd.id), /^data:audio\/wav;base64,/);
+  assert.throws(() => svc.soundData('../../etc/passwd'));
+  const key = svc.tierViewNow().types[0].tiers[0].key;
+  svc.setTierStyle(key, { text: [255, 255, 255, 255], customSound: 'poehelper-sounds/my-big-drop.wav' });
+  assert.ok(fs.existsSync(path.join(filterDir, 'poehelper-sounds', 'my-big-drop.wav')));
+});
+
+test('category pictures come only from GGG\'s image server, via poe.ninja data', async () => {
+  const { svc } = setup();
+  svc.ninja.category = async (league, c) => (c === 'Currency'
+    ? [{ name: 'Divine Orb', icon: 'https://web.poecdn.com/gen/image/abc/divine.png' }, { name: 'Chromatic Orb', icon: '/gen/image/def/chrom.png' }, { name: 'Orb of Chance', icon: 'https://evil.example/x.png' }]
+    : []);
+  const art = await svc.categoryArt(['Divine Orb', 'Chromatic Orb', 'Orb of Chance']);
+  assert.equal(art['Divine Orb'], 'https://web.poecdn.com/gen/image/abc/divine.png');
+  assert.equal(art['Chromatic Orb'], 'https://web.poecdn.com/gen/image/def/chrom.png');
+  assert.equal(art['Orb of Chance'], undefined);
+});
+
+test('a synced filter the game saved under a new file name is found again', () => {
+  const { FilterManager } = require('../src/core/filter/manager');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-online-'));
+  fs.mkdirSync(path.join(dir, 'OnlineFilters'));
+  const body = '#Online Item Filter\n#name:3.29 Leg Start\n#lastUpdate:x\nShow # $type->currency $tier->t1\n\tBaseType == "Divine Orb"\n';
+  fs.writeFileSync(path.join(dir, 'OnlineFilters', 'go8d2vcE'), body);
+  const st = { filterDir: dir, baseFilter: 'OnlineFilters/go8d2vcE' };
+  const m = new FilterManager({ store: { get: (k) => st[k], set: (k, v) => { st[k] = v; } } });
+  assert.ok(m.basePath());
+  assert.equal(st.baseFilterName, '3.29 Leg Start');
+  // the game drops the old file and saves the same filter under a new id
+  fs.unlinkSync(path.join(dir, 'OnlineFilters', 'go8d2vcE'));
+  fs.writeFileSync(path.join(dir, 'OnlineFilters', 'Zq81LmAa'), body);
+  assert.equal(m.basePath(), path.join(dir, 'OnlineFilters', 'Zq81LmAa'));
+  assert.equal(st.baseFilter, 'OnlineFilters/Zq81LmAa');
+  // gone without a replacement: no crash, a clear "missing"
+  fs.unlinkSync(path.join(dir, 'OnlineFilters', 'Zq81LmAa'));
+  assert.equal(m.basePath(), null);
+  assert.equal(m.missing().name, '3.29 Leg Start');
+  assert.throws(() => m.readBase(), /isn't in the filter folder any more/);
+});
+
+test('currency gets a Giga tier above Tier 1 once, with the mirror-level items', () => {
+  const { svc, filterDir } = setup({ giga: true });
+  svc.settings.set('filterDir', filterDir);
+  svc.settings.set('baseFilter', 'NeverSink.filter');
+  const cur = svc.tierViewNow().types.find((t) => t.type === 'currency');
+  if (!cur) return; // fixture without currency tiers
+  assert.equal(cur.tiers[0].tier, 'poehelper-giga');
+  assert.equal(cur.tiers[0].customName, 'Giga');
+  svc.removeTier({ type: 'currency', tier: 'poehelper-giga' });
+  assert.notEqual(svc.tierViewNow().types.find((t) => t.type === 'currency').tiers[0].tier, 'poehelper-giga', 'stays deleted');
+});

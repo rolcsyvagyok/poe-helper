@@ -1,0 +1,80 @@
+{
+  "name": "poe-helper",
+  "productName": "PoE Helper",
+  "version": "0.7.0",
+  "description": "Path of Exile helper: price check overlay, net worth tracking, local loot filter overrides. Built to make as few API calls as possible.",
+  "main": "src/main/main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/core.test.js test/main-logic.test.js test/tiers.test.js test/hotkeys.test.js",
+    "dist": "electron-builder --win --publish never",
+    "dist:dir": "electron-builder --win --dir",
+    "dist:linux": "electron-builder --linux AppImage",
+    "release": "electron-builder --win --publish always"
+  },
+  "devDependencies": {
+    "electron": "^42.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "optionalDependencies": {
+    "uiohook-napi": "^1.5.4"
+  },
+  "build": {
+    "appId": "dev.poehelper.app",
+    "productName": "PoE Helper",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "PoE-Helper-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PoE Helper",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Game",
+      "icon": "assets/icon.png"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "rolcsyvagyok",
+        "repo": "poe-helper",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rolcsyvagyok/poe-helper.git"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  }
+}

@@ -1,0 +1,1063 @@
+/* Loot filter page, laid out like FilterBlade: categories on the left, tiers on the right,
+   bases as chips you select or drag between tiers, and a look editor per tier.
+   Uses helpers defined in app.js (S, refreshState, pageHead, toggle, soundPicker, renderFilterExtras). */
+(() => {
+'use strict';
+const { h, mount, ago, toast, call, dropLabel, soundButton, playSound, GAME_COLOURS } = window.UI;
+
+const FB = { newTier: false, priceColors: false, collapsed: new Set(), names: {}, catQuery: '', catTimer: null, openGroups: new Set(), closedGroups: new Set(), closedSections: new Set(), review: null, reviewSel: new Set(), reviewOpen: new Set(), reviewBusy: false, tab: 'tiers', type: null, selected: new Set(), search: '', editing: null, draft: null, prices: {}, showSuggestions: false };
+const fmtC = (c) => (c == null || !Number.isFinite(c) ? '' : c < 0.01 ? '<0.01c' : c >= 100 ? `${Math.round(c)}c` : c >= 10 ? `${c.toFixed(0)}c` : c >= 1 ? `${c.toFixed(1).replace(/\.0$/, '')}c` : `${c.toFixed(2).replace(/0$/, '')}c`);
+const HIDE = '__hide__';
+const HIDDEN_TIER = 'poehelper-hidden';
+const COLOURS = Object.keys(GAME_COLOURS);
+const SHAPES = ['Star', 'Circle', 'Diamond', 'Hexagon', 'Square', 'Triangle', 'Cross', 'Moon', 'Raindrop', 'Kite', 'Pentagon', 'UpsideDownHouse'];
+
+// NeverSink's own names for one-off tiers
+const TIER_WORDS = { tportal: 'Portal scrolls', twisdom: 'Wisdom scrolls', tnew: 'New items', restex: 'Everything else', rest: 'Everything else', exhide: 'Hidden extras', hide: 'Hidden', tscroll: 'Scrolls', tscrollfragments: 'Scroll fragments' };
+function tierName(t) {
+  if (t.customName) return t.customName;
+  if (t.tier === HIDDEN_TIER) return 'Hidden by you';
+  if (/^poehelper-/.test(t.tier)) return t.tier.slice(10).replace(/\d+$/, '').replace(/^\w/, (c) => c.toUpperCase()) || 'Your tier';
+  if (TIER_WORDS[t.tier]) return TIER_WORDS[t.tier];
+  // "t2divine" is Tier 2; the word after the number is NeverSink's price hint, shown as "typically ..."
+  const m = /^t(\d+)[a-z]*$/i.exec(t.tier);
+  if (m) return `Tier ${m[1]}`;
+  if (/^ex/.test(t.tier) && t.tier.length > 2) return `Special: ${t.tier.slice(2).replace(/[-_]/g, ' ')}`;
+  return t.tier.replace(/^t(?=[a-z]{3,})/, '').replace(/[-_]/g, ' ').replace(/([a-z])(\d)/g, '$1 $2').replace(/^\w/, (c) => c.toUpperCase());
+}
+
+const TYPE_RARITY = { currency: 'Currency', divination: 'Divination Card', uniques: 'Unique', gems: 'Gem' };
+const rarityFor = (type) => TYPE_RARITY[type.split('->')[0]] || 'Normal';
+
+// ---------------------------------------------------------------- page
+let artRequested = false;
+function loadArt() {
+  if (artRequested) return;
+  artRequested = true;
+  window.poe.call('art:icons', artNames()).then((map) => {
+    if (!Object.keys(map || {}).length) return;
+    window.UI.setArt(map);
+    if (document.querySelector('#page-filters.active')) renderFilters();
+  }).catch(() => { artRequested = false; });
+}
+
+function renderFilters() {
+  loadArt(); return window.UI.keepScroll(() => renderFiltersNow()); }
+async function renderFiltersNow() {
+  await refreshState();
+  const el = $('page-filters');
+  const info = await call('filter:list');
+  let view = null;
+  if (info.base) {
+    try { view = await call('tiers:view'); } catch { view = null; }
+  }
+  const themes = await call('themes:list').catch(() => []);
+  const edits = view ? Object.keys(S.settings.tierPatch?.moves || {}).length + (view.editedStyles || []).length : 0;
+
+  if (info.switched) toast(`The game saved "${info.switched.to}" under a new file name; switched to it with all your changes.`);
+  const baseFile = info.files.find((f) => f.name === info.base);
+  const helperName = info.lastWrite?.target ? info.lastWrite.target.split(/[\\/]/).pop() : baseFile ? `${(baseFile.display || '').replace(/ \(synced from FilterBlade\)$/, '')} (helper).filter` : null;
+  const fileBar = h('div', { class: 'fb-filebar' },
+    h('select', { 'aria-label': 'Your FilterBlade filter', onchange: async (e) => { await call('settings:set', { baseFilter: e.target.value }); FB.type = null; renderFilters(); } },
+      h('option', { value: '' }, 'Choose your FilterBlade filter'),
+      info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.display || f.name.replace(/\.filter$/i, '')))),
+    info.missing ? h('span', { class: 'pill bad', title: info.missing.file }, `${info.missing.name ? `"${info.missing.name}"` : 'Your filter'} is no longer in the folder. Pick it again here.`) : null,
+    h('span', { class: 'small muted' },
+      info.missing ? '' : !info.files.length ? 'No filters found. Download your filter from FilterBlade into the folder in File options.'
+        : !info.base ? 'Pick the filter you downloaded from FilterBlade.'
+          : info.lastWrite ? `Your version is "${helperName}", saved ${ago(Date.now() - info.lastWrite.at)}. Select it in game once.` : `Changes are saved to "${helperName}". Select it in game once.`),
+    h('span', { class: 'spacer' }),
+    edits ? h('span', { class: 'pill' }, `${edits} ${edits === 1 ? 'change' : 'changes'}`) : null,
+    edits ? h('button', { class: 'quiet sm', onclick: async () => { if (confirm('Undo all tier moves and look changes?')) { await call('tiers:reset', { all: true }); toast('All changes undone'); renderFilters(); } } }, 'Undo all') : null);
+
+  const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['rules', 'Extra rules'], ['price', 'Price tiers'], ['check', 'Check an item'], ['file', 'File options']].map(([id, label]) =>
+    h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)));
+
+  const body = h('div', { class: 'fb-body' });
+  mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, tabs, body);
+
+  if (FB.tab === 'review') {
+    if (!info.base) return mount(body, h('div', { class: 'panel empty' }, 'Choose your FilterBlade filter above first.'));
+    if (!view?.types?.length) return mount(body, h('div', { class: 'panel empty' }, 'Price review needs a FilterBlade (NeverSink-based) filter with tiers.'));
+    return renderReview(body);
+  }
+  if (FB.tab !== 'tiers') return renderFilterExtras(body, FB.tab);
+  if (!info.base || info.missing) return mount(body, h('div', { class: 'panel empty' }, info.missing ? 'The filter you had chosen is gone from the filter folder (the game may have replaced it when it synced). Choose it again above; all your tier changes are kept and are applied to it.' : 'Choose your FilterBlade filter above to see its tiers.'));
+  if (!view?.types?.length) return mount(body, h('div', { class: 'panel empty' }, 'This filter has no FilterBlade tier tags, so there are no tiers to edit. Tiers work with NeverSink-based filters from FilterBlade. Extra rules still work with any filter.'));
+  renderTiers(body, view);
+}
+
+// ---------------------------------------------------------------- themes
+function themeMenu(themes, canSave) {
+  const name = h('input', { placeholder: 'Theme name', style: { flex: 1 } });
+  const only = h('input', { type: 'checkbox' });
+  return h('details', { class: 'fb-pop' },
+    h('summary', { class: 'fb-pop-btn' }, 'Themes'),
+    h('div', { class: 'fb-pop-body stack' },
+      h('h2', {}, 'Themes'),
+      h('p', { class: 'small muted' }, 'A theme is a set of tier looks: colours, sizes, sounds, beams and icons. Apply it to any FilterBlade filter or strictness.'),
+      themes.length ? h('div', { class: 'stack', style: { gap: '6px' } }, themes.map((t) => h('div', { class: 'row', style: { flexWrap: 'nowrap' } },
+        h('span', { style: { flex: 1 } }, t.name, h('span', { class: 'faint small' }, ` ${Object.keys(t.styles).length} tiers`)),
+        h('button', { class: 'sm', disabled: !canSave, onclick: async () => { const r = await call('themes:apply', t.id); toast(`Applied "${t.name}" to ${r.applied} of ${r.total} tiers`); renderFilters(); } }, 'Apply'),
+        h('button', { class: 'quiet sm', onclick: async () => { const p = await call('themes:export', t.id); if (p) toast(`Exported to ${p.split(/[\\/]/).pop()}`); } }, 'Export'),
+        h('button', { class: 'danger sm', onclick: async () => { await call('themes:delete', t.id); renderFilters(); } }, 'Delete')))) : h('p', { class: 'small faint' }, 'No saved themes yet.'),
+      h('div', { class: 'stack', style: { gap: '8px', borderTop: '1px solid var(--line-soft)', paddingTop: '12px' } },
+        h('div', { class: 'row', style: { flexWrap: 'nowrap' } }, name, h('button', { class: 'primary sm', disabled: !canSave, onclick: async () => { const t = await call('themes:save', { name: name.value.trim() || 'My theme', onlyEdited: only.checked }); toast(`Saved "${t.name}"`); renderFilters(); } }, 'Save current look')),
+        h('label', { class: 'check small' }, only, 'Only the tiers I changed'),
+        h('button', { class: 'sm', onclick: async () => { const t = await call('themes:import'); if (t) { toast(`Imported "${t.name}"`); renderFilters(); } } }, 'Import a theme file'))));
+}
+
+// ---------------------------------------------------------------- tiers
+function renderTiers(body, view) {
+  if (FB.type === MY_BASES) return renderMyBases(body, view);
+  if (!FB.type || !view.types.some((t) => t.type === FB.type)) FB.type = view.types[0].type;
+  const type = view.types.find((t) => t.type === FB.type);
+  let pricing = FB.prices[type.type] || null;
+  if (!pricing) {
+    call('tiers:prices', type.type).then((r) => { FB.prices[type.type] = r; pricing = r; drawList(); }).catch((e) => { pricing = { error: e.message }; drawList(); });
+  }
+  const moved = view.moved || {};
+  const edited = new Set(view.editedStyles || []);
+  const changedTypes = new Set([...Object.keys(moved).map((k) => k.split('\t')[0]), ...[...edited].map((k) => k.split('|')[0])]);
+
+  // left: categories, sorted into sections, with pins and one search box for categories and bases
+  const cats = sidebar(view, changedTypes);
+
+  // right: tiers
+  const search = h('input', { type: 'search', placeholder: `Find a base in ${type.label.toLowerCase()}`, value: FB.search, style: { width: '260px' }, oninput: (e) => { FB.search = e.target.value; drawList(); } });
+  const list = h('div', { class: 'fb-tiers' });
+  const targets = type.tiers.filter((t) => t.hasBaseList && !t.generated && !t.special);
+
+  const moveTo = async (bases, to, force = false) => {
+    if (!bases.length) return;
+    const r = await call('tiers:move', { type: type.type, bases, to, force });
+    if (r?.leftOut?.some((n) => bases.includes(n))) toast(`Left out of the filter: ${bases.join(', ')}. The game doesn't know that name, and one unknown name stops the whole filter from loading.`);
+    FB.selected.clear();
+    delete FB.prices[type.type];
+    toast(to === HIDE ? `Hidden: ${bases.join(', ')}` : `Moved to ${tierName({ tier: to })}: ${bases.join(', ')}`);
+    renderFilters();
+  };
+
+  function chip(base, tier) {
+    const key = `${type.type}\t${base}`;
+    const fitInfo = FB.priceColors ? pricing?.fit?.[`${tier.tier}\t${base}`] : null;
+    const price = pricing?.prices?.[base];
+    const sugg = pricing?.suggestions?.find((x) => x.base === base && x.from === tier.tier);
+    const from = moved[key];
+    const st = tier.style || {};
+    const c = (a, f) => (a ? `rgba(${a[0]},${a[1]},${a[2]},${(a[3] ?? 255) / 255})` : f);
+    const selected = FB.selected.has(base);
+    const el = h('button', {
+      type: 'button',
+      class: 'fb-chip' + (selected ? ' selected' : '') + (tier.action === 'Hide' ? ' hidden' : '') + (fitInfo ? ` fit-${fitInfo.level}` : ''),
+      draggable: 'true',
+      title: fitInfo && price ? `${base}: ${fmtC(price.chaos)} now. ${({ good: 'Fits', warn: 'A bit off for', bad: 'Doesn\'t fit', none: 'No price band for' })[fitInfo.level]} ${tierName(tier)}${pricing?.tiers?.[tier.key]?.median != null ? ` (typically ${fmtC(pricing.tiers[tier.key].median)})` : ''}.${sugg ? ` Fits ${tierName({ tier: sugg.to })} better.` : ''}` : from !== undefined ? `You moved this here${from ? ` from ${tierName({ tier: from })}` : ''}. Click to select, drag to move.` : 'Click to select, drag to another tier to move',
+      // plain tag, not an item lookalike: the tier header already shows the look
+      onclick: () => { selected ? FB.selected.delete(base) : FB.selected.add(base); drawList(); },
+      ondragstart: (e) => {
+        const bases = FB.selected.has(base) ? [...FB.selected] : [base];
+        e.dataTransfer.setData('text/x-poe-bases', JSON.stringify(bases));
+        e.dataTransfer.effectAllowed = 'move';
+      },
+    }, base,
+      price ? h('span', { class: 'fb-price', title: price.max && price.max > price.chaos ? `Uniques on this base: ${fmtC(price.chaos)} to ${fmtC(price.max)}` : 'Current poe.ninja price' }, price.max && price.max > price.chaos * 2 ? `${fmtC(price.chaos)}–${fmtC(price.max)}` : fmtC(price.chaos)) : null,
+      sugg ? h('span', { class: `fb-sugg ${sugg.direction}`, title: `Worth ${fmtC(sugg.chaos)} now. Typical for ${tierName({ tier: sugg.to })} (${fmtC(sugg.typicalTo)}), not ${tierName({ tier: sugg.from })} (${fmtC(sugg.typicalFrom)}).` }, sugg.direction === 'up' ? '▲' : '▼') : null,
+      from !== undefined ? h('span', { class: 'fb-moved', 'aria-label': 'moved by you' }) : null);
+    if (tier.tier === HIDDEN_TIER || from !== undefined) {
+      return h('span', { class: 'fb-chip-wrap' }, el, h('button', { class: 'fb-undo', title: 'Put it back where the filter had it', 'aria-label': `Undo move of ${base}`, onclick: async () => { await call('tiers:reset', { type: type.type, base }); renderFilters(); } }, '×'));
+    }
+    return el;
+  }
+
+  function tierCard(t) {
+    const isEditing = FB.editing === t.key;
+    const q = FB.search.trim().toLowerCase();
+    const bases = q ? t.bases.filter((b) => b.toLowerCase().includes(q)) : t.bases;
+    if (q && !bases.length) return null;
+    // the label shows the tier's most valuable item (by today's poe.ninja price), else its first one
+    const priced = (list) => list.filter((b) => Number.isFinite(pricing?.prices?.[b]?.chaos)).sort((a, b) => (pricing.prices[b].max ?? pricing.prices[b].chaos) - (pricing.prices[a].max ?? pricing.prices[a].chaos));
+    const sample = priced(bases)[0] || bases[0] || priced(t.bases)[0] || t.bases[0] || type.label;
+    const preview = h('div', { class: 'fb-preview' });
+    const drawPreview = () => {
+      const st = isEditing ? FB.draft : t.style;
+      // shrink long names so the whole name fits (the game shows the full name too)
+      const size = window.UI.normalizeStyle(st).fontSize || 32;
+      const scale = Math.max(0.5, Math.min(0.9, 268 / (sample.length * size * 0.62 + 30)));
+      mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, hidden: t.action === 'Hide' }), soundButton(window.UI.normalizeStyle(st).sound));
+    };
+    drawPreview();
+    const folded = FB.collapsed.has(t.key);
+    const fold = h('button', { class: 'fb-fold', 'aria-expanded': folded ? 'false' : 'true', 'aria-label': folded ? `Show the items of ${tierName(t)}` : `Fold ${tierName(t)}`, title: folded ? 'Show the items' : 'Fold this tier', onclick: () => { folded ? FB.collapsed.delete(t.key) : FB.collapsed.add(t.key); drawList(); } }, folded ? '▸' : '▾');
+    const changedAction = view.editedActions && view.editedActions[t.key];
+    const state = t.state || (t.off ? 'Off' : t.action);
+    const hidden = state === 'Hide' || state === 'Off';
+    const setAction = async (want) => {
+      if (want === state) return;
+      await call('tiers:action', { key: t.key, action: want });
+      toast(want === 'Hide' ? `${tierName(t)} is now hidden in game` : want === 'Off' ? `${tierName(t)} is switched off: the game skips it` : `${tierName(t)} is now shown in game`);
+      delete FB.prices[type.type];
+      renderFilters();
+    };
+    const visSwitch = t.generated ? null : h('div', { class: 'fb-vis', role: 'group', 'aria-label': `${tierName(t)} in game` },
+      [['Show', 'Shown', 'Items in this tier show with this look'], ['Hide', 'Hidden', 'Items in this tier are hidden'], ['Off', 'Off', 'Switched off, like FilterBlade\'s strictness does: the game skips this tier and the items fall through to the rules below it']].map(([v, label, tip]) =>
+        h('button', { class: state === v ? `on${v === 'Hide' ? ' hide' : v === 'Off' ? ' off' : ''}` : '', title: tip, 'aria-pressed': state === v ? 'true' : 'false', onclick: () => setAction(v) }, label)));
+    const head = h('div', { class: 'fb-tier-head ground' },
+      fold,
+      preview,
+      h('div', { class: 'fb-tier-meta' },
+        h('div', { class: 'fb-tier-name' }, tierName(t),
+          t.mine ? h('span', { class: 'pill', style: { marginLeft: '8px' } }, 'Your tier') : null,
+          t.mine ? h('button', { class: 'quiet sm', title: 'Rename this tier', 'aria-label': `Rename ${tierName(t)}`, onclick: async () => { const n = prompt('Name of this tier', tierName(t)); if (n && n.trim()) { await call('tiers:rename', { type: type.type, tier: t.tier, name: n }); renderFilters(); } } }, '✎') : null,
+          t.mine ? h('button', { class: 'quiet sm', title: 'Delete this tier; its items go back to where the filter had them', 'aria-label': `Delete ${tierName(t)}`, onclick: async () => { if (!confirm(`Delete ${tierName(t)}? Its items go back to where your filter had them.`)) return; await call('tiers:remove', { type: type.type, tier: t.tier }); delete FB.prices[type.type]; toast(`${tierName(t)} deleted`); renderFilters(); } }, 'Delete') : null, changedAction ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, changedAction === 'Hide' ? 'Hidden by you' : changedAction === 'Off' ? 'Off by you' : t.origState === 'Off' ? 'Switched on by you' : 'Shown by you') : !changedAction && state === 'Off' ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade switched this tier off for your strictness. Press Shown to use it.' }, 'Off in FilterBlade') : null, edited.has(t.key) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null),
+        h('div', { class: 'small', style: { color: '#9a9f8c' } }, t.hasBaseList ? `${t.bases.length} ${t.bases.length === 1 ? 'base' : 'bases'}` : t.special ? 'Special case' : 'Catches the rest of this category',
+          pricing?.tiers?.[t.key]?.median != null ? `, typically ${fmtC(pricing.tiers[t.key].median)}` : ''),
+        t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity)\b/.test(c)).join(', ')}`) : null),
+      h('span', { class: 'spacer' }),
+      visSwitch,
+      t.generated ? null : h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) { FB.editing = null; } else { FB.editing = t.key; FB.draft = structuredClone(t.style || {}); } drawList(); } }, isEditing ? 'Close' : 'Edit look'));
+    const canAdd = (t.hasBaseList && !t.special) || t.generated;
+    const card = h('div', { class: 'fb-tier' + (t.generated ? ' generated' : '') + (hidden ? ' is-hidden' : '') + (state === 'Off' ? ' is-off' : ''), 'data-key': t.key }, head,
+      folded ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, 'Empty. Drag bases here or add one below.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
+      folded || !canAdd ? null : addBox(t),
+      isEditing && !folded ? lookEditor(t, () => drawList(), drawPreview) : null);
+    // drop a sound file anywhere on the tier: it becomes this tier's drop sound
+    if (!t.generated) {
+      card.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); card.classList.add('drop-sound'); } });
+      card.addEventListener('dragleave', (e) => { if (!card.contains(e.relatedTarget)) card.classList.remove('drop-sound'); });
+      card.addEventListener('drop', async (e) => {
+        if (!e.dataTransfer.files?.length) return;
+        e.preventDefault(); e.stopPropagation();
+        card.classList.remove('drop-sound');
+        if (e.target.closest?.('.sound-drop')) return; // the editor's own drop area handles it
+        const file = e.dataTransfer.files[0];
+        if (!/\.(mp3|wav|ogg)$/i.test(file.name)) return toast('Drop an .mp3, .wav or .ogg file to use it as this tier\'s sound.', true);
+        const buf = new Uint8Array(await file.arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+        try {
+          const snd = await call('sounds:import', { name: file.name, data: btoa(bin) });
+          S.sounds = [...S.sounds.filter((x) => x.id !== snd.id), snd];
+          const style = { ...(t.style || {}) };
+          delete style.sound; delete style.customVolume;
+          style.customSound = window.UI.soundPath(snd.id);
+          await call('tiers:style', { key: t.key, style });
+          playSound(snd.id);
+          toast(`${tierName(t)} now plays "${snd.name}"`);
+          renderFilters();
+        } catch { /* toast shown */ }
+      });
+    }
+    // drag & drop target
+    if ((t.hasBaseList && !t.special) || t.generated) {
+      const to = t.generated ? HIDE : t.tier;
+      card.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-bases')) { e.preventDefault(); card.classList.add('drop-target'); } });
+      card.addEventListener('dragleave', () => card.classList.remove('drop-target'));
+      card.addEventListener('drop', (e) => { e.preventDefault(); card.classList.remove('drop-target'); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), to); } catch { /* ignore */ } });
+    }
+    return card;
+  }
+
+  /** Type an item name: it goes into this tier and leaves every other tier of this category. */
+  function addBox(t) {
+    const to = t.generated ? HIDE : t.tier;
+    const inp = h('input', { type: 'text', list: 'fb-names', placeholder: `Add an item to ${tierName(t)}`, 'aria-label': `Add an item to ${tierName(t)}`, autocomplete: 'off' });
+    const msg = h('span', { class: 'small' });
+    const known = () => FB.names[type.type] || [];
+    const add = async (force = false) => {
+      const raw = inp.value.trim();
+      if (!raw) return;
+      const exact = known().find((n) => n.toLowerCase() === raw.toLowerCase());
+      const name = exact || raw;
+      if (t.bases.some((b) => b.toLowerCase() === name.toLowerCase())) { mount(msg, h('span', { class: 'muted' }, `${name} is already in ${tierName(t)}.`)); return; }
+      if (!exact && known().length && !force) {
+        mount(msg, h('span', { class: 'warn' }, `"${raw}" isn't a name your filter or poe.ninja knows. Check the spelling, it must match the game exactly. `),
+          h('button', { class: 'quiet sm', onclick: () => add(true) }, 'Add anyway'));
+        return;
+      }
+      const from = type.tiers.find((x) => x.bases.includes(name));
+      await moveTo([name], to, force);
+      toast(from ? `${name} moved from ${tierName(from)} to ${tierName(t)}` : `${name} added to ${tierName(t)}`);
+    };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    inp.addEventListener('focus', loadNames, { once: true });
+    return h('div', { class: 'fb-add' }, inp, h('button', { class: 'sm', onclick: () => add() }, 'Add'), msg);
+  }
+
+  async function loadNames() {
+    if (FB.names[type.type]) return;
+    FB.names[type.type] = [];
+    try { FB.names[type.type] = await call('tiers:suggest', type.type); } catch { /* typing still works */ }
+    const dl = document.getElementById('fb-names');
+    if (dl) mount(dl, FB.names[type.type].map((n) => h('option', { value: n })));
+  }
+
+  // a drop zone for hiding when nothing is hidden yet
+  function hideZone() {
+    if (type.tiers.some((t) => t.generated)) return null;
+    const z = h('div', { class: 'fb-hidezone' }, 'Drop bases here to hide them');
+    z.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-bases')) { e.preventDefault(); z.classList.add('drop-target'); } });
+    z.addEventListener('dragleave', () => z.classList.remove('drop-target'));
+    z.addEventListener('drop', (e) => { e.preventDefault(); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), HIDE); } catch { /* ignore */ } });
+    return z;
+  }
+
+  const bar = h('div', { class: 'fb-selbar' });
+  function drawBar() {
+    if (!FB.selected.size) return mount(bar);
+    const sel = h('select', { 'aria-label': 'Move to tier' }, targets.map((t) => h('option', { value: t.tier }, `${tierName(t)}${t.action === 'Hide' ? ' (hidden)' : ''}`)));
+    mount(bar, h('div', { class: 'fb-selbar-in' },
+      h('b', {}, `${FB.selected.size} selected`),
+      h('span', { class: 'muted small', style: { maxWidth: '360px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [...FB.selected].join(', ')),
+      h('span', { class: 'spacer' }),
+      targets.length ? h('span', { class: 'small muted' }, 'Move to') : h('span', { class: 'small muted' }, 'This category only has special tiers, so bases can only be hidden'),
+      targets.length ? sel : null,
+      targets.length ? h('button', { class: 'primary', onclick: () => moveTo([...FB.selected], sel.value) }, 'Move') : null,
+      h('button', { onclick: () => moveTo([...FB.selected], HIDE) }, 'Hide'),
+      h('button', { class: 'quiet', onclick: () => { FB.selected.clear(); drawList(); } }, 'Clear')));
+  }
+
+  function addRow() {
+    const q = FB.search.trim();
+    if (q.length < 3) return null;
+    const exists = type.tiers.some((t) => t.bases.some((b) => b.toLowerCase() === q.toLowerCase()));
+    if (exists) return null;
+    const sel = h('select', {}, targets.map((t) => h('option', { value: t.tier }, tierName(t))), h('option', { value: HIDE }, 'Hidden'));
+    return h('div', { class: 'panel row', style: { marginBottom: '10px' } },
+      h('span', { class: 'small' }, `"${q}" isn't in ${type.label.toLowerCase()} yet. Add it to`), sel,
+      h('button', { class: 'primary sm', onclick: () => moveTo([q], sel.value) }, 'Add'),
+      h('span', { class: 'small faint' }, 'Use the exact in-game base name.'));
+  }
+
+  function priceBanner() {
+    if (!pricing) return h('div', { class: 'fb-pricebar' }, h('span', { class: 'spin' }), ' Loading current prices from poe.ninja');
+    if (pricing.error) return h('div', { class: 'fb-pricebar' }, `Couldn't load prices: ${pricing.error}`);
+    if (!pricing.supported) return h('div', { class: 'fb-pricebar muted' }, 'poe.ninja has no prices for this category, so it can only be tiered by hand.');
+    const n = pricing.suggestions.length;
+    const filterDate = pricing.filterUpdated ? new Date(pricing.filterUpdated) : null;
+    const c = pricing.counts || {};
+    const legend = FB.priceColors ? h('div', { class: 'fb-legend' },
+      h('span', { class: 'fit-key good' }, `${c.good || 0} fit their tier`),
+      h('span', { class: 'fit-key warn' }, `${c.warn || 0} a bit off`),
+      h('span', { class: 'fit-key bad' }, `${c.bad || 0} belong in another tier`),
+      h('span', { class: 'fit-key none' }, `${c.none || 0} no price or special tier`),
+      h('span', { class: 'small faint' }, 'Compared with the typical price of each tier. Hover an item for details.')) : null;
+    const bar = h('div', { class: 'fb-pricebar' },
+      h('div', { style: { flex: 1 } },
+        h('div', {}, `Prices from poe.ninja for ${pricing.league}, updated ${ago(pricing.ageMs)}.`, filterDate ? ` Your tiers are from FilterBlade on ${filterDate.toLocaleDateString()}.` : ''),
+        h('div', { class: 'small muted' }, n ? `${n} ${n === 1 ? 'item is' : 'items are'} priced like a different tier now. ▲ worth more, ▼ worth less than their tier.` : 'Every priced item still fits its tier.'),
+        legend),
+      n ? h('button', { class: FB.showSuggestions ? 'primary sm' : 'sm', onclick: () => { FB.showSuggestions = !FB.showSuggestions; drawList(); } }, FB.showSuggestions ? 'Hide suggestions' : 'Review suggestions') : null);
+    if (!n || !FB.showSuggestions) return bar;
+    const rows = pricing.suggestions.map((x) => h('tr', {},
+      h('td', {}, h('span', { class: `fb-sugg ${x.direction}` }, x.direction === 'up' ? '▲' : '▼'), ' ', x.base),
+      h('td', { class: 'r' }, fmtC(x.chaos)),
+      h('td', { class: 'muted small' }, `${tierName({ tier: x.from })}, typically ${fmtC(x.typicalFrom)}`),
+      h('td', { class: 'small' }, `${tierName({ tier: x.to })}${x.toAction === 'Hide' ? ' (hidden)' : ''}, typically ${fmtC(x.typicalTo)}`),
+      h('td', { class: 'r' }, h('button', { class: 'sm', onclick: () => moveTo([x.base], x.to) }, 'Move'))));
+    return h('div', { class: 'stack', style: { gap: '8px' } }, bar,
+      h('div', { class: 'panel', style: { padding: '8px 14px' } },
+        h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'r' }, 'Now'), h('th', {}, 'Your tier'), h('th', {}, 'Fits'), h('th', {}))), h('tbody', {}, rows)),
+        h('div', { class: 'row', style: { marginTop: '8px' } }, h('span', { class: 'small faint' }, 'Suggestions compare each price with the typical price of each tier in your filter.'), h('span', { class: 'spacer' }),
+          h('button', { class: 'primary sm', onclick: async () => { for (const to of [...new Set(pricing.suggestions.map((x) => x.to))]) await call('tiers:move', { type: type.type, bases: pricing.suggestions.filter((x) => x.to === to).map((x) => x.base), to }); toast(`Moved ${n} items to the tiers their prices fit`); delete FB.prices[type.type]; renderFilters(); } }, `Move all ${n}`))));
+  }
+
+  /** Make your own tier, e.g. "Giga" above Tier 1 for mirror-level items, looking like the Divine Orb's tier. */
+  function newTierBar() {
+    const movable = type.tiers.filter((x) => x.hasBaseList && !x.special && !x.generated);
+    if (!movable.length) return null;
+    if (!FB.newTier) return h('div', { class: 'fb-newtier-btn' }, h('button', { class: 'sm', onclick: () => { FB.newTier = true; drawList(); } }, '+ New tier'));
+    const divTier = movable.find((x) => x.bases.includes('Divine Orb')) || movable[0];
+    const name = h('input', { placeholder: type.type === 'currency' && !type.tiers.some((x) => x.customName === 'Giga') ? 'Giga' : 'Tier name', 'aria-label': 'New tier name', style: { width: '150px' } });
+    const look = h('select', { 'aria-label': 'Looks like' }, movable.map((x) => h('option', { value: x.tier, selected: x === divTier }, `${tierName(x)}${x.bases.includes('Divine Orb') ? ' (Divine Orb)' : ''}`)));
+    const place = h('select', { 'aria-label': 'Place it above' }, type.tiers.filter((x) => !x.generated).map((x, i) => h('option', { value: x.tier, selected: i === 0 }, tierName(x))));
+    const create = async () => {
+      const r = await call('tiers:add', { type: type.type, name: name.value.trim() || name.placeholder.replace('Tier name', 'My tier'), copyFrom: look.value, before: place.value });
+      FB.newTier = false;
+      toast('Tier added. Drag items onto it or type one into its box. Its look is a copy; change it with Edit look.');
+      FB.collapsed.delete(`${type.type}|${r.tier}`);
+      renderFilters();
+    };
+    name.addEventListener('keydown', (e) => { if (e.key === 'Enter') create(); });
+    return h('div', { class: 'panel fb-newtier' },
+      h('b', {}, 'New tier'), name,
+      h('span', { class: 'small muted' }, 'looks like'), look,
+      h('span', { class: 'small muted' }, 'above'), place,
+      h('button', { class: 'primary sm', onclick: create }, 'Create'),
+      h('button', { class: 'quiet sm', onclick: () => { FB.newTier = false; drawList(); } }, 'Cancel'));
+  }
+
+  function drawList() {
+    const cards = type.tiers.map(tierCard).filter(Boolean);
+    mount(list, priceBanner(), newTierBar(), addRow(), cards.length ? cards : h('div', { class: 'panel empty' }, 'No base matches your search.'), hideZone(),
+      h('datalist', { id: 'fb-names' }, (FB.names[type.type] || []).map((n) => h('option', { value: n }))));
+    drawBar();
+  }
+  drawList();
+
+  mount(body, h('div', { class: 'fb' },
+    h('aside', {}, cats),
+    h('div', {},
+      h('div', { class: 'fb-typehead' }, iconPicker(type.type), h('h2', {}, type.label), h('span', { class: 'small muted' }, 'Click bases to select them, or drag them between tiers.'), h('span', { class: 'spacer' }),
+        h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
+          FB.priceColors = !FB.priceColors;
+          // a fresh analysis when turning colours on (prices come from the 20-minute cache, so this is cheap)
+          if (FB.priceColors) delete FB.prices[type.type];
+          renderFilters();
+        } }, FB.priceColors ? 'Hide price colours' : 'Check prices'),
+        h('button', { class: 'sm', title: 'Thresholds, Include and hourly auto-update for this category', onclick: async () => {
+          FB.tab = 'review'; FB.reviewOpen.add(type.type); FB.reviewOpen.delete('!' + type.type);
+          renderFilters();
+          if (!FB.review?.categories?.some((c) => c.type === type.type)) { try { await runReview(FB.review ? [type.type] : null); } catch { /* toast */ } renderFilters(); }
+          if (FB.review && !FB.review.categories.some((c) => c.type === type.type)) toast(`poe.ninja has no prices for ${type.label}, so it can't be auto-tiered.`);
+        } }, 'Auto-tier…'),
+        search),
+      list)),
+  bar);
+}
+
+// ---------------------------------------------------------------- My bases
+const MY_BASES = '__mybases__';
+async function renderMyBases(body, view) {
+  const data = await call('bases:list');
+  const list = data.list;
+  const cats = sidebar(view, new Set());
+  const known = [...new Set(view.types.flatMap((t) => t.tiers.flatMap((x) => x.bases)))].sort();
+  const ORDER = ['Normal', 'Magic', 'Rare'];
+  const num = (v) => (v === '' ? null : +v);
+  const update = async (id, patch) => { await call('bases:update', { id, patch }); renderFilters(); };
+
+  const rowOf = (e) => h('tr', { class: e.enabled === false ? 'rv-excluded' : '' },
+    h('td', {}, h('input', { type: 'checkbox', checked: e.enabled !== false, 'aria-label': `Use ${e.base}`, onchange: (ev) => update(e.id, { enabled: ev.target.checked }) })),
+    h('td', {}, h('b', {}, e.base), e.itemClass ? h('div', { class: 'small faint' }, e.itemClass) : null),
+    h('td', {}, h('span', { class: 'row small', style: { gap: '6px', flexWrap: 'nowrap' } },
+      h('input', { type: 'number', min: 1, max: 100, value: e.ilvlMin ?? '', placeholder: 'any', style: { width: '64px' }, 'aria-label': `${e.base} lowest item level`, onchange: (ev) => update(e.id, { ilvlMin: num(ev.target.value) }) }),
+      h('span', { class: 'muted' }, 'to'),
+      h('input', { type: 'number', min: 1, max: 100, value: e.ilvlMax ?? '', placeholder: 'any', style: { width: '64px' }, 'aria-label': `${e.base} highest item level`, onchange: (ev) => update(e.id, { ilvlMax: num(ev.target.value) }) }))),
+    h('td', {}, h('span', { class: 'row', style: { gap: '10px' } }, ORDER.map((r) => h('label', { class: `check small r-${r}` },
+      h('input', { type: 'checkbox', checked: (e.rarities || ORDER).includes(r), onchange: (ev) => { const next = ORDER.filter((x) => (x === r ? ev.target.checked : (e.rarities || ORDER).includes(x))); if (!next.length) { ev.target.checked = true; return toast('Keep at least one rarity.'); } update(e.id, { rarities: next }); } }), r)))),
+    h('td', { class: 'r' }, h('button', { class: 'quiet sm', 'aria-label': `Remove ${e.base}`, onclick: async () => { await call('bases:remove', e.id); toast(`${e.base} removed from My bases`); renderFilters(); } }, 'Remove')));
+
+  const name = h('input', { list: 'mb-names', placeholder: 'Base name, e.g. Goliath Greaves', style: { width: '240px' }, 'aria-label': 'Base to add' });
+  const min = h('input', { type: 'number', min: 1, max: 100, placeholder: 'any', style: { width: '64px' }, 'aria-label': 'Lowest item level', value: 82 });
+  const max = h('input', { type: 'number', min: 1, max: 100, placeholder: 'any', style: { width: '64px' }, 'aria-label': 'Highest item level' });
+  const add = async () => {
+    const b = name.value.trim();
+    if (!b) return;
+    const exact = known.find((k) => k.toLowerCase() === b.toLowerCase());
+    if (!exact && !confirm(`"${b}" isn't a base your filter lists. Check the spelling: it must match the game exactly, or the name is left out. Add it anyway?`)) return;
+    try { await call('bases:add', { base: exact || b, ilvlMin: min.value || null, ilvlMax: max.value || null }); toast(`${exact || b} added`); renderFilters(); } catch { /* toast */ }
+  };
+  name.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+
+  const look = { key: 'mybases', tier: 'mybases', customName: 'My bases', style: data.style };
+  const editing = FB.editing === 'mybases';
+  const preview = h('div', { class: 'fb-preview' });
+  const drawPreview = () => mount(preview, dropLabel(list[0]?.base || 'Goliath Greaves', editing ? FB.draft : data.style, { rarity: 'Rare', scale: 0.8 }), soundButton(window.UI.normalizeStyle(editing ? FB.draft : data.style).sound));
+  drawPreview();
+
+  mount(body, h('div', { class: 'fb' },
+    h('aside', {}, cats),
+    h('div', {},
+      h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('hammer', { size: 22 })), h('h2', {}, 'My bases'),
+        h('span', { class: 'small muted' }, 'Bases you collect, shown above all your other tiers.')),
+      h('div', { class: 'fb-tier' },
+        h('div', { class: 'fb-tier-head ground' }, preview,
+          h('div', { class: 'fb-tier-meta' }, h('div', { class: 'fb-tier-name' }, 'Look for all My bases'), h('div', { class: 'small', style: { color: '#9a9f8c' } }, `${list.filter((e) => e.enabled !== false).length} active`)),
+          h('span', { class: 'spacer' }),
+          h('button', { class: editing ? 'primary sm' : 'sm', onclick: () => { if (editing) FB.editing = null; else { FB.editing = 'mybases'; FB.draft = structuredClone(data.style); } renderFilters(); } }, editing ? 'Close' : 'Edit look')),
+        editing ? lookEditor(look, () => renderFilters(), drawPreview, { onSave: (st) => call('bases:style', st), onReset: () => call('bases:style', null), resetLabel: 'Use the default look' }) : null),
+      h('div', { class: 'panel row', style: { margin: '12px 0' } },
+        h('b', {}, 'Add a base'), name, h('span', { class: 'small muted' }, 'item level'), min, h('span', { class: 'small muted' }, 'to'), max,
+        h('button', { class: 'primary sm', onclick: add }, 'Add'),
+        h('span', { class: 'small faint' }, 'Or press "+ My bases…" in the price check popup on an item you found.'),
+        h('datalist', { id: 'mb-names' }, known.map((n) => h('option', { value: n })))),
+      list.length ? h('div', { class: 'panel', style: { padding: '6px 14px' } },
+        h('table', { class: 'rv-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'On'), h('th', {}, 'Base'), h('th', {}, 'Item level'), h('th', {}, 'Rarity'), h('th', {}))), h('tbody', {}, list.map(rowOf))))
+        : h('div', { class: 'panel empty' }, 'No bases yet. Add one above, or from the price check popup.'))));
+}
+
+// ---------------------------------------------------------------- sidebar
+// Categories the way FilterBlade groups them. Each one holds one or more of the filter's own
+// $type groups; anything not listed lands in Miscellaneous. `art` is the item whose in-game
+// picture is the icon (loaded from GGG's image server via poe.ninja); `icon` is the fallback.
+const CATEGORIES = [
+  ['Currency & Rewards', [
+    { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], art: 'Divine Orb', icon: 'coin' },
+    { id: 'harvest', name: 'Harvest', match: ['currency->harvest', 'harvest'], art: ['Sacred Crystallised Lifeforce', 'Primal Crystallised Lifeforce'], icon: 'leaf' },
+    { id: 'delirium', name: 'Delirium', match: ['currency->deliriumorbs', 'delirium'], art: ["Diviner's Delirium Orb", 'Fine Delirium Orb', '*DeliriumOrb'], icon: 'orb' },
+    { id: 'scarab', name: 'Scarab', match: ['fragments->scarabs', 'scarabs'], art: ['*Scarab'], icon: 'scarab' },
+    { id: 'essence', name: 'Essence', match: ['currency->essence', 'essence'], art: ['Deafening Essence of Greed', 'Essence of Horror', '*Essence'], icon: 'flame' },
+    { id: 'fossil', name: 'Fossil', match: ['currency->fossil', 'fossil'], art: ['Fractured Fossil', 'Faceted Fossil', '*Fossil'], icon: 'rock' },
+    { id: 'oil', name: 'Oil', match: ['currency->oil', 'oil'], art: ['Golden Oil', 'Silver Oil', '*Oil'], icon: 'drop' },
+    { id: 'trial', name: 'Trial', match: ['currency->trial'], art: ['Omen of Amelioration', '*Omen'], icon: 'eye' },
+    { id: 'splinter', name: 'Splinter', match: ['currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Timeless Maraketh Splinter', 'Splinter of Xoph', '*Fragment'], icon: 'shard' },
+    { id: 'uniques', name: 'Unique items', match: ['uniques'], art: ['Headhunter', 'Mageblood', '*UniqueAccessory'], icon: 'crown' },
+    { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['The Doctor', 'The Apothecary', '*DivinationCard'], icon: 'card' },
+    { id: 'gems', name: 'Gems', match: ['gems'], art: "Gemcutter's Prism", icon: 'gem' },
+    { id: 'recipes', name: 'Vendor Recipes', match: ['rr', '6l', 'socketslinks', 'endgamergb'], art: 'Chromatic Orb', icon: 'link' },
+    { id: 'gold', name: 'Gold', match: ['gold'], art: null, icon: 'coins' },
+    { id: 'league', name: 'Current League', match: ['event'], art: null, icon: 'star' },
+    { id: 'fragments', name: 'Fragments', match: ['fragments'], art: ['Sacrifice at Dawn', 'Fragment of the Phoenix', '*Fragment'], icon: 'shard' },
+    { id: 'maps', name: 'Endgame - Maps, Contracts, Logbooks etc', match: ['maps', 'exoticmap', 'charts', 'heist', 'heisttarget', 'expedition', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'map' },
+    { id: 'rares', name: 'Endgame - Rares', match: ['rare', 'rareid', 'rareblendid', 'rareoptional', 'corruptedid', 'influenced', 'animatedweapons'], art: 'Orb of Alchemy', icon: 'sword' },
+    { id: 'crafting', name: 'Endgame - Special Bases & Crafting', match: ['exoticbases', 'exoticbaseslower', 'crafting', 'exotic', 'exoticmods', 'magicid', 'normalcraft', 'gear'], art: 'Orb of Fusing', icon: 'hammer' },
+    { id: 'jewels', name: 'Endgame - Jewels, Flasks, Tinctures', match: ['jewels', 'endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
+    { id: 'highlight', name: 'Endgame - Highlight specific bases', match: ['decorators'], art: 'Orb of Annulment', icon: 'sparkle' },
+  ]],
+  ['Campaign (level 1-67)', [
+    { id: 'leveling', name: 'Campaign & Leveling', match: ['leveling'], art: 'Scroll of Wisdom', icon: 'leaf' },
+  ]],
+  ['Miscellaneous', [
+    { id: 'leaguespecific', name: 'League-specific items and mods', match: ['vials', 'runesgrafts', 'corpses', 'enshrouded', 'artefact'], art: 'Vaal Orb', icon: 'bolt' },
+    { id: 'chancing', name: 'Chancing Bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
+    { id: 'misc', name: 'Miscellaneous', match: [], art: 'Orb of Scouring', icon: 'box' },
+  ]],
+];
+// ---- your own layout on top of the defaults (Edit categories) ----
+// categoryLayout = { names: {catId: name}, assign: {type: catId}, custom: [{id, name, section}], order: {section: [catId]} }
+const layout = () => S.settings.categoryLayout || {};
+const SECTION_TITLES = CATEGORIES.map(([t]) => t);
+/** Sections with your names, your new categories and your order applied. */
+function effectiveCategories() {
+  const L = layout();
+  return CATEGORIES.map(([title, cats]) => {
+    const mine = (L.custom || []).filter((c) => c.section === title).map((c) => ({ id: c.id, name: c.name, match: [], art: null, icon: 'box', custom: true }));
+    let list = [...cats, ...mine].map((c) => ({ ...c, name: L.names?.[c.id] || c.name, defaultName: c.name }));
+    const order = L.order?.[title];
+    if (order) list = list.sort((a, b) => (order.indexOf(a.id) + 1 || 999) - (order.indexOf(b.id) + 1 || 999));
+    return [title, list];
+  });
+}
+const allCats = () => effectiveCategories().flatMap(([, cats]) => cats);
+const ALL_CATS = CATEGORIES.flatMap(([, cats]) => cats); // the defaults (for pictures)
+/** Where a subcategory lives: your own placement (also covers its children), else the most specific default match. */
+function categoryOf(type) {
+  const cats = allCats();
+  const assign = layout().assign || {};
+  const parts = type.split('->');
+  for (let i = parts.length; i > 0; i--) {
+    const id = assign[parts.slice(0, i).join('->')];
+    const c = id && cats.find((x) => x.id === id);
+    if (c) return c;
+  }
+  let best = null;
+  let len = -1;
+  for (const c of cats) for (const m of c.match) {
+    if ((type === m || type.startsWith(m + '->')) && m.length > len) { best = c; len = m.length; }
+  }
+  return best || cats.find((c) => c.id === 'misc');
+}
+async function saveLayout(next) {
+  await call('settings:set', { categoryLayout: next });
+  S.settings.categoryLayout = next;
+  renderFilters();
+}
+/** Name of a subcategory inside its category: "currency->trial->omen" in Trial is just "Omens". */
+function subLabel(t, cat) {
+  const m = cat.match.filter((x) => t.type === x || t.type.startsWith(x + '->')).sort((a, b) => b.length - a.length)[0];
+  const segs = t.label.includes(': ') ? t.label.split(': ').slice(1).join(': ').split(', ') : [];
+  if (!m) return t.label;
+  if (t.type === m) return segs.join(', ') || 'General';
+  return segs.slice(m.split('->').length - 1).join(', ') || t.label;
+}
+const artNames = () => [...new Set(ALL_CATS.flatMap((c) => [].concat(c.art || [])))];
+/** Icon for a FilterBlade category: yours, else the game picture, else a line icon. */
+function catIconId(cat) {
+  const own = S.settings.categoryIcons?.[`cat:${cat.id}`];
+  if (own) return own;
+  const art = [].concat(cat.art || []).find((n) => window.UI.hasArt(n));
+  return art ? `art:${art}` : cat.icon;
+}
+const DEFAULT_PINS = ['currency', 'divination', 'fragments->scarabs', 'uniques'];
+// Line icon per filter subcategory, used where no picture is set; the most specific part of the type wins.
+const ICON_FOR = {
+  currency: 'coin', gold: 'coins', divination: 'card', uniques: 'crown', fragments: 'shard', scarabs: 'scarab', scarab: 'scarab',
+  gems: 'gem', maps: 'map', exoticmap: 'map', charts: 'map', blighted: 'map', nightmare: 'map', endgameflasks: 'flask', flasks: 'flask', vials: 'flask',
+  endgametinctures: 'drop', tincture: 'drop', oil: 'drop', essence: 'flame', fossil: 'rock', delirium: 'orb', deliriumorbs: 'orb', jewels: 'hex', cluster: 'hex', clustereco: 'hex', abyss: 'hex',
+  crafting: 'hammer', exoticbases: 'sword', exoticbaseslower: 'sword', rareid: 'sword', rare: 'sword', rr: 'sword', magicid: 'sparkle', gear: 'shield', armours: 'helmet',
+  '6l': 'link', socketslinks: 'link', sockets: 'link', influenced: 'bolt', exotic: 'bolt', exoticmods: 'bolt', corruptions: 'skull', heist: 'key', heisttarget: 'key', contract: 'key', blueprint: 'key',
+  leveling: 'leaf', hidelayer: 'eyeoff', decorators: 'eye', questlike: 'book', logbook: 'book', expedition: 'book', sanctum: 'book', runesgrafts: 'sparkle', corpses: 'skull',
+  omen: 'eye', tattoo: 'heart', splinter: 'shard', stackedsplintershigh: 'shard', stackedsplinterslow: 'shard', breachrings: 'ring', talisman: 'ring', event: 'star', anyremaining: 'box',
+};
+function iconIdFor(type) {
+  const own = S.settings.categoryIcons?.[type];
+  if (own) return own;
+  const cat = categoryOf(type);
+  if (cat) return catIconId(cat);
+  const parts = type.split('->');
+  for (let i = parts.length - 1; i >= 0; i--) if (ICON_FOR[parts[i]]) return ICON_FOR[parts[i]];
+  return 'box';
+}
+const catIcon = (type, size = 16) => window.UI.icon(iconIdFor(type), { size, fallback: categoryOf(type)?.icon || 'box' });
+
+/** Click the icon next to a category's name to pick another one, or use your own image. */
+function iconPicker(type) {
+  const cat = categoryOf(type);
+  const key = cat ? `cat:${cat.id}` : type;
+  const chosen = S.settings.categoryIcons?.[key];
+  const save = async (id) => {
+    const next = { ...(S.settings.categoryIcons || {}) };
+    delete next[type];
+    if (id) next[key] = id; else delete next[key];
+    await call('settings:set', { categoryIcons: next });
+    S.settings.categoryIcons = next;
+    renderFilters();
+  };
+  const current = iconIdFor(type);
+  return h('details', { class: 'fb-pop fb-iconpick' },
+    h('summary', { class: 'fb-iconbtn', title: 'Change this category\'s icon', 'aria-label': 'Change icon' }, catIcon(type, 24)),
+    h('div', { class: 'fb-pop-body' },
+      h('div', { class: 'small muted', style: { marginBottom: '8px' } }, cat ? `Icon for ${cat.name}` : 'Icon for this category'),
+      h('div', { class: 'fb-icongrid' }, window.UI.ICON_NAMES.map((id) => h('button', { class: id === current ? 'on' : '', title: id, 'aria-label': id, onclick: () => save(id) }, window.UI.icon(id, { size: 18 })))),
+      h('div', { class: 'small muted', style: { margin: '12px 0 6px' } }, 'Your images'),
+      (S.userIcons || []).length ? h('div', { class: 'fb-icongrid' }, S.userIcons.map((x) => h('span', { class: 'fb-myicon' },
+        h('button', { class: x.id === current ? 'on' : '', title: x.name, 'aria-label': x.name, onclick: () => save(x.id) }, window.UI.icon(x.id, { size: 18 })),
+        h('button', { class: 'fb-myicon-x', title: `Delete ${x.name}`, 'aria-label': `Delete ${x.name}`, onclick: async () => {
+          await call('icons:delete', x.id);
+          S.userIcons = S.userIcons.filter((y) => y.id !== x.id); window.UI.setUserIcons(S.userIcons);
+          S.settings.categoryIcons = Object.fromEntries(Object.entries(S.settings.categoryIcons || {}).filter(([, v]) => v !== x.id));
+          renderFilters();
+        } }, '×')))) : null,
+      window.UI.fileDropZone('Drop a .png, .svg or .jpg here, or click to choose', '.png,.jpg,.jpeg,.webp,.gif,.svg', async (file) => {
+        try {
+          const ic = await call('icons:import', { name: file.name, data: await window.UI.fileToBase64(file) });
+          S.userIcons = [...(S.userIcons || []).filter((y) => y.id !== ic.id), ic];
+          window.UI.setUserIcons(S.userIcons);
+          await save(ic.id);
+        } catch { /* toast shown */ }
+      }),
+      chosen ? h('button', { class: 'quiet sm', style: { marginTop: '8px' }, onclick: () => save(null) }, cat?.art ? 'Use the game picture' : 'Use the default icon') : null));
+}
+
+function swatchOf(t) {
+  // colour of the category's first normal tier, so rows are recognisable at a glance
+  const tier = t.tiers.find((x) => !x.special && !x.generated && x.action === 'Show') || t.tiers[0];
+  const st = tier?.style || {};
+  const c = (a) => (a ? `rgb(${a[0]},${a[1]},${a[2]})` : null);
+  return { bg: c(st.background) || '#222', fg: c(st.text) || '#ddd', bd: c(st.border) || 'transparent', border: c(st.border) };
+}
+
+function sidebar(view, changedTypes) {
+  const pins = S.settings.filterPins || DEFAULT_PINS;
+  const q = (FB.catQuery || '').trim().toLowerCase();
+  const select = (type) => { FB.type = type; FB.selected.clear(); FB.editing = null; FB.search = ''; renderFilters(); };
+  const togglePin = async (type) => {
+    const next = pins.includes(type) ? pins.filter((x) => x !== type) : [...pins, type];
+    await call('settings:set', { filterPins: next });
+    S.settings.filterPins = next;
+    renderFilters();
+  };
+  const baseCount = (t) => t.tiers.reduce((a, x) => a + x.bases.length, 0);
+
+  const row = (t, { sub = false, label = null } = {}) => {
+    const sw = swatchOf(t);
+    const pinned = pins.includes(t.type);
+    return h('div', { class: 'fb-row' + (t.type === FB.type ? ' active' : '') + (sub ? ' sub' : '') },
+      h('button', { class: 'fb-row-main', onclick: () => select(t.type), title: t.label },
+        h('span', { class: 'fb-ic', style: { color: sw.border || sw.fg } }, catIcon(t.type)),
+        h('span', { class: 'n' }, label || t.label),
+        changedTypes.has(t.type) ? h('span', { class: 'dot', title: 'You changed this category' }) : null,
+        h('span', { class: 'c' }, baseCount(t) || '')),
+      h('button', { class: 'fb-pin' + (pinned ? ' on' : ''), title: pinned ? 'Unpin' : 'Pin to the top', 'aria-label': pinned ? `Unpin ${t.label}` : `Pin ${t.label}`, onclick: () => togglePin(t.type) }, pinned ? '★' : '☆'));
+  };
+
+  // search: categories by name, then bases
+  if (q.length >= 2) {
+    const catHits = view.types.filter((t) => t.label.toLowerCase().includes(q));
+    const baseHits = [];
+    for (const t of view.types) for (const tier of t.tiers) for (const b of tier.bases) if (b.toLowerCase().includes(q)) baseHits.push({ b, t, tier });
+    return h('nav', { class: 'fb-cats', 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(),
+      catHits.length ? h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, 'Categories'), catHits.slice(0, 15).map((t) => row(t))) : null,
+      h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, `Bases (${baseHits.length})`),
+        h('div', { class: 'fb-gresults' }, baseHits.slice(0, 40).map(({ b, t, tier }) => h('button', { onclick: () => { FB.type = t.type; FB.search = b; FB.catQuery = ''; FB.selected.clear(); renderFilters(); } }, h('span', { class: 'b', title: `${t.label}, ${tierName(tier)}` }, b), h('span', { class: 'w' }, tierName(tier).replace(/ \(.*\)$/, ''))))),
+        !baseHits.length ? h('div', { class: 'small faint', style: { padding: '4px 8px' } }, 'Not in this filter. Uniques are listed by base type, for example Heavy Belt instead of Mageblood.') : null));
+  }
+
+  // FilterBlade-style categories, each holding the filter's own subcategories
+  const byCat = new Map();
+  for (const t of view.types) {
+    const c = categoryOf(t.type);
+    if (!c) continue;
+    if (!byCat.has(c.id)) byCat.set(c.id, []);
+    byCat.get(c.id).push(t);
+  }
+  const activeCat = categoryOf(FB.type)?.id;
+
+  const resetCat = async (cat, list) => {
+    const types = list.map((t) => t.type).filter((t) => changedTypes.has(t));
+    if (!types.length) return;
+    if (!confirm(`Undo every change you made in ${cat.name}? Moves, looks and Shown/Hidden/Off go back to what FilterBlade has.`)) return;
+    await call('tiers:reset', { types });
+    toast(`${cat.name} is back to the FilterBlade version`);
+    FB.prices = {};
+    renderFilters();
+  };
+
+  const catRow = (cat, list) => {
+    const single = list.length === 1;
+    const open = !single && (FB.openGroups.has(cat.id) || (cat.id === activeCat && !FB.closedGroups.has(cat.id)));
+    const changed = list.some((t) => changedTypes.has(t.type));
+    const active = single && list[0].type === FB.type;
+    const toggleOpen = () => { if (open) { FB.openGroups.delete(cat.id); FB.closedGroups.add(cat.id); } else { FB.openGroups.add(cat.id); FB.closedGroups.delete(cat.id); } renderFilters(); };
+    return h('div', { class: 'fb-cat' + (open ? ' open' : '') + (cat.id === activeCat ? ' current' : '') },
+      h('div', { class: 'fb-cat-bar' + (active ? ' active' : '') },
+        h('button', { class: 'fb-cat-main', title: cat.name, 'aria-expanded': single ? null : open ? 'true' : 'false', onclick: () => (single ? select(list[0].type) : toggleOpen()) },
+          h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
+          h('span', { class: 'n' }, cat.name),
+          changed ? h('span', { class: 'dot', title: 'You changed something here' }) : null,
+          single ? null : h('span', { class: 'chev' }, open ? '▾' : '▸')),
+        h('button', { class: 'fb-reset', disabled: !changed, title: changed ? `Undo your changes in ${cat.name}` : 'Nothing changed here', onclick: () => resetCat(cat, list) }, 'Reset')),
+      open ? h('div', { class: 'fb-cat-subs' }, list.map((t) => row(t, { sub: true, label: subLabel(t, cat) }))) : null);
+  };
+
+  // ---- edit mode: rename, add, reorder, and move subcategories ----
+  const sections = effectiveCategories();
+  const L = layout();
+  const editRow = (cat, list, section, idx, count) => {
+    const name = h('input', { value: cat.name, 'aria-label': `Name of ${cat.name}`, class: 'fb-cat-name' });
+    name.addEventListener('change', () => {
+      const v = name.value.trim();
+      const names = { ...(L.names || {}) };
+      if (!v || v === cat.defaultName) delete names[cat.id]; else names[cat.id] = v.slice(0, 60);
+      saveLayout({ ...L, names });
+    });
+    const move = (dir) => {
+      const ids = sections.find(([t]) => t === section)[1].map((c) => c.id);
+      const j = idx + dir;
+      if (j < 0 || j >= ids.length) return;
+      [ids[idx], ids[j]] = [ids[j], ids[idx]];
+      saveLayout({ ...L, order: { ...(L.order || {}), [section]: ids } });
+    };
+    const remove = () => {
+      if (list.length && !confirm(`Delete ${cat.name}? Its ${list.length} subcategories go back to where they were.`)) return;
+      const assign = Object.fromEntries(Object.entries(L.assign || {}).filter(([, v]) => v !== cat.id));
+      saveLayout({ ...L, assign, custom: (L.custom || []).filter((c) => c.id !== cat.id) });
+    };
+    const box = h('div', { class: 'fb-cat editing' },
+      h('div', { class: 'fb-cat-bar' },
+        h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 22, fallback: cat.icon })),
+        name,
+        h('button', { class: 'fb-mini', title: 'Move up', 'aria-label': `Move ${cat.name} up`, disabled: idx === 0, onclick: () => move(-1) }, '↑'),
+        h('button', { class: 'fb-mini', title: 'Move down', 'aria-label': `Move ${cat.name} down`, disabled: idx === count - 1, onclick: () => move(1) }, '↓'),
+        cat.custom ? h('button', { class: 'fb-mini danger', title: 'Delete this category', 'aria-label': `Delete ${cat.name}`, onclick: remove }, '×') : null),
+      h('div', { class: 'fb-cat-subs' },
+        list.length ? list.map((t) => {
+          const sel = h('select', { 'aria-label': `Move ${t.label} to`, onchange: (e) => {
+            const to = e.target.value;
+            const assign = { ...(L.assign || {}), [t.type]: to };
+            saveLayout({ ...L, assign });
+          } }, sections.map(([sec, cats]) => h('optgroup', { label: sec }, cats.map((c) => h('option', { value: c.id, selected: c.id === cat.id }, c.name)))));
+          const r = h('div', { class: 'fb-editsub', draggable: 'true', title: 'Drag onto another category, or pick one' },
+            h('span', { class: 'grip', 'aria-hidden': 'true' }, '⠿'), h('span', { class: 'n' }, t.label), sel);
+          r.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-poe-type', t.type); e.dataTransfer.effectAllowed = 'move'; });
+          return r;
+        }) : h('div', { class: 'small faint', style: { padding: '6px 8px' } }, 'Empty. Drag subcategories here.')));
+    box.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-type')) { e.preventDefault(); box.classList.add('drop-target'); } });
+    box.addEventListener('dragleave', (e) => { if (!box.contains(e.relatedTarget)) box.classList.remove('drop-target'); });
+    box.addEventListener('drop', (e) => {
+      const type = e.dataTransfer.getData('text/x-poe-type');
+      box.classList.remove('drop-target');
+      if (!type) return;
+      e.preventDefault();
+      saveLayout({ ...L, assign: { ...(L.assign || {}), [type]: cat.id } });
+    });
+    return box;
+  };
+  const addBox = (section) => {
+    const inp = h('input', { placeholder: 'New category name', 'aria-label': `New category in ${section}` });
+    const add = () => {
+      const v = inp.value.trim();
+      if (!v) return;
+      const id = `c_${Date.now().toString(36)}`;
+      saveLayout({ ...L, custom: [...(L.custom || []), { id, name: v.slice(0, 60), section }] });
+      toast(`Added "${v}". Drag subcategories onto it.`);
+    };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+    return h('div', { class: 'fb-addcat' }, inp, h('button', { class: 'sm', onclick: add }, '+ Add'));
+  };
+  const editing = FB.editCats;
+  const editBar = h('div', { class: 'fb-editbar' },
+    h('button', { class: editing ? 'primary sm' : 'sm', onclick: () => { FB.editCats = !FB.editCats; renderFilters(); } }, editing ? 'Done' : 'Edit categories'),
+    editing && Object.keys(L).some((k) => Object.keys(L[k] || {}).length) ? h('button', { class: 'quiet sm', onclick: () => { if (confirm('Go back to the default categories? Your names, new categories and moves are removed.')) saveLayout({}); } }, 'Reset layout') : null);
+
+  const pinned = pins.map((p) => view.types.find((t) => t.type === p)).filter(Boolean);
+  return h('nav', { class: 'fb-cats fb-cats-v2' + (editing ? ' edit' : ''), 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(), editBar,
+    editing ? h('p', { class: 'small muted', style: { margin: 0 } }, 'Rename categories, reorder them, add your own, and drag subcategories between them. This only changes how the list is organised, not your filter.') : null,
+    !editing ? h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-body' },
+      h('div', { class: 'fb-cat' + (FB.type === MY_BASES ? ' current' : '') }, h('div', { class: 'fb-cat-bar' + (FB.type === MY_BASES ? ' active' : '') },
+        h('button', { class: 'fb-cat-main', onclick: () => select(MY_BASES) },
+          h('span', { class: 'fb-cat-ic' }, window.UI.icon('hammer', { size: 22 })), h('span', { class: 'n' }, 'My bases'),
+          h('span', { class: 'c small faint' }, String((S.settings.myBases || []).filter((e) => e.enabled !== false).length || ''))))))) : null,
+    !editing && pinned.length ? h('div', { class: 'fb-sec pinned' }, h('div', { class: 'fb-sec-title' }, 'Pinned'), h('div', { class: 'fb-sec-body' }, pinned.map((t) => row(t)))) : null,
+    sections.map(([title, cats]) => {
+      const present = editing ? cats : cats.filter((c) => byCat.has(c.id));
+      if (!present.length) return null;
+      return h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-title' }, title),
+        h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : catRow(c, byCat.get(c.id))))),
+        editing ? addBox(title) : null);
+    }));
+
+  function searchBox() {
+    const inp = h('input', { type: 'search', placeholder: 'Find a category or base', value: FB.catQuery || '', 'aria-label': 'Find a category or base' });
+    inp.addEventListener('input', () => {
+      FB.catQuery = inp.value;
+      clearTimeout(FB.catTimer);
+      FB.catTimer = setTimeout(() => { renderFilters().then(() => { const n = document.querySelector('.fb-cats input[type=search]'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }); }, 180);
+    });
+    return inp;
+  }
+}
+
+// ---------------------------------------------------------------- look editor
+function lookEditor(tier, redraw, onPreview, opts = {}) {
+  const d = FB.draft;
+  const hex = (a) => '#' + (a || [0, 0, 0]).slice(0, 3).map((n) => Math.max(0, Math.min(255, +n || 0)).toString(16).padStart(2, '0')).join('');
+  const fromHex = (v, alpha) => [parseInt(v.slice(1, 3), 16), parseInt(v.slice(3, 5), 16), parseInt(v.slice(5, 7), 16), alpha];
+  const changed = () => onPreview();
+
+  function colourRow(label, key, optional) {
+    const on = h('input', { type: 'checkbox', checked: !!d[key], disabled: !optional, onchange: (e) => { d[key] = e.target.checked ? (d[key] || [255, 255, 255, 255]) : undefined; if (!e.target.checked) delete d[key]; changed(); } });
+    const col = h('input', { type: 'color', value: hex(d[key] || [255, 255, 255]), 'aria-label': `${label} colour`, oninput: (e) => { d[key] = fromHex(e.target.value, d[key]?.[3] ?? 255); changed(); } });
+    const alpha = h('input', { type: 'range', min: 0, max: 255, value: d[key]?.[3] ?? 255, 'aria-label': `${label} opacity`, style: { width: '90px' }, oninput: (e) => { d[key] = [...(d[key] || [255, 255, 255]).slice(0, 3), +e.target.value]; changed(); } });
+    return h('div', { class: 'fb-ed-row' }, h('label', { class: 'check' }, optional ? on : null, h('span', {}, label)), col, h('span', { class: 'small faint' }, 'Opacity'), alpha);
+  }
+
+  // sound: keep the filter's own sound, one of our tinks, a game sound, or none
+  const ownCustom = tier.style?.customSound && !/^poehelper-sounds\//.test(tier.style.customSound) ? tier.style.customSound : null;
+  const current = d.customSound ? (window.UI.soundIdFromPath(d.customSound) || 'own') : d.sound?.id ? `game:${d.sound.id}` : 'none';
+  const soundSel = h('select', { 'aria-label': 'Drop sound', onchange: (e) => {
+    const v = e.target.value;
+    delete d.customSound; delete d.customVolume; delete d.sound;
+    if (v === 'own' && ownCustom) d.customSound = ownCustom;
+    else if (v.startsWith('game:')) d.sound = { id: Number(v.slice(5)), volume: Number(vol.value) || 300 };
+    else if (v !== 'none') d.customSound = window.UI.soundPath(v);
+    playSound(v);
+    changed();
+  } },
+  ownCustom ? h('option', { value: 'own', selected: current === 'own' }, `Filter's sound (${ownCustom})`) : null,
+  h('option', { value: 'none', selected: current === 'none' }, 'No sound'),
+  h('optgroup', { label: 'PoE Helper tinks' }, S.sounds.filter((s) => !s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, `${s.name}, ${s.note}`))),
+  S.sounds.some((s) => s.user) ? h('optgroup', { label: 'Your sounds' }, S.sounds.filter((s) => s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, s.name))) : null,
+  h('optgroup', { label: 'Game sounds (heard in game only)' }, Array.from({ length: 16 }, (_, i) => h('option', { value: `game:${i + 1}`, selected: current === `game:${i + 1}` }, `Game sound ${i + 1}`))));
+  const vol = h('input', { type: 'range', min: 0, max: 300, value: d.sound?.volume ?? d.customVolume ?? 300, style: { width: '100px' }, 'aria-label': 'Volume', oninput: (e) => { if (d.sound) d.sound.volume = +e.target.value; else if (d.customSound) d.customVolume = +e.target.value; } });
+
+  const beamSel = h('select', { 'aria-label': 'Light beam', onchange: (e) => { d.beam = e.target.value ? { color: e.target.value, temp: beamTemp.checked } : null; if (!e.target.value) delete d.beam; changed(); } },
+    h('option', { value: '' }, 'No beam'), COLOURS.map((c) => h('option', { value: c, selected: d.beam?.color === c }, `${c} beam`)));
+  const beamTemp = h('input', { type: 'checkbox', checked: !!d.beam?.temp, onchange: (e) => { if (d.beam) d.beam.temp = e.target.checked; } });
+
+  const iconColour = h('select', { 'aria-label': 'Minimap icon colour', onchange: (e) => { if (!e.target.value) delete d.icon; else d.icon = { size: d.icon?.size ?? 1, shape: d.icon?.shape || 'Circle', color: e.target.value }; changed(); } },
+    h('option', { value: '' }, 'No minimap icon'), COLOURS.map((c) => h('option', { value: c, selected: d.icon?.color === c }, c)));
+  const iconShape = h('select', { 'aria-label': 'Minimap icon shape', onchange: (e) => { if (d.icon) { d.icon.shape = e.target.value; changed(); } } },
+    SHAPES.map((s) => h('option', { value: s, selected: d.icon?.shape === s }, s === 'UpsideDownHouse' ? 'House' : s)));
+  const iconSize = h('select', { 'aria-label': 'Minimap icon size', onchange: (e) => { if (d.icon) { d.icon.size = +e.target.value; changed(); } } },
+    [[0, 'Large'], [1, 'Medium'], [2, 'Small']].map(([v, l]) => h('option', { value: v, selected: (d.icon?.size ?? 1) === v }, l)));
+
+  const size = h('input', { type: 'range', min: 18, max: 45, value: d.fontSize || 32, style: { width: '160px' }, 'aria-label': 'Text size', oninput: (e) => { d.fontSize = +e.target.value; sizeOut.textContent = e.target.value; changed(); } });
+  const sizeOut = h('span', { class: 'small muted' }, String(d.fontSize || 32));
+
+  return h('div', { class: 'fb-editor' },
+    h('div', { class: 'fb-ed-grid' },
+      h('div', { class: 'stack', style: { gap: '10px' } },
+        colourRow('Text', 'text', false),
+        colourRow('Border', 'border', true),
+        colourRow('Background', 'background', true),
+        h('div', { class: 'fb-ed-row' }, h('span', {}, 'Size'), size, sizeOut)),
+      h('div', { class: 'stack', style: { gap: '10px' } },
+        h('div', { class: 'fb-ed-row' }, h('span', {}, 'Sound'), soundSel),
+        h('div', { class: 'fb-ed-row' }, h('span', {}), window.UI.soundDropZone((snd) => {
+          // use the new sound for this tier right away
+          S.sounds = [...S.sounds.filter((x) => x.id !== snd.id), snd];
+          delete d.sound; delete d.customVolume;
+          d.customSound = window.UI.soundPath(snd.id);
+          playSound(snd.id);
+          redraw();
+        })),
+        h('div', { class: 'fb-ed-row' }, h('span', {}, 'Volume'), vol),
+        h('div', { class: 'fb-ed-row' }, h('span', {}, 'Beam'), beamSel, h('label', { class: 'check small' }, beamTemp, 'Only when it drops')),
+        h('div', { class: 'fb-ed-row' }, h('span', {}, 'Minimap'), iconColour, iconShape, iconSize))),
+    h('div', { class: 'row', style: { marginTop: '14px' } },
+      h('button', { class: 'primary', onclick: async () => { if (!d.text) d.text = [200, 200, 200, 255]; if (opts.onSave) await opts.onSave(d); else await call('tiers:style', { key: tier.key, style: d }); FB.editing = null; toast(`Saved the look of ${tierName(tier)}`); renderFilters(); } }, 'Save look'),
+      h('button', { class: 'quiet', onclick: () => { FB.editing = null; redraw(); } }, 'Cancel'),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'quiet', onclick: async () => { if (opts.onReset) await opts.onReset(); else await call('tiers:style', { key: tier.key, style: null }); FB.editing = null; toast(opts.onReset ? 'Back to the default look' : 'Back to the FilterBlade look'); renderFilters(); } }, opts.resetLabel || 'Use the FilterBlade look')));
+}
+
+// ---------------------------------------------------------------- price review (auto-tiering)
+const MARGINS = [[1, 'At the exact price boundary'], [1.5, 'Only clearly misplaced items (1.5× past the boundary)'], [2, 'Very conservative (2× past the boundary)']];
+const selKey = (type, base) => `${type}\t${base}`;
+
+async function runReview(types = null) {
+  {
+    const r = await call('review:run', types ? { types } : {});
+    if (types && FB.review) {
+      const map = new Map(r.categories.map((c) => [c.type, c]));
+      FB.review.categories = FB.review.categories.map((c) => map.get(c.type) || c);
+      FB.review.cfg = r.cfg;
+    } else {
+      FB.review = r;
+      FB.reviewSel = new Set(r.categories.filter((c) => c.enabled).flatMap((c) => c.moves.map((m) => selKey(c.type, m.base))));
+    }
+    for (const c of r.categories) {
+      for (const m of c.moves) if (c.enabled && types) FB.reviewSel.add(selKey(c.type, m.base));
+    }
+  }
+}
+
+async function renderReview(body) {
+  const log = await call('review:log').catch(() => []);
+  const cfg = FB.review?.cfg || S.settings.priceReview || {};
+  const saveCfg = async (patch) => { const next = await call('review:config', patch); if (FB.review) FB.review.cfg = next; };
+
+  const minL = h('input', { type: 'number', min: 0, value: cfg.minListings ?? 5, style: { width: '70px' }, onchange: async (e) => { await saveCfg({ minListings: Math.max(0, +e.target.value || 0) }); if (FB.review) { await runReview(); renderFilters(); } } });
+  const marginSel = h('select', { onchange: async (e) => { await saveCfg({ margin: +e.target.value }); if (FB.review) { await runReview(); renderFilters(); } } }, MARGINS.map(([v, l]) => h('option', { value: v, selected: Number(cfg.margin ?? 1.5) === v }, l)));
+  const last = log[0];
+
+  const head = h('div', { class: 'panel stack' },
+    h('div', { class: 'row' },
+      h('div', { style: { flex: 1 } },
+        h('h2', {}, 'Auto-tier by current prices'),
+        h('p', { class: 'small muted' }, 'Checks poe.ninja for every category it prices and moves items to the tier their price fits now. Uses the same 20-minute price cache as price checks, so no requests to GGG.')),
+      h('button', { class: 'primary', disabled: FB.reviewBusy, onclick: async () => { FB.reviewBusy = true; renderFilters(); try { await runReview(); } catch { /* toast */ } FB.reviewBusy = false; renderFilters(); } }, FB.reviewBusy ? 'Checking…' : FB.review ? 'Check again' : 'Check prices')),
+    h('div', { class: 'row small' },
+      h('span', { class: 'muted' }, 'Move'), marginSel,
+      h('span', { class: 'muted' }, 'Ignore prices with fewer than'), minL, h('span', { class: 'muted' }, 'listings')),
+    h('div', { class: 'row small' },
+      toggle(!!cfg.includeNew, async (v) => { await saveCfg({ includeNew: v }); if (FB.review) { await runReview(); renderFilters(); } }, 'Also tier items your filter doesn\'t list yet (new league items)'),
+      h('span', { class: 'spacer' }),
+      h('span', { class: 'small muted' }, 'Tick "Auto-update" on a category to re-tier it every hour.')),
+    last ? h('div', { class: 'row small', style: { borderTop: '1px solid var(--line-soft)', paddingTop: '10px' } },
+      h('span', { class: 'muted', style: { flex: 1 } }, `Last run ${ago(Date.now() - last.at)}${last.auto ? ' (automatic)' : ''}: moved ${last.moves.length} ${last.moves.length === 1 ? 'item' : 'items'}${last.moves.length ? ', for example ' + last.moves.slice(0, 3).map((m) => m.base).join(', ') : ''}.`),
+      h('button', { class: 'sm', onclick: async () => { const r = await call('review:undo'); toast(`Put back ${r.undone} items`); FB.prices = {}; if (FB.review) await runReview(); renderFilters(); } }, 'Undo last run')) : null);
+
+  if (FB.reviewBusy) {
+    mount(body, head, h('div', { class: 'panel empty', style: { marginTop: '14px' } }, h('span', { class: 'spin' }), ' Checking poe.ninja prices for every category. The first check takes a few seconds; after that prices come from the cache.'));
+    return;
+  }
+  if (!FB.review) {
+    mount(body, head, h('div', { class: 'panel empty', style: { marginTop: '14px' } }, 'Press "Check prices" to compare your tiers with poe.ninja.'));
+    return;
+  }
+
+  const r = FB.review;
+  const total = r.categories.reduce((a, c) => a + c.moves.length, 0);
+  const selected = r.categories.flatMap((c) => c.moves.filter((m) => FB.reviewSel.has(selKey(c.type, m.base))).map((m) => ({ ...m, type: c.type })));
+  const skipped = r.categories.reduce((a, c) => a + c.skipped.fewListings, 0);
+  const filterDate = r.filterUpdated ? new Date(r.filterUpdated).toLocaleDateString() : null;
+
+  const summary = h('div', { class: 'fb-pricebar', style: { marginTop: '14px' } },
+    h('div', { style: { flex: 1 } },
+      h('div', {}, total ? `${total} ${total === 1 ? 'item belongs' : 'items belong'} in a different tier at today's ${r.league} prices.` : `Every priced item already fits its tier at today's ${r.league} prices.`),
+      h('div', { class: 'small muted' }, [filterDate ? `Your tiers are from FilterBlade on ${filterDate}.` : null, skipped ? `${skipped} skipped for having few listings.` : null, `${r.categories.length} categories checked.`].filter(Boolean).join(' '))));
+
+  const cards = r.categories.map((c) => categoryCard(c));
+  const bar = h('div', { class: 'fb-selbar' }, selected.length ? h('div', { class: 'fb-selbar-in' },
+    h('b', {}, `${selected.length} of ${total} moves selected`),
+    h('span', { class: 'spacer' }),
+    h('button', { class: 'quiet', onclick: () => { FB.reviewSel.clear(); renderFilters(); } }, 'Select none'),
+    h('button', { class: 'primary', onclick: async () => {
+      const res = await call('review:apply', selected.map(({ type, base, from, to, chaos }) => ({ type, base, from, to, chaos })));
+      toast(`Moved ${res.count} items. Your "(helper)" filter is updated; zone or reload it in game.`);
+      FB.prices = {};
+      await runReview();
+      renderFilters();
+    } }, `Apply ${selected.length} ${selected.length === 1 ? 'move' : 'moves'}`)) : null);
+
+  mount(body, head, summary, h('div', { class: 'stack', style: { marginTop: '14px', gap: '10px', paddingBottom: '80px' } }, cards), bar);
+
+  function categoryCard(c) {
+    const open = FB.reviewOpen.has(c.type) || (c.moves.length > 0 && c.moves.length <= 12 && !FB.reviewOpen.has('!' + c.type));
+    const allSel = c.moves.length && c.moves.every((m) => FB.reviewSel.has(selKey(c.type, m.base)));
+    const look = (tier) => c.tierLooks?.[tier] || {};
+    const tname = (tier) => tierName({ tier });
+
+    // FilterBlade-style table: one row per tier, Include, and "Worth at least N <unit>"
+    const units = r.units || { chaos: 1 };
+    const unit = units[c.unit] ? c.unit : 'chaos';
+    const inUnit = (chaos) => (chaos == null ? null : chaos / units[unit]);
+    const fmtU = (chaos) => {
+      const v = inUnit(chaos);
+      if (v == null) return '';
+      const n = v >= 100 ? Math.round(v) : v >= 10 ? +v.toFixed(1) : v >= 1 ? +v.toFixed(2) : +v.toPrecision(2);
+      return `${n} ${unit === 'chaos' ? 'c' : unit === 'divine' ? 'div' : 'ex'}`;
+    };
+    const catCfg = () => r.cfg.categories?.[c.type] || {};
+    const saveCat = async (patch) => {
+      const next = { ...catCfg(), ...patch };
+      const cfgNext = await call('review:config', { categories: { [c.type]: next } });
+      r.cfg = cfgNext;
+      await runReview([c.type]);
+      renderFilters();
+    };
+    const unitSel = h('select', { 'aria-label': `Price unit for ${c.label}`, onchange: async (e) => {
+      // keep the same chaos floors, just written in the new unit
+      const to = e.target.value;
+      const raw = {};
+      for (const [k, v] of Object.entries(catCfg().thresholds || {})) if (v !== '' && v != null) raw[k] = Math.round(+v * units[unit] / units[to] * 100) / 100;
+      await saveCat({ unit: to, thresholds: raw });
+    } }, [['chaos', 'Chaos'], ['divine', 'Divine'], ['exalted', 'Exalted']].filter(([v]) => units[v]).map(([v, l]) => h('option', { value: v, selected: unit === v }, l)));
+    const countOf = (tier) => c.tierCounts?.[tier];
+    const tierRows = c.tiers.map((t) => {
+      const inp = h('input', { type: 'number', min: 0, step: 'any', placeholder: t.suggested != null ? String(+inUnit(t.suggested).toPrecision(3)) : '', value: c.raw?.[t.tier] ?? '', disabled: !t.included, 'aria-label': `${tname(t.tier)}: worth at least`, style: { width: '90px' } });
+      inp.addEventListener('change', () => {
+        const th = { ...(catCfg().thresholds || {}) };
+        if (inp.value === '') delete th[t.tier]; else th[t.tier] = +inp.value;
+        saveCat({ thresholds: th });
+      });
+      const inc = h('input', { type: 'checkbox', checked: t.included, 'aria-label': `Include ${tname(t.tier)}`, onchange: (e) => saveCat({ include: { ...(catCfg().include || {}), [t.tier]: e.target.checked } }) });
+      return h('tr', { class: t.included ? '' : 'rv-excluded' },
+        h('td', {}, dropLabel(tname(t.tier), look(t.tier), { scale: 0.6, hidden: t.action === 'Hide' })),
+        h('td', {}, h('label', { class: 'check small' }, inc, t.included ? 'Included' : 'Excluded')),
+        h('td', {}, t.included ? h('span', { class: 'row small', style: { gap: '6px', flexWrap: 'nowrap' } }, h('span', { class: 'muted' }, 'Worth at least'), inp, h('span', { class: 'muted' }, unit === 'chaos' ? 'chaos' : unit)) : h('span', { class: 'small faint' }, 'Never filled; its items stay where they are')),
+        h('td', { class: 'small muted' }, t.median != null ? `typically ${fmtU(t.median)}` : 'no prices yet'),
+        h('td', { class: 'small faint r' }, t.included && t.min != null && !c.raw?.[t.tier] ? `using ${fmtU(t.min)}` : ''));
+    });
+    const restInc = h('input', { type: 'checkbox', checked: c.rest === 'hide', 'aria-label': 'Hide anything less valuable', onchange: (e) => saveCat({ rest: e.target.checked ? 'hide' : 'keep' }) });
+    tierRows.push(h('tr', { class: c.rest === 'hide' ? '' : 'rv-excluded' },
+      h('td', {}, h('span', { class: 'rv-rest' }, 'Anything less valuable')),
+      h('td', {}, h('label', { class: 'check small' }, restInc, c.rest === 'hide' ? 'Included' : 'Excluded')),
+      h('td', { colspan: 3, class: 'small muted' }, c.rest === 'hide' ? 'Hidden in game (moved to your hidden tier)' : 'Left in whatever tier it is in now')));
+    const thresholds = h('div', {},
+      h('div', { class: 'row small', style: { marginBottom: '6px' } }, h('span', { class: 'muted' }, 'Prices in'), unitSel,
+        units.divine ? h('span', { class: 'faint' }, `1 divine = ${Math.round(units.divine)}c${units.exalted ? `, 1 exalted = ${+units.exalted.toFixed(1)}c` : ''}`) : null),
+      h('table', { class: 'rv-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Tier'), h('th', {}, 'Include'), h('th', {}, 'Threshold'), h('th', {}), h('th', {}))), h('tbody', {}, tierRows)),
+      h('div', { class: 'small faint', style: { marginTop: '6px' } }, 'Each item goes to the highest included tier it is worth. Leave a threshold empty to use the suggested value, halfway between neighbouring tiers.'));
+
+    const rows = c.moves.map((m) => {
+      const k = selKey(c.type, m.base);
+      return h('tr', {},
+        h('td', { style: { width: '28px' } }, h('input', { type: 'checkbox', checked: FB.reviewSel.has(k), 'aria-label': `Move ${m.base}`, onchange: (e) => { e.target.checked ? FB.reviewSel.add(k) : FB.reviewSel.delete(k); renderFilters(); } })),
+        h('td', {}, h('span', { class: `fb-sugg ${m.direction === 'down' ? 'down' : 'up'}` }, m.direction === 'down' ? '▼' : m.direction === 'new' ? '+' : '▲'), ' ', m.base),
+        h('td', { class: 'r' }, fmtC(m.chaos)),
+        h('td', {}, m.from ? dropLabel(tname(m.from), look(m.from), { scale: 0.55, hidden: c.tiers.find((t) => t.tier === m.from)?.action === 'Hide' }) : h('span', { class: 'small muted' }, 'not in filter')),
+        h('td', { class: 'muted' }, '→'),
+        h('td', {}, dropLabel(tname(m.to), look(m.to), { scale: 0.55, hidden: m.toAction === 'Hide' })));
+    });
+
+    return h('div', { class: 'rv-card' },
+      h('div', { class: 'rv-head' },
+        h('label', { class: 'check', title: 'Re-check this category every hour and move items automatically' },
+          h('input', { type: 'checkbox', checked: !!c.auto, onchange: async (e) => { r.cfg = await call('review:config', { categories: { [c.type]: { ...(r.cfg.categories?.[c.type] || {}), auto: e.target.checked } } }); c.auto = e.target.checked; toast(e.target.checked ? `${c.label} is re-tiered every hour` : `${c.label} is only re-tiered when you apply it`); renderFilters(); } }),
+          h('span', { class: 'small muted' }, 'Auto-update')),
+        h('button', { class: 'rv-title', onclick: () => { if (open) { FB.reviewOpen.delete(c.type); FB.reviewOpen.add('!' + c.type); } else { FB.reviewOpen.add(c.type); FB.reviewOpen.delete('!' + c.type); } renderFilters(); } },
+          h('span', {}, open ? '▾ ' : '▸ '), catIcon(c.type), h('span', {}, c.label),
+          h('span', { class: c.moves.length ? 'pill warn' : 'pill' }, c.moves.length ? `${c.moves.length} ${c.moves.length === 1 ? 'move' : 'moves'}` : 'fits')),
+        h('span', { class: 'spacer' }),
+        c.moves.length ? h('button', { class: 'quiet sm', onclick: () => { for (const m of c.moves) { const k = selKey(c.type, m.base); allSel ? FB.reviewSel.delete(k) : FB.reviewSel.add(k); } renderFilters(); } }, allSel ? 'Select none' : 'Select all') : null,
+        c.moves.length ? h('button', { class: 'primary sm', title: `Move the ticked items of ${c.label} now`, onclick: async () => {
+          const mine = c.moves.filter((m) => FB.reviewSel.has(selKey(c.type, m.base))).map(({ base, from, to, chaos }) => ({ type: c.type, base, from, to, chaos }));
+          if (!mine.length) return toast('Tick the moves to apply first.');
+          const res = await call('review:apply', mine);
+          toast(`${c.label}: moved ${res.count} items. Zone or reload the filter in game.`);
+          FB.prices = {};
+          await runReview([c.type]);
+          renderFilters();
+        } }, `Apply ${c.label.replace(/^[^:]+:\s*/, '')}`) : null),
+      open ? h('div', { class: 'rv-body' },
+        thresholds,
+        c.moves.length ? h('table', { class: 'rv-moves' }, h('thead', {}, h('tr', {}, h('th', {}), h('th', {}, 'Item'), h('th', { class: 'r' }, 'Now'), h('th', {}, 'From'), h('th', {}), h('th', {}, 'To'))), h('tbody', {}, rows)) : h('p', { class: 'small muted', style: { marginTop: '10px' } }, 'Everything here fits its tier.'),
+        c.skipped.fewListings ? h('p', { class: 'small faint', style: { marginTop: '6px' } }, `Skipped (few listings): ${c.skipped.fewListingsNames.join(', ')}${c.skipped.fewListings > c.skipped.fewListingsNames.length ? '…' : ''}`) : null) : null);
+  }
+}
+
+window.renderFilters = renderFilters;
+})();

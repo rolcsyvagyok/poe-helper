@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https://web.poecdn.com data:; media-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>PoE Helper</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="name">PoE Helper</div>
+      <nav id="nav" aria-label="Pages">
+        <button data-page="dashboard" class="active">Overview</button>
+        <button data-page="price">Price check</button>
+        <button data-page="networth">Net worth</button>
+        <button data-page="filters">Loot filter</button>
+        <button data-page="designer">Tier designer</button>
+        <button data-page="settings">Settings</button>
+      </nav>
+      <div class="foot" id="sideFoot"></div>
+    </aside>
+    <main class="main">
+      <section class="page active" id="page-dashboard"></section>
+      <section class="page" id="page-price"></section>
+      <section class="page" id="page-networth"></section>
+      <section class="page" id="page-filters"></section>
+      <section class="page" id="page-designer"></section>
+      <section class="page" id="page-settings"></section>
+    </main>
+  </div>
+  <script src="dom.js"></script>
+  <script src="hotkey.js"></script>
+  <script src="trade-panel.js"></script>
+  <script src="chart.js"></script>
+  <script src="filters.js"></script>
+  <script src="designer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

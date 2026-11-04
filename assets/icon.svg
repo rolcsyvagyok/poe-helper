@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#262a33"/><stop offset="1" stop-color="#101216"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6dc" stop-opacity="0"/>
+      <stop offset=".35" stop-color="#fff1c8" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ffd27a" stop-opacity=".95"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffcf6b" stop-opacity=".55"/><stop offset="1" stop-color="#ffcf6b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff3c4"/><stop offset=".45" stop-color="#f0b443"/><stop offset="1" stop-color="#9a5d10"/>
+    </linearGradient>
+    <linearGradient id="gemDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c98a24"/><stop offset="1" stop-color="#6e3f08"/>
+    </linearGradient>
+    <clipPath id="tile"><rect x="8" y="8" width="240" height="240" rx="54"/></clipPath>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#bg)"/>
+  <g clip-path="url(#tile)">
+    <!-- the loot beam -->
+    <path d="M116 0 H140 L162 168 H94 Z" fill="url(#beam)"/>
+    <ellipse cx="128" cy="166" rx="96" ry="70" fill="url(#glow)"/>
+    <!-- ground shadow -->
+    <ellipse cx="128" cy="212" rx="58" ry="10" fill="#000" opacity=".45"/>
+  </g>
+  <!-- the drop: a cut gem, facets in gold -->
+  <g transform="translate(128 160)">
+    <path d="M-50 -18 L-26 -46 H26 L50 -18 L0 46 Z" fill="url(#gem)" stroke="#3b2205" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M-50 -18 H50 L0 46 Z" fill="url(#gemDark)" opacity=".55"/>
+    <path d="M-26 -46 L-14 -18 L0 46 L14 -18 L26 -46" fill="none" stroke="#3b2205" stroke-width="3.5" stroke-linejoin="round" opacity=".65"/>
+    <path d="M-50 -18 H50" stroke="#3b2205" stroke-width="3.5" opacity=".65"/>
+    <path d="M-20 -40 L-10 -22 H-38 Z" fill="#fffbe9" opacity=".85"/>
+  </g>
+  <!-- sparkle: the "tink" -->
+  <path d="M190 62 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z" fill="#fff6dc"/>
+  <rect x="8.75" y="8.75" width="238.5" height="238.5" rx="53.5" fill="none" stroke="#ffffff" stroke-opacity=".09" stroke-width="1.5"/>
+</svg>
