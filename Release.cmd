@@ -20,6 +20,10 @@ for /f "delims=" %%v in ('node -p "require('./package.json').version"') do set "
 git commit -m "PoE Helper %VER%" >> "%LOG%" 2>&1
 git push >> "%LOG%" 2>&1
 echo git push exit %ERRORLEVEL% >> "%LOG%"
+rem GitHub only publishes a release for an existing tag, so make v<version> first
+git rev-parse -q --verify "refs/tags/v%VER%" >nul 2>&1 || git tag "v%VER%" >> "%LOG%" 2>&1
+git push origin "v%VER%" >> "%LOG%" 2>&1
+echo tag v%VER% push exit %ERRORLEVEL% >> "%LOG%"
 echo Installing build tools, this takes a few minutes the first time...
 call npm install --no-fund --no-audit >> "%LOG%" 2>&1
 echo npm install exit %ERRORLEVEL% >> "%LOG%"
