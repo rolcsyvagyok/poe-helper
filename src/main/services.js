@@ -413,6 +413,41 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return `data:${SOUND_EXT[file.split('.').pop().toLowerCase()]};base64,${buf.toString('base64')}`;
   }
 
+  // ---------- reset everything ----------
+  // What a fresh install has, except what is yours and not a choice about looks or behaviour: your
+  // account and session, league, the filter you picked, your history and net worth, saved themes, the
+  // game sound copies, the lab pages, and the one-time upgrades that already ran.
+  const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
+    'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
+    'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2'];
+  function resetAll() {
+    const before = structuredClone(settings.get());
+    // one level of undo, in case it was a misclick
+    try { require('fs').writeFileSync(path.join(dataDir, 'settings-before-reset.json'), JSON.stringify(before, null, 2)); } catch { /* best effort */ }
+    for (const k of Object.keys(DEFAULT_SETTINGS)) if (!RESET_KEEPS.includes(k)) settings.data[k] = structuredClone(DEFAULT_SETTINGS[k]);
+    settings.save();
+    applySettings();
+    viewCache = null;
+    let target = null;
+    try { if (filters.basePath()) { tierViewNow(); target = filters.write(); } } catch (e) { log('reset write', e.message); }
+    return { target, keptKeys: RESET_KEEPS.length };
+  }
+  function undoResetAll() {
+    const f = path.join(dataDir, 'settings-before-reset.json');
+    const fs = require('fs');
+    if (!fs.existsSync(f)) throw new Error('There is no reset to undo.');
+    const before = JSON.parse(fs.readFileSync(f, 'utf8'));
+    for (const [k, v] of Object.entries(before)) settings.data[k] = v;
+    settings.save();
+    fs.unlinkSync(f);
+    applySettings();
+    viewCache = null;
+    try { if (filters.basePath()) filters.write(); } catch (e) { log('undo reset write', e.message); }
+    return true;
+  }
+  const canUndoReset = () => require('fs').existsSync(path.join(dataDir, 'settings-before-reset.json'));
+
   // ---------- the game's own alert sounds, for previews ----------
   // Made from the game install on this PC (FMOD/Desktop/ItemFilter.bank) into the app's data folder;
   // nothing from the game ships with the app. Done once, and again when a patch changes the bank.
@@ -710,9 +745,16 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
 
   /** Names to suggest when typing an item into a tier: everything in the filter plus poe.ninja's list for this category. */
   async function tierSuggest(type) {
+    // only names that belong to this category: what its tiers hold now or held in your filter,
+    // plus poe.ninja's list for it (Delirium -> delirium orbs, not every item in the game)
     const view = tierViewNow();
     const names = new Set();
-    for (const t of view?.types || []) for (const tier of t.tiers) for (const b of tier.bases) names.add(b);
+    const mine = view?.types.find((t) => t.type === type);
+    for (const tier of mine?.tiers || []) for (const b of tier.bases) names.add(b);
+    try {
+      const orig = tiers.extractTiers(require('../core/filter/parser').parse(filters.readBase())).find((t) => t.type === type);
+      for (const tier of orig?.tiers || []) for (const b of tier.bases) names.add(b);
+    } catch { /* no base filter */ }
     const cats = tierPricing.categoriesForType(type);
     if (cats.length) {
       const league = await getLeague();
@@ -859,7 +901,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
   function baseMatrixView() {
     const { DEFENCES, CLASSES, BASES, GROUPS } = require('../core/base-data');
     let known = null;
-    try { const t = filters.basePath() ? filters.readBase() : ''; known = new Set([...t.matchAll(/"([^"\r\n]+)"/g)].map((m) => m[1])); } catch { known = null; }
+    // no filter chosen yet: nothing to check the names against (null = unknown, not "missing")
+    try { if (filters.basePath()) known = new Set([...filters.readBase().matchAll(/"([^"\r\n]+)"/g)].map((m) => m[1])); } catch { known = null; }
     const bases = {};
     for (const c of CLASSES) {
       bases[c] = {};
@@ -878,12 +921,38 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       if (!valid.has(b)) continue;
       const e = { ...(state[b] || {}) };
       if (vis !== undefined) { if (vis === 'hide') e.vis = 'hide'; else delete e.vis; }
-      if (frac !== undefined) { if (frac === 'show' || frac === 'hide') e.frac = frac; else delete e.frac; }
+      if (frac !== undefined) { if (frac === 'top' || frac === 'show' || frac === 'hide') e.frac = frac; else delete e.frac; }
       if (Object.keys(e).length) state[b] = e; else delete state[b];
     }
     settings.set('baseMatrix', state);
     const target = filters.basePath() ? filters.write() : null;
     return { state, target, leftOut: filters.lastDropped };
+  }
+  /**
+   * Fractured tiering in one go: in every column (item class and defence, or weapon type), the best
+   * bases (highest level, listed first) get the top fractured look, the next ones the good look and the
+   * rest are hidden when they drop fractured. top/good: how many of each per column.
+   */
+  function autoFractured({ top = 2, good = 3 } = {}) {
+    const v = baseMatrixView();
+    const cols = [];
+    for (const c of v.classes) for (const d of v.defences) cols.push(v.bases[c][d.id] || []);
+    for (const g of v.groups) for (const col of g.columns) cols.push(col.list);
+    const state = { ...(settings.get('baseMatrix') || {}) };
+    const done = new Set();
+    for (const list of cols) {
+      const real = list.filter((b) => b.inFilter !== false);
+      real.forEach((b, i) => {
+        if (done.has(b.name)) return; // Two-Toned Boots sit in three columns: the first (best) place wins
+        done.add(b.name);
+        const e = { ...(state[b.name] || {}), frac: i < top ? 'top' : i < top + good ? 'show' : 'hide' };
+        state[b.name] = e;
+      });
+    }
+    settings.set('baseMatrix', state);
+    if (filters.basePath()) filters.write();
+    const vals = Object.values(state);
+    return { state, top: vals.filter((e) => e.frac === 'top').length, good: vals.filter((e) => e.frac === 'show').length, hidden: vals.filter((e) => e.frac === 'hide').length };
   }
   function setBaseMatrixOpts(o = {}) {
     const cur = { mapsOnly: true, keepIlvl: null, ...(settings.get('baseMatrixOpts') || {}) };
@@ -1268,7 +1337,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

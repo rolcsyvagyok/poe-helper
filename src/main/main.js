@@ -562,6 +562,21 @@ function registerIpc() {
     return { settings: sanitizedSettings(), league, divine, usage: services.usageSnapshot(), history: s.get('history') || [] };
   });
   handle('leagues:list', () => services.ninja.leagues());
+  // everything back to a fresh install (your account, filter choice and history stay)
+  const afterReset = () => {
+    hotkeysPaused = false; registerHotkeys(); applyAppIcon(); startClipboardWatcher(); applyAutoSnapshot(); applyFilterWatch(); applyAutoTier();
+    mainWin?.webContents.send('filter:rebuilt');
+  };
+  handle('app:resetAll', () => { const r = services.resetAll(); afterReset(); return r; });
+  handle('app:undoReset', () => { const r = services.undoResetAll(); afterReset(); return r; });
+  handle('app:canUndoReset', () => services.canUndoReset());
+  // put some settings back to how a fresh install has them (e.g. the usual map warnings)
+  handle('settings:reset', (keys) => {
+    const D = require('./services').DEFAULT_SETTINGS;
+    for (const k of (Array.isArray(keys) ? keys : []).filter((x) => x in D && !['sessionEnc', 'history'].includes(x))) s.set(k, structuredClone(D[k]));
+    services.applySettings();
+    return true;
+  });
   handle('settings:set', (patch) => {
     const allowed = Object.keys(require('./services').DEFAULT_SETTINGS).filter((k) => !['sessionEnc', 'history', 'overrides'].includes(k));
     const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.includes(k)));
@@ -645,6 +660,7 @@ function registerIpc() {
   handle('matrix:get', () => services.baseMatrixView());
   handle('cluster:get', () => services.clusterView());
   handle('cluster:set', (a) => services.setCluster(a || {}));
+  handle('matrix:fracAuto', (a) => services.autoFractured(a || {}));
   handle('matrix:set', (a) => services.setBaseMatrix(a || {}));
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('bases:add', (a) => services.addMyBase(a || {}));
@@ -683,6 +699,7 @@ function registerIpc() {
   handle('review:run', (args) => services.priceReview(args || {}));
   handle('farm:dashboard', () => services.farmDashboard());
   handle('designer:state', () => services.designerState());
+  handle('designer:random', () => require('../core/filter/designer').randomTheme());
   handle('designer:draft', (d) => services.designerSaveDraft(d || {}));
   handle('designer:apply', (a) => services.designerApply(a || {}));
   handle('designer:undo', () => services.designerUndo());

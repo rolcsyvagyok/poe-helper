@@ -250,7 +250,7 @@ test('tier designer: apply a preset to the whole filter, Tier 1 locked white + t
   fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
   svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter' });
   const st = svc.designerState();
-  assert.equal(st.presets.length, 6);
+  assert.equal(st.presets.length, 14);
   assert.deepEqual(st.groups.map((g) => g.id).sort(), ['currency', 'divination', 'uniques']);
   // a design that tries to make Tier 1 black gets locked back to white with FilterBlade's Divine sound
   const levels = { ...st.presets[2].levels, 1: { fontSize: 40, text: [255, 0, 0, 255], background: [0, 0, 0, 255] } };
@@ -529,4 +529,33 @@ test('resetting another category keeps the Giga tier; resetting currency brings 
   assert.ok(!gigaThere(), 'and stays deleted');
   svc.resetTiers({ type: 'currency' });
   assert.ok(gigaThere(), 'resetting currency restores the default Giga tier');
+});
+
+test('fractured tiering: the best bases per column top, the next good, the rest hidden', () => {
+  const { svc } = setup(); // no filter chosen: every listed base counts
+  const r = svc.autoFractured({ top: 2, good: 3 });
+  const st = r.state;
+  const col = svc.baseMatrixView().bases['Body Armours'].ar.filter((b) => b.inFilter !== false).map((b) => b.name);
+  assert.deepEqual(col.slice(0, 7).map((n) => st[n]?.frac), ['top', 'top', 'show', 'show', 'show', 'hide', 'hide'].slice(0, Math.min(7, col.length)));
+  assert.ok(r.hidden > 0 && r.top > 0);
+  const { matrixRules } = require('../src/core/filter/manager');
+  const rules = matrixRules(st);
+  assert.equal(rules[0].id, 'matrix-frac-top', 'the loud look comes first');
+  assert.ok(rules[0].conditions.some((c) => c.keyword === 'FracturedItem' && c.values[0] === 'True'));
+});
+
+test('reset everything: your changes go, account and filter choice stay, and it can be undone once', () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter', accountName: 'me#1234', hotkeyPrice: 'Ctrl+Q', mapRules: [] });
+  svc.setBaseMatrix({ bases: ['Royal Plate'], frac: 'top' });
+  svc.resetAll();
+  assert.equal(svc.settings.get('accountName'), 'me#1234');
+  assert.equal(svc.settings.get('baseFilter'), 'NeverSink.filter');
+  assert.notEqual(svc.settings.get('hotkeyPrice'), 'Ctrl+Q');
+  assert.ok(svc.settings.get('mapRules').length > 0, 'the usual map warnings are back');
+  assert.deepEqual(svc.settings.get('baseMatrix'), {});
+  assert.ok(svc.canUndoReset());
+  svc.undoResetAll();
+  assert.equal(svc.settings.get('hotkeyPrice'), 'Ctrl+Q');
+  assert.equal(svc.canUndoReset(), false);
 });

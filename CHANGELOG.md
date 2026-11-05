@@ -3,6 +3,19 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.13 - 2026-11-05
+
+- **WealthyExile is a dashboard.** Your worth by category (Currency, Scarabs, Divination cards, Uniques…) as cards with pictures, value, share and their top items; click one to list only its items, or search. Every item shows its picture, amount, price each and value, and your tabs are compared as bars. New snapshots keep each item's picture from your stash.
+- **Loot filter: the add box only takes items of that category.** Typing in Delirium suggests delirium orbs, not every item in the game; a name from another category is refused, with the closest matches to pick from.
+- **Loot filter: the category list stays on screen.** It's pinned to the top while you scroll the tiers, so picking a category (Belts, say) no longer throws you back up the page; the new category opens at the top of its tiers.
+- **Fractured bases have their own palette.** A new top look for the best fractured bases (big, orange beam, star), next to the fractured look. In Base visibility, "Fractured: keep only the best" sets it all at once: in every column the 2 best bases get the top look, the next 3 the fractured look, and the rest are hidden when they drop fractured. There's a "Fractured: top" brush too. Plain copies are left alone, so you can hide a base and still see it fractured.
+- **Cluster jewels: left and right click.** Left click moves a cell one step up (hidden → filter decides → good → top), right click one step down; an enchantment or a passive count does it for the whole row or column. Dragging still paints with the brush.
+- **Tier designer: 8 more themes and Random.** Rose gold, Emerald, Arctic, Toxic, Royal gold, Crimson night, Sunset and Cyber, plus a Random card that rolls a new colour palette each time; Save as theme keeps one you like.
+- **Settings: map warnings can be deleted,** one by one or all at once, and the usual list can be brought back.
+- **Settings: Updates come before the patch notes.**
+- **Reset everything.** Settings → Start over puts every look, tier, base, cluster, sound, hotkey and setting you changed back to a fresh install, and rewrites your filter to match. Your account, league, filter choice, history, net worth, saved themes and game sound copies stay. It can be undone once.
+- The GitHub test build writes its release notes first, so it no longer fails.
+
 ## 1.0.12 - 2026-11-05
 
 - **Tier designer: no more jumping to the top.** Changing a sound, colour or anything else keeps you where you are on the page.

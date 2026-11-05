@@ -105,6 +105,24 @@ function miniPreview(levels) {
     [1, 2, 3].map((lv) => dropLabel(SAMPLE[lv], levels[lv], { scale: 0.52, rarity: 'Currency' })));
 }
 
+// "Random": a new colour palette each press, used straight away; Save as theme keeps one you like
+function randomCard() {
+  const roll = async () => {
+    try {
+      const t = await call('designer:random');
+      D.random = t;
+      D.levels = clone(t.levels); D.presetId = 'random'; D.level = 1; D.groups = null;
+      persist(); draw(); applySoon(0);
+    } catch { /* toast shown */ }
+  };
+  return h('div', { class: 'dz-card dz-random' + (D.presetId === 'random' ? ' active' : '') },
+    D.random ? miniPreview(D.random.levels) : h('div', { class: 'ground dz-mini dz-dice', 'aria-hidden': 'true' }, '🎲'),
+    h('div', { class: 'dz-card-body' },
+      h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, 'Random'), D.presetId === 'random' ? h('span', { class: 'pill good' }, 'In use') : null),
+      h('p', { class: 'small muted' }, 'A new colour palette every time. Like one? Save it as a theme at the bottom.'),
+      h('div', { class: 'row', style: { marginTop: '6px' } }, h('button', { class: 'primary sm', onclick: roll }, D.random ? 'Roll again' : 'Roll a palette'))));
+}
+
 function gallery() {
   const card = (t, own) => h('div', { class: 'dz-card' + (D.presetId === t.id ? ' active' : '') },
     miniPreview(t.levels),
@@ -116,7 +134,7 @@ function gallery() {
         own ? h('button', { class: 'danger sm', onclick: async () => { await call('designer:deleteTheme', t.id); D.state = await call('designer:state'); draw(); } }, 'Delete') : null)));
   return h('section', { class: 'section', style: { marginTop: 0 } },
     h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with FilterBlade\'s Divine sound (game sound 6). Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
-    h('div', { class: 'dz-gallery' }, D.state.presets.map((t) => card(t, false)), D.state.themes.map((t) => card(t, true))));
+    h('div', { class: 'dz-gallery' }, randomCard(), D.state.presets.map((t) => card(t, false)), D.state.themes.map((t) => card(t, true))));
 }
 
 // ---------------------------------------------------------------- loot pile preview

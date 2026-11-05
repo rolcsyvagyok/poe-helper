@@ -312,6 +312,77 @@ function priceResult(r) {
 // ---------------- net worth ----------------
 let nwWindow = 24 * 3600 * 1000;
 let nwTabs = null;
+let nwCat = null; // the category picked on the dashboard
+let nwFind = '';
+const nwArt = {}; // item name -> picture, for snapshots taken before pictures were kept
+
+// ---------------- WealthyExile dashboard ----------------
+const WX_CATS = {
+  Currency: 'Currency', Fragment: 'Fragments', Scarab: 'Scarabs', Essence: 'Essences', Fossil: 'Fossils', Resonator: 'Resonators', Oil: 'Oils',
+  DeliriumOrb: 'Delirium orbs', DivinationCard: 'Divination cards', Unique: 'Uniques', Gem: 'Gems', Map: 'Maps', UniqueMap: 'Unique maps',
+  BlightedMap: 'Blighted maps', Omen: 'Omens', Tattoo: 'Tattoos', Artifact: 'Expedition', Incubator: 'Incubators', Invitation: 'Invitations',
+  Memory: 'Memories', Vial: 'Vials', Runegraft: 'Runegrafts', AllflameEmber: 'Allflame embers', Astrolabe: 'Astrolabes',
+  EnshroudingCrystal: 'Enshrouding crystals', DjinnCoin: 'Djinn coins', Beast: 'Beasts', Ducat: 'Ducats', Corpse: 'Corpses', KalguuranRune: 'Runes',
+};
+const wxName = (c) => WX_CATS[c] || String(c || 'Other').replace(/([a-z])([A-Z])/g, '$1 $2');
+const wxBase = (n) => String(n).replace(/ \((?:5|6)L\)$/, '').replace(/ \d+\/\d+$/, '').replace(/ T\d+$/, '');
+const wxIcon = (item, size = 26) => {
+  const url = item.i || nwArt[wxBase(item.n)];
+  return url ? h('img', { src: url, alt: '', width: size, height: size, loading: 'lazy', style: { objectFit: 'contain' } }) : h('span', { class: 'wx-noimg', style: { width: size + 'px', height: size + 'px' } });
+};
+
+function wealthDashboard(latest) {
+  const d = latest.divine;
+  const items = latest.items || [];
+  const total = latest.totalChaos || items.reduce((a, i) => a + i.q * i.e, 0) || 1;
+  const groups = new Map();
+  for (const i of items) {
+    const c = i.c || 'Other';
+    if (!groups.has(c)) groups.set(c, { id: c, total: 0, items: [] });
+    const g = groups.get(c); g.total += i.q * i.e; g.items.push(i);
+  }
+  const cats = [...groups.values()].sort((a, b) => b.total - a.total);
+  // pictures for older snapshots: one lookup by name, then redraw
+  const missing = [...new Set(cats.flatMap((g) => g.items.slice(0, 6)).filter((i) => !i.i && !(wxBase(i.n) in nwArt)).map((i) => wxBase(i.n)))].slice(0, 80);
+  if (missing.length) {
+    for (const n of missing) nwArt[n] = null;
+    call('art:icons', missing).then((m) => { let any = false; for (const [k, v] of Object.entries(m || {})) if (v) { nwArt[k] = v; any = true; } if (any && currentPage === 'networth') renderNetworth(); }).catch(() => {});
+  }
+  const pct = (v) => { const x = Math.round((v / total) * 1000) / 10; return x > 0 ? `${x}%` : '<0.1%'; };
+  const card = (g) => h('button', { type: 'button', class: 'wx-card' + (nwCat === g.id ? ' on' : ''), 'aria-pressed': nwCat === g.id ? 'true' : 'false', onclick: () => { nwCat = nwCat === g.id ? null : g.id; renderNetworth(); } },
+    h('div', { class: 'wx-card-head' }, wxIcon(g.items[0], 34),
+      h('div', { class: 'wx-card-title' }, h('b', {}, wxName(g.id)), h('span', { class: 'small faint' }, `${g.items.length} ${g.items.length === 1 ? 'item' : 'items'}`)),
+      h('div', { class: 'wx-card-val' }, h('b', {}, chaosDiv(g.total, d)), h('span', { class: 'small muted' }, pct(g.total)))),
+    h('div', { class: 'wx-bar' }, h('i', { style: { width: pct(g.total) } })),
+    h('div', { class: 'wx-top' }, g.items.slice(0, 3).map((i) => h('div', { class: 'wx-line' }, wxIcon(i, 20), h('span', { class: 'n' }, i.n), h('span', { class: 'q small muted' }, i.q > 1 ? `×${fmt(i.q)}` : ''), h('span', { class: 'v' }, chaosDiv(i.q * i.e, d))))));
+
+  const shown = items.filter((i) => (!nwCat || (i.c || 'Other') === nwCat) && (!nwFind || i.n.toLowerCase().includes(nwFind.toLowerCase())));
+  const find = h('input', { type: 'search', placeholder: 'Find an item', value: nwFind, style: { width: '200px' }, oninput: (e) => { nwFind = e.target.value; clearTimeout(window.wxFindT); window.wxFindT = setTimeout(renderNetworth, 250); } });
+  const byTab = Object.entries(latest.byTab || {}).sort((a, b) => b[1] - a[1]);
+  const tabMax = byTab[0]?.[1] || 1;
+  return [
+    h('div', { class: 'section-head', style: { marginTop: '28px' } }, h('h2', {}, 'By category'), h('p', {}, 'Click a category to list only its items.')),
+    h('div', { class: 'wx-grid' }, cats.map(card)),
+    h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)' } },
+      h('div', {},
+        h('div', { class: 'section-head' }, h('h2', {}, nwCat ? wxName(nwCat) : 'All items'), h('span', { class: 'small faint' }, `${shown.length} items, ${chaosDiv(shown.reduce((a, i) => a + i.q * i.e, 0), d)}`), h('span', { class: 'spacer' }),
+          find, nwCat ? h('button', { class: 'quiet sm', onclick: () => { nwCat = null; renderNetworth(); } }, 'Show all') : null),
+        h('div', { class: 'panel', style: { padding: '6px 10px' } }, shown.length ? h('table', { class: 'wx-items' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', {}, 'Category'), h('th', { class: 'r' }, 'Amount'), h('th', { class: 'r' }, 'Each'), h('th', { class: 'r' }, 'Value'))),
+          h('tbody', {}, shown.slice(0, 60).map((i) => h('tr', {},
+            h('td', {}, h('span', { class: 'row', style: { gap: '8px', flexWrap: 'nowrap' } }, wxIcon(i, 24), i.n)),
+            h('td', { class: 'small muted' }, wxName(i.c)),
+            h('td', { class: 'r muted' }, fmt(i.q)),
+            h('td', { class: 'r small muted' }, chaosDiv(i.e, d)),
+            h('td', { class: 'r' }, chaosDiv(i.q * i.e, d)))))) : h('p', { class: 'small muted' }, 'Nothing matches.'),
+        shown.length > 60 ? h('p', { class: 'small faint' }, `The ${shown.length - 60} smaller ones are left out; search to find them.`) : null)),
+      h('div', {},
+        h('div', { class: 'section-head' }, h('h2', {}, 'By tab')),
+        h('div', { class: 'panel stack', style: { gap: '10px' } }, byTab.map(([name, v]) => h('div', {},
+          h('div', { class: 'row small', style: { justifyContent: 'space-between' } }, h('span', {}, name), h('b', {}, chaosDiv(v, d))),
+          h('div', { class: 'wx-bar' }, h('i', { style: { width: `${Math.max(2, (v / tabMax) * 100)}%` } }))))))),
+  ];
+}
 
 function renderNetworth() { return window.UI.keepScroll(() => renderNetworthNow()); }
 async function renderNetworthNow() {
@@ -350,6 +421,7 @@ async function renderNetworthNow() {
         figure(report?.gainChaos != null ? `${report.gainChaos >= 0 ? '+' : ''}${chaosDiv(report.gainChaos, latest?.divine)}` : '–', report?.hours ? `Change over ${fmt(report.hours)} hours` : 'Change', report?.gainChaos > 0 ? 'good' : report?.gainChaos < 0 ? 'bad' : ''),
         figure(report?.perHourChaos != null ? `${fmt(report.perHourChaos)}c` : '–', 'Per hour')),
       h('div', { style: { marginTop: '14px' } }, window.lineChart((report?.series || []).filter((p) => p.ts >= (latest?.ts || 0) - nwWindow), { divine: latest?.divine }))),
+    latest ? wealthDashboard(latest) : h('div', { class: 'panel small muted', style: { marginTop: '28px' } }, 'Your categories, items and tabs show up here after your first snapshot.'),
     h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start' } },
       h('div', {},
         h('div', { class: 'section-head' }, h('h2', {}, 'Tracked tabs'), h('span', { class: 'spacer' }),
@@ -363,14 +435,6 @@ async function renderNetworthNow() {
             h('select', { onchange: async (e) => { await call('settings:set', { autoSnapshotMin: Number(e.target.value) }); renderNetworth(); } },
               [0, 15, 30, 60, 120].map((m) => h('option', { value: m, selected: Number(st.autoSnapshotMin) === m }, m ? `Every ${m} minutes` : 'Off'))),
             st.autoSnapshotMin ? h('span', { class: 'faint' }, `About ${perHourReq} requests an hour while you play`) : null))),
-      h('div', {},
-        h('div', { class: 'section-head' }, h('h2', {}, 'Where it is')),
-        h('div', { class: 'panel' }, latest ? h('div', { class: 'cols' }, rowsOf(latest.byTab), rowsOf(latest.byCategory)) : h('p', { class: 'small muted' }, 'Shows up after your first snapshot.')))),
-    h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start' } },
-      h('div', {},
-        h('div', { class: 'section-head' }, h('h2', {}, 'Most valuable')),
-        h('div', { class: 'panel' }, latest ? h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'r' }, 'Amount'), h('th', { class: 'r' }, 'Value'))),
-          h('tbody', {}, latest.items.slice(0, 20).map((i) => h('tr', {}, h('td', {}, i.n), h('td', { class: 'r muted' }, i.q), h('td', { class: 'r' }, chaosDiv(i.q * i.e, latest.divine)))))) : h('p', { class: 'small muted' }, 'Shows up after your first snapshot.'))),
       h('div', {},
         h('div', { class: 'section-head' }, h('h2', {}, 'What changed'), h('span', { class: 'spacer' }),
           h('button', { class: 'danger sm', onclick: async () => { if (confirm(`Delete all snapshots for ${S.league}?`)) { await call('networth:clear'); renderNetworth(); } } }, 'Delete history')),
@@ -881,21 +945,33 @@ async function renderSettingsNow() {
         toggle(!!st.minimizeToTray, (v) => call('settings:set', { minimizeToTray: v }).then(() => toast(v ? 'Minimizing now hides PoE Helper in the tray' : 'Minimizing keeps PoE Helper in the taskbar')), 'Minimize to the tray instead of the taskbar'),
         h('div', { class: 'row' }, h('button', { onclick: () => call('tray:hide') }, 'Hide to tray now'),
           h('span', { class: 'small muted' }, 'Closing the window also keeps PoE Helper running in the tray, so Alt+E keeps working. Click the tray icon to open it again; right-click it and choose Quit to close it for good.')))),
-    notesSection(await call('app:changelog').catch(() => [])),
     section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
       h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
+    notesSection(await call('app:changelog').catch(() => [])),
     section('Game sound previews', 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.',
       h('div', { class: 'panel' }, gameSoundRows(st))),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',
       h('div', { class: 'panel row', style: { gap: '16px' } }, appIconBox(st))),
+    section('Start over', 'Puts every look, tier, base, cluster, sound, hotkey and setting you changed in PoE Helper back to how a fresh install has them, and rewrites your filter to match. It keeps your account and login, the league, the filter you picked, your price check history and net worth, your saved themes and the game sound copies.',
+      h('div', { class: 'panel row', style: { gap: '10px' } },
+        h('button', { class: 'danger', onclick: async () => {
+          if (!confirm('Put everything you changed in PoE Helper back to a fresh install? Your filter is rewritten without your changes. You can undo this once.')) return;
+          try { await call('app:resetAll'); toast('Everything is back to how a fresh install has it. Zone or reload the filter in game.'); renderSettings(); } catch { /* toast */ }
+        } }, 'Reset everything'),
+        (await call('app:canUndoReset').catch(() => false)) ? h('button', { onclick: async () => { try { await call('app:undoReset'); toast('Your changes are back'); renderSettings(); } catch { /* toast */ } } }, 'Undo the reset') : null,
+        h('span', { class: 'small muted' }, 'Only for what PoE Helper changed: your FilterBlade filter itself is never touched.'))),
     section('Map warnings', 'Turn on the mods your build can\'t run. A # stands for any number.',
       h('div', { class: 'panel' },
-        h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Mod'), h('th', {}, 'Matches text'), h('th', {}, 'Warning'))),
+        rules.length ? h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Mod'), h('th', {}, 'Matches text'), h('th', {}, 'Warning'), h('th', {}, ''))),
           h('tbody', {}, rules.map((r) => h('tr', {},
             h('td', { style: { width: '44px' } }, toggle(r.enabled, (v) => { r.enabled = v; saveRules(); })),
             h('td', {}, r.label),
             h('td', { class: 'muted small' }, r.pattern),
-            h('td', {}, h('select', { onchange: (e) => { r.severity = e.target.value; saveRules(); } }, [['deadly', 'Skip the map'], ['danger', 'Dangerous'], ['warn', 'Annoying'], ['info', 'Just so you know']].map(([v, l]) => h('option', { value: v, selected: r.severity === v }, l)))))))),
+            h('td', {}, h('select', { onchange: (e) => { r.severity = e.target.value; saveRules(); } }, [['deadly', 'Skip the map'], ['danger', 'Dangerous'], ['warn', 'Annoying'], ['info', 'Just so you know']].map(([v, l]) => h('option', { value: v, selected: r.severity === v }, l)))),
+            h('td', { style: { width: '40px' } }, h('button', { class: 'quiet sm', title: `Delete "${r.label}"`, 'aria-label': `Delete ${r.label}`, onclick: () => { rules.splice(rules.indexOf(r), 1); saveRules().then(renderSettings); } }, '✕')))))) : h('p', { class: 'small muted' }, 'No map warnings. Add one below, or bring back the usual list.'),
+        h('div', { class: 'row', style: { marginTop: '10px', gap: '8px' } },
+          rules.length ? h('button', { class: 'quiet sm', onclick: () => { if (!confirm(`Delete all ${rules.length} map warnings?`)) return; rules.length = 0; saveRules().then(renderSettings); } }, 'Delete all') : null,
+          h('button', { class: 'quiet sm', onclick: async () => { await call('settings:reset', ['mapRules']); renderSettings(); } }, 'Bring back the usual warnings')),
         (() => {
           const label = h('input', { placeholder: 'Name' });
           const pat = h('input', { placeholder: 'Monsters have #% increased Area of Effect', style: { flex: 1 } });

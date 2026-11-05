@@ -155,6 +155,59 @@ function applyDesign(view, patch, levels, { groups = null } = {}) {
   return { patch: { ...patch, moves: { ...(patch.moves || {}) }, styles }, count, categories: new Set(targets.map((t) => t.type)).size };
 }
 
+// ---------- themes made from two hues (the extra presets and "Random") ----------
+function hsl(h, sat, lig, a = 255) {
+  const S = sat / 100, L = lig / 100;
+  const k = (n) => (n + h / 30) % 12;
+  const f = (n) => L - S * Math.min(L, 1 - L) * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255), a];
+}
+/** The game's beam / minimap colour closest to a hue. */
+function gameColour(h, sat = 80) {
+  if (sat < 15) return 'White';
+  const x = ((h % 360) + 360) % 360;
+  return x < 15 ? 'Red' : x < 40 ? 'Orange' : x < 65 ? 'Yellow' : x < 160 ? 'Green' : x < 200 ? 'Cyan' : x < 255 ? 'Blue' : x < 300 ? 'Purple' : x < 340 ? 'Pink' : 'Red';
+}
+const SHAPES = ['Star', 'Diamond', 'Hexagon', 'Circle', 'Triangle', 'Square', 'Pentagon', 'Moon', 'Raindrop', 'Kite', 'Cross'];
+/**
+ * A full theme from a main hue and an accent hue: Tier 1 white (as every theme), Tier 2 the main colour,
+ * Tier 3 the accent, then darker and quieter steps of the main colour.
+ */
+function paletteTheme({ id, name, description, hue, accent = hue + 30, sat = 85, shapes = ['Star', 'Diamond', 'Circle'] }) {
+  const c1 = gameColour(hue, sat), c2 = gameColour(accent, sat);
+  return {
+    id, name, description,
+    levels: {
+      1: tier1(hsl(hue, Math.min(100, sat + 10), 38).slice(0, 3)),
+      2: { fontSize: 45, text: [255, 255, 255, 255], border: hsl(hue, 100, 86), background: hsl(hue, sat, 42), ...sound('chime'), beam: { color: c1 }, icon: { size: 0, color: c1, shape: shapes[0] } },
+      3: { fontSize: 42, text: hsl(accent, 80, 10), border: hsl(accent, 90, 22), background: hsl(accent, sat, 58), ...sound('sparkle'), beam: { color: c2, temp: true }, icon: { size: 1, color: c2, shape: shapes[1] } },
+      4: { fontSize: 38, text: hsl(hue, 80, 82), border: hsl(hue, 55, 40), background: hsl(hue, 60, 14, 240), ...sound('soft-bell'), icon: { size: 2, color: c1, shape: shapes[2] } },
+      5: { fontSize: 34, text: hsl(hue, 35, 72), border: hsl(hue, 30, 26), background: hsl(hue, 40, 8, 220) },
+      6: { fontSize: 30, text: hsl(hue, 10, 62), background: [0, 0, 0, 170] },
+    },
+  };
+}
+PRESETS.push(
+  paletteTheme({ id: 'rose', name: 'Rose gold', description: 'Soft pinks with warm gold.', hue: 335, accent: 40, sat: 70, shapes: ['Kite', 'Star', 'Circle'] }),
+  paletteTheme({ id: 'emerald', name: 'Emerald', description: 'Deep greens and jade.', hue: 145, accent: 170, sat: 75, shapes: ['Diamond', 'Hexagon', 'Circle'] }),
+  paletteTheme({ id: 'arctic', name: 'Arctic', description: 'Ice blue and frost white, very clean.', hue: 198, accent: 185, sat: 60, shapes: ['Raindrop', 'Diamond', 'Circle'] }),
+  paletteTheme({ id: 'toxic', name: 'Toxic', description: 'Acid green and yellow, impossible to miss.', hue: 95, accent: 60, sat: 95, shapes: ['Cross', 'Triangle', 'Circle'] }),
+  paletteTheme({ id: 'royal', name: 'Royal gold', description: 'Gold and amber, rich and warm.', hue: 42, accent: 25, sat: 90, shapes: ['Star', 'Pentagon', 'Circle'] }),
+  paletteTheme({ id: 'crimson', name: 'Crimson night', description: 'Blood red with dusky purple.', hue: 355, accent: 285, sat: 80, shapes: ['Moon', 'Diamond', 'Circle'] }),
+  paletteTheme({ id: 'sunset', name: 'Sunset', description: 'Orange to magenta, like the evening sky.', hue: 18, accent: 320, sat: 85, shapes: ['Star', 'Kite', 'Circle'] }),
+  paletteTheme({ id: 'cyber', name: 'Cyber', description: 'Electric cyan with hot pink.', hue: 185, accent: 315, sat: 95, shapes: ['Hexagon', 'Square', 'Circle'] }),
+);
+
+/** "Random": a fresh pair of hues and shapes each time. rnd lets tests pick the numbers. */
+function randomTheme(rnd = Math.random) {
+  const hue = Math.floor(rnd() * 360);
+  const accent = (hue + 30 + Math.floor(rnd() * 300)) % 360;
+  const pick = () => SHAPES[Math.floor(rnd() * SHAPES.length)];
+  const t = paletteTheme({ id: 'random', name: 'Random', description: 'A random colour palette.', hue, accent, sat: 65 + Math.floor(rnd() * 35), shapes: [pick(), pick(), 'Circle'] });
+  t.levels.giga = gigaLook(t.levels[1]);
+  return t;
+}
+
 for (const p of PRESETS) p.levels.giga = gigaLook(p.levels[1]);
 
-module.exports = { gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

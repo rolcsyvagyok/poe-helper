@@ -119,7 +119,10 @@ function valueTabs(tabs, idx, minChaos = 0) {
       if (sum < minChaos) continue;
       tabTotal += sum;
       byCategory[v.category] = (byCategory[v.category] || 0) + sum;
-      const a = agg.get(v.name) || { name: v.name, qty: 0, each: v.each, total: 0, category: v.category };
+      // GGG's stash data carries each item's picture (on web.poecdn.com); kept for the dashboard
+      const icon = typeof it.icon === 'string' && /^https:\/\/web\.poecdn\.com\//.test(it.icon) ? it.icon : null;
+      const a = agg.get(v.name) || { name: v.name, qty: 0, each: v.each, total: 0, category: v.category, icon };
+      if (!a.icon && icon) a.icon = icon;
       a.qty += v.qty;
       a.total += sum;
       agg.set(v.name, a);
@@ -181,7 +184,7 @@ class NetWorthTracker {
         byTab: v.byTab,
         byCategory: Object.fromEntries(Object.entries(v.byCategory).map(([k, x]) => [k, Math.round(x)])),
         // Keep everything worth >= 1c so diffs ("what did I gain?") work, but cap size.
-        items: v.items.filter((i) => i.total >= 1).slice(0, 400).map((i) => ({ n: i.name, q: i.qty, e: Math.round(i.each * 100) / 100, c: i.category })),
+        items: v.items.filter((i) => i.total >= 1).slice(0, 400).map((i) => ({ n: i.name, q: i.qty, e: Math.round(i.each * 100) / 100, c: i.category, ...(i.icon ? { i: i.icon } : {}) })),
       };
       const all = this.store.get('snapshots') || [];
       all.push(snap);

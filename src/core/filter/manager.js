@@ -25,6 +25,8 @@ const { BASES, GROUPS } = require('../base-data');
 const cluster = require('../cluster');
 
 const MATRIX_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.flatMap((g) => Object.values(g.columns).flat())])];
+// fractured bases have their own palette: the best bases loud, good ones clear, the rest hidden
+const FRACTURED_TOP_STYLE = { fontSize: 45, text: [255, 255, 255, 255], border: [255, 214, 150, 255], background: [150, 86, 22, 255], customSound: 'poehelper-sounds/sparkle.mp3', beam: { color: 'Orange' }, icon: { size: 0, color: 'Brown', shape: 'Star' } };
 const FRACTURED_STYLE = { fontSize: 40, text: [255, 255, 255, 255], border: [210, 178, 135, 255], background: [86, 52, 20, 235], icon: { size: 1, color: 'Brown', shape: 'Diamond' } };
 
 const HELPER_SUFFIX = ' (helper)';
@@ -329,11 +331,13 @@ function hiddenBaseRules(baseText, patch, { fractured = false, synthesised = fal
  */
 function matrixRules(state = {}, { mapsOnly = true, keepIlvl = null } = {}) {
   const pick = (f) => Object.entries(state || {}).filter(([n, v]) => n && v && f(v)).map(([n]) => n).sort();
+  const fracTop = pick((v) => v.frac === 'top');
   const fracShow = pick((v) => v.frac === 'show');
   const fracHide = pick((v) => v.frac === 'hide');
   const hide = pick((v) => v.vis === 'hide');
   const plain = { keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] };
   const out = [];
+  if (fracTop.length) out.push({ id: 'matrix-frac-top', enabled: true, action: 'Show', group: 'matrix', label: 'Base visibility: the best fractured bases', conditions: [plain, { keyword: 'FracturedItem', values: ['True'] }, { keyword: 'BaseType', op: '==', values: fracTop }], style: FRACTURED_TOP_STYLE });
   if (fracShow.length) out.push({ id: 'matrix-frac-show', enabled: true, action: 'Show', group: 'matrix', label: 'Base visibility: fractured bases you want', conditions: [plain, { keyword: 'FracturedItem', values: ['True'] }, { keyword: 'BaseType', op: '==', values: fracShow }], style: FRACTURED_STYLE });
   if (fracHide.length) out.push({ id: 'matrix-frac-hide', enabled: true, action: 'Hide', group: 'matrix', label: 'Base visibility: hide fractured', conditions: [plain, { keyword: 'FracturedItem', values: ['True'] }, { keyword: 'BaseType', op: '==', values: fracHide }], style: { disableDropSound: true } });
   if (hide.length) {
@@ -628,4 +632,4 @@ class FilterManager {
   }
 }
 
-module.exports = { matrixRules, MATRIX_NAMES, FRACTURED_STYLE, hiddenBaseRules, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { matrixRules, MATRIX_NAMES, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

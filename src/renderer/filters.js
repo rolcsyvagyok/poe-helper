@@ -350,8 +350,10 @@ function renderTiers(body, view) {
       const name = exact || raw;
       if (t.bases.some((b) => b.toLowerCase() === name.toLowerCase())) { mount(msg, h('span', { class: 'muted' }, `${name} is already in ${tierName(t)}.`)); return; }
       if (!exact && known().length && !force) {
-        mount(msg, h('span', { class: 'warn' }, `"${raw}" isn't a name your filter or poe.ninja knows. Check the spelling, it must match the game exactly. `),
-          h('button', { class: 'quiet sm', onclick: () => add(true) }, 'Add anyway'));
+        // only items of this category go in; the list below the box shows them as you type
+        const close = known().filter((n) => n.toLowerCase().includes(raw.toLowerCase())).slice(0, 4);
+        mount(msg, h('span', { class: 'warn' }, `"${raw}" isn't one of the ${type.label.toLowerCase()}. `),
+          close.length ? [h('span', { class: 'muted' }, 'Did you mean '), close.map((n, i) => [i ? ', ' : '', h('button', { class: 'quiet sm', onclick: () => { inp.value = n; add(); } }, n)]), '?'] : h('span', { class: 'muted' }, 'Pick a name from the list as you type.'));
         return;
       }
       const from = type.tiers.find((x) => x.bases.includes(name));
@@ -360,6 +362,7 @@ function renderTiers(body, view) {
     };
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
     inp.addEventListener('focus', loadNames, { once: true });
+    inp.addEventListener('input', () => mount(msg));
     return h('div', { class: 'fb-add' }, inp, h('button', { class: 'sm', onclick: () => add() }, 'Add'), msg);
   }
 
@@ -599,7 +602,8 @@ async function extraRulesPanel() {
 const BRUSHES = [
   { id: 'show', label: 'Show', set: { vis: null }, title: 'Your filter decides, as before' },
   { id: 'hide', label: 'Hide', set: { vis: 'hide' }, title: 'Hide plain copies of this base' },
-  { id: 'fshow', label: 'Fractured: show', set: { frac: 'show' }, title: 'Always show it when it drops fractured, with its own look' },
+  { id: 'ftop', label: 'Fractured: top', set: { frac: 'top' }, title: 'Show it loud when it drops fractured: the best-base look' },
+  { id: 'fshow', label: 'Fractured: show', set: { frac: 'show' }, title: 'Always show it when it drops fractured, with the fractured look' },
   { id: 'fhide', label: 'Fractured: hide', set: { frac: 'hide' }, title: 'Hide it even when it drops fractured' },
   { id: 'fdefault', label: 'Fractured: filter decides', set: { frac: null }, title: 'Back to what your filter does with fractured copies' },
 ];
@@ -663,9 +667,34 @@ async function renderClusterGrid(body, view) {
     state = r.state; S.settings.clusterGrid = r.state;
     drawCount();
   };
+  // left click steps a cell up the ladder, right click steps it down: hidden, filter decides (cheap,
+  // by size), good look, top look. Dragging over cells still paints them with the brush.
+  const LADDER = ['hide', null, 'good', 'top'];
+  const filterOwn = (k) => (data.filter[k] === 't1' ? 'top' : data.filter[k] === 't2' ? 'good' : null);
+  const step = async (keys, dir) => {
+    const byValue = new Map();
+    for (const k of keys) {
+      const cur = state[k] || filterOwn(k);
+      const i = Math.max(0, Math.min(LADDER.length - 1, LADDER.indexOf(cur) + dir));
+      let v = LADDER[i];
+      if (v === filterOwn(k)) v = null; // that's what the filter does anyway
+      if (v) state[k] = v; else delete state[k];
+      for (const el of els.get(k) || []) cellLook(el, k);
+      if (!byValue.has(v)) byValue.set(v, []);
+      byValue.get(v).push(k);
+    }
+    for (const [v, ks] of byValue) { const r = await call('cluster:set', { keys: ks, value: v }); state = r.state; }
+    S.settings.clusterGrid = state;
+    drawCount();
+  };
   let painting = null;
+  let moved = false;
   if (!window.cjMouseUp) window.addEventListener('mouseup', () => window.cjMouseUp?.());
-  window.cjMouseUp = () => { if (painting) { const k = painting; painting = null; commit(k); } };
+  window.cjMouseUp = () => {
+    if (!painting) return;
+    const ks = painting; painting = null;
+    if (moved) commit(ks); else step(ks, +1);
+  };
 
   const grid = (size) => {
     const keyOf = (e, p) => `${size.id}|${e}|${p}|${FB.cjBand}`;
@@ -673,9 +702,10 @@ async function renderClusterGrid(body, view) {
       const k = keyOf(e, p);
       const el = h('button', {
         type: 'button', class: cellCls(k), title: cellTitle(size.id, e, p, k),
-        onmousedown: (ev) => { ev.preventDefault(); painting = [k]; paint([k]); },
-        onmouseenter: () => { if (painting && !painting.includes(k)) { painting.push(k); paint([k]); } },
-        onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); paint([k]); commit([k]); } },
+        onmousedown: (ev) => { if (ev.button !== 0) return; ev.preventDefault(); painting = [k]; moved = false; },
+        onmouseenter: () => { if (painting && !painting.includes(k)) { if (!moved) { moved = true; paint(painting); } painting.push(k); paint([k]); } },
+        oncontextmenu: (ev) => { ev.preventDefault(); step([k], -1); },
+        onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'ArrowUp' || ev.key === '+') { ev.preventDefault(); step([k], +1); } else if (ev.key === 'ArrowDown' || ev.key === '-' || ev.key === 'Delete') { ev.preventDefault(); step([k], -1); } },
       }, data.prices[k] ? fmtP(data.prices[k]) : '·');
       cellLook(el, k);
       if (!els.has(k)) els.set(k, []);
@@ -687,9 +717,9 @@ async function renderClusterGrid(body, view) {
       h('div', { class: 'cj-title' }, h('b', {}, `${size.id} cluster jewels`), h('span', { class: 'small faint' }, `${size.passives[0]}-${size.passives.at(-1)} passives`)),
       h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'cj-table' },
         h('thead', {}, h('tr', {}, h('th', {}, 'Enchantment'), size.passives.map((p) => h('th', {},
-          h('button', { class: 'cj-colhead', title: `Use the brush on every ${p}-passive ${size.id.toLowerCase()} jewel`, onclick: () => { const ks = data.enchants[size.id].map((e) => keyOf(e, p)); paint(ks); commit(ks); } }, `${p}`))))),
+          h('button', { class: 'cj-colhead', title: `Left click: every ${p}-passive ${size.id.toLowerCase()} jewel one step up. Right click: one step down.`, onclick: () => step(data.enchants[size.id].map((e) => keyOf(e, p)), +1), oncontextmenu: (ev) => { ev.preventDefault(); step(data.enchants[size.id].map((e) => keyOf(e, p)), -1); } }, `${p}`))))),
         h('tbody', {}, data.enchants[size.id].map((e) => h('tr', {},
-          h('th', {}, h('button', { class: 'cj-rowhead', title: `Use the brush on every ${e} jewel`, onclick: () => { const ks = rowAll(e); paint(ks); commit(ks); } }, e)),
+          h('th', {}, h('button', { class: 'cj-rowhead', title: `Left click: every ${e} jewel one step up. Right click: one step down.`, onclick: () => step(rowAll(e), +1), oncontextmenu: (ev) => { ev.preventDefault(); step(rowAll(e), -1); } }, e)),
           size.passives.map((p) => cell(e, p))))))));
   };
 
@@ -748,7 +778,7 @@ async function renderClusterGrid(body, view) {
         h('span', { class: 'cj-cell cj-fhide' }, 'hidden by size'),
         h('span', { class: 'cj-cell' }, '·'), h('span', { class: 'faint' }, 'no tier'),
         h('span', { class: 'cj-cell cj-top mine' }, 'set by you'),
-        h('div', { class: 'faint', style: { flexBasis: '100%' } }, `Numbers are poe.ninja prices${data.ageMs != null ? `, updated ${ago(data.ageMs)}` : ''}; a dot means no price. Click or drag over cells; click an enchantment or a passive count to paint its whole row or column. Uniques are never affected.`)),
+        h('div', { class: 'faint', style: { flexBasis: '100%' } }, `Numbers are poe.ninja prices${data.ageMs != null ? `, updated ${ago(data.ageMs)}` : ''}; a dot means no price. Left click a cell to move it one step up (hidden → filter decides → good → top), right click one step down; an enchantment or a passive count does the same for its whole row or column. Drag over cells to paint them with the brush. Uniques are never affected.`)),
       data.hasFilterTiers ? null : h('div', { class: 'panel small muted' }, 'Your filter has no economy cluster tiers, so only your own choices are shown.'),
       data.priceStats ? h('details', { class: 'small muted cj-stats' },
         h('summary', {}, data.priceStats.total ? `poe.ninja lists ${data.priceStats.total} cluster jewels; ${data.priceStats.matched} matched a cell${data.priceStats.missed.length ? ` (${data.priceStats.total - data.priceStats.matched} didn't — open to see them)` : '.'}` : 'poe.ninja sent no cluster jewel prices.'),
@@ -786,7 +816,7 @@ async function renderBaseMatrix(body, view) {
   };
   const cellTitle = (b) => {
     const e = state[b.name] || {};
-    return `${b.name}: ${e.vis === 'hide' ? 'hidden (plain copies, in maps)' : 'your filter decides'}. Fractured: ${e.frac === 'show' ? 'always shown' : e.frac === 'hide' ? 'hidden' : 'your filter decides'}.${b.inFilter === false ? ' (Your filter doesn\'t list this base.)' : ''}`;
+    return `${b.name}: ${e.vis === 'hide' ? 'hidden (plain copies, in maps)' : 'your filter decides'}. Fractured: ${e.frac === 'top' ? 'top look' : e.frac === 'show' ? 'always shown' : e.frac === 'hide' ? 'hidden' : 'your filter decides'}.${b.inFilter === false ? ' (Your filter doesn\'t list this base.)' : ''}`;
   };
   const cells = new Map();
   const paintLocal = (names) => {
@@ -833,7 +863,7 @@ async function renderBaseMatrix(body, view) {
   const summary = h('div', { class: 'small muted' });
   function drawSummary() {
     const v = Object.values(state);
-    mount(summary, `${v.filter((e) => e.vis === 'hide').length} hidden · ${v.filter((e) => e.frac === 'show').length} shown when fractured · ${v.filter((e) => e.frac === 'hide').length} hidden when fractured`);
+    mount(summary, `${v.filter((e) => e.vis === 'hide').length} hidden · ${v.filter((e) => e.frac === 'top').length} top and ${v.filter((e) => e.frac === 'show').length} shown when fractured · ${v.filter((e) => e.frac === 'hide').length} hidden when fractured`);
   }
   drawSummary();
 
@@ -852,6 +882,11 @@ async function renderBaseMatrix(body, view) {
         h('div', { class: 'row small', style: { gap: '14px' } },
           h('label', { class: 'check' }, mapsOnly, 'Hide only in maps (area level 68+)'),
           h('label', { class: 'row', style: { gap: '6px' } }, 'Keep item level', keep, 'and above'),
+          h('button', { class: 'sm', title: 'In every column: the 2 best bases get the top fractured look, the next 3 the fractured look, the rest are hidden when fractured', onclick: async () => {
+            const r = await call('matrix:fracAuto', { top: 2, good: 3 });
+            toast(`Fractured: ${r.top} top, ${r.good} shown, ${r.hidden} hidden`);
+            renderFilters();
+          } }, 'Fractured: keep only the best'),
           h('span', { class: 'spacer' }), summary,
           h('button', { class: 'quiet sm', onclick: async () => {
             const all = Object.keys(state);
@@ -861,6 +896,7 @@ async function renderBaseMatrix(body, view) {
           } }, 'Reset all'))),
       h('div', { class: 'bm-legend small' },
         h('span', { class: 'bm-cell sample' }, 'Shown'), h('span', { class: 'bm-cell sample hidden' }, 'Hidden'),
+        h('span', { class: 'bm-cell sample frac-top' }, h('span', { class: 'bm-n' }, 'Fractured: top'), h('span', { class: 'bm-f' })),
         h('span', { class: 'bm-cell sample frac-show' }, h('span', { class: 'bm-n' }, 'Fractured: show'), h('span', { class: 'bm-f' })),
         h('span', { class: 'bm-cell sample frac-hide' }, h('span', { class: 'bm-n' }, 'Fractured: hide'), h('span', { class: 'bm-f' })),
         h('span', { class: 'faint' }, 'Hidden bases still show when they\'re fractured, synthesised, influenced, corrupted, mirrored, 6-socket or unique, unless you hide their fractured copies too.')),
@@ -1175,15 +1211,21 @@ function sidebar(view, changedTypes) {
   const q = (FB.catQuery || '').trim().toLowerCase();
   const select = (type) => {
     FB.type = type; FB.selected.clear(); FB.editing = null; FB.search = '';
-    // keep the category list where it is: if you had scrolled past the top of the list, the new
-    // category opens at the top of its tiers instead of the whole page jumping back up
-    renderFilters().then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
-      const main = document.querySelector('.main');
+    // the category list stays put (it sticks to the top of the window, scrolled where you left it);
+    // the new category's tiers start at their top instead of halfway down the old category
+    const main = document.querySelector('.main');
+    const cats = document.querySelector('[data-keep-scroll="cats"]');
+    const catsTop = cats ? cats.scrollTop : 0;
+    const was = main ? main.scrollTop : 0;
+    loadArt();
+    renderFiltersNow().then(() => {
       const fb = document.querySelector('#page-filters .fb');
+      const nav = document.querySelector('[data-keep-scroll="cats"]');
+      if (nav) nav.scrollTop = catsTop;
       if (!main || !fb) return;
       const fbTop = fb.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
-      if (main.scrollTop > fbTop) main.scrollTop = fbTop;
-    })));
+      main.scrollTop = Math.min(was, fbTop);
+    });
   };
   const togglePin = async (type) => {
     const next = pins.includes(type) ? pins.filter((x) => x !== type) : [...pins, type];

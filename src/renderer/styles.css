@@ -671,6 +671,7 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .bm-brush { font-size: 13px; padding: 5px 10px; }
 .bm-brush.on { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
 .bm-b-hide { background: #3a1f1d; border-color: #6b302b; }
+.bm-b-ftop { background: #6a4214; border-color: #e0a050; }
 .bm-b-fshow { background: #4a3116; border-color: #a0703a; }
 .bm-b-fhide { background: #2c2230; border-color: #5d4366; }
 .bm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 6px 0 12px; }
@@ -684,6 +685,8 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .bm-cell.hidden { background: #3a1f1d; border-color: #6b302b; color: #d8a19a; }
 .bm-cell.hidden .bm-n { text-decoration: line-through; text-decoration-color: #d8a19a88; }
 .bm-cell .bm-f { flex: none; font: 700 10.5px var(--ui); }
+.bm-cell.frac-top .bm-f::before { content: "F★"; padding: 1px 4px; border-radius: 3px; background: #e0a050; color: #1a1006; font-weight: 700; }
+.bm-cell.frac-top { box-shadow: inset 0 0 0 2px #e0a050; }
 .bm-cell.frac-show .bm-f::before { content: "F"; padding: 1px 4px; border-radius: 3px; background: #a0703a; color: #1a1006; }
 .bm-cell.frac-hide .bm-f::before { content: "F"; padding: 1px 4px; border-radius: 3px; background: #5d4366; color: #e6d5ec; text-decoration: line-through; }
 .bm-cell.frac-show { box-shadow: inset 0 0 0 1px #a0703a; }
@@ -757,7 +760,9 @@ body.labwin { margin: 0; height: 100vh; overflow: hidden; background: var(--ink)
 
 /* ---------- resizable category list ---------- */
 .fb { grid-template-columns: var(--fb-side, 300px) minmax(0, 1fr); }
-.fb-side-wrap { position: sticky; top: 0; }
+.fb-side-wrap { position: relative; }
+/* the category list stays on screen while you scroll the tiers (the aside is the grid item, so it is the one that sticks) */
+.fb > aside { position: sticky; top: 0; align-self: start; z-index: 2; }
 .fb-side-wrap > .fb-cats { position: static; }
 .fb-resize { position: absolute; top: 0; bottom: 0; right: -12px; width: 10px; cursor: col-resize; border-radius: 4px; }
 .fb-resize::after { content: ""; position: absolute; top: 40%; bottom: 40%; left: 4px; width: 2px; border-radius: 2px; background: var(--line); opacity: 0; transition: opacity .15s; }
@@ -780,3 +785,24 @@ body.resizing { cursor: col-resize; user-select: none; }
 .rail nav button .nav-ic img.art { width: 24px; height: 24px; }
 .rail .nav-sep { height: 1px; background: var(--line-soft); margin: 8px 12px; }
 #page-filters { max-width: none; }
+
+.dz-dice { display: grid; place-items: center; font-size: 44px; min-height: 120px; }
+
+/* ---------- WealthyExile dashboard ---------- */
+.wx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.wx-card { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--surface); border: 1px solid var(--line-soft); }
+.wx-card:hover { border-color: var(--line); background: var(--raised); }
+.wx-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.wx-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wx-card-head { display: flex; align-items: center; gap: 10px; }
+.wx-card-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.wx-card-val { display: flex; flex-direction: column; align-items: flex-end; }
+.wx-card-val b { font-size: 16px; }
+.wx-bar { height: 5px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.wx-bar i { display: block; height: 100%; background: linear-gradient(90deg, #c8a15a, #f0d18a); border-radius: 3px; }
+.wx-top { display: grid; gap: 4px; }
+.wx-line { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 13px; }
+.wx-line .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.wx-line .v { font-variant-numeric: tabular-nums; }
+.wx-noimg { display: inline-block; border-radius: 4px; background: var(--raised); }
+.wx-items td { vertical-align: middle; }
