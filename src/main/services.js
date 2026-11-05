@@ -51,12 +51,17 @@ const DEFAULT_SETTINGS = {
   versionSeen: null, // {version, at, from}: when this copy first ran its current version
   notesShownFor: null, // version whose patch notes you already saw
   gigaDone: false, // the default Giga tier in currency was set up once
+  fbSideWidth: 300, // width of the loot filter's category list
   clusterGrid: {}, // cluster jewels: { "Large|Fire Damage|12|84": 'top' | 'good' | 'hide' }
   baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
   baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
   hideFractured: false, // also hide fractured copies of bases you hid
   hideSynthesised: false, // and synthesised ones
-  bigBeltsDone: false, // the default "Big belts" tier in uniques was set up once
+  bigBeltsDone: false,
+  bigBeltsLookV2: false,
+  gigaOwnLook: false, // you edited the Giga look yourself, so it stops following the top currency tier
+  gigaLookV2: false,
+  bigBeltsOwnLook: false, // the default "Big belts" tier in uniques was set up once
   myBases: [], // [{id, base, ilvlMin, ilvlMax, rarities, enabled}]
   myBasesStyle: null, // look of My bases (null = the default teal)
   categoryLayout: {}, // your names, new categories, order and subcategory placement in the filter list
@@ -291,11 +296,16 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const want = new Set(names);
     const out = {};
     let anyMap = null; // poe.ninja's map list often has no tiers (only Vaal temple maps), so any map picture will do
-    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'Map', 'BlightedMap', 'BaseType']) {
+    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'Map', 'BlightedMap', 'ClusterJewel', 'BaseType']) {
       if (Object.keys(out).length >= want.size) break;
       let list = [];
       try { list = await ninja.category(league, c); } catch { continue; }
       for (const l of list) {
+        // cluster jewels are listed by their enchantment; their picture is the base's ("Large Cluster Jewel")
+        if (c === 'ClusterJewel' && l.baseType && want.has(l.baseType) && !out[l.baseType] && l.icon) {
+          const u = String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon);
+          if (/^https:\/\/web\.poecdn\.com\//.test(u)) out[l.baseType] = u;
+        }
         if ((c === 'Map' || c === 'BlightedMap') && !anyMap && l.icon) {
           const u = String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon);
           if (/^https:\/\/web\.poecdn\.com\//.test(u)) anyMap = u;
@@ -449,7 +459,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       let patch = settings.get('tierPatch') || {};
       if ((patch.newTiers || []).some((x) => x.type === uni.type && x.name === 'Big belts')) return null;
       const movable = uni.tiers.filter((x) => x.hasBaseList && !x.special && !x.generated);
-      const look = movable.find((x) => x.tier === 't1') || movable[0];
+      // looks like the multi-base uniques, made a bit louder (synced in savePatch)
+      const look = movable.find((x) => x.tier === 'multispecial') || movable.find((x) => /^multi/.test(x.tier)) || movable.find((x) => x.tier === 't1') || movable[0];
       // right above S tier, below NeverSink's special cases (synthesised, 6-links, Kaom's...)
       const top = uni.tiers.find((x) => x.tier === 't1') || uni.tiers.find((x) => !x.generated);
       if (!look || !top) return null;
@@ -471,11 +482,68 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     if (viewCache?.sig !== sig) viewCache = { sig, view: tiers.tierView(filters.readBase(), patch) };
     if (!settings.get('gigaDone') && !gigaBusy) { const r = ensureGiga(viewCache.view); if (r?.view) return r.view; }
     if (!settings.get('bigBeltsDone') && !gigaBusy) { const r = ensureBigBelts(viewCache.view); if (r?.view) return r.view; }
+    // 1.0.6: Big belts was made with the S tier look; give it the multi-base look once
+    if (settings.get('bigBeltsDone') && !settings.get('bigBeltsLookV2') && !gigaBusy) {
+      settings.set('bigBeltsLookV2', true);
+      const p = settings.get('tierPatch') || {};
+      const next = syncBigBelts(p);
+      if (next !== p) { gigaBusy = true; try { const r = savePatch(next); if (r?.view) return r.view; } finally { gigaBusy = false; } }
+    }
+    // 1.0.6: Giga follows the theme's top currency look
+    if (settings.get('gigaDone') && !settings.get('gigaLookV2') && !gigaBusy) {
+      settings.set('gigaLookV2', true);
+      const p = settings.get('tierPatch') || {};
+      const next = syncGiga(p);
+      if (next !== p) { gigaBusy = true; try { const r = savePatch(next); if (r?.view) return r.view; } finally { gigaBusy = false; } }
+    }
     return viewCache.view;
   }
 
   /** Saves the patch and rewrites the "(helper)" copy right away. */
+  // Big belts follows the multi-base uniques' look ("High variety - multi-bases"), a bit more visible:
+  // bigger text, a beam when it drops, a larger minimap icon and a sound. It keeps following that tier
+  // (also through themes and the designer) until you edit the Big belts look yourself.
+  function louder(st = {}) {
+    const s2 = JSON.parse(JSON.stringify(st || {}));
+    s2.fontSize = Math.min(45, (Number(s2.fontSize) || 40) + 5);
+    if (!s2.beam) s2.beam = { color: 'Orange', temp: true };
+    s2.icon = s2.icon ? { ...s2.icon, size: Math.max(0, (Number(s2.icon.size) || 2) - 1) } : { size: 1, color: 'Orange', shape: 'Star' };
+    if (!s2.sound && !s2.customSound) s2.sound = { id: 2, volume: 300 };
+    return s2;
+  }
+  function syncBigBelts(patch) {
+    if (settings.get('bigBeltsOwnLook')) return patch;
+    const nt = (patch.newTiers || []).find((x) => x.name === 'Big belts');
+    if (!nt) return patch;
+    let view = null;
+    try { view = tiers.tierView(filters.readBase(), patch); } catch { return patch; }
+    const uni = view?.types.find((t) => t.type === nt.type);
+    const multi = uni?.tiers.find((t) => t.tier === 'multispecial') || uni?.tiers.find((t) => /^multi/.test(t.tier));
+    if (!multi?.style) return patch;
+    const key = `${nt.type}|${nt.tier}`;
+    const want = louder(multi.style);
+    if (JSON.stringify(patch.styles?.[key]) === JSON.stringify(want)) return patch;
+    return tiers.withStyle(patch, key, want);
+  }
+
+  // Giga follows the top currency tier it was copied from (Divine/Exalted level), a bit louder, so a
+  // designer theme or a theme you apply restyles it too, until you edit the Giga look yourself.
+  function syncGiga(patch) {
+    if (settings.get('gigaOwnLook')) return patch;
+    const nt = (patch.newTiers || []).find((x) => x.type === 'currency' && x.name === 'Giga');
+    if (!nt) return patch;
+    let view = null;
+    try { view = tiers.tierView(filters.readBase(), patch); } catch { return patch; }
+    const src = view?.types.find((t) => t.type === 'currency')?.tiers.find((t) => t.tier === nt.copyFrom);
+    if (!src?.style) return patch;
+    const key = `currency|${nt.tier}`;
+    const want = louder(src.style);
+    if (JSON.stringify(patch.styles?.[key]) === JSON.stringify(want)) return patch;
+    return tiers.withStyle(patch, key, want);
+  }
+
   function savePatch(patch) {
+    patch = syncGiga(syncBigBelts(patch));
     settings.set('tierPatch', patch);
     const target = filters.basePath() ? filters.write() : null;
     return { view: tierViewNow(), target, leftOut: filters.lastDropped };
@@ -586,6 +654,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
   }
 
   function setTierStyle(key, style) {
+    // editing Big belts yourself stops it following the multi-base look; resetting it starts again
+    if (/\|poehelper-bigbelts$/.test(key)) settings.set('bigBeltsOwnLook', !!style);
+    if (/^currency\|poehelper-giga\d*$/.test(key)) settings.set('gigaOwnLook', !!style);
     return savePatch(tiers.withStyle(settings.get('tierPatch') || {}, key, style));
   }
 
@@ -674,6 +745,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const view = tierViewNow();
     const eco = view?.types.find((t) => t.type === 'jewels->clustereco') || null;
     const fromFilter = cl.readFilter(eco);
+    const bySize = cl.readSizeTiers(view?.types.find((t) => t.type === 'jewels->cluster') || null);
     let prices = {};
     let ageMs = null;
     let priceStats = null;
@@ -685,7 +757,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     } catch (e) { log('cluster prices', e.message); }
     const units = await getLeague().then((lg) => currencyUnits(lg)).catch(() => ({ chaos: 1 }));
     const enchants = Object.fromEntries(cl.SIZES.map((z) => [z.id, [...cl.ENCHANTS[z.id], ...fromFilter.extra[z.id].filter((e) => cl.ALL_ENCHANTS.includes(e) && !cl.ENCHANTS[z.id].includes(e))]]));
-    return { sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, looks: { ...cl.DEFAULT_LOOKS, ...(fromFilter.looks.Large || {}) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
+    return { sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, bySize, looks: { ...cl.DEFAULT_LOOKS, ...(fromFilter.looks.Large || {}) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
   }
   /** Set cells: value 'top' | 'good' | 'hide' | null (back to the filter). */
   function setCluster({ keys = [], value = null } = {}) {

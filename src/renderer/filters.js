@@ -625,23 +625,38 @@ async function renderClusterGrid(body, view) {
   const d = data.divine;
   const fmtP = (c) => (c == null ? '' : d && c >= d * 0.95 ? `${+(c / d).toFixed(c >= d * 10 ? 0 : 1)} div` : `${c >= 10 ? Math.round(c) : +c.toFixed(1)}c`);
   const eff = (k) => state[k] || (data.filter[k] === 't1' ? 'top' : data.filter[k] === 't2' ? 'good' : null);
+  // cells no economy tier or choice of yours covers fall back to the filter's "by size" tiers
+  const sizeTier = (k) => { const [sz, , p, b] = k.split('|'); return data.bySize?.[`${sz}|*|${p}|${b}`] || null; };
+  const col = (a) => (a ? `rgba(${+a[0] || 0},${+a[1] || 0},${+a[2] || 0},${((a[3] == null ? 255 : +a[3]) / 255).toFixed(3)})` : '');
   const cellCls = (k) => {
     const e = eff(k);
-    return 'cj-cell' + (e ? ` cj-${e}` : '') + (state[k] ? ' mine' : '') + ((data.prices[k] || 0) >= (d || 200) ? ' rich' : '');
+    const st = e ? null : sizeTier(k);
+    const fall = st ? (st.action === 'Hide' ? ' cj-fhide' : ' cj-size') : '';
+    return 'cj-cell' + (e ? ` cj-${e}` : fall) + (state[k] ? ' mine' : '') + ((data.prices[k] || 0) >= (d || 200) ? ' rich' : '');
   };
+  const cellLook = (el, k) => {
+    el.className = cellCls(k);
+    const st = eff(k) ? null : sizeTier(k);
+    const look = st && st.action !== 'Hide' && st.style ? window.UI.normalizeStyle(st.style, 'Rare') : null;
+    el.style.color = look ? col(look.text) : '';
+    el.style.background = look ? (col(look.background) || 'rgba(0,0,0,0.72)') : '';
+    el.style.borderColor = look ? (col(look.border) || 'transparent') : '';
+    return el;
+  };
+  const tierName = (st) => (st ? (TIER_WORDS[st.tier] || st.tier) : '');
   const cellTitle = (size, e, p, k) => {
     const own = state[k];
     const ns = data.filter[k];
     return `${size} cluster, ${p} passives, ${e}, ${data.bands.find((b) => b.id === FB.cjBand).name.toLowerCase()}.\n` +
       `${data.prices[k] ? `poe.ninja: ${fmtP(data.prices[k])}. ` : 'No poe.ninja price. '}` +
-      `Your filter: ${ns === 't1' ? 'top look' : ns === 't2' ? 'good look' : 'no special tier'}.${own ? ` You set: ${own === 'top' ? 'top look' : own === 'good' ? 'good look' : 'hidden'}.` : ''}`;
+      `Your filter: ${ns === 't1' ? 'top look' : ns === 't2' ? 'good look' : sizeTier(k) ? `${sizeTier(k).action === 'Hide' ? 'hidden by' : 'shown by'} the "${tierName(sizeTier(k))}" tier` : 'no special tier'}.${own ? ` You set: ${own === 'top' ? 'top look' : own === 'good' ? 'good look' : 'hidden'}.` : ''}`;
   };
 
   const els = new Map();
   const paint = (keys) => {
     for (const k of keys) {
       if (FB.cjBrush) state[k] = FB.cjBrush; else delete state[k];
-      for (const el of els.get(k) || []) el.className = cellCls(k);
+      for (const el of els.get(k) || []) cellLook(el, k);
     }
   };
   const commit = async (keys) => {
@@ -664,6 +679,7 @@ async function renderClusterGrid(body, view) {
         onmouseenter: () => { if (painting && !painting.includes(k)) { painting.push(k); paint([k]); } },
         onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); paint([k]); commit([k]); } },
       }, data.prices[k] ? fmtP(data.prices[k]) : '·');
+      cellLook(el, k);
       if (!els.has(k)) els.set(k, []);
       els.get(k).push(el);
       return h('td', {}, el);
@@ -727,7 +743,10 @@ async function renderClusterGrid(body, view) {
         h('span', { class: 'cj-cell cj-top' }, 'Top'), sample(data.sizeLooks?.Large?.t1 || data.looks.t1, 'Large Cluster Jewel'),
         h('span', { class: 'cj-cell cj-good' }, 'Good'), sample(data.sizeLooks?.Large?.t2 || data.looks.t2, 'Large Cluster Jewel'),
         h('span', { class: 'cj-cell cj-hide' }, 'Hidden'),
-        h('span', { class: 'cj-cell' }, '·'), h('span', { class: 'faint' }, 'filter\'s normal cluster tiers'),
+        (() => { const st = Object.values(data.bySize || {}).find((x) => x.action !== 'Hide' && x.style); const el = h('span', { class: 'cj-cell cj-size' }, 'By size'); if (st) { const lk = window.UI.normalizeStyle(st.style, 'Rare'); el.style.color = col(lk.text); el.style.background = col(lk.background) || 'rgba(0,0,0,0.72)'; el.style.borderColor = col(lk.border) || 'transparent'; } return el; })(),
+        h('span', { class: 'faint' }, 'filter\'s size tiers (e.g. Large: 12 passives, item level 84+)'),
+        h('span', { class: 'cj-cell cj-fhide' }, 'hidden by size'),
+        h('span', { class: 'cj-cell' }, '·'), h('span', { class: 'faint' }, 'no tier'),
         h('span', { class: 'cj-cell cj-top mine' }, 'set by you'),
         h('div', { class: 'faint', style: { flexBasis: '100%' } }, `Numbers are poe.ninja prices${data.ageMs != null ? `, updated ${ago(data.ageMs)}` : ''}; a dot means no price. Click or drag over cells; click an enchantment or a passive count to paint its whole row or column. Uniques are never affected.`)),
       data.hasFilterTiers ? null : h('div', { class: 'panel small muted' }, 'Your filter has no economy cluster tiers, so only your own choices are shown.'),
@@ -915,7 +934,7 @@ async function renderMyBases(body, view) {
 const CATEGORIES = [
   ['Currency', [
     { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], art: 'Divine Orb', icon: 'coin' },
-    { id: 'stacked', name: 'Stacked', match: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], art: ['Chaos Orb'], icon: 'coins' },
+    { id: 'stacked', name: 'Stacked', match: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], order: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom'], art: ['Chaos Orb'], icon: 'coins' },
     { id: 'levelingcurrency', name: 'Levelling currency', match: ['currency->leveling', 'currency->levelingstacked'], art: ['Orb of Transmutation'], icon: 'leaf' },
   ]],
   ['Fragments', [
@@ -934,15 +953,15 @@ const CATEGORIES = [
     { id: 'heist', name: 'Heist', match: ['heist', 'currency->heist', 'heist#equipment', 'exoticbases#heist'], order: ['heist->blueprint', 'heist->contract', 'currency->heist', 'heist#equipment', 'exoticbases#heist'], art: ["Rogue's Marker"], icon: 'key' },
   ]],
   ['Maps', [
-    { id: 'maps', name: 'Regular maps', match: ['maps'], art: ['*Map16'], icon: 'map' },
-    { id: 'influencedmaps', name: 'Influenced maps', match: ['maps->influenced'], art: ['*Map16'], icon: 'map' },
-    { id: 'nightmaremaps', name: 'Nightmare maps', match: ['maps->nightmare'], art: ['*Map16'], icon: 'map' },
+    { id: 'maps', name: 'Regular maps', match: ['maps'], art: ['Map (Tier 16)', '*Map16'], icon: 'map' },
+    { id: 'influencedmaps', name: 'Influenced maps', match: ['maps->influenced'], art: ['The Enslaver Map (Tier 16)', 'The Eradicator Map (Tier 16)', '*Map16'], icon: 'map' },
+    { id: 'nightmaremaps', name: 'Nightmare maps', match: ['maps->nightmare'], art: ['Nightmare Map', '*Map16'], icon: 'map' },
     { id: 'blightedmaps', name: 'Blighted maps', match: ['maps->blighted'], art: ['*BlightedMap', '*Map16'], icon: 'map' },
     { id: 'specialmaps', name: 'Special maps', match: ['maps->enchanted', 'maps->corruptedspecial', 'maps->corruptedimplicit', 'maps->implicitmod', 'maps->vaaltemple'], art: ['*Map16'], icon: 'map' },
     { id: 'mapitems', name: 'Other map items', match: ['exoticmap', 'charts', 'expedition', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'book' },
   ]],
   ['Cards & gems', [
-    { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['The Doctor', 'The Apothecary', '*DivinationCard'], icon: 'card' },
+    { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['Stacked Deck', 'The Doctor'], icon: 'card' },
     { id: 'gems', name: 'Gems', match: ['gems'], art: "Gemcutter's Prism", icon: 'gem' },
   ]],
   ['Rare items', [
@@ -959,7 +978,7 @@ const CATEGORIES = [
   ['Jewels', [
     { id: 'jewels', name: 'Normal jewels', match: ['jewels', 'jewels->generic', 'jewels->special', 'jewels->leveling'], order: ['jewels->generic', 'jewels->special', 'jewels->leveling'], art: ['Cobalt Jewel', 'Crimson Jewel'], icon: 'hex' },
     { id: 'abyssjewels', name: 'Abyss jewels', match: ['jewels->abyss'], art: ['Hypnotic Eye Jewel', 'Searching Eye Jewel'], icon: 'eye' },
-    { id: 'clusterjewels', name: 'Cluster jewels', match: ['jewels->cluster', 'jewels->clustereco'], order: ['jewels->clustereco', 'jewels->cluster'], art: ['Large Cluster Jewel'], icon: 'hex', clusters: true },
+    { id: 'clusterjewels', name: 'Cluster jewels', match: ['jewels->cluster', 'jewels->clustereco'], art: ['Large Cluster Jewel'], icon: 'hex', clusters: true },
     { id: 'clustergrid', name: 'Cluster enchantments', match: [], special: 'clustergrid', art: ['Medium Cluster Jewel', 'Large Cluster Jewel'], icon: 'hex' },
   ]],
   ['Uniques & more', [
@@ -1016,6 +1035,8 @@ async function saveLayout(next) {
   renderFilters();
 }
 /** Name of a subcategory inside its category: "currency->trial->omen" in Trial is just "Omens". */
+// Shown another way: NeverSink's economy cluster tiers are the Cluster enchantments grid.
+const HIDDEN_TYPES = new Set(['jewels->clustereco']);
 const SUB_LABELS = {
   'currency->heist': "Rogue's Markers",
   'jewels->generic': 'Normal', 'jewels->special': 'Special (one-mod, corrupted)', 'jewels->leveling': 'Levelling',
@@ -1107,10 +1128,60 @@ function swatchOf(t) {
   return { bg: c(st.background) || '#222', fg: c(st.text) || '#ddd', bd: c(st.border) || 'transparent', border: c(st.border) };
 }
 
+// The category list can be dragged wider (its right edge), up to most of the window; double-click resets it.
+const SIDE_MIN = 240;
+const SIDE_DEFAULT = 300;
+function applySideWidth(w) {
+  const max = Math.max(SIDE_MIN, Math.round(window.innerWidth * 0.6));
+  const v = Math.min(max, Math.max(SIDE_MIN, Math.round(Number(w) || SIDE_DEFAULT)));
+  document.documentElement.style.setProperty('--fb-side', `${v}px`);
+  return v;
+}
+function withResizer(nav) {
+  applySideWidth(S.settings.fbSideWidth || SIDE_DEFAULT);
+  const handle = h('div', {
+    class: 'fb-resize', role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'Drag to make the category list wider or narrower', tabindex: '0',
+    title: 'Drag to resize the list. Double-click to reset.',
+    ondblclick: () => { applySideWidth(SIDE_DEFAULT); call('settings:set', { fbSideWidth: SIDE_DEFAULT }); S.settings.fbSideWidth = SIDE_DEFAULT; },
+    onkeydown: (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const v = applySideWidth((S.settings.fbSideWidth || SIDE_DEFAULT) + (e.key === 'ArrowRight' ? 30 : -30));
+      S.settings.fbSideWidth = v; call('settings:set', { fbSideWidth: v });
+    },
+    onmousedown: (e) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const start = S.settings.fbSideWidth || SIDE_DEFAULT;
+      let v = start;
+      document.body.classList.add('resizing');
+      const move = (ev) => { v = applySideWidth(start + ev.clientX - startX); };
+      const up = () => {
+        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+        document.body.classList.remove('resizing');
+        S.settings.fbSideWidth = v; call('settings:set', { fbSideWidth: v });
+      };
+      document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+    },
+  });
+  return h('div', { class: 'fb-side-wrap' }, nav, handle);
+}
+
 function sidebar(view, changedTypes) {
   const pins = S.settings.filterPins || DEFAULT_PINS;
   const q = (FB.catQuery || '').trim().toLowerCase();
-  const select = (type) => { FB.type = type; FB.selected.clear(); FB.editing = null; FB.search = ''; renderFilters(); };
+  const select = (type) => {
+    FB.type = type; FB.selected.clear(); FB.editing = null; FB.search = '';
+    // keep the category list where it is: if you had scrolled past the top of the list, the new
+    // category opens at the top of its tiers instead of the whole page jumping back up
+    renderFilters().then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const main = document.querySelector('.main');
+      const fb = document.querySelector('#page-filters .fb');
+      if (!main || !fb) return;
+      const fbTop = fb.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+      if (main.scrollTop > fbTop) main.scrollTop = fbTop;
+    })));
+  };
   const togglePin = async (type) => {
     const next = pins.includes(type) ? pins.filter((x) => x !== type) : [...pins, type];
     await call('settings:set', { filterPins: next });
@@ -1137,17 +1208,17 @@ function sidebar(view, changedTypes) {
     const catHits = view.types.filter((t) => !t.inMerge && t.label.toLowerCase().includes(q));
     const baseHits = [];
     for (const t of view.types) if (!t.merged) for (const tier of t.tiers) for (const b of tier.bases) if (b.toLowerCase().includes(q)) baseHits.push({ b, t, tier });
-    return h('nav', { class: 'fb-cats', 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(),
+    return withResizer(h('nav', { class: 'fb-cats', 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(),
       catHits.length ? h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, 'Categories'), catHits.slice(0, 15).map((t) => row(t))) : null,
       h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, `Bases (${baseHits.length})`),
         h('div', { class: 'fb-gresults' }, baseHits.slice(0, 40).map(({ b, t, tier }) => h('button', { onclick: () => { FB.type = t.key; FB.search = b; FB.catQuery = ''; FB.selected.clear(); renderFilters(); } }, h('span', { class: 'b', title: `${t.label}, ${tierName(tier)}` }, b), h('span', { class: 'w' }, tierName(tier).replace(/ \(.*\)$/, ''))))),
-        !baseHits.length ? h('div', { class: 'small faint', style: { padding: '4px 8px' } }, 'Not in this filter. Uniques are listed by base type, for example Heavy Belt instead of Mageblood.') : null));
+        !baseHits.length ? h('div', { class: 'small faint', style: { padding: '4px 8px' } }, 'Not in this filter. Uniques are listed by base type, for example Heavy Belt instead of Mageblood.') : null)));
   }
 
   // FilterBlade-style categories, each holding the filter's own subcategories
   const byCat = new Map();
   for (const t of view.types) {
-    if (t.inMerge) continue;
+    if (t.inMerge || HIDDEN_TYPES.has(t.key)) continue;
     const c = categoryOf(t.key);
     if (!c) continue;
     if (!byCat.has(c.id)) byCat.set(c.id, []);
@@ -1281,7 +1352,7 @@ function sidebar(view, changedTypes) {
     editing && Object.keys(L).some((k) => Object.keys(L[k] || {}).length) ? h('button', { class: 'quiet sm', onclick: () => { if (confirm('Go back to the default categories? Your names, new categories and moves are removed.')) saveLayout({}); } }, 'Reset layout') : null);
 
   const pinned = pins.map((p) => view.types.find((t) => t.key === p)).filter(Boolean);
-  return h('nav', { class: 'fb-cats fb-cats-v2' + (editing ? ' edit' : ''), 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(), editBar,
+  return withResizer(h('nav', { class: 'fb-cats fb-cats-v2' + (editing ? ' edit' : ''), 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(), editBar,
     editing ? h('p', { class: 'small muted', style: { margin: 0 } }, 'Rename categories, reorder them, add your own, and drag subcategories between them. This only changes how the list is organised, not your filter.') : null,
     !editing && pinned.length ? h('div', { class: 'fb-sec pinned' }, h('div', { class: 'fb-sec-title' }, 'Pinned'), h('div', { class: 'fb-sec-body' }, pinned.map((t) => row(t)))) : null,
     sections.map(([title, cats]) => {
@@ -1290,7 +1361,7 @@ function sidebar(view, changedTypes) {
       return h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-title' }, title),
         h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : catRow(c, byCat.get(c.id))))),
         editing ? addBox(title) : null);
-    }));
+    })));
 
   function searchBox() {
     const inp = h('input', { type: 'search', placeholder: 'Find a category or base', value: FB.catQuery || '', 'aria-label': 'Find a category or base' });

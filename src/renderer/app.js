@@ -8,6 +8,12 @@ const $ = (id) => document.getElementById(id);
 const pages = { dashboard: renderOverview, price: renderPrice, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
+// menu icons
+document.querySelectorAll('#nav button[data-icon]').forEach((b) => {
+  const label = b.textContent;
+  b.textContent = '';
+  b.append(h('span', { class: 'nav-ic', 'aria-hidden': 'true' }, window.UI.icon(b.dataset.icon, { size: 18 })), h('span', { class: 'nav-label' }, label));
+});
 $('nav').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-page]');
   if (b) go(b.dataset.page);

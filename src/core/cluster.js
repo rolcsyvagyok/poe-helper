@@ -63,6 +63,38 @@ function readFilter(typeView) {
 }
 
 /**
+ * NeverSink's "by size" cluster tiers (jewels->cluster: "Large: 12 passives, item level 84+", ...) as they
+ * apply to each cell, in filter order (the first tier that matches wins):
+ * { key: { action: 'Show' | 'Hide', tier, style } }. Used for cells the economy tiers don't cover.
+ */
+function readSizeTiers(typeView) {
+  const out = {};
+  const test = (op, a, b) => (op === '>=' ? a >= b : op === '<=' ? a <= b : op === '>' ? a > b : op === '<' ? a < b : a === b);
+  const tiersList = (typeView?.tiers || []).filter((t) => !(t.off || t.state === 'Off'));
+  for (const size of SIZES) {
+    for (const p of size.passives) {
+      for (const band of BANDS) {
+        for (const t of tiersList) {
+          if (!t.bases.includes(size.base)) continue;
+          let ok = true;
+          for (const c of t.conditions || []) {
+            const m = /^(ItemLevel|EnchantmentPassiveNum)\s*(>=|<=|>|<|==|=)?\s*(\d+)/.exec(c);
+            if (!m) continue;
+            const v = m[1] === 'ItemLevel' ? band.min : p;
+            if (!test(m[2] || '==', v, Number(m[3]))) { ok = false; break; }
+          }
+          if (!ok) continue;
+          const state = t.state || t.action;
+          out[cellKey(size.id, '*', p, band.id)] = { action: state === 'Hide' ? 'Hide' : 'Show', tier: t.tier, style: t.style || null };
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * poe.ninja ClusterJewel lines -> { key: chaos }. The list names each jewel by its enchantment and gives the
  * passives in "variant" and the item level in "levelRequired"; matching is loose so a renamed field
  * only means fewer prices, never wrong ones (the longest enchantment name that fits wins).
@@ -169,4 +201,4 @@ function clusterRules(state = {}, looks = {}) {
   });
 }
 
-module.exports = { STAT_TEXT, SIZES, BANDS, ENCHANTS, ALL_ENCHANTS, cellKey, readFilter, priceCells, clusterRules, DEFAULT_LOOKS };
+module.exports = { readSizeTiers, STAT_TEXT, SIZES, BANDS, ENCHANTS, ALL_ENCHANTS, cellKey, readFilter, priceCells, clusterRules, DEFAULT_LOOKS };

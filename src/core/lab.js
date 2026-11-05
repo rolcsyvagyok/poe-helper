@@ -51,7 +51,8 @@ function findPages(html) {
 class LabClient {
   constructor({ dir, fetchImpl, userAgent = 'PoE-Helper', log = () => {}, store = null }) {
     this.dir = dir;
-    this.fetch = fetchImpl;
+    // the app may pass no fetch (it then uses Electron's), and a bare fetch must not be called as a method
+    this.fetch = (url, opts) => (fetchImpl || globalThis.fetch)(url, opts);
     this.userAgent = userAgent;
     this.log = log;
     this.store = store; // settings: labPages (your page addresses), labIndex (what is on disk)

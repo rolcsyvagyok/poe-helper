@@ -225,6 +225,24 @@ test('price review: plans moves from poe.ninja prices, applies them, logs and un
   assert.equal(sm['Divine Orb'], 't2', 'with a 5000c floor for tier 1, Divine Orb drops a tier');
 });
 
+test('the Giga tier follows the top currency look when a design is applied, until you edit it', () => {
+  const { svc, filterDir } = setup({ giga: true });
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
+  const cur = svc.tierViewNow().types.find((t) => t.type === 'currency');
+  if (!cur || cur.tiers[0].tier !== 'poehelper-giga') return; // fixture without currency tiers
+  const from = svc.settings.get('tierPatch').newTiers.find((x) => x.name === 'Giga').copyFrom;
+  const st = svc.designerState();
+  svc.designerApply({ levels: st.presets[1].levels, lockTier1: false });
+  const v = svc.tierViewNow().types.find((t) => t.type === 'currency');
+  const giga = v.tiers.find((t) => t.tier === 'poehelper-giga');
+  const src = v.tiers.find((t) => t.tier === from);
+  assert.deepEqual(giga.style.text, src.style.text, 'same colours as the themed top tier');
+  assert.ok(giga.style.beam && giga.style.icon, 'a bit louder');
+  svc.setTierStyle('currency|poehelper-giga', { ...giga.style, text: [1, 2, 3, 255] });
+  svc.designerApply({ levels: st.presets[2].levels, lockTier1: false });
+  assert.deepEqual(svc.tierViewNow().types.find((t) => t.type === 'currency').tiers.find((t) => t.tier === 'poehelper-giga').style.text, [1, 2, 3, 255]);
+});
+
 test('tier designer: apply a preset to the whole filter, Tier 1 locked white + tink, undo', async () => {
   const { svc, filterDir } = setup();
   fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);

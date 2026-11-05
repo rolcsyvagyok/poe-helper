@@ -44,3 +44,8 @@ test('downloads today\'s picture once and keeps it', async () => {
   assert.equal(b.stale, true, 'next day, before poelab posts: the newest one, marked stale');
   assert.equal(todayUtc(Date.parse('2026-11-05T23:59:00Z')), '2026-11-05');
 });
+
+test('works without a fetch passed in (uses the global one)', () => {
+  const lab = new LabClient({ dir: os.tmpdir() });
+  assert.equal(typeof lab.fetch, 'function');
+});

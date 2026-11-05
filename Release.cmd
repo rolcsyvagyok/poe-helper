@@ -28,9 +28,15 @@ echo tag v%VER% push exit %ERRORLEVEL% >> "%LOG%"
 echo Installing build tools, this takes a few minutes the first time...
 call npm install --no-fund --no-audit >> "%LOG%" 2>&1
 echo npm install exit %ERRORLEVEL% >> "%LOG%"
+node scripts/release-notes.js >> "%LOG%" 2>&1
+echo Creating the GitHub release first, so all files land in one release... 
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\gh-release.ps1" -Mode create >> "%LOG%" 2>&1
 echo Building and uploading the release...
 call npm run release >> "%LOG%" 2>&1
 echo npm run release exit %ERRORLEVEL% >> "%LOG%"
+echo Checking that the release has every file the updater needs...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\gh-release.ps1" -Mode fix >> "%LOG%" 2>&1
+echo release check exit %ERRORLEVEL% >> "%LOG%"
 goto end
 :notoken
 echo GH_TOKEN is not set >> "%LOG%"
