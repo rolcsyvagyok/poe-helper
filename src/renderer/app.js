@@ -9,11 +9,20 @@ const pages = { dashboard: renderOverview, price: renderPrice, networth: renderN
 let currentPage = 'dashboard';
 
 // menu icons
+// Each entry has an in-game item picture that fits what it does (Loot filter: Chaos Orb, WealthyExile:
+// Divine Orb, ...). The pictures load from GGG's image server through poe.ninja's data; until then, or
+// offline, the line icon shows.
+const navIcon = (b) => window.UI.icon(b.dataset.art ? `art:${b.dataset.art}` : b.dataset.icon, { size: 22, fallback: b.dataset.icon });
 document.querySelectorAll('#nav button[data-icon]').forEach((b) => {
   const label = b.textContent;
   b.textContent = '';
-  b.append(h('span', { class: 'nav-ic', 'aria-hidden': 'true' }, window.UI.icon(b.dataset.icon, { size: 18 })), h('span', { class: 'nav-label' }, label));
+  b.append(h('span', { class: 'nav-ic', 'aria-hidden': 'true' }, navIcon(b)), h('span', { class: 'nav-label' }, label));
 });
+window.poe.call('art:icons', [...document.querySelectorAll('#nav button[data-art]')].map((b) => b.dataset.art)).then((map) => {
+  if (!map || !Object.keys(map).length) return;
+  window.UI.setArt(map);
+  document.querySelectorAll('#nav button[data-art]').forEach((b) => b.querySelector('.nav-ic')?.replaceChildren(navIcon(b)));
+}).catch(() => {});
 $('nav').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-page]');
   if (b) go(b.dataset.page);
@@ -221,7 +230,7 @@ async function renderOverviewNow() {
   mount(el,
     pageHead('Overview', `Playing ${S.league}${S.divine ? `. A Divine Orb is worth ${fmt(S.divine)} chaos right now.` : '.'}`),
     h('div', { class: 'panel' }, h('div', { class: 'figures' },
-      figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot', latest ? `Net worth, updated ${ago(Date.now() - latest.ts)}` : 'Net worth: take a snapshot on the Net worth page'),
+      figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot', latest ? `Net worth, updated ${ago(Date.now() - latest.ts)}` : 'Net worth: take a snapshot on the WealthyExile page'),
       figure(report?.perHourChaos != null ? `${report.perHourChaos >= 0 ? '+' : ''}${fmt(report.perHourChaos)}c` : '–', 'Per hour over the last day', report?.perHourChaos >= 0 ? 'good' : report?.perHourChaos < 0 ? 'bad' : ''),
       figure(`${g.today.total} of ${g.dailyBudget}`, 'GGG requests used today'))),
     h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start' } },
@@ -271,7 +280,7 @@ async function renderPriceNow() {
     } catch { mount(out); }
   };
   mount(el,
-    pageHead('Price check', 'In game the overlay does this for you. Paste an item here to test or look something up later.'),
+    pageHead('Price check history', 'Your recent price checks. In game the overlay does this for you; paste an item here to test or look something up later.'),
     h('div', { class: 'panel stack' }, ta, h('div', { class: 'row' }, h('button', { class: 'primary', onclick: run }, 'Check price'), h('span', { class: 'small faint' }, 'Uses cached poe.ninja prices.'))),
     out,
     section('History', null, historyList(S.history)));
@@ -332,7 +341,7 @@ async function renderNetworthNow() {
   const rowsOf = (obj) => h('table', {}, h('tbody', {}, Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).map(([k, v], i) => h('tr', {}, h('td', { style: i ? null : { borderTop: 0 } }, k.replace(/([a-z])([A-Z])/g, '$1 $2')), h('td', { class: 'r', style: i ? null : { borderTop: 0 } }, chaosDiv(v, latest?.divine))))));
 
   mount(el,
-    pageHead('Net worth', `What your tracked tabs are worth in ${S.league}.`,
+    pageHead('WealthyExile', `What your tracked tabs are worth in ${S.league}.`,
       h('select', { 'aria-label': 'Time range', onchange: (e) => { nwWindow = Number(e.target.value); renderNetworth(); } },
         [[6, 'Last 6 hours'], [24, 'Last 24 hours'], [168, 'Last 7 days'], [24 * 365, 'Whole league']].map(([hr, l]) => h('option', { value: hr * 3600000, selected: nwWindow === hr * 3600000 }, l)))),
     h('div', { class: 'panel' },

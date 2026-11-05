@@ -18,6 +18,25 @@ function tier1(textRgb, size = 45) {
   return { fontSize: size, text: [...textRgb, 255], border: [255, 255, 255, 255], background: [255, 255, 255, 255], customSound: TINK, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
 }
 
+/**
+ * The Giga tier (mirror-level items, above Tier 1): the reverse of Tier 1, so a Mirror never looks like a
+ * Divine. The theme's Tier 1 text colour becomes the background, with gold text and border, the biggest
+ * text, a beam and star in that colour and its own sound.
+ */
+const BEAM_OF = (rgb) => {
+  const [r, g, b] = rgb;
+  if (Math.max(r, g, b) - Math.min(r, g, b) < 40) return 'White';
+  if (r > 150 && g > 150) return 'Yellow';
+  if (r >= g && r >= b) return g > 90 ? 'Orange' : b > 100 ? 'Pink' : 'Red';
+  if (g >= r && g >= b) return b > 150 ? 'Cyan' : 'Green';
+  return r > 80 ? 'Purple' : 'Blue';
+};
+function gigaLook(t1 = {}) {
+  const base = (t1.text || [220, 0, 0]).slice(0, 3);
+  const beam = BEAM_OF(base);
+  return { fontSize: 45, text: [255, 215, 0, 255], border: [255, 215, 0, 255], background: [...base, 255], sound: { id: 6, volume: 300 }, beam: { color: beam }, icon: { size: 0, color: beam, shape: 'Star' } };
+}
+
 const PRESETS = [
   {
     id: 'classic', name: 'Classic', description: 'Warm reds and oranges, close to NeverSink\'s default.',
@@ -133,4 +152,6 @@ function applyDesign(view, patch, levels, { groups = null } = {}) {
   return { patch: { ...patch, moves: { ...(patch.moves || {}) }, styles }, count, categories: new Set(targets.map((t) => t.type)).size };
 }
 
-module.exports = { PRESETS, LEVELS, TINK, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+for (const p of PRESETS) p.levels.giga = gigaLook(p.levels[1]);
+
+module.exports = { gigaLook, PRESETS, LEVELS, TINK, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

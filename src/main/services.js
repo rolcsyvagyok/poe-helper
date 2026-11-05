@@ -60,7 +60,7 @@ const DEFAULT_SETTINGS = {
   bigBeltsDone: false,
   bigBeltsLookV2: false,
   gigaOwnLook: false, // you edited the Giga look yourself, so it stops following the top currency tier
-  gigaLookV2: false,
+  gigaLookV3: false,
   bigBeltsOwnLook: false, // the default "Big belts" tier in uniques was set up once
   myBases: [], // [{id, base, ilvlMin, ilvlMax, rarities, enabled}]
   myBasesStyle: null, // look of My bases (null = the default teal)
@@ -291,6 +291,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
   // ---------- item pictures for the category list ----------
   // The pictures are the game's own, loaded at run time from GGG's image server through the links
   // poe.ninja gives with its prices (nothing is bundled). Uses the same 20-minute poe.ninja cache.
+  const FIXED_ART = {
+    'Expedition Logbook': 'https://web.poecdn.com/image/Art/2DItems/Maps/ExpeditionChronicle3.png',
+    Mageblood: 'https://web.poecdn.com/image/Art/2DItems/Belts/InjectorBelt.png', // when poe.ninja's unique list hasn't loaded yet
+  };
   async function categoryArt(names = []) {
     const league = await getLeague();
     const want = new Set(names);
@@ -321,6 +325,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       if (c === 'Map' && want.has('*Map16') && !out['*Map16'] && anyMap) out['*Map16'] = anyMap;
     }
     if (want.has('*Map16') && !out['*Map16'] && anyMap) out['*Map16'] = anyMap;
+    // items poe.ninja doesn't price: GGG's own picture of the item, loaded when shown (nothing is bundled)
+    for (const [n, u] of Object.entries(FIXED_ART)) if (want.has(n) && !out[n]) out[n] = u;
     return out;
   }
 
@@ -489,9 +495,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       const next = syncBigBelts(p);
       if (next !== p) { gigaBusy = true; try { const r = savePatch(next); if (r?.view) return r.view; } finally { gigaBusy = false; } }
     }
-    // 1.0.6: Giga follows the theme's top currency look
-    if (settings.get('gigaDone') && !settings.get('gigaLookV2') && !gigaBusy) {
-      settings.set('gigaLookV2', true);
+    // 1.0.7: Giga follows the theme's top currency look, reversed
+    if (settings.get('gigaDone') && !settings.get('gigaLookV3') && !gigaBusy) {
+      settings.set('gigaLookV3', true);
       const p = settings.get('tierPatch') || {};
       const next = syncGiga(p);
       if (next !== p) { gigaBusy = true; try { const r = savePatch(next); if (r?.view) return r.view; } finally { gigaBusy = false; } }
@@ -526,8 +532,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return tiers.withStyle(patch, key, want);
   }
 
-  // Giga follows the top currency tier it was copied from (Divine/Exalted level), a bit louder, so a
-  // designer theme or a theme you apply restyles it too, until you edit the Giga look yourself.
+  // Giga follows the top currency tier it was copied from (Divine/Exalted level), reversed (that tier's text
+  // colour as the background, gold text), so it never looks like Tier 1 and a theme restyles it too,
+  // until you edit the Giga look yourself.
   function syncGiga(patch) {
     if (settings.get('gigaOwnLook')) return patch;
     const nt = (patch.newTiers || []).find((x) => x.type === 'currency' && x.name === 'Giga');
@@ -537,7 +544,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const src = view?.types.find((t) => t.type === 'currency')?.tiers.find((t) => t.tier === nt.copyFrom);
     if (!src?.style) return patch;
     const key = `currency|${nt.tier}`;
-    const want = louder(src.style);
+    const want = designer.gigaLook(src.style);
     if (JSON.stringify(patch.styles?.[key]) === JSON.stringify(want)) return patch;
     return tiers.withStyle(patch, key, want);
   }
@@ -1112,7 +1119,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return (tier) => tier.conditions.every((c) => evalCondition(parseLine('\t' + c), item, []) !== false);
   }
 
-  const optionOf = (x) => ({ tier: x.tier, action: x.action, state: x.state || x.action });
+  const optionOf = (x) => ({ tier: x.tier, action: x.action, state: x.state || x.action, name: x.customName || null, style: x.style || null, key: x.key });
 
   /** Where an item sits in your tiers, for the overlay's "move to tier" menu. */
   function tierInfoFor(item, filterHit) {
@@ -1160,6 +1167,13 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       const here = t.tiers.find((x) => x.tier === loc.tier);
       const state = here?.state || here?.action;
       return { base, type: t.type, label: t.label, tier: loc.tier, state, key: here?.key, special: !!here?.special, options: t.tiers.filter(movable).map(optionOf), candidates: state === 'Off' ? candidates() : null };
+    }
+    // tiers that pick items by a property instead of a base list (regular maps by map tier:
+    // "Map (Tier 16)" is in "Tier 16" because MapTier >= 16): show that tier, there is nothing to move
+    if (hitTier && !hitTier.hasBaseList && !hitTier.generated) {
+      const t = view.types.find((x) => x.type === fromHit[1]);
+      return { base, type: t.type, label: t.label, tier: hitTier.tier, state: hitTier.state || hitTier.action, key: hitTier.key, byCondition: true,
+        conditions: hitTier.conditions.filter((c) => !/^(Class|Rarity)\b/.test(c)), name: hitTier.customName || null, options: [] };
     }
     const list = candidates();
     return list.length ? { base, notListed: true, candidates: list } : null;

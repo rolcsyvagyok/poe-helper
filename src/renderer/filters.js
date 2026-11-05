@@ -8,33 +8,12 @@ const { h, mount, ago, toast, call, dropLabel, soundButton, playSound, GAME_COLO
 const FB = { newTier: false, tab: 'tiers', priceColors: false, collapsed: new Set(), names: {}, catQuery: '', catTimer: null, openGroups: new Set(), closedGroups: new Set(), closedSections: new Set(), review: null, reviewSel: new Set(), reviewOpen: new Set(), reviewBusy: false, tab: 'tiers', type: null, selected: new Set(), search: '', editing: null, draft: null, prices: {}, showSuggestions: false };
 const fmtC = (c) => (c == null || !Number.isFinite(c) ? '' : c < 0.01 ? '<0.01c' : c >= 100 ? `${Math.round(c)}c` : c >= 10 ? `${c.toFixed(0)}c` : c >= 1 ? `${c.toFixed(1).replace(/\.0$/, '')}c` : `${c.toFixed(2).replace(/0$/, '')}c`);
 const HIDE = '__hide__';
-const HIDDEN_TIER = 'poehelper-hidden';
+const HIDDEN_TIER = window.TierNames.HIDDEN_TIER;
 const COLOURS = Object.keys(GAME_COLOURS);
 const SHAPES = ['Star', 'Circle', 'Diamond', 'Hexagon', 'Square', 'Triangle', 'Cross', 'Moon', 'Raindrop', 'Kite', 'Pentagon', 'UpsideDownHouse'];
 
-// NeverSink's own names for one-off tiers
-const TIER_WORDS = { optimal1highlarge: 'Large: 12 passives, item level 84+', optimalhighlarge: 'Large: 8 passives, item level 84+', highlarge: 'Large: 8 passives', large: 'Large: the rest', optimalhighmedium: 'Medium: 4-5 passives, item level 84+', highmedium: 'Medium: 4-5 passives', medium: 'Medium: the rest', highsmall: 'Small: item level 84+', small: 'Small: the rest', t1highlevel: 'Tier 1, item level 83+', t3any: 'Tier 3', enchanted: 'Enchanted', handpicked: 'Handpicked', exoticheistbases: 'Heist bases', exoticritualbases: 'Ritual bases', tportal: 'Portal scrolls', twisdom: 'Wisdom scrolls', tnew: 'New items', restex: 'Everything else', rest: 'Everything else', exhide: 'Hidden extras', hide: 'Hidden', tscroll: 'Scrolls', tscrollfragments: 'Scroll fragments' };
-// Uniques tiered like FilterBlade: S, A, B+C, D and High variety
-const UNIQUE_TIERS = {
-  t1: ['S', 'S tier'], t2: ['A', 'A tier'], exjewels: ['A', 'A tier - jewels'], t3: ['B+C', 'B+C tier'],
-  earlyleague: ['D', 'D tier - early league uniques'], hideable2: ['D', 'D tier - low value + non-drops'], hideable: ['D', 'D tier - low value'],
-  multispecialhigh: ['High variety', 'High variety - top multi-bases'], multispecial: ['High variety', 'High variety - multi-bases'], multi: ['High variety', 'High variety - multi-bases'], t3boss: ['High variety', 'High variety - boss drops'],
-};
-const uniqueTier = (t) => (t?.type && /^uniques/.test(t.type) ? UNIQUE_TIERS[t.tier] || null : null);
-
-function tierName(t) {
-  if (t.customName) return t.customName;
-  if (uniqueTier(t)) return uniqueTier(t)[1];
-  if (t.tier === HIDDEN_TIER) return 'Hidden by you';
-  if (/^poehelper-/.test(t.tier)) return t.tier.slice(10).replace(/\d+$/, '').replace(/^\w/, (c) => c.toUpperCase()) || 'Your tier';
-  if (TIER_WORDS[t.tier]) return TIER_WORDS[t.tier];
-  // "t2divine" is Tier 2; the word after the number is NeverSink's price hint, shown as "typically ..."
-  const m = /^t(\d+)[a-z]*$/i.exec(t.tier);
-  if (m) return `Tier ${m[1]}`;
-  if (/^exotic/.test(t.tier)) return t.tier.slice(6).replace(/[-_]/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
-  if (/^ex/.test(t.tier) && t.tier.length > 2) return `Special: ${t.tier.slice(2).replace(/[-_]/g, ' ')}`;
-  return t.tier.replace(/^t(?=[a-z]{3,})/, '').replace(/[-_]/g, ' ').replace(/([a-z])(\d)/g, '$1 $2').replace(/^\w/, (c) => c.toUpperCase());
-}
+// tier names come from tier-names.js, shared with the in-game overlay
+const { tierName, uniqueTier, TIER_WORDS } = window.TierNames;
 
 const TYPE_RARITY = { currency: 'Currency', divination: 'Divination Card', uniques: 'Unique', gems: 'Gem' };
 const rarityFor = (type) => TYPE_RARITY[type.split('->')[0]] || 'Normal';
@@ -64,6 +43,23 @@ const TIER_SPLITS = [
 const TYPE_MERGES = [
   { key: 'heist#equipment', label: 'Heist equipment', short: 'Equipment', parts: [['heist->cloak', 'Cloaks'], ['heist->brooch', 'Brooches'], ['heist->gear', 'Gear'], ['heist->tool', 'Tools']] },
 ];
+// Some league mechanics have no category of their own in the filter: their items sit in the shared
+// currency tiers. A base view shows only those items (key "type@id"); moving one still moves it in the real tiers.
+const EXPEDITION = ['Astragali', 'Exotic Coinage', 'Scrap Metal', 'Burial Medallion'];
+const BASE_VIEWS = [
+  { type: 'currency', key: 'currency@expedition', label: 'Expedition currency', bases: EXPEDITION },
+  { type: 'currency->stackedsix', key: 'currency->stackedsix@expedition', label: 'Big stacks', bases: EXPEDITION },
+  { type: 'currency->stackedthree', key: 'currency->stackedthree@expedition', label: 'Small stacks', bases: EXPEDITION },
+];
+function baseViews(types) {
+  const out = [];
+  for (const bv of BASE_VIEWS) {
+    const t = types.find((x) => x.key === bv.type);
+    if (!t || !t.tiers.some((y) => y.bases.some((b) => bv.bases.includes(b)))) continue;
+    out.push({ ...t, key: bv.key, label: bv.label, subLabel: bv.label, baseView: bv.bases, tiers: t.tiers.map((y) => ({ ...y, bases: y.bases.filter((b) => bv.bases.includes(b)) })) });
+  }
+  return out;
+}
 const mergeOf = (key) => TYPE_MERGES.find((m) => m.key === key || m.parts.some(([k]) => k === key)) || null;
 function splitTypes(view) {
   if (!view?.types) return view;
@@ -75,6 +71,7 @@ function splitTypes(view) {
     // listed last in its category, standing for all its parts
     types.push({ ...parts[0], key: m.key, type: parts[0].type, label: m.label, subLabel: m.short || m.label, merged: true, inMerge: false, realTypes: parts.map((t) => t.type), tiers: parts.flatMap((t) => t.tiers) });
   }
+  types.push(...baseViews(types));
   return { ...view, types };
 }
 function splitTiers(view) {
@@ -530,7 +527,8 @@ function renderTiers(body, view) {
   mount(body, h('div', { class: 'fb' },
     h('aside', {}, cats),
     h('div', {},
-      h('div', { class: 'fb-typehead' }, iconPicker(type.type), h('h2', {}, merge ? merge.label : type.label), h('span', { class: 'small muted' }, 'Click bases to select them, or drag them between tiers.'), h('span', { class: 'spacer' }),
+      h('div', { class: 'fb-typehead' }, iconPicker(type.type), h('h2', {}, type.key === CLUSTER_SIZE_TYPE ? 'Cluster jewels: looks by size' : merge ? merge.label : type.label), h('span', { class: 'small muted' }, 'Click bases to select them, or drag them between tiers.'), h('span', { class: 'spacer' }),
+        type.key === CLUSTER_SIZE_TYPE ? h('button', { class: 'sm', onclick: () => { FB.type = CLUSTER_GRID; renderFilters(); } }, '← Back to the enchantments') : null,
         h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
           FB.priceColors = !FB.priceColors;
           // a fresh analysis when turning colours on (prices come from the 20-minute cache, so this is cheap)
@@ -643,13 +641,13 @@ async function renderClusterGrid(body, view) {
     el.style.borderColor = look ? (col(look.border) || 'transparent') : '';
     return el;
   };
-  const tierName = (st) => (st ? (TIER_WORDS[st.tier] || st.tier) : '');
+  const sizeTierName = (st) => (st ? tierName({ tier: st.tier, type: 'jewels->cluster' }) : '');
   const cellTitle = (size, e, p, k) => {
     const own = state[k];
     const ns = data.filter[k];
     return `${size} cluster, ${p} passives, ${e}, ${data.bands.find((b) => b.id === FB.cjBand).name.toLowerCase()}.\n` +
       `${data.prices[k] ? `poe.ninja: ${fmtP(data.prices[k])}. ` : 'No poe.ninja price. '}` +
-      `Your filter: ${ns === 't1' ? 'top look' : ns === 't2' ? 'good look' : sizeTier(k) ? `${sizeTier(k).action === 'Hide' ? 'hidden by' : 'shown by'} the "${tierName(sizeTier(k))}" tier` : 'no special tier'}.${own ? ` You set: ${own === 'top' ? 'top look' : own === 'good' ? 'good look' : 'hidden'}.` : ''}`;
+      `Your filter: ${ns === 't1' ? 'top look' : ns === 't2' ? 'good look' : sizeTier(k) ? `${sizeTier(k).action === 'Hide' ? 'hidden by' : 'shown by'} the "${sizeTierName(sizeTier(k))}" tier` : 'no special tier'}.${own ? ` You set: ${own === 'top' ? 'top look' : own === 'good' ? 'good look' : 'hidden'}.` : ''}`;
   };
 
   const els = new Map();
@@ -728,7 +726,9 @@ async function renderClusterGrid(body, view) {
     h('aside', {}, cats),
     h('div', {},
       h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('hex', { size: 22 })), h('h2', {}, 'Cluster jewels'),
-        h('span', { class: 'small muted' }, 'The enchantment, the number of passives and the item level decide what a cluster jewel is worth.')),
+        h('span', { class: 'small muted' }, 'The enchantment, the number of passives and the item level decide what a cluster jewel is worth.'),
+        h('span', { class: 'spacer' }),
+        view.types.some((t) => t.key === CLUSTER_SIZE_TYPE) ? h('button', { class: 'sm', title: 'The looks of the filter\'s size tiers, used for jewels without an economy tier or a choice of yours', onclick: () => { FB.type = CLUSTER_SIZE_TYPE; FB.selected.clear(); renderFilters(); } }, 'Edit the size looks') : null),
       h('div', { class: 'panel bm-tools' },
         h('div', { class: 'row', style: { gap: '10px' } },
           h('div', { class: 'fb-parts', role: 'tablist', 'aria-label': 'Item level', style: { margin: 0 } }, data.bands.map((b) => h('button', { role: 'tab', 'aria-selected': FB.cjBand === b.id ? 'true' : 'false', class: 'fb-part' + (FB.cjBand === b.id ? ' on' : ''), onclick: () => { FB.cjBand = b.id; renderFilters(); } }, b.name))),
@@ -950,6 +950,7 @@ const CATEGORIES = [
     { id: 'essence', name: 'Essence', match: ['currency->essence', 'essence'], art: ['Deafening Essence of Dread', '*Essence'], icon: 'flame' },
     { id: 'kingsmarch', name: 'Kingsmarch', match: ['currency->trial->tattoo', 'runesgrafts', 'tattoo'], art: ['Tattoo of the Kitava Blood Drinker', '*Tattoo'], icon: 'heart' },
     { id: 'delve', name: 'Delve', match: ['currency->fossil', 'fossil'], art: ['Aetheric Fossil', '*Fossil'], icon: 'rock' },
+    { id: 'expedition', name: 'Expedition', match: ['currency@expedition', 'currency->stackedsix@expedition', 'currency->stackedthree@expedition', 'expedition'], order: ['currency@expedition', 'currency->stackedsix@expedition', 'currency->stackedthree@expedition', 'expedition->logbook'], art: ['Expedition Logbook'], icon: 'book' },
     { id: 'heist', name: 'Heist', match: ['heist', 'currency->heist', 'heist#equipment', 'exoticbases#heist'], order: ['heist->blueprint', 'heist->contract', 'currency->heist', 'heist#equipment', 'exoticbases#heist'], art: ["Rogue's Marker"], icon: 'key' },
   ]],
   ['Maps', [
@@ -958,7 +959,7 @@ const CATEGORIES = [
     { id: 'nightmaremaps', name: 'Nightmare maps', match: ['maps->nightmare'], art: ['Nightmare Map', '*Map16'], icon: 'map' },
     { id: 'blightedmaps', name: 'Blighted maps', match: ['maps->blighted'], art: ['*BlightedMap', '*Map16'], icon: 'map' },
     { id: 'specialmaps', name: 'Special maps', match: ['maps->enchanted', 'maps->corruptedspecial', 'maps->corruptedimplicit', 'maps->implicitmod', 'maps->vaaltemple'], art: ['*Map16'], icon: 'map' },
-    { id: 'mapitems', name: 'Other map items', match: ['exoticmap', 'charts', 'expedition', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'book' },
+    { id: 'mapitems', name: 'Other map items', match: ['exoticmap', 'charts', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'book' },
   ]],
   ['Cards & gems', [
     { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['Stacked Deck', 'The Doctor'], icon: 'card' },
@@ -979,7 +980,7 @@ const CATEGORIES = [
     { id: 'jewels', name: 'Normal jewels', match: ['jewels', 'jewels->generic', 'jewels->special', 'jewels->leveling'], order: ['jewels->generic', 'jewels->special', 'jewels->leveling'], art: ['Cobalt Jewel', 'Crimson Jewel'], icon: 'hex' },
     { id: 'abyssjewels', name: 'Abyss jewels', match: ['jewels->abyss'], art: ['Hypnotic Eye Jewel', 'Searching Eye Jewel'], icon: 'eye' },
     { id: 'clusterjewels', name: 'Cluster jewels', match: ['jewels->cluster', 'jewels->clustereco'], art: ['Large Cluster Jewel'], icon: 'hex', clusters: true },
-    { id: 'clustergrid', name: 'Cluster enchantments', match: [], special: 'clustergrid', art: ['Medium Cluster Jewel', 'Large Cluster Jewel'], icon: 'hex' },
+    { id: 'clustergrid', name: 'Cluster jewels', match: [], special: 'clustergrid', art: ['Large Cluster Jewel'], icon: 'hex' },
   ]],
   ['Uniques & more', [
     { id: 'uniques', name: 'Unique items', match: ['uniques'], art: ['Headhunter', 'Mageblood', '*UniqueAccessory'], icon: 'crown' },
@@ -1017,7 +1018,7 @@ function categoryOf(type) {
   const cats = allCats();
   const assign = layout().assign || {};
   const parts = type.split('->');
-  for (let i = parts.length; i > 0; i--) {
+  for (let i = parts.length; i > (type.includes('@') ? parts.length - 1 : 0); i--) {
     const id = assign[parts.slice(0, i).join('->')];
     const c = id && cats.find((x) => x.id === id);
     if (c) return c;
@@ -1036,7 +1037,9 @@ async function saveLayout(next) {
 }
 /** Name of a subcategory inside its category: "currency->trial->omen" in Trial is just "Omens". */
 // Shown another way: NeverSink's economy cluster tiers are the Cluster enchantments grid.
-const HIDDEN_TYPES = new Set(['jewels->clustereco']);
+// Cluster jewels opens the enchantment grid; the size tiers ("Large: the rest", ...) are edited from there
+const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster']);
+const CLUSTER_SIZE_TYPE = 'jewels->cluster';
 const SUB_LABELS = {
   'currency->heist': "Rogue's Markers",
   'jewels->generic': 'Normal', 'jewels->special': 'Special (one-mod, corrupted)', 'jewels->leveling': 'Levelling',
@@ -1207,7 +1210,7 @@ function sidebar(view, changedTypes) {
   if (q.length >= 2) {
     const catHits = view.types.filter((t) => !t.inMerge && t.label.toLowerCase().includes(q));
     const baseHits = [];
-    for (const t of view.types) if (!t.merged) for (const tier of t.tiers) for (const b of tier.bases) if (b.toLowerCase().includes(q)) baseHits.push({ b, t, tier });
+    for (const t of view.types) if (!t.merged && !t.baseView) for (const tier of t.tiers) for (const b of tier.bases) if (b.toLowerCase().includes(q)) baseHits.push({ b, t, tier });
     return withResizer(h('nav', { class: 'fb-cats', 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(),
       catHits.length ? h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, 'Categories'), catHits.slice(0, 15).map((t) => row(t))) : null,
       h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, `Bases (${baseHits.length})`),
@@ -1274,8 +1277,9 @@ function sidebar(view, changedTypes) {
         h('span', { class: 'n' }, cat.name),
         h('span', { class: 'c small faint' }, String(Object.keys(S.settings.baseMatrix || {}).length || '')))));
 
-  const clusterRow = (cat) => h('div', { class: 'fb-cat' + (FB.type === CLUSTER_GRID ? ' current' : '') },
-    h('div', { class: 'fb-cat-bar' + (FB.type === CLUSTER_GRID ? ' active' : '') },
+  const clusterOn = FB.type === CLUSTER_GRID || FB.type === CLUSTER_SIZE_TYPE;
+  const clusterRow = (cat) => h('div', { class: 'fb-cat' + (clusterOn ? ' current' : '') },
+    h('div', { class: 'fb-cat-bar' + (clusterOn ? ' active' : '') },
       h('button', { class: 'fb-cat-main', onclick: () => select(CLUSTER_GRID) },
         h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
         h('span', { class: 'n' }, cat.name),

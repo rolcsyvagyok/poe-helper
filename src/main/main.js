@@ -4,6 +4,7 @@ const path = require('path');
 const { createServices } = require('./services');
 const { isPoeItemText } = require('../core/item-parser');
 const { sendCopy, hasKeySender, onMouse, stopHook } = require('./keys');
+const { AuthError } = require('../core/ggg');
 const Hotkey = require('../renderer/hotkey');
 
 if (!app.requestSingleInstanceLock()) {
@@ -187,8 +188,13 @@ function watchMouseForOverlay() {
     // once the mouse has been on the popup it stays open: you can read it, tick mods, drag it
     if (inside && p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) keepOverlay();
     if (inside || overlayKept) return;
-    const far = Math.hypot(p.x - overlayAnchor.x, p.y - overlayAnchor.y) > 220;
-    if (kind === 'down' || far) overlay.hide();
+    // on the way to the popup you may pass over other items: that is not moving away. It closes only when
+    // the mouse is far from both the item you checked and the popup, or you click somewhere else.
+    const fromItem = Math.hypot(p.x - overlayAnchor.x, p.y - overlayAnchor.y);
+    const dx = Math.max(b.x - p.x, 0, p.x - (b.x + b.width));
+    const dy = Math.max(b.y - p.y, 0, p.y - (b.y + b.height));
+    const fromPopup = Math.hypot(dx, dy);
+    if (kind === 'down' || (fromItem > 260 && fromPopup > 260)) overlay.hide();
   });
 }
 
@@ -366,13 +372,32 @@ function rebuildTrayMenu() {
   tray.setContextMenu(menu);
 }
 
+const isAuthError = (e) => e instanceof AuthError || /returned (401|403)/.test(String(e?.message || ''));
+// The website login (POESESSID) ends when you log out on pathofexile.com or after a while. Say so once,
+// and a click on the message opens the login window; the snapshot runs again right after you log in.
+let loginExpiredShown = false;
+function loginExpired() {
+  if (loginExpiredShown) return;
+  loginExpiredShown = true;
+  const text = 'Your pathofexile.com login has expired, so stash tabs can\'t be read. Click here to log in again.';
+  log(text);
+  mainWin?.webContents.send('toast', text);
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title: 'PoE Helper: log in again', body: text });
+  n.on('click', async () => {
+    const r = await loginForSession();
+    if (r?.ok) { loginExpiredShown = false; snapshotNow('login').catch(() => {}); }
+  });
+  n.show();
+}
+
 async function snapshotNow(reason) {
   try {
     const snap = await services.networth.takeSnapshot({ reason });
     mainWin?.webContents.send('networth:updated', snap);
     return snap;
   } catch (e) {
-    notify(`Snapshot failed: ${e.message}`);
+    if (isAuthError(e)) loginExpired(); else notify(`Snapshot failed: ${e.message}`);
     throw e;
   }
 }
@@ -383,7 +408,7 @@ function applyAutoSnapshot() {
     minutes: s.get('autoSnapshotMin'),
     clientLogPath: s.get('clientLogPath'),
     onSnapshot: (snap) => mainWin?.webContents.send('networth:updated', snap),
-    onError: (e) => notify(`Auto snapshot failed: ${e.message}`),
+    onError: (e) => (isAuthError(e) ? loginExpired() : notify(`Auto snapshot failed: ${e.message}`)),
   });
 }
 
@@ -498,6 +523,7 @@ function loginForSession() {
         const name = decodeURIComponent(prof).replace(/-(\d{4})$/, '#$1');
         services.settings.set('accountName', name);
       }
+      loginExpiredShown = false;
       finish({ ok: true, accountName: services.settings.get('accountName') || null });
     };
     const timer = setInterval(tryCookie, 1000);

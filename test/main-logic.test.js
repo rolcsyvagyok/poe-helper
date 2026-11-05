@@ -236,8 +236,10 @@ test('the Giga tier follows the top currency look when a design is applied, unti
   const v = svc.tierViewNow().types.find((t) => t.type === 'currency');
   const giga = v.tiers.find((t) => t.tier === 'poehelper-giga');
   const src = v.tiers.find((t) => t.tier === from);
-  assert.deepEqual(giga.style.text, src.style.text, 'same colours as the themed top tier');
-  assert.ok(giga.style.beam && giga.style.icon, 'a bit louder');
+  assert.deepEqual(giga.style.background.slice(0, 3), src.style.text.slice(0, 3), 'the themed top tier reversed: its text colour as the background');
+  assert.deepEqual(giga.style.text, [255, 215, 0, 255], 'gold text, so a Mirror never looks like a Divine');
+  assert.notDeepEqual(giga.style.background, src.style.background);
+  assert.ok(giga.style.beam && giga.style.icon);
   svc.setTierStyle('currency|poehelper-giga', { ...giga.style, text: [1, 2, 3, 255] });
   svc.designerApply({ levels: st.presets[2].levels, lockTier1: false });
   assert.deepEqual(svc.tierViewNow().types.find((t) => t.type === 'currency').tiers.find((t) => t.tier === 'poehelper-giga').style.text, [1, 2, 3, 255]);

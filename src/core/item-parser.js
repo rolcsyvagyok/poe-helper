@@ -217,6 +217,9 @@ function parseItem(rawText) {
   }
 
   for (const sec of modSections) {
+    // Ctrl+Alt+C: the header says what the lines below it are ("{ Corruption Implicit Modifier }"),
+    // and those lines carry no "(implicit)" suffix
+    let headerKind = null;
     for (const line of sec) {
       // Reminder text like "(Lucky things are rolled twice and the best result used)" isn't a mod
       if (/^\(.*\)$/.test(line.trim())) continue;
@@ -224,11 +227,15 @@ function parseItem(rawText) {
         // { Prefix Modifier "Hale" (Tier: 3) — Life }  -> "Hale"
         const nm = /Modifier\s+"([^"]+)"/.exec(line);
         if (nm) item.modNames.push(nm[1]);
+        headerKind = /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'
+          : /\bMaster Crafted\b|\bCrafted\b/i.test(line) ? 'crafted' : /\bScourge\b/i.test(line) ? 'scourge' : null;
         continue;
       }
       // Ctrl+Alt+C writes roll ranges into the line: "+45(40-49) to maximum Life" -> "+45 to maximum Life"
       const clean = line.replace(/\s*—\s*Unscalable Value$/, '').replace(/(\d)\((?:-?\d+(?:\.\d+)?)(?:-(?:-?\d+(?:\.\d+)?))?\)/g, '$1');
-      const { text: modText, type } = stripModSuffix(clean);
+      const stripped = stripModSuffix(clean);
+      const modText = stripped.text;
+      const type = stripped.type === 'explicit' && headerKind ? headerKind : stripped.type;
       // Skip help text that appears on currency/div cards/maps
       if (/^(Right click|Place into|Travel to this Map|Shift click|Can be used|Use this|This is a)/i.test(modText)) continue;
       item.mods[type].push(modText);

@@ -104,7 +104,7 @@ const TYPE_NAMES = {
   heist: 'Heist', artefact: 'Artefacts', questlike: 'Quest-like items', questlikeexception: 'Quest-like exceptions',
   influenced: 'Influenced items', vials: 'Vials', runesgrafts: 'Runegrafts', corpses: 'Corpses', enshrouded: 'Enshrouded items',
   event: 'Event items', leveling: 'Levelling', anyremaining: 'Anything remaining', charts: 'Charts', expedition: 'Expedition',
-  miscmapitems: 'Misc map items', miscmapitemsextra: 'Misc map items (extra)', heisttarget: 'Heist targets', exoticmap: 'Exotic maps',
+  miscmapitems: 'Miscellaneous map items', miscmapitemsextra: 'Miscellaneous map items (extra)', heisttarget: 'Heist targets', exoticmap: 'Exotic maps',
   gear: 'Gear', exotic: 'Exotic items',
   currency: 'Currency', divination: 'Divination cards', uniques: 'Uniques', fragments: 'Fragments', scarabs: 'Scarabs',
   essence: 'Essences', fossil: 'Fossils', oil: 'Oils', gems: 'Gems', maps: 'Maps', incubator: 'Incubators',

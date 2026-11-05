@@ -27,7 +27,7 @@ if ($Mode -eq 'create') {
   $have = Releases-ForTag
   if ($have.Count -gt 0) { Write-Output "Release $tag already exists ($($have.Count))."; exit 0 }
   $notesFile = Join-Path $root 'build\release-notes.md'
-  $notes = if (Test-Path $notesFile) { Get-Content $notesFile -Raw } else { '' }
+  $notes = if (Test-Path $notesFile) { [IO.File]::ReadAllText($notesFile) } else { '' } # a plain string: Get-Content adds PS properties that ConvertTo-Json would send
   $body = @{ tag_name = $tag; name = $ver; body = $notes; draft = $false; prerelease = $false } | ConvertTo-Json
   $r = Invoke-RestMethod -Method Post -Headers $h -Uri "https://api.github.com/repos/$repo/releases" -Body ([Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'application/json; charset=utf-8'
   Write-Output "Created release $tag (id $($r.id))."

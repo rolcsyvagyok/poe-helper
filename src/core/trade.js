@@ -21,6 +21,20 @@ function normTemplate(t) {
     .trim();
 }
 
+/**
+ * The trade site writes some mods in the singular ("Leftmost # Magic Utility Flask constantly applies its
+ * Flask Effect to you") while the item says "Leftmost 4 ... Flasks ... apply their ... Effects". This key
+ * ignores singular/plural so both find each other.
+ */
+function looseKey(key) {
+  return key.split(' ').map((w) => {
+    if (w === 'their' || w === 'its') return 'it';
+    if (/ies$/.test(w) && w.length > 4) return w.slice(0, -3) + 'y';
+    if (/[^s]s$/.test(w) && w.length > 3) return w.slice(0, -1);
+    return w;
+  }).join(' ');
+}
+
 /** Build lookup: type -> template -> [entries] from /api/trade/data/stats */
 function indexStats(statsJson) {
   const idx = {};
@@ -29,7 +43,10 @@ function indexStats(statsJson) {
       const type = e.type || group.id;
       const key = normTemplate(e.text);
       idx[type] = idx[type] || {};
-      (idx[type][key] = idx[type][key] || []).push({ id: e.id, text: e.text, local: /\(Local\)$/i.test(e.text) });
+      const entry = { id: e.id, text: e.text, local: /\(Local\)$/i.test(e.text) };
+      (idx[type][key] = idx[type][key] || []).push(entry);
+      const lk = `~${looseKey(key)}`;
+      (idx[type][lk] = idx[type][lk] || []).push(entry);
     }
   }
   return idx;
@@ -38,7 +55,7 @@ function indexStats(statsJson) {
 function matchMod(idx, modText, type, itemClass) {
   const table = idx[type] || {};
   let key = normTemplate(modTemplate(modText));
-  let hits = table[key];
+  let hits = table[key] || table[`~${looseKey(key)}`];
   // "reduced X" is stored as negative "increased X" on trade
   let negate = false;
   if (!hits && /\breduced\b/i.test(modText)) {
@@ -85,6 +102,9 @@ function resistanceTotals(item) {
   }
   return { ele, chaos, life, resLines: lines_, lifeLines };
 }
+
+// unique mods whose roll sets the price
+const KEY_UNIQUE_ROLLS = [/^Leftmost \d+ Magic Utility Flasks?\b/i];
 
 const PSEUDO = [
   { key: 'ele', text: '+#% total Elemental Resistance', fallback: 'pseudo.pseudo_total_elemental_resistance', label: (v) => `+${v}% total Elemental Resistance` },
@@ -147,7 +167,13 @@ function applyDefaults(mods, item, tolerance = 0.1) {
       m.min = Number.isInteger(m.display) ? Math.floor(lo) : Math.floor(lo * 100) / 100;
       m.max = null;
     }
-    if (kind === 'unique' || kind === 'gem') continue; // name/type search; tick mods to narrow
+    if (kind === 'unique') {
+      // a unique is searched by name; only the roll that decides its price is ticked (Mageblood: how many flasks),
+      // searched at exactly this value, since 4 and 2 are worth very different amounts
+      if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; }
+      continue;
+    }
+    if (kind === 'gem') continue;
     if (m.group === 'pseudo') {
       // Two or more resistance lines: search the total instead of each line.
       m.enabled = resCount >= 2 && (m.pseudo === 'ele' || m.pseudo === 'all');

@@ -6,10 +6,10 @@ const { h, mount, toast, call, dropLabel, soundButton, playSound, GAME_COLOURS }
 
 const COLOURS = Object.keys(GAME_COLOURS);
 const SHAPES = ['Star', 'Circle', 'Diamond', 'Hexagon', 'Square', 'Triangle', 'Cross', 'Moon', 'Raindrop', 'Kite', 'Pentagon', 'UpsideDownHouse'];
-const SAMPLE = { 1: 'Mirror of Kalandra', 2: 'Divine Orb', 3: 'Exalted Orb', 4: 'Chaos Orb', 5: 'Orb of Alchemy', 6: 'Orb of Transmutation' };
+const SAMPLE = { giga: 'Mirror of Kalandra', 1: 'Divine Orb', 2: 'Exalted Orb', 3: 'Chaos Orb', 4: 'Orb of Alchemy', 5: 'Orb of Fusing', 6: 'Orb of Transmutation' };
 const LEVEL_NOTE = { 1: 'Best drops', 2: 'Very valuable', 3: 'Valuable', 4: 'Worth picking up', 5: 'Low value', 6: 'Lowest shown' };
 // where each sample sits in the loot pile preview (percent of the stage)
-const PILE = { 1: [38, 12], 2: [8, 34], 3: [56, 40], 4: [22, 62], 5: [62, 72], 6: [10, 84] };
+const PILE = { giga: [52, 6], 1: [22, 16], 2: [8, 34], 3: [56, 40], 4: [22, 62], 5: [62, 72], 6: [10, 84] };
 
 const D = { state: null, levels: null, level: 1, presetId: null, lock: true, groups: null, saveTimer: null };
 const clone = (o) => JSON.parse(JSON.stringify(o || {}));
@@ -65,8 +65,19 @@ function draw() {
 }
 
 // ---------------------------------------------------------------- theme gallery
+// Giga (Mirror level, above Tier 1) is Tier 1 reversed: its text colour as the background, gold text.
+// The same rule as the app's filter writer (designer.gigaLook), so the preview matches the game.
+function gigaOf(levels) {
+  const base = ((levels?.[1] || {}).text || [220, 0, 0]).slice(0, 3);
+  const [r, g, b] = base;
+  const beam = Math.max(r, g, b) - Math.min(r, g, b) < 40 ? 'White' : r > 150 && g > 150 ? 'Yellow' : r >= g && r >= b ? (g > 90 ? 'Orange' : b > 100 ? 'Pink' : 'Red') : g >= r && g >= b ? (b > 150 ? 'Cyan' : 'Green') : r > 80 ? 'Purple' : 'Blue';
+  return { fontSize: 45, text: [255, 215, 0, 255], border: [255, 215, 0, 255], background: [...base, 255], sound: { id: 6, volume: 300 }, beam: { color: beam }, icon: { size: 0, color: beam, shape: 'Star' } };
+}
+
 function miniPreview(levels) {
-  return h('div', { class: 'ground dz-mini' }, [1, 2, 3, 4].map((lv) => dropLabel(SAMPLE[lv], levels[lv], { scale: 0.52, rarity: 'Currency' })));
+  return h('div', { class: 'ground dz-mini' },
+    dropLabel(SAMPLE.giga, gigaOf(levels), { scale: 0.52, rarity: 'Currency' }),
+    [1, 2, 3].map((lv) => dropLabel(SAMPLE[lv], levels[lv], { scale: 0.52, rarity: 'Currency' })));
 }
 
 function gallery() {
@@ -79,13 +90,14 @@ function gallery() {
         h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = clone(t.levels); D.presetId = t.id; D.level = 1; persist(); draw(); toast(`Loaded "${t.name}". Press Apply to use it in your filter.`); } }, D.presetId === t.id ? 'Reload' : 'Use this theme'),
         own ? h('button', { class: 'danger sm', onclick: async () => { await call('designer:deleteTheme', t.id); D.state = await call('designer:state'); draw(); } }, 'Delete') : null)));
   return h('section', { class: 'section', style: { marginTop: 0 } },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with the Divine tink.')),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with the Divine tink. Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
     h('div', { class: 'dz-gallery' }, D.state.presets.map((t) => card(t, false)), D.state.themes.map((t) => card(t, true))));
 }
 
 // ---------------------------------------------------------------- loot pile preview
 function pile() {
   const stage = h('div', { class: 'ground dz-pile', role: 'group', 'aria-label': 'Preview of all tiers on the ground' },
+    h('div', { class: 'dz-drop', style: { left: PILE.giga[0] + '%', top: PILE.giga[1] + '%', cursor: 'default' }, title: 'Giga: follows Tier 1, reversed' }, dropLabel(SAMPLE.giga, gigaOf(D.levels), { rarity: 'Currency', scale: 0.82 })),
     [6, 5, 4, 3, 2, 1].map((lv) => {
       const [x, y] = PILE[lv];
       const st = D.levels[lv] || {};

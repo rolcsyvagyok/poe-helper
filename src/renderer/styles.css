@@ -698,7 +698,10 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .cj-grids { display: grid; gap: 12px; padding-bottom: 80px; user-select: none; }
 .cj-panel { padding: 10px 14px; }
 .cj-title { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-.cj-table { border-collapse: separate; border-spacing: 3px; }
+.cj-table { border-collapse: separate; border-spacing: 3px; table-layout: fixed; width: auto; }
+/* same column widths in every size, so the passive columns line up under each other */
+.cj-table th:first-child { width: 290px; }
+.cj-table td, .cj-table thead th:not(:first-child) { width: 112px; }
 .cj-table th { font-weight: 500; text-align: left; }
 .cj-rowhead, .cj-colhead { background: transparent; border-color: transparent; padding: 3px 6px; font-size: 13px; color: var(--text); text-align: left; white-space: nowrap; }
 .cj-colhead { text-align: center; width: 100%; }
@@ -768,9 +771,12 @@ body.resizing { cursor: col-resize; user-select: none; }
 .rail .name { font-size: 16px; padding: 0 12px 20px; letter-spacing: .01em; }
 .rail nav { display: grid; gap: 3px; }
 .rail nav button { align-items: center; gap: 12px; padding: 10px 12px; font-size: 15px; color: #a9adb8; border-left: 3px solid transparent; border-radius: 0 var(--r-ctl) var(--r-ctl) 0; }
-.rail nav button .nav-ic { display: inline-grid; place-items: center; width: 20px; color: var(--faint); flex: none; }
+.rail nav button .nav-ic { display: inline-grid; place-items: center; width: 24px; height: 24px; color: var(--faint); flex: none; }
 .rail nav button:hover .nav-ic { color: var(--muted); }
 .rail nav button.active { background: var(--raised); color: var(--text); font-weight: 600; border-left-color: var(--accent); }
 .rail nav button.active .nav-ic { color: var(--accent); }
+.app { grid-template-columns: 224px 1fr; }
+.rail nav button .nav-label { white-space: nowrap; }
+.rail nav button .nav-ic img.art { width: 24px; height: 24px; }
 .rail .nav-sep { height: 1px; background: var(--line-soft); margin: 8px 12px; }
 #page-filters { max-width: none; }

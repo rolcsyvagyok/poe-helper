@@ -405,3 +405,36 @@ test('poe.ninja exchange: names and pictures come from the top-level items list'
   assert.equal(x.guessed, false);
   assert.equal(x.icon, 'https://web.poecdn.com/gen/image/abc/Mercy.png');
 });
+
+test('advanced copy (Ctrl+Alt+C): lines under an implicit header are implicit mods', () => {
+  const it = require('../src/core/item-parser').parseItem([
+    'Item Class: Rings', 'Rarity: Rare', 'Viper Nail', 'Paua Ring', '--------', 'Item Level: 83', '--------',
+    '{ Corruption Implicit Modifier }', '+1 to Maximum Frenzy Charges', '--------',
+    '{ Prefix Modifier "Sanguine" (Tier: 6) — Life }', '+39(25-39) to maximum Life',
+    '{ Suffix Modifier "of the Ranger" (Tier: 1) — Attack }', '+441(351-480) to Accuracy Rating', '--------', 'Corrupted',
+  ].join('\n'));
+  assert.deepEqual(it.mods.implicit, ['+1 to Maximum Frenzy Charges']);
+  assert.deepEqual(it.mods.explicit, ['+39 to maximum Life', '+441 to Accuracy Rating']);
+});
+
+test('tier names are readable words, never glued ids', () => {
+  const { tierName } = require('../src/renderer/tier-names');
+  assert.equal(tierName({ tier: 'fourlinkedrares' }), '4-link rares');
+  assert.equal(tierName({ tier: 't2divine', type: 'currency' }), 'Tier 2');
+  assert.equal(tierName({ tier: 't1', type: 'uniques' }), 'S tier');
+  assert.equal(tierName({ tier: 'n12_i84_t1' }), '12 passives, item level 84+: top');
+  assert.equal(tierName({ tier: 'threesocketedgear' }), '3-socket gear');
+  assert.equal(tierName({ tier: 'corruptedmaphider' }), 'Corrupted maps');
+});
+
+test('trade: a mod the trade site writes in the singular still matches (Mageblood)', () => {
+  const { matchItemMods } = require('../src/core/trade');
+  const stats = { result: [{ id: 'explicit', entries: [{ id: 'explicit.stat_2388347909', text: 'Leftmost # Magic Utility Flask constantly applies its Flask Effect to you', type: 'explicit' }] }] };
+  const item = parseItem(['Item Class: Belts', 'Rarity: Unique', 'Mageblood', 'Heavy Belt', '--------', 'Item Level: 86', '--------',
+    'Leftmost 4 Magic Utility Flasks constantly apply their Flask Effects to you'].join('\n'));
+  const m = matchItemMods(stats, item).find((x) => /Leftmost/.test(x.text));
+  assert.equal(m.id, 'explicit.stat_2388347909');
+  assert.equal(m.value, 4);
+  assert.equal(m.enabled, true, 'ticked: the number of flasks sets the price');
+  assert.equal(m.min, 4);
+});
