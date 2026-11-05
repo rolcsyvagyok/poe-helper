@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.14 - 2026-11-05
+
+- **The category list really stays put now.** Opening Cluster jewels, Base visibility or Your bases showed an empty page for a moment while their data loaded, which threw you back to the top. The new page is now built first and swapped in at once, so the list on the left stays exactly where it was.
+
 ## 1.0.13 - 2026-11-05
 
 - **WealthyExile is a dashboard.** Your worth by category (Currency, Scarabs, Divination cards, Uniques…) as cards with pictures, value, share and their top items; click one to list only its items, or search. Every item shows its picture, amount, price each and value, and your tabs are compared as bars. New snapshots keep each item's picture from your stash.

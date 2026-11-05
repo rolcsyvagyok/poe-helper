@@ -117,7 +117,14 @@ async function renderFiltersNow() {
     h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)));
 
   const body = h('div', { class: 'fb-body' });
-  mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, tabs, body);
+  const show = () => mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, tabs, body);
+  // the tier pages are built first and put on screen in one go: showing an empty page while the
+  // cluster or base data loads made the page collapse, which threw you back to the top
+  if (FB.tab === 'tiers' && info.base && !info.missing && view?.types?.length) {
+    await renderTiers(body, view);
+    return show();
+  }
+  show();
 
   if (FB.tab === 'rules' || FB.tab === 'price') FB.tab = 'tiers';
   if (FB.tab === 'review') {
