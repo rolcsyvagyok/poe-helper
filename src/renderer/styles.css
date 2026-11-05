@@ -625,3 +625,6 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .gs-row.has { border-color: var(--line); }
 .gs-row .sound-drop { font-size: 12px; padding: 6px 8px; }
 .bad-input { border-color: var(--bad) !important; }
+.fb-lettergroup { display: grid; gap: 10px; margin-bottom: 14px; }
+.fb-letter { display: flex; align-items: center; gap: 8px; padding: 6px 4px 0; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line-soft); padding-bottom: 6px; }
+.fb-ed-sound { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }

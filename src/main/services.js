@@ -264,17 +264,18 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const league = await getLeague();
     const want = new Set(names);
     const out = {};
-    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'BaseType']) {
+    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'Map', 'BlightedMap', 'BaseType']) {
       if (Object.keys(out).length >= want.size) break;
       let list = [];
       try { list = await ninja.category(league, c); } catch { continue; }
       for (const l of list) {
-        if (!l.icon || out[l.name] || !(want.has(l.name) || want.has(`*${c}`))) continue;
+        if (!l.icon || out[l.name] || !(want.has(l.name) || want.has(`*${c}`) || (c === 'Map' && want.has('*Map16')))) continue;
         let url = String(l.icon);
         if (url.startsWith('/')) url = `https://web.poecdn.com${url}`;
         if (!/^https:\/\/web\.poecdn\.com\//.test(url)) continue; // the only image host the app loads from
         if (want.has(l.name)) out[l.name] = url;
         if (want.has(`*${c}`) && !out[`*${c}`]) out[`*${c}`] = url; // "any item of this category"
+        if (c === 'Map' && want.has('*Map16') && !out['*Map16'] && Number(l.mapTier) === 16) out['*Map16'] = url; // a tier 16 map
       }
     }
     return out;
@@ -495,6 +496,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const nt = p.newTiers.find((x) => x.type === type && x.tier === tier);
     if (nt) nt.name = String(name || '').trim().slice(0, 40) || nt.name;
     return savePatch(p);
+  }
+
+  function setStackSize(key, n) {
+    return savePatch(tiers.withStackSize(settings.get('tierPatch') || {}, key, n));
   }
 
   function setTierAction(key, action) {
@@ -899,7 +904,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

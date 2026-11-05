@@ -77,6 +77,8 @@ function extractTiers(doc) {
       });
       const t0 = t.tiers.get(key);
       t0.special = t0.conditions.some((c) => !/^(Class|Rarity)\b/.test(c));
+      const ss = b.lines.find((l) => l.keyword === 'StackSize');
+      if (ss) t0.stackSize = { op: ss.op || '>=', value: Number(ss.values?.[0]) };
     }
     const tier = t.tiers.get(key);
     tier.blockCount++;
@@ -119,7 +121,7 @@ function groupRank(type) {
 }
 
 const SUB_NAMES = {
-  stackedsix: 'Stacked 6+', stackedthree: 'Stacked 3+', stackedsuppliesportal: 'Stacked portal scrolls', stackedsupplieswisdom: 'Stacked wisdom scrolls',
+  stackedsix: 'Big stacks', stackedthree: 'Small stacks', stackedsuppliesportal: 'Portal scrolls', stackedsupplieswisdom: 'Wisdom scrolls',
   leagueexclusive: 'League exclusive', deliriumorbs: 'Delirium orbs', fossil: 'Fossils', ducats: 'Ducats', oil: 'Oils', essence: 'Essences',
   splinter: 'Splinters', stackedsplintershigh: 'Stacked splinters (high)', stackedsplinterslow: 'Stacked splinters (low)', simulacrum: 'Simulacrum',
   deadmansulphur: "Dead man's sulphur", harvest: 'Harvest', heist: 'Heist', others: 'Others', trial: 'Trial', omen: 'Omens', tattoo: 'Tattoos',
@@ -131,7 +133,7 @@ const SUB_NAMES = {
   talisman: 'Talismans', sanctifiedrelics: 'Sanctum', breachrings: 'Breach rings', all: 'All', flasks: 'Flasks', utility: 'Utility', hybrid: 'Hybrid', life: 'Life', mana: 'Mana',
   tincture: 'Tinctures', rare: 'Rare', magic: 'Magic', armours: 'Armours', firstlevels: 'First levels', wandprogression: 'Wand progression', remaining: 'Remaining',
   rareeg: 'Rare endgame', exotic: 'Exotic',
-  levelingstacked: 'Stacked (levelling)', leveling: 'Levelling', stackedsupplieshigh: 'Stacked supplies (high)', stackedsupplieslow: 'Stacked supplies (low)',
+  levelingstacked: 'Stacked (levelling)', leveling: 'Levelling', stackedsupplieshigh: 'Transmutes', stackedsupplieslow: 'Augmentations',
   stacked: 'Stacked', corruptedimplicit: 'Corrupted implicits', implicitmod: 'Implicit mods', expensive: 'Expensive', generalgear: 'General gear',
   socketslinks: 'Sockets & links', normalmagic: 'Normal & magic', '4l': '4-link', '3l': '3-link', rgb: 'R-G-B', act1: 'Act 1', act2: 'Act 2',
   otheracts: 'Other acts', minion: 'Minion', weaponprogression: 'Weapon progression', exarch: 'Searing Exarch', eater: 'Eater of Worlds',
@@ -262,6 +264,23 @@ function applyTierPatch(text, patch = {}) {
     }
   }
 
+  // ---- your stack sizes: conditions: { "currency->stackedsix|t1": { StackSize: 8 } } ----
+  for (const [key, cond] of Object.entries(patch.conditions || {})) {
+    const [type, tier] = key.split('|');
+    const n = Number(cond?.StackSize);
+    if (!Number.isFinite(n) || n < 1) continue;
+    for (const b of byType.get(type) || []) {
+      if (b._tags.tier !== tier) continue;
+      for (const l of b.lines) {
+        if (l.keyword !== 'StackSize') continue;
+        const ind = /^[ \t]*/.exec(l.raw)[0];
+        l.op = l.op || '>=';
+        l.values = [String(Math.round(n))];
+        l.raw = `${ind}StackSize ${l.op} ${Math.round(n)}${crOf(l.raw)}`;
+      }
+    }
+  }
+
   // ---- show/hide whole tiers ----
   const ALERTS = new Set(['PlayAlertSound', 'PlayAlertSoundPositional', 'CustomAlertSound', 'CustomAlertSoundOptional', 'PlayEffect', 'MinimapIcon', 'EnableDropSound', 'DisableDropSound', 'DisableDropSoundIfAlertSound', 'EnableDropSoundIfAlertSound']);
   for (const [key, action] of Object.entries(patch.actions || {})) {
@@ -330,7 +349,15 @@ function tierView(text, patch = {}) {
 }
 
 /** Patch helpers (immutable). */
-const clonePatch = (patch = {}) => ({ moves: { ...(patch.moves || {}) }, styles: { ...(patch.styles || {}) }, actions: { ...(patch.actions || {}) }, newTiers: [...(patch.newTiers || [])] });
+const clonePatch = (patch = {}) => ({ moves: { ...(patch.moves || {}) }, styles: { ...(patch.styles || {}) }, actions: { ...(patch.actions || {}) }, newTiers: [...(patch.newTiers || [])], conditions: { ...(patch.conditions || {}) } });
+
+/** Change a tier's stack size (null puts the filter's own back). */
+function withStackSize(patch, key, n) {
+  const p = clonePatch(patch);
+  if (n == null || n === '') delete p.conditions[key];
+  else p.conditions[key] = { StackSize: Math.max(1, Math.round(Number(n))) };
+  return p;
+}
 
 /** Add your own tier to a category. Returns [patch, tierId]. */
 function withNewTier(patch, { type, name, copyFrom, before }) {
@@ -393,4 +420,4 @@ function themeFromView(view, onlyKeys = null) {
   return styles;
 }
 
-module.exports = { withNewTier, withoutNewTier, clonePatch, withAction, extractTiers, applyTierPatch, tierView, withMove, withoutMove, withStyle, locateBase, themeFromView, typeLabel, HIDE, HIDDEN_TIER, renderBlock };
+module.exports = { withStackSize, withNewTier, withoutNewTier, clonePatch, withAction, extractTiers, applyTierPatch, tierView, withMove, withoutMove, withStyle, locateBase, themeFromView, typeLabel, HIDE, HIDDEN_TIER, renderBlock };

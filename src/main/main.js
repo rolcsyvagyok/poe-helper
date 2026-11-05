@@ -414,6 +414,54 @@ function applyFilterWatch() {
   } else services.filters.unwatch();
 }
 
+// ---------------- POESESSID by logging in ----------------
+// Opens the official login page in a separate, locked-down window (no app code runs in it). You log in
+// yourself; once pathofexile.com takes you to your account page, the session cookie is read from that
+// window, stored encrypted like a pasted one, and the window closes. The app never sees your password.
+let loginWin = null;
+function loginForSession() {
+  if (loginWin && !loginWin.isDestroyed()) { loginWin.focus(); return Promise.resolve({ pending: true }); }
+  return new Promise((resolve) => {
+    let done = false;
+    loginWin = new BrowserWindow({
+      width: 520, height: 760, parent: mainWin || undefined, title: 'Log in to Path of Exile', autoHideMenuBar: true,
+      webPreferences: { partition: 'persist:poe-login', contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    const win = loginWin;
+    // sign-in links (Steam, Xbox, PlayStation) open in the same window, never as new app windows
+    win.webContents.setWindowOpenHandler(({ url }) => { win.loadURL(url); return { action: 'deny' }; });
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      clearInterval(timer);
+      resolve(result);
+      if (!win.isDestroyed()) win.close();
+    };
+    const tryCookie = async () => {
+      if (win.isDestroyed()) return;
+      const url = win.webContents.getURL();
+      // logged in = pathofexile.com shows you your account
+      if (!/^https:\/\/(www\.)?pathofexile\.com\/(my-account|account\/view-profile)/i.test(url)) return;
+      const cookies = await win.webContents.session.cookies.get({ url: 'https://www.pathofexile.com', name: 'POESESSID' }).catch(() => []);
+      const sid = cookies.find((c) => /^[a-f0-9]{32}$/i.test(c.value))?.value;
+      if (!sid) return;
+      services.settings.set('sessionEnc', secrets.encrypt(sid));
+      // the profile address carries your account name: /account/view-profile/Name-1234
+      const prof = /view-profile\/([^/?#]+)/i.exec(url)?.[1];
+      if (prof && !services.settings.get('accountName')) {
+        const name = decodeURIComponent(prof).replace(/-(\d{4})$/, '#$1');
+        services.settings.set('accountName', name);
+      }
+      finish({ ok: true, accountName: services.settings.get('accountName') || null });
+    };
+    const timer = setInterval(tryCookie, 1000);
+    win.webContents.on('did-navigate', tryCookie);
+    win.webContents.on('did-navigate-in-page', tryCookie);
+    win.on('closed', () => { loginWin = null; finish({ cancelled: true }); });
+    win.loadURL('https://www.pathofexile.com/login');
+  });
+}
+
 // ---------------- IPC ----------------
 
 function sanitizedSettings() {
@@ -463,6 +511,7 @@ function registerIpc() {
     s.set('sessionEnc', v ? secrets.encrypt(v) : null);
     return { sessionSet: !!v };
   });
+  handle('session:login', () => loginForSession());
   handle('usage:get', () => services.usageSnapshot());
   // While you record a new hotkey in Settings, the current ones are switched off so they don't fire.
   handle('hotkeys:pause', () => { hotkeysPaused = true; registerHotkeys({ quiet: true }); return true; });
@@ -508,6 +557,7 @@ function registerIpc() {
   handle('update:check', () => updater?.check());
   handle('update:install', () => { quitting = true; return updater?.install() || false; });
   handle('tiers:add', (a) => services.addTier(a || {}));
+  handle('tiers:stack', ({ key, size }) => services.setStackSize(String(key), size == null || size === '' ? null : Number(size)));
   handle('bases:list', () => services.myBases());
   handle('bases:add', (a) => services.addMyBase(a || {}));
   handle('bases:update', ({ id, patch }) => services.updateMyBase(String(id), patch || {}));

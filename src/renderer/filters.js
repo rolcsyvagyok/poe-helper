@@ -14,8 +14,17 @@ const SHAPES = ['Star', 'Circle', 'Diamond', 'Hexagon', 'Square', 'Triangle', 'C
 
 // NeverSink's own names for one-off tiers
 const TIER_WORDS = { tportal: 'Portal scrolls', twisdom: 'Wisdom scrolls', tnew: 'New items', restex: 'Everything else', rest: 'Everything else', exhide: 'Hidden extras', hide: 'Hidden', tscroll: 'Scrolls', tscrollfragments: 'Scroll fragments' };
+// Uniques tiered like FilterBlade: S, A, B+C, D and High variety
+const UNIQUE_TIERS = {
+  t1: ['S', 'S tier'], t2: ['A', 'A tier'], exjewels: ['A', 'A tier - jewels'], t3: ['B+C', 'B+C tier'],
+  earlyleague: ['D', 'D tier - early league uniques'], hideable2: ['D', 'D tier - low value + non-drops'], hideable: ['D', 'D tier - low value'],
+  multispecialhigh: ['High variety', 'High variety - top multi-bases'], multispecial: ['High variety', 'High variety - multi-bases'], multi: ['High variety', 'High variety - multi-bases'], t3boss: ['High variety', 'High variety - boss drops'],
+};
+const uniqueTier = (t) => (t?.type && /^uniques/.test(t.type) ? UNIQUE_TIERS[t.tier] || null : null);
+
 function tierName(t) {
   if (t.customName) return t.customName;
+  if (uniqueTier(t)) return uniqueTier(t)[1];
   if (t.tier === HIDDEN_TIER) return 'Hidden by you';
   if (/^poehelper-/.test(t.tier)) return t.tier.slice(10).replace(/\d+$/, '').replace(/^\w/, (c) => c.toUpperCase()) || 'Your tier';
   if (TIER_WORDS[t.tier]) return TIER_WORDS[t.tier];
@@ -186,7 +195,8 @@ function renderTiers(body, view) {
       const st = isEditing ? FB.draft : t.style;
       // shrink long names so the whole name fits (the game shows the full name too)
       const size = window.UI.normalizeStyle(st).fontSize || 32;
-      const scale = Math.max(0.5, Math.min(0.9, 268 / (sample.length * size * 0.62 + 30)));
+      // one zoom per name, worked out for the biggest text (45), so a smaller text size really looks smaller
+      const scale = Math.max(0.42, Math.min(0.9, 268 / (sample.length * 45 * 0.62 + 30)));
       mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, hidden: t.action === 'Hide' }), soundButton(window.UI.normalizeStyle(st).sound));
     };
     drawPreview();
@@ -215,7 +225,7 @@ function renderTiers(body, view) {
           t.mine ? h('button', { class: 'quiet sm', title: 'Delete this tier; its items go back to where the filter had them', 'aria-label': `Delete ${tierName(t)}`, onclick: async () => { if (!confirm(`Delete ${tierName(t)}? Its items go back to where your filter had them.`)) return; await call('tiers:remove', { type: type.type, tier: t.tier }); delete FB.prices[type.type]; toast(`${tierName(t)} deleted`); renderFilters(); } }, 'Delete') : null, changedAction ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, changedAction === 'Hide' ? 'Hidden by you' : changedAction === 'Off' ? 'Off by you' : t.origState === 'Off' ? 'Switched on by you' : 'Shown by you') : !changedAction && state === 'Off' ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade switched this tier off for your strictness. Press Shown to use it.' }, 'Off in FilterBlade') : null, edited.has(t.key) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null),
         h('div', { class: 'small', style: { color: '#9a9f8c' } }, t.hasBaseList ? `${t.bases.length} ${t.bases.length === 1 ? 'base' : 'bases'}` : t.special ? 'Special case' : 'Catches the rest of this category',
           pricing?.tiers?.[t.key]?.median != null ? `, typically ${fmtC(pricing.tiers[t.key].median)}` : ''),
-        t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity)\b/.test(c)).join(', ')}`) : null),
+        t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity)\b/.test(c)).join(', ')}`) : null),
       h('span', { class: 'spacer' }),
       visSwitch,
       t.generated ? null : h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) { FB.editing = null; } else { FB.editing = t.key; FB.draft = structuredClone(t.style || {}); } drawList(); } }, isEditing ? 'Close' : 'Edit look'));
@@ -259,6 +269,22 @@ function renderTiers(body, view) {
       card.addEventListener('drop', (e) => { e.preventDefault(); card.classList.remove('drop-target'); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), to); } catch { /* ignore */ } });
     }
     return card;
+  }
+
+  /** "Stacks of at least [6]": change the stack size of a stacked tier. */
+  function stackBox(t) {
+    const inp = h('input', { type: 'number', min: 1, max: 5000, value: t.stackSize.value, style: { width: '72px' }, 'aria-label': `${tierName(t)} stack size` });
+    const save = async () => {
+      const v = Math.max(1, Math.round(Number(inp.value) || 0));
+      if (!v || v === t.stackSize.value) return;
+      await call('tiers:stack', { key: t.key, size: v });
+      toast(`${tierName(t)}: stacks of ${v} or more`);
+      renderFilters();
+    };
+    inp.addEventListener('change', save);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+    return h('label', { class: 'row small', style: { gap: '6px', color: '#9a9f8c', flexWrap: 'nowrap' } }, 'Stacks of at least', inp,
+      view.conditions?.[t.key] || (S.settings.tierPatch?.conditions || {})[t.key] ? h('button', { class: 'quiet sm', title: 'Back to the filter\'s stack size', onclick: async () => { await call('tiers:stack', { key: t.key, size: null }); renderFilters(); } }, 'Reset') : null);
   }
 
   /** Type an item name: it goes into this tier and leaves every other tier of this category. */
@@ -387,8 +413,35 @@ function renderTiers(body, view) {
       h('button', { class: 'quiet sm', onclick: () => { FB.newTier = false; drawList(); } }, 'Cancel'));
   }
 
+  /** Uniques: tier cards grouped by letter; a group with several tiers can be combined into one. */
+  function letterGroups(cards) {
+    if (!/^uniques/.test(type.type)) return cards;
+    const ORDER = ['S', 'A', 'B+C', 'D', 'High variety'];
+    const groups = new Map(ORDER.map((l) => [l, []]));
+    const rest = [];
+    type.tiers.forEach((t, i) => { const u = uniqueTier(t); if (!cards[i]) return; (u ? groups.get(u[0]) : rest).push([t, cards[i]]); });
+    const out = [];
+    for (const [letter, list] of groups) {
+      if (!list.length) continue;
+      const movable = list.filter(([t]) => t.hasBaseList && !t.special && !t.generated);
+      const combine = movable.length > 1 ? h('button', { class: 'quiet sm', title: `Move every base of the ${letter} tiers into ${tierName(movable[0][0])}`, onclick: async () => {
+        const into = movable[0][0];
+        const bases = movable.slice(1).flatMap(([t]) => t.bases);
+        if (!bases.length) return toast('Nothing to combine: the other tiers are empty.');
+        if (!confirm(`Combine the ${letter} tiers? ${bases.length} bases move into ${tierName(into)}; the emptied tiers stay and can be refilled.`)) return;
+        await call('tiers:move', { type: type.type, bases, to: into.tier });
+        toast(`${letter} tiers combined into ${tierName(into)}`);
+        delete FB.prices[type.type];
+        renderFilters();
+      } }, `Combine into one ${letter} tier`) : null;
+      out.push(h('div', { class: 'fb-lettergroup' }, h('div', { class: 'fb-letter' }, h('b', {}, letter === 'High variety' ? 'High variety tiers' : `${letter} tier${list.length > 1 ? 's' : ''}`), h('span', { class: 'spacer' }), combine), list.map(([, c]) => c)));
+    }
+    if (rest.length) out.push(h('div', { class: 'fb-lettergroup' }, h('div', { class: 'fb-letter' }, h('b', {}, 'Special cases')), rest.map(([, c]) => c)));
+    return out;
+  }
+
   function drawList() {
-    const cards = type.tiers.map(tierCard).filter(Boolean);
+    const cards = letterGroups(type.tiers.map(tierCard)).filter(Boolean);
     mount(list, categoryOf(type.type)?.clusters ? clusterPanel() : null, priceBanner(), newTierBar(), addRow(), cards.length ? cards : h('div', { class: 'panel empty' }, 'No base matches your search.'), hideZone(),
       h('datalist', { id: 'fb-names' }, (FB.names[type.type] || []).map((n) => h('option', { value: n }))));
     drawBar();
@@ -527,12 +580,15 @@ async function renderMyBases(body, view) {
 const CATEGORIES = [
   ['Currency', [
     { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], art: 'Divine Orb', icon: 'coin' },
+    { id: 'stacked', name: 'Stacked', match: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], art: ['Chaos Orb'], icon: 'coins' },
+    { id: 'levelingcurrency', name: 'Levelling currency', match: ['currency->leveling', 'currency->levelingstacked'], art: ['Orb of Transmutation'], icon: 'leaf' },
   ]],
   ['Fragments', [
     { id: 'scarab', name: 'Scarab', match: ['fragments->scarabs', 'scarabs'], art: ['Delirium Scarab of Paranoia', '*Scarab'], icon: 'scarab' },
     { id: 'fragments', name: 'Other fragments', match: ['fragments', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
   ]],
   ['League mechanics', [
+    { id: 'league', name: 'Current league', match: ['event', 'currency->ducats'], art: null, icon: 'star' },
     { id: 'delirium', name: 'Delirium', match: ['currency->deliriumorbs', 'delirium'], art: ['Fine Delirium Orb', '*DeliriumOrb'], icon: 'orb' },
     { id: 'harvest', name: 'Harvest', match: ['currency->harvest', 'harvest'], art: ['Vivid Crystallised Lifeforce', 'Primal Crystallised Lifeforce'], icon: 'leaf' },
     { id: 'blight', name: 'Blight', match: ['currency->oil', 'oil'], art: ['Golden Oil', '*Oil'], icon: 'drop' },
@@ -540,6 +596,15 @@ const CATEGORIES = [
     { id: 'essence', name: 'Essence', match: ['currency->essence', 'essence'], art: ['Deafening Essence of Dread', '*Essence'], icon: 'flame' },
     { id: 'kingsmarch', name: 'Kingsmarch', match: ['currency->trial->tattoo', 'runesgrafts', 'tattoo'], art: ['Tattoo of the Kitava Blood Drinker', '*Tattoo'], icon: 'heart' },
     { id: 'delve', name: 'Delve', match: ['currency->fossil', 'fossil'], art: ['Aetheric Fossil', '*Fossil'], icon: 'rock' },
+    { id: 'heist', name: 'Heist', match: ['heist', 'heisttarget', 'currency->heist'], art: ["Rogue's Marker"], icon: 'key' },
+  ]],
+  ['Maps', [
+    { id: 'maps', name: 'Regular maps', match: ['maps'], art: ['*Map16'], icon: 'map' },
+    { id: 'influencedmaps', name: 'Influenced maps', match: ['maps->influenced'], art: ['*Map16'], icon: 'map' },
+    { id: 'nightmaremaps', name: 'Nightmare maps', match: ['maps->nightmare'], art: ['*Map16'], icon: 'map' },
+    { id: 'blightedmaps', name: 'Blighted maps', match: ['maps->blighted'], art: ['*BlightedMap', '*Map16'], icon: 'map' },
+    { id: 'specialmaps', name: 'Special maps', match: ['maps->enchanted', 'maps->corruptedspecial', 'maps->corruptedimplicit', 'maps->implicitmod', 'maps->vaaltemple'], art: ['*Map16'], icon: 'map' },
+    { id: 'mapitems', name: 'Other map items', match: ['exoticmap', 'charts', 'expedition', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'book' },
   ]],
   ['Cards & gems', [
     { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['The Doctor', 'The Apothecary', '*DivinationCard'], icon: 'card' },
@@ -556,11 +621,9 @@ const CATEGORIES = [
     { id: 'flasks', name: 'Flasks & tinctures', match: ['endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
     { id: 'highlight', name: 'Highlight specific bases', match: ['decorators'], art: 'Orb of Annulment', icon: 'sparkle' },
   ]],
-  ['Uniques & endgame', [
+  ['Uniques & more', [
     { id: 'uniques', name: 'Unique items', match: ['uniques'], art: ['Headhunter', 'Mageblood', '*UniqueAccessory'], icon: 'crown' },
-    { id: 'maps', name: 'Maps, contracts, logbooks', match: ['maps', 'exoticmap', 'charts', 'heist', 'heisttarget', 'expedition', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'map' },
     { id: 'gold', name: 'Gold', match: ['gold'], art: null, icon: 'coins' },
-    { id: 'league', name: 'Current league', match: ['event'], art: null, icon: 'star' },
   ]],
   ['Campaign (level 1-67)', [
     { id: 'leveling', name: 'Campaign & Leveling', match: ['leveling'], art: 'Scroll of Wisdom', icon: 'leaf' },
@@ -894,6 +957,7 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
     else if (v !== 'none') d.customSound = window.UI.soundPath(v);
     playSound(v);
     changed();
+    redraw();
   } },
   ownCustom ? h('option', { value: 'own', selected: current === 'own' }, `Filter's sound (${ownCustom})`) : null,
   h('option', { value: 'none', selected: current === 'none' }, 'No sound'),
@@ -916,6 +980,30 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
   const size = h('input', { type: 'range', min: 18, max: 45, value: d.fontSize || 32, style: { width: '160px' }, 'aria-label': 'Text size', oninput: (e) => { d.fontSize = +e.target.value; sizeOut.textContent = e.target.value; changed(); } });
   const sizeOut = h('span', { class: 'small muted' }, String(d.fontSize || 32));
 
+  // the sound sits at the bottom as one line; the full picker opens when you ask for it
+  const soundName = (() => {
+    const v = current;
+    if (v === 'none') return 'No sound';
+    if (v === 'own') return `Filter's sound (${ownCustom})`;
+    if (v.startsWith('game:')) return `Game sound ${v.slice(5)}`;
+    return S.sounds.find((x) => x.id === v)?.name || v;
+  })();
+  const soundOpen = FB.soundOpen === tier.key;
+  const soundBox = h('div', { class: 'fb-ed-sound' },
+    h('div', { class: 'fb-ed-row' }, h('span', {}, 'Sound'),
+      h('b', { class: 'small' }, soundName), window.UI.soundButton(window.UI.normalizeStyle(d).sound),
+      h('button', { class: 'quiet sm', 'aria-expanded': soundOpen ? 'true' : 'false', onclick: () => { FB.soundOpen = soundOpen ? null : tier.key; redraw(); } }, soundOpen ? 'Done' : 'Change')),
+    soundOpen ? h('div', { class: 'stack', style: { gap: '8px', marginTop: '8px' } },
+      h('div', { class: 'fb-ed-row' }, h('span', {}, ''), soundSel),
+      h('div', { class: 'fb-ed-row' }, h('span', {}, 'Volume'), vol),
+      h('div', { class: 'fb-ed-row' }, h('span', {}, ''), window.UI.soundDropZone((snd) => {
+        S.sounds = [...S.sounds.filter((x) => x.id !== snd.id), snd];
+        delete d.sound; delete d.customVolume;
+        d.customSound = window.UI.soundPath(snd.id);
+        playSound(snd.id);
+        redraw();
+      }))) : null);
+
   return h('div', { class: 'fb-editor' },
     h('div', { class: 'fb-ed-grid' },
       h('div', { class: 'stack', style: { gap: '10px' } },
@@ -924,18 +1012,9 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
         colourRow('Background', 'background', true),
         h('div', { class: 'fb-ed-row' }, h('span', {}, 'Size'), size, sizeOut)),
       h('div', { class: 'stack', style: { gap: '10px' } },
-        h('div', { class: 'fb-ed-row' }, h('span', {}, 'Sound'), soundSel),
-        h('div', { class: 'fb-ed-row' }, h('span', {}), window.UI.soundDropZone((snd) => {
-          // use the new sound for this tier right away
-          S.sounds = [...S.sounds.filter((x) => x.id !== snd.id), snd];
-          delete d.sound; delete d.customVolume;
-          d.customSound = window.UI.soundPath(snd.id);
-          playSound(snd.id);
-          redraw();
-        })),
-        h('div', { class: 'fb-ed-row' }, h('span', {}, 'Volume'), vol),
         h('div', { class: 'fb-ed-row' }, h('span', {}, 'Beam'), beamSel, h('label', { class: 'check small' }, beamTemp, 'Only when it drops')),
         h('div', { class: 'fb-ed-row' }, h('span', {}, 'Minimap'), iconColour, iconShape, iconSize))),
+    soundBox,
     h('div', { class: 'row', style: { marginTop: '14px' } },
       h('button', { class: 'primary', onclick: async () => { if (!d.text) d.text = [200, 200, 200, 255]; if (opts.onSave) await opts.onSave(d); else await call('tiers:style', { key: tier.key, style: d }); FB.editing = null; toast(`Saved the look of ${tierName(tier)}`); renderFilters(); } }, 'Save look'),
       h('button', { class: 'quiet', onclick: () => { FB.editing = null; redraw(); } }, 'Cancel'),

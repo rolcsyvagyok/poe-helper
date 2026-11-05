@@ -792,7 +792,15 @@ async function renderSettingsNow() {
             field('POESESSID', h('div', { class: 'row', style: { flexWrap: 'nowrap' } }, sid,
               h('button', { onclick: async () => { await call('session:set', sid.value); sid.value = ''; toast('Session saved'); renderSettings(); } }, 'Save'),
               st.sessionSet ? h('button', { class: 'danger', onclick: async () => { await call('session:set', ''); renderSettings(); } }, 'Remove') : null),
-              'Log in on pathofexile.com, press F12, then Application, Cookies, POESESSID. It is stored encrypted and only sent to pathofexile.com for stash tabs. Never share it.'))),
+              h('span', {}, h('button', { class: 'primary sm', style: { margin: '4px 0' }, onclick: async (e) => {
+                e.target.disabled = true;
+                e.target.textContent = 'Log in in the window that opened…';
+                const r = await call('session:login').catch(() => null);
+                if (r?.ok) toast(`Logged in. Your POESESSID is saved${r.accountName ? ` and your account name is ${r.accountName}` : ''}.`);
+                else if (r?.cancelled) toast('Login window closed; nothing was saved.');
+                renderSettings();
+              } }, st.sessionSet ? 'Log in again on pathofexile.com' : 'Log in on pathofexile.com'),
+              h('br'), 'Opens the official login page. Log in there yourself; once you see your account page, the app saves the session and closes the window. Or paste it: on pathofexile.com press F12, then Application, Cookies, POESESSID. It is stored encrypted and only sent to pathofexile.com for stash tabs. Never share it.')))),
         section('Requests', 'How much the app may ask of GGG and poe.ninja.',
           h('div', { class: 'panel stack' },
             field('GGG requests per day', h('input', { type: 'number', min: 10, value: st.dailyGggBudget, onchange: set('dailyGggBudget', Number) }), 'Stash and trade requests stop once this is reached. Price checks never count.'),
