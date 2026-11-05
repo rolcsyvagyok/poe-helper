@@ -477,3 +477,13 @@ test('unidentified map: no help text as a mod, only implicits, searched as unide
     assert.deepEqual(q.query.filters.misc_filters?.filters?.identified, { option: 'false' });
   }
 });
+
+test('every source file parses (a syntax error in one page script blanks the whole app)', () => {
+  const { execFileSync } = require('child_process');
+  const dirs = ['src', 'src/main', 'src/core', 'src/core/filter', 'src/renderer'];
+  for (const d of dirs) {
+    for (const f of fs.readdirSync(path.join(__dirname, '..', d)).filter((x) => x.endsWith('.js'))) {
+      execFileSync(process.execPath, ['--check', path.join(__dirname, '..', d, f)]);
+    }
+  }
+});
