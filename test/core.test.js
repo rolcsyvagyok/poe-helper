@@ -501,3 +501,29 @@ test('filter: HasExplicitMod >=8 "a" "e"... counts the item\'s mods (corrupted 8
   const seven = parseItem(['Item Class: Maps', 'Rarity: Rare', 'Iron Lands', 'Map (Tier 16)', '--------', 'Item Level: 83', '--------', ...lines.slice(0, 7), '--------', 'Corrupted'].join('\n'));
   assert.doesNotMatch(String(explain(doc, seven).chain?.map((c) => c.comment).join(' ') || ''), /mod8/);
 });
+
+test('game sounds: names, setup table and a synthetic FSB5 bank', () => {
+  const G = require('../src/core/game-sounds');
+  assert.equal(G.soundIdOf('AlertSound_06'), '6');
+  assert.equal(G.soundIdOf('SH22Divine'), 'ShDivine');
+  assert.equal(G.soundIdOf('Loop_3'), null);
+  const setups = G.loadSetups(path.join(__dirname, '..', 'assets', 'game-sounds', 'vorbis-setups.bin'));
+  assert.ok(setups.has(0xbec759ec) && setups.has(0x5d041107), 'the setups ItemFilter.bank uses');
+  assert.equal(setups.get(0xbec759ec)[0], 5, 'a Vorbis setup packet');
+  // one stereo 44.1 kHz sample, 1000 samples long, with a Vorbis chunk naming its setup
+  const raw = (1n) | (8n << 1n) | (1n << 5n) | (0n << 6n) | (1000n << 34n);
+  const head = Buffer.alloc(8 + 4 + 4); head.writeBigUInt64LE(raw, 0); head.writeUInt32LE((0) | (4 << 1) | (11 << 25), 8); head.writeUInt32LE(0xbec759ec, 12);
+  const names = Buffer.concat([Buffer.from([4, 0, 0, 0]), Buffer.from('AlertSound_06\0', 'latin1')]);
+  const data = Buffer.concat([Buffer.from([3, 0, 0, 1, 2]), Buffer.from([0, 0])]);
+  const fsb = Buffer.alloc(60); fsb.write('FSB5', 0, 'latin1'); fsb.writeUInt32LE(1, 4); fsb.writeUInt32LE(1, 8); fsb.writeUInt32LE(head.length, 12); fsb.writeUInt32LE(names.length, 16); fsb.writeUInt32LE(data.length, 20); fsb.writeUInt32LE(15, 24);
+  const s = G.readFsb5(Buffer.concat([Buffer.from('RIFF....FEV '), fsb, head, names, data]))[0];
+  assert.deepEqual([s.name, s.rate, s.channels, s.samples, s.setupId], ['AlertSound_06', 44100, 2, 1000, 0xbec759ec]);
+  const ogg = G.toOgg(s, setups);
+  assert.equal(ogg.toString('latin1', 0, 4), 'OggS');
+  // every page's checksum is right
+  for (let o = 0; o < ogg.length;) {
+    const segs = ogg[o + 26]; let len = 27 + segs; for (let i = 0; i < segs; i++) len += ogg[o + 27 + i];
+    const page = Buffer.from(ogg.subarray(o, o + len)); const crc = page.readUInt32LE(22); page.writeUInt32LE(0, 22);
+    assert.equal(G.oggCrc(page), crc); o += len;
+  }
+});

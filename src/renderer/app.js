@@ -48,7 +48,7 @@ function go(page) {
 async function refreshState() {
   Object.assign(S, await call('state:get'));
   if (!S.sounds.length) S.sounds = await call('sounds:list').catch(() => []);
-  window.UI.setGameSounds(S.settings.gameSoundFiles || {});
+  window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
   if (!S.iconsLoaded) { S.userIcons = await call('icons:list').catch(() => []); UI.setUserIcons(S.userIcons); S.iconsLoaded = true; }
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
@@ -752,26 +752,53 @@ function updateBox() {
   return [h('span', {}, h('b', {}, `Version ${S.settings.version}`)), text, btns];
 }
 
+const SH_SOUNDS = ['ShDivine', 'ShMirror', 'ShExalted', 'ShChaos', 'ShVaal', 'ShRegal', 'ShFusing', 'ShAlchemy', 'ShBlessed', 'ShGeneral'];
 function gameSoundRows(st) {
-  const map = st.gameSoundFiles || {};
-  const save = async (next) => { await call('settings:set', { gameSoundFiles: next }); S.settings.gameSoundFiles = next; window.UI.setGameSounds(next); renderSettings(); };
-  return h('div', { class: 'gs-grid' }, Array.from({ length: 16 }, (_, i) => {
-    const n = String(i + 1);
-    const file = map[n];
-    return h('div', { class: 'gs-row' + (file ? ' has' : '') },
-      h('b', {}, `Game sound ${n}`),
-      file ? h('span', { class: 'row', style: { gap: '6px' } },
-        h('button', { class: 'play', type: 'button', 'aria-label': `Play game sound ${n}`, onclick: () => window.UI.playSound(`game:${n}`) }, '▶'),
-        h('button', { class: 'quiet sm', onclick: () => { const next = { ...map }; delete next[n]; save(next); } }, 'Remove'))
+  const own = st.gameSoundFiles || {};
+  const got = st.gameSounds?.files || {};
+  const save = async (next) => { await call('settings:set', { gameSoundFiles: next }); S.settings.gameSoundFiles = next; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); renderSettings(); };
+  const take = async (opts) => {
+    try {
+      const r = await call('gameSounds:extract', opts);
+      S.settings.gameSounds = r;
+      window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
+      toast(r.count ? `${r.count} sounds taken from your game` : 'No folder picked');
+      renderSettings();
+    } catch { /* toast shown */ }
+  };
+  const status = Object.keys(got).length
+    ? h('div', { class: 'row', style: { gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' } },
+      h('span', { class: 'good' }, `✓ ${Object.keys(got).length} sounds from your game`),
+      h('span', { class: 'small faint' }, st.gameSounds?.dir || ''),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'sm quiet', onclick: () => take({ force: true }) }, 'Read them again'),
+      h('button', { class: 'sm quiet', onclick: () => take({ pick: true }) }, 'Other game folder…'))
+    : h('div', { class: 'row', style: { gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' } },
+      h('span', { class: 'muted' }, "Not taken from your game yet."),
+      h('button', { class: 'primary sm', onclick: () => take({}) }, 'Find my game'),
+      h('button', { class: 'sm', onclick: () => take({ pick: true }) }, 'Pick the game folder…'));
+  const row = (n, label) => {
+    const mine = own[n];
+    const has = mine || got[n];
+    return h('div', { class: 'gs-row' + (has ? ' has' : '') },
+      h('b', {}, label),
+      has ? h('span', { class: 'row', style: { gap: '6px' } },
+        h('button', { class: 'play', type: 'button', 'aria-label': `Play ${label}`, onclick: () => window.UI.playSound(`game:${n}`) }, '▶'),
+        mine ? h('span', { class: 'small faint' }, 'your recording') : null,
+        mine ? h('button', { class: 'quiet sm', onclick: () => { const next = { ...own }; delete next[n]; save(next); } }, got[n] ? 'Use the game\'s' : 'Remove') : null)
         : window.UI.fileDropZone('Drop a recording or click', '.mp3,.wav,.ogg', async (f) => {
           if (!/\.(mp3|wav|ogg)$/i.test(f.name)) return toast('Use an .mp3, .wav or .ogg file', true);
           try {
             const snd = await call('sounds:import', { name: `game sound ${n}.${f.name.split('.').pop()}`, data: await window.UI.fileToBase64(f) });
-            await save({ ...map, [n]: snd.id });
+            await save({ ...own, [n]: snd.id });
             window.UI.playSound(`game:${n}`);
           } catch { /* toast */ }
         }));
-  }));
+  };
+  return h('div', { class: 'stack', style: { gap: '12px' } },
+    status,
+    h('div', { class: 'gs-grid' }, Array.from({ length: 16 }, (_, i) => row(String(i + 1), `Game sound ${i + 1}`))),
+    Object.keys(got).some((k) => /^Sh/.test(k)) ? [h('div', { class: 'small muted' }, 'The named sounds (PlayAlertSound ShDivine and so on):'), h('div', { class: 'gs-grid' }, SH_SOUNDS.filter((k) => got[k] || own[k]).map((k) => row(k, k)))] : null);
 }
 
 function appIconBox(st) {
@@ -857,7 +884,7 @@ async function renderSettingsNow() {
     notesSection(await call('app:changelog').catch(() => [])),
     section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
       h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
-    section('Game sound previews', 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). They are part of the game, so PoE Helper can\'t include them. Drop in your own recording of a sound once and every ▶ for it plays that recording. Previews only: the filter keeps the real in-game sound.',
+    section('Game sound previews', 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.',
       h('div', { class: 'panel' }, gameSoundRows(st))),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',
       h('div', { class: 'panel row', style: { gap: '16px' } }, appIconBox(st))),
@@ -881,5 +908,6 @@ window.poe.on('toast', (m) => toast(m));
 window.poe.on('networth:updated', () => { if (currentPage === 'networth' || currentPage === 'dashboard') go(currentPage); });
 window.poe.on('filter:rebuilt', () => { if (currentPage === 'filters') go('filters'); });
 window.poe.on('history:updated', () => { if (currentPage === 'dashboard' || currentPage === 'price') refreshState(); });
+window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'settings') go('settings'); });
 
 go('dashboard');

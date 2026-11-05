@@ -47,7 +47,10 @@ const DEFAULT_SETTINGS = {
   categoryIcons: {}, // type -> built-in icon name or "img:<file>"
   baseFilterName: null, // the chosen filter's name, to find it again if the game renames the file
   economyRetired: false,
-  gameSoundFiles: {}, // game sound number -> your own recording (my-*.mp3) used for previews only
+  gameSoundFiles: {},
+  gameSounds: null, // preview copies made from your game: { dir, bankMtime, files: { "6": "game-6.ogg" } }
+  gameDir: '', // your Path of Exile folder, once found or picked
+  // game sound number -> your own recording (my-*.mp3) used for previews only
   versionSeen: null, // {version, at, from}: when this copy first ran its current version
   notesShownFor: null, // version whose patch notes you already saw
   gigaDone: false, // the default Giga tier in currency was set up once
@@ -404,9 +407,43 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
   /** A data: URL so the app can play your sound (the file lives outside the app folder). */
   function soundData(id) {
     const file = path.basename(String(id || ''));
-    if (!/^my-.+\.(mp3|wav|ogg)$/i.test(file)) throw new Error('Unknown sound.');
-    const buf = require('fs').readFileSync(path.join(userSoundsDir, file));
+    const game = /^game-[A-Za-z0-9]+\.ogg$/.test(file);
+    if (!game && !/^my-.+\.(mp3|wav|ogg)$/i.test(file)) throw new Error('Unknown sound.');
+    const buf = require('fs').readFileSync(path.join(game ? gameSoundsDir : userSoundsDir, file));
     return `data:${SOUND_EXT[file.split('.').pop().toLowerCase()]};base64,${buf.toString('base64')}`;
+  }
+
+  // ---------- the game's own alert sounds, for previews ----------
+  // Made from the game install on this PC (FMOD/Desktop/ItemFilter.bank) into the app's data folder;
+  // nothing from the game ships with the app. Done once, and again when a patch changes the bank.
+  const gameSoundsDir = path.join(dataDir, 'game-sounds');
+  const gameSoundsLib = require('../core/game-sounds');
+  const SETUPS = path.join(__dirname, '..', '..', 'assets', 'game-sounds', 'vorbis-setups.bin');
+  function gameSoundsState() {
+    const st = settings.get('gameSounds') || null;
+    const files = {};
+    for (const [id, f] of Object.entries(st?.files || {})) if (require('fs').existsSync(path.join(gameSoundsDir, f))) files[id] = f;
+    return { ...(st || {}), files, count: Object.keys(files).length };
+  }
+  /** dir: a game folder you picked; otherwise the one used last time, or the usual install places. */
+  function extractGameSounds({ dir = null, force = false } = {}) {
+    const fs = require('fs');
+    const prev = settings.get('gameSounds') || {};
+    const extra = [dir, settings.get('gameDir'), prev.dir].filter(Boolean);
+    const gameDir = dir && fs.existsSync(gameSoundsLib.bankIn(dir)) ? dir : gameSoundsLib.findGameDir({ extra });
+    if (!gameDir) throw new Error(dir ? 'That folder has no FMOD\\Desktop\\ItemFilter.bank. Pick the Path of Exile folder itself (the one with Bundles2 and FMOD in it).' : "Couldn't find Path of Exile on this PC. Pick its folder.");
+    const bankMtime = fs.statSync(gameSoundsLib.bankIn(gameDir)).mtimeMs;
+    if (!force && prev.dir === gameDir && prev.bankMtime === bankMtime && gameSoundsState().count >= 16) return gameSoundsState();
+    const r = gameSoundsLib.extract({ gameDir, outDir: gameSoundsDir, setupsFile: SETUPS });
+    if (!Object.keys(r.files).length) throw new Error(`No sounds could be read from the game (${r.failed[0] || 'unknown format'}).`);
+    if (r.failed.length) log('game sounds', r.failed.join('; '));
+    settings.set('gameDir', gameDir);
+    settings.set('gameSounds', { dir: gameDir, bankMtime, files: r.files, at: Date.now(), failed: r.failed.length });
+    return gameSoundsState();
+  }
+  /** At start: quietly make them if the game is found and they're missing or the game was patched. */
+  function refreshGameSounds() {
+    try { return extractGameSounds(); } catch (e) { log('game sounds', e.message); return null; }
   }
 
   /** Names written as given even though neither your filter nor poe.ninja lists them. */
@@ -1231,7 +1268,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

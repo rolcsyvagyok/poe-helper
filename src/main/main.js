@@ -620,6 +620,17 @@ function registerIpc() {
   handle('filter:economyRules', () => services.regenerateEconomy({ preview: true }));
   handle('sounds:list', () => services.listSounds());
   handle('sounds:import', (a) => services.importSound(a || {}));
+  handle('gameSounds:get', () => services.gameSoundsState());
+  // pick: choose the game folder yourself (when it isn't in one of the usual places)
+  handle('gameSounds:extract', async (a) => {
+    let dir = null;
+    if (a?.pick) {
+      const r = await dialog.showOpenDialog(mainWin, { title: 'Your Path of Exile folder (the one with Bundles2 and FMOD in it)', properties: ['openDirectory'] });
+      if (r.canceled || !r.filePaths[0]) return services.gameSoundsState();
+      dir = r.filePaths[0];
+    }
+    return services.extractGameSounds({ dir, force: !!a?.force || !!dir });
+  });
   handle('icons:list', () => services.listIcons());
   handle('update:status', () => updater?.status() || { state: 'idle' });
   handle('app:version', () => services.versionInfo());
@@ -784,6 +795,8 @@ app.whenReady().then(async () => {
   // Ctrl+D was the default before; Alt+E is the default now.
   if (services.settings.get('hotkeyPrice') === 'Ctrl+D') services.settings.set('hotkeyPrice', 'Alt+E');
   registerHotkeys();
+  // preview copies of the game's alert sounds, made from your install (again after a patch)
+  setTimeout(() => { const r = services.refreshGameSounds(); if (r) mainWin?.webContents.send('gameSounds:changed', r); }, 4000);
   applyLoginItem();
   watchMouseForOverlay();
   startClipboardWatcher();

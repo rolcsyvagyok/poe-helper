@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.11 - 2026-11-05
+
+- **Hear the game's own drop sounds.** PoE Helper finds your Path of Exile install and makes preview copies of its item filter sounds: Game sound 1 to 16 and the named ones (ShDivine, ShMirror, ShExalted…). Every ▶ for a game sound now plays the real sound, in the price check, the Loot filter page and the designer. It happens by itself at start, again after a game patch, and from Settings → Game sound previews ("Find my game", or pick the folder if it's somewhere unusual). Nothing from the game comes with the app: each PC makes its own copies from its own install. Your own recordings still work and take over where you added one.
+
 ## 1.0.10 - 2026-11-05
 
 - **Corrupted 8-mod maps show their real look in the price check.** NeverSink gives corrupted maps with 8 or more mods a purple look; the app counted the rule's search letters instead of the map's mods, so it showed the plain tier look. The tier's rule now reads "corrupted and identified and 8 or more mods".
