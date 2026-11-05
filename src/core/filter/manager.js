@@ -20,7 +20,12 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { parse, renderBlock, serialize, blocks } = require('./parser');
-const { applyTierPatch } = require('./tiers');
+const { applyTierPatch, tierView, HIDDEN_TIER, HIDE } = require('./tiers');
+const { BASES, GROUPS } = require('../base-data');
+const cluster = require('../cluster');
+
+const MATRIX_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.flatMap((g) => Object.values(g.columns).flat())])];
+const FRACTURED_STYLE = { fontSize: 40, text: [255, 255, 255, 255], border: [210, 178, 135, 255], background: [86, 52, 20, 235], icon: { size: 1, color: 'Brown', shape: 'Diamond' } };
 
 const HELPER_SUFFIX = ' (helper)';
 const MARK = '#### POE-HELPER';
@@ -286,6 +291,64 @@ function myBaseRule(e, style = MY_BASES_STYLE) {
   return { id: e.id, enabled: e.enabled !== false, action: hide ? 'Hide' : 'Show', label, conditions, style: hide ? { disableDropSound: true } : e.style || style, group: e.group || 'mybases' };
 }
 
+/**
+ * NeverSink shows fractured (and synthesised) items in their own tiers near the top of the filter,
+ * so a base you hid still drops with a label when it's fractured. With the switch on, the bases you
+ * hid yourself (moved to your hidden tier, or in a tier you switched to Hide) get a Hide block for
+ * their fractured / synthesised copies above the whole filter. Never uniques.
+ */
+function hiddenBaseRules(baseText, patch, { fractured = false, synthesised = false } = {}) {
+  if (!fractured && !synthesised) return [];
+  const bases = new Set();
+  for (const [k, to] of Object.entries(patch.moves || {})) if (to === HIDE || to === HIDDEN_TIER) bases.add(k.split('\t')[1]);
+  const hiddenTiers = Object.entries(patch.actions || {}).filter(([, a]) => a === 'Hide').map(([k]) => k);
+  if (hiddenTiers.length) {
+    let view = null;
+    try { view = tierView(baseText, patch); } catch { view = null; }
+    for (const t of view?.types || []) for (const tier of t.tiers) {
+      if (hiddenTiers.includes(`${t.type}|${tier.tier}`) && !/^uniques/.test(t.type)) for (const b of tier.bases) bases.add(b);
+    }
+  }
+  if (!bases.size) return [];
+  const list = [...bases].sort();
+  const rule = (kw, word) => ({
+    id: `hidden-${word}`, enabled: true, action: 'Hide', group: 'hiddenbases',
+    label: `Bases you hid: also when ${word}`,
+    conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: kw, values: ['True'] }, { keyword: 'BaseType', op: '==', values: list }],
+    style: { disableDropSound: true },
+  });
+  return [...(fractured ? [rule('FracturedItem', 'fractured')] : []), ...(synthesised ? [rule('SynthesisedItem', 'synthesised')] : [])];
+}
+
+/**
+ * The base visibility matrix ("which bases do I want to see"), written above the whole filter:
+ *  - fractured: "show" highlights fractured copies of the base, "hide" hides them
+ *  - visible:   "hide" hides plain copies (not fractured, synthesised, influenced, mirrored,
+ *               corrupted or 6-socket ones, and never uniques), by default only in maps
+ * state: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
+ */
+function matrixRules(state = {}, { mapsOnly = true, keepIlvl = null } = {}) {
+  const pick = (f) => Object.entries(state || {}).filter(([n, v]) => n && v && f(v)).map(([n]) => n).sort();
+  const fracShow = pick((v) => v.frac === 'show');
+  const fracHide = pick((v) => v.frac === 'hide');
+  const hide = pick((v) => v.vis === 'hide');
+  const plain = { keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] };
+  const out = [];
+  if (fracShow.length) out.push({ id: 'matrix-frac-show', enabled: true, action: 'Show', group: 'matrix', label: 'Base visibility: fractured bases you want', conditions: [plain, { keyword: 'FracturedItem', values: ['True'] }, { keyword: 'BaseType', op: '==', values: fracShow }], style: FRACTURED_STYLE });
+  if (fracHide.length) out.push({ id: 'matrix-frac-hide', enabled: true, action: 'Hide', group: 'matrix', label: 'Base visibility: hide fractured', conditions: [plain, { keyword: 'FracturedItem', values: ['True'] }, { keyword: 'BaseType', op: '==', values: fracHide }], style: { disableDropSound: true } });
+  if (hide.length) {
+    const conds = [plain,
+      { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] },
+      { keyword: 'HasInfluence', values: ['None'] }, { keyword: 'Mirrored', values: ['False'] }, { keyword: 'Corrupted', values: ['False'] },
+      { keyword: 'Sockets', op: '<', values: ['6'] }];
+    if (mapsOnly) conds.push({ keyword: 'AreaLevel', op: '>=', values: ['68'] });
+    if (Number(keepIlvl) > 0) conds.push({ keyword: 'ItemLevel', op: '<', values: [String(Math.round(Number(keepIlvl)))] });
+    conds.push({ keyword: 'BaseType', op: '==', values: hide });
+    out.push({ id: 'matrix-hide', enabled: true, action: 'Hide', group: 'matrix', label: 'Base visibility: bases you hid', conditions: conds, style: { disableDropSound: true } });
+  }
+  return out;
+}
+
 /** Lower-case letters and digits only: "Gemcutters Mercy" and "Gemcutter's Mercy" compare equal. */
 const nameKey = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -457,7 +520,7 @@ class FilterManager {
     const base = this.basePath();
     const patch0 = this.store.get('tierPatch') || {};
     const baseText = this.readBase();
-    const check = nameChecker(baseText, this.verifiedNames);
+    const check = nameChecker(baseText, [...this.verifiedNames, ...MATRIX_NAMES, ...cluster.SIZES.map((z) => z.base)]);
     // names you added with "Add anyway" are written as typed: you asked for exactly that
     const forced = new Set(this.store.get('forcedNames') || []);
     const fix = (v) => (forced.has(v) ? v : check.fix(v));
@@ -474,7 +537,18 @@ class FilterManager {
     if (text.startsWith('#Online Item Filter')) text = text.replace(/^(#(Online Item Filter|[a-zA-Z]+:[^\n]*)\r?\n)+/, '');
     const eco = (this.store.get('economy')?.enabled ? this.lastEconomy : []).map((r) => cleanRule(r, fix)).filter(Boolean);
     const myBases = (this.store.get('myBases') || []).filter((e) => e.enabled !== false && e.base).map((e) => myBaseRule(e, this.store.get('myBasesStyle') || MY_BASES_STYLE));
-    const overrides = [...myBases, ...this.overrides()].map((r) => cleanRule(r, fix)).filter(Boolean);
+    const hidden = hiddenBaseRules(baseText, patch, { fractured: !!this.store.get('hideFractured'), synthesised: !!this.store.get('hideSynthesised') });
+    // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
+    const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
+    const clusterState = this.store.get('clusterGrid') || {};
+    let clusterBlocks = [];
+    if (Object.keys(clusterState).length) {
+      let looks = {};
+      try { looks = cluster.readFilter(tierView(baseText, patch).types.find((t) => t.type === 'jewels->clustereco')).looks; } catch { looks = {}; }
+      clusterBlocks = cluster.clusterRules(clusterState, looks);
+    }
+    // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
+    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...hidden, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
     const out = finalCheck(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), fix, this.log);
@@ -554,4 +628,4 @@ class FilterManager {
   }
 }
 
-module.exports = { myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { matrixRules, MATRIX_NAMES, FRACTURED_STYLE, hiddenBaseRules, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

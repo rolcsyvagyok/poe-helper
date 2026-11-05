@@ -31,7 +31,7 @@ window.lineChart = function lineChart(points, { divine, height = 220 } = {}) {
   let y1 = Math.max(...ys);
   if (y0 === y1) { y0 -= 1; y1 += 1; }
   const span = y1 - y0;
-  y0 -= span * 0.08;
+  y0 = y0 >= 0 ? Math.max(0, y0 - span * 0.08) : y0 - span * 0.08; // prices never go below zero
   y1 += span * 0.08;
   const X = (t) => pad.l + ((t - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const Y = (v) => pad.t + (1 - (v - y0) / (y1 - y0)) * (H - pad.t - pad.b);

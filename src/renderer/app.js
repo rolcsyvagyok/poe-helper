@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, price: renderPrice, networth: renderNetworth, filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, price: renderPrice, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 $('nav').addEventListener('click', (e) => {
@@ -815,6 +815,7 @@ async function renderSettingsNow() {
             field('League', h('select', { onchange: set('leagueOverride') }, h('option', { value: '' }, `Follow the current league (${leagues[0]?.name || 'automatic'})`), leagues.map((l) => h('option', { value: l.id, selected: st.leagueOverride === l.id }, l.name || l.id)))),
             hotkeyField('hotkeyPrice', 'Price check hotkey', st, st.keySender ? 'Hover an item in game and press it. The price check pops up next to the item.' : 'Press Ctrl+C on the item first, then this hotkey.', 'Alt+E'),
             hotkeyField('hotkeyPriceAdvanced', 'Price check with mod tiers', st, 'Copies with Ctrl+Alt+C so mod names and tiers are included.', 'Ctrl+Alt+D'),
+            hotkeyField('hotkeyLab', 'Daily lab overlay', st, 'Opens today\'s Labyrinth layout from poelab in game: press it, pick 1-4. Press it again (or Esc) to hide.', 'Alt+L'),
             toggle(st.overlayCloseOnMouseAway !== false, (v) => call('settings:set', { overlayCloseOnMouseAway: v }).then(() => toast('Saved')), 'Close the price check when I move the mouse away, until I use it (Esc always closes it)'),
             h('div', { class: 'row small' }, h('span', { class: 'muted' }, st.overlayPos ? 'The price check opens where you last dragged it.' : 'The price check opens next to the item. Drag it by its top bar to choose a fixed place.'),
               st.overlayPos ? h('button', { class: 'quiet sm', onclick: async () => { await call('overlay:resetPos'); toast('The price check opens next to the item again'); renderSettings(); } }, 'Open next to the item again') : null),

@@ -167,9 +167,10 @@ function soundDropZone(onAdded) {
 }
 
 /** The item label as it appears on the ground. `size` scales in-game font sizes (18–45). */
-function dropLabel(name, style, { rarity, scale = 1, hidden = false } = {}) {
+function dropLabel(name, style, { rarity, scale = 1, hidden = false, game = false } = {}) {
   const st = normalizeStyle(style, rarity);
-  const px = Math.round((7 + (st.fontSize || 32) * 0.33) * scale);
+  // game: close to the size the label has in game at 1080p, like FilterBlade's preview (size 45 is about 27 px)
+  const px = Math.round((game ? (st.fontSize || 32) * 0.6 : 7 + (st.fontSize || 32) * 0.33) * scale);
   const label = h('span', {
     class: 'drop-label',
     style: {

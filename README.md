@@ -33,6 +33,13 @@ A Path of Exile 1 desktop helper with an in-game overlay. It combines a price ch
 - History chart, change and income per hour, breakdown by tab and category, your most valuable items, and "what changed" between snapshots.
 - Optional auto snapshots, which pause while `Client.txt` shows you are not playing.
 
+**Daily lab**
+- Alt+L in game: pick the lab (or open your favourite) and see today's layout from poelab.com on top of the game. Warns when today's isn't uploaded yet.
+
+**What to farm**
+- League mechanics ranked by how much their loot gained in value this week on poe.ninja, with each one's most valuable, rising and falling items.
+- Items that doubled or halved are listed (and marked in the loot filter tiers); click any item for its 7-day price graph. Uses only poe.ninja.
+
 **Loot filter: FilterBlade tiers, edited locally**
 - Pick the filter you downloaded from FilterBlade (any NeverSink-based filter works). The app reads its tier tags (`$type->currency $tier->t1`) and shows it the way FilterBlade does. Categories are on the left; each tier shows its in-game look and its bases as chips.
 - **Move bases between tiers**: click bases to select them, then Move or Hide; or drag them onto another tier. Hidden bases get a scoped Hide block placed right before their old tier, so they can't hide unrelated items. Each moved base is marked and can be put back with ×. You can also add a base that isn't listed yet.

@@ -6,7 +6,7 @@
 
 const path = require('path');
 const { DiskCache, JsonStore } = require('../core/cache');
-const { NinjaClient } = require('../core/ninja');
+const { NinjaClient, trendOf, isBigChange } = require('../core/ninja');
 const { GggClient } = require('../core/ggg');
 const { RateLimiter } = require('../core/rate-limiter');
 const { Pricer } = require('../core/pricer');
@@ -29,6 +29,13 @@ const DEFAULT_SETTINGS = {
   contact: '', // optional contact for User-Agent, e.g. a GitHub URL
   hotkeyPrice: 'Alt+E',
   hotkeyPriceAdvanced: 'Ctrl+Alt+D',
+  hotkeyLab: 'Alt+L', // daily lab overlay: pick a difficulty, see today's layout from poelab
+  labLast: 'uber',
+  labFavorite: null, // the lab the hotkey opens straight away (null: ask every time)
+  labPages: {}, // your own poelab page addresses per difficulty, if poelab moves them
+  labIndex: {}, // layouts kept on disk
+  labOverlayBounds: null,
+  labOpacity: 1,
   clipboardMode: true, // pop the overlay when you Ctrl+C an item in game
   restoreClipboard: true,
   overlayAutoHideMs: 0,
@@ -44,6 +51,12 @@ const DEFAULT_SETTINGS = {
   versionSeen: null, // {version, at, from}: when this copy first ran its current version
   notesShownFor: null, // version whose patch notes you already saw
   gigaDone: false, // the default Giga tier in currency was set up once
+  clusterGrid: {}, // cluster jewels: { "Large|Fire Damage|12|84": 'top' | 'good' | 'hide' }
+  baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
+  baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
+  hideFractured: false, // also hide fractured copies of bases you hid
+  hideSynthesised: false, // and synthesised ones
+  bigBeltsDone: false, // the default "Big belts" tier in uniques was set up once
   myBases: [], // [{id, base, ilvlMin, ilvlMax, rarities, enabled}]
   myBasesStyle: null, // look of My bases (null = the default teal)
   categoryLayout: {}, // your names, new categories, order and subcategory placement in the filter list
@@ -93,6 +106,19 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
 
   const ninja = new NinjaClient({ cache, fetchImpl, userAgent: userAgent(), baseUrl: settings.get('ninjaBaseUrl'), ttlMs: settings.get('ninjaTtlMin') * 60000, log });
   const limiter = new RateLimiter({ safety: settings.get('rateSafety') });
+  const { LabClient, DIFFS: LAB_DIFFS } = require('../core/lab');
+  const lab = new LabClient({ dir: path.join(dataDir, 'lab'), fetchImpl, userAgent: userAgent(), log, store: settings });
+  /** Today's layout as a picture the windows can show (they only load pictures from the app). */
+  async function labLayout({ diff, refresh = false } = {}) {
+    const d = diff || settings.get('labLast') || 'uber';
+    lab.userAgent = userAgent();
+    const r = await lab.layout(d, { refresh });
+    settings.set('labLast', d);
+    const fs = require('fs');
+    const ext = path.extname(r.file).slice(1).toLowerCase();
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    return { diff: d, name: LAB_DIFFS.find((x) => x.id === d).name, favorite: settings.get('labFavorite') || null, date: r.date, today: r.today, stale: r.stale, page: r.page, dataUrl: `data:${mime};base64,${fs.readFileSync(r.file).toString('base64')}` };
+  }
   const ggg = new GggClient({
     cache,
     fetchImpl,
@@ -264,11 +290,16 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const league = await getLeague();
     const want = new Set(names);
     const out = {};
+    let anyMap = null; // poe.ninja's map list often has no tiers (only Vaal temple maps), so any map picture will do
     for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'Map', 'BlightedMap', 'BaseType']) {
       if (Object.keys(out).length >= want.size) break;
       let list = [];
       try { list = await ninja.category(league, c); } catch { continue; }
       for (const l of list) {
+        if ((c === 'Map' || c === 'BlightedMap') && !anyMap && l.icon) {
+          const u = String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon);
+          if (/^https:\/\/web\.poecdn\.com\//.test(u)) anyMap = u;
+        }
         if (!l.icon || out[l.name] || !(want.has(l.name) || want.has(`*${c}`) || (c === 'Map' && want.has('*Map16')))) continue;
         let url = String(l.icon);
         if (url.startsWith('/')) url = `https://web.poecdn.com${url}`;
@@ -277,7 +308,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
         if (want.has(`*${c}`) && !out[`*${c}`]) out[`*${c}`] = url; // "any item of this category"
         if (c === 'Map' && want.has('*Map16') && !out['*Map16'] && Number(l.mapTier) === 16) out['*Map16'] = url; // a tier 16 map
       }
+      if (c === 'Map' && want.has('*Map16') && !out['*Map16'] && anyMap) out['*Map16'] = anyMap;
     }
+    if (want.has('*Map16') && !out['*Map16'] && anyMap) out['*Map16'] = anyMap;
     return out;
   }
 
@@ -403,6 +436,31 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     } finally { gigaBusy = false; }
   }
 
+  // "Big belts": Heavy Belt and Leather Belt carry the most valuable uniques, so they get a tier above S tier, once.
+  const BIG_BELTS = ['Heavy Belt', 'Leather Belt'];
+  function ensureBigBelts(view) {
+    if (gigaBusy || settings.get('bigBeltsDone')) return null;
+    const holds = (t) => t.tiers.some((x) => BIG_BELTS.some((b) => x.bases.includes(b)));
+    const uni = view?.types.find((t) => t.type === 'uniques' && holds(t)) || view?.types.find((t) => /^uniques/.test(t.type) && holds(t));
+    if (!uni) return null;
+    gigaBusy = true;
+    try {
+      settings.set('bigBeltsDone', true);
+      let patch = settings.get('tierPatch') || {};
+      if ((patch.newTiers || []).some((x) => x.type === uni.type && x.name === 'Big belts')) return null;
+      const movable = uni.tiers.filter((x) => x.hasBaseList && !x.special && !x.generated);
+      const look = movable.find((x) => x.tier === 't1') || movable[0];
+      // right above S tier, below NeverSink's special cases (synthesised, 6-links, Kaom's...)
+      const top = uni.tiers.find((x) => x.tier === 't1') || uni.tiers.find((x) => !x.generated);
+      if (!look || !top) return null;
+      let tier;
+      [patch, tier] = tiers.withNewTier(patch, { type: uni.type, name: 'Big belts', copyFrom: look.tier, before: top.tier });
+      const known = new Set(uni.tiers.flatMap((x) => x.bases));
+      for (const b of BIG_BELTS) if (known.has(b)) patch = tiers.withMove(patch, uni.type, b, tier);
+      return savePatch(patch);
+    } finally { gigaBusy = false; }
+  }
+
   function tierViewNow() {
     const base = filters.basePath();
     if (!base) return null;
@@ -412,6 +470,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const sig = `${base}|${mtime}|${JSON.stringify(patch)}`;
     if (viewCache?.sig !== sig) viewCache = { sig, view: tiers.tierView(filters.readBase(), patch) };
     if (!settings.get('gigaDone') && !gigaBusy) { const r = ensureGiga(viewCache.view); if (r?.view) return r.view; }
+    if (!settings.get('bigBeltsDone') && !gigaBusy) { const r = ensureBigBelts(viewCache.view); if (r?.view) return r.view; }
     return viewCache.view;
   }
 
@@ -609,6 +668,136 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return { supported: true, type, league, ageMs: oldest, divine: await ninja.divinePrice(league).catch(() => null), filterUpdated: filterLastUpdate(), ...res };
   }
 
+  // ---------- cluster jewels: enchantment x passives x item level, priced by poe.ninja ----------
+  async function clusterView() {
+    const cl = require('../core/cluster');
+    const view = tierViewNow();
+    const eco = view?.types.find((t) => t.type === 'jewels->clustereco') || null;
+    const fromFilter = cl.readFilter(eco);
+    let prices = {};
+    let ageMs = null;
+    let priceStats = null;
+    try {
+      const league = await getLeague();
+      priceStats = { total: 0, missed: [] };
+      prices = cl.priceCells(await ninja.category(league, 'ClusterJewel'), priceStats);
+      ageMs = ninja.cachedAge(league, 'ClusterJewel');
+    } catch (e) { log('cluster prices', e.message); }
+    const units = await getLeague().then((lg) => currencyUnits(lg)).catch(() => ({ chaos: 1 }));
+    const enchants = Object.fromEntries(cl.SIZES.map((z) => [z.id, [...cl.ENCHANTS[z.id], ...fromFilter.extra[z.id].filter((e) => cl.ALL_ENCHANTS.includes(e) && !cl.ENCHANTS[z.id].includes(e))]]));
+    return { sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, looks: { ...cl.DEFAULT_LOOKS, ...(fromFilter.looks.Large || {}) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
+  }
+  /** Set cells: value 'top' | 'good' | 'hide' | null (back to the filter). */
+  function setCluster({ keys = [], value = null } = {}) {
+    const cl = require('../core/cluster');
+    const state = { ...(settings.get('clusterGrid') || {}) };
+    for (const k of keys) {
+      const [size, e, p, band] = String(k).split('|');
+      if (!cl.SIZES.some((z) => z.id === size && z.passives.includes(Number(p))) || !cl.ALL_ENCHANTS.includes(e) || !cl.BANDS.some((b) => b.id === band)) continue;
+      if (['top', 'good', 'hide'].includes(value)) state[k] = value; else delete state[k];
+    }
+    settings.set('clusterGrid', state);
+    const target = filters.basePath() ? filters.write() : null;
+    return { state, target };
+  }
+
+  // ---------- base visibility matrix (like FilterBlade's): which bases show, and their fractured copies ----------
+  function baseMatrixView() {
+    const { DEFENCES, CLASSES, BASES, GROUPS } = require('../core/base-data');
+    let known = null;
+    try { const t = filters.basePath() ? filters.readBase() : ''; known = new Set([...t.matchAll(/"([^"\r\n]+)"/g)].map((m) => m[1])); } catch { known = null; }
+    const bases = {};
+    for (const c of CLASSES) {
+      bases[c] = {};
+      for (const d of DEFENCES) bases[c][d.id] = (BASES[c][d.id] || []).map((name) => ({ name, inFilter: known ? known.has(name) : null }));
+    }
+    const mark = (name) => ({ name, inFilter: known ? known.has(name) : null });
+    const groups = GROUPS.map((g) => ({ id: g.id, name: g.name, columns: Object.entries(g.columns).map(([title, list]) => ({ title, list: list.map(mark) })) }));
+    return { defences: DEFENCES, classes: CLASSES, bases, groups, state: settings.get('baseMatrix') || {}, opts: { mapsOnly: true, keepIlvl: null, ...(settings.get('baseMatrixOpts') || {}) } };
+  }
+  /** Paint bases: vis 'hide' | null (filter decides), frac 'show' | 'hide' | null; undefined leaves it as it is. */
+  function setBaseMatrix({ bases = [], vis, frac } = {}) {
+    const { MATRIX_NAMES } = require('../core/filter/manager');
+    const valid = new Set(MATRIX_NAMES);
+    const state = { ...(settings.get('baseMatrix') || {}) };
+    for (const b of bases) {
+      if (!valid.has(b)) continue;
+      const e = { ...(state[b] || {}) };
+      if (vis !== undefined) { if (vis === 'hide') e.vis = 'hide'; else delete e.vis; }
+      if (frac !== undefined) { if (frac === 'show' || frac === 'hide') e.frac = frac; else delete e.frac; }
+      if (Object.keys(e).length) state[b] = e; else delete state[b];
+    }
+    settings.set('baseMatrix', state);
+    const target = filters.basePath() ? filters.write() : null;
+    return { state, target, leftOut: filters.lastDropped };
+  }
+  function setBaseMatrixOpts(o = {}) {
+    const cur = { mapsOnly: true, keepIlvl: null, ...(settings.get('baseMatrixOpts') || {}) };
+    if ('mapsOnly' in o) cur.mapsOnly = !!o.mapsOnly;
+    if ('keepIlvl' in o) { const n = Math.round(Number(o.keepIlvl)); cur.keepIlvl = n >= 1 && n <= 100 ? n : null; }
+    settings.set('baseMatrixOpts', cur);
+    if (filters.basePath()) filters.write();
+    return cur;
+  }
+
+  // ---------- "What to farm": poe.ninja's 7-day trend grouped by league mechanic (no GGG requests) ----------
+  const FARM_GROUPS = [
+    { id: 'currency', name: 'Currency', cats: ['Currency'], skip: /lifeforce|splinter|shard|fragment/i, art: 'Divine Orb' },
+    { id: 'scarab', name: 'Scarabs', cats: ['Scarab'], art: '*Scarab' },
+    { id: 'fragment', name: 'Fragments & splinters', cats: ['Fragment'], art: 'Fragment of the Shape' },
+    { id: 'delirium', name: 'Delirium', cats: ['DeliriumOrb'], art: '*DeliriumOrb' },
+    { id: 'harvest', name: 'Harvest', cats: ['Currency'], only: /lifeforce/i, art: 'Sacred Crystallised Lifeforce' },
+    { id: 'blight', name: 'Blight', cats: ['Oil'], art: '*Oil' },
+    { id: 'essence', name: 'Essence', cats: ['Essence'], art: '*Essence' },
+    { id: 'delve', name: 'Delve', cats: ['Fossil', 'Resonator'], art: '*Fossil' },
+    { id: 'ritual', name: 'Ritual', cats: ['Omen'], art: '*Omen' },
+    { id: 'kingsmarch', name: 'Kingsmarch', cats: ['Tattoo', 'Runegraft'], art: '*Tattoo' },
+    { id: 'expedition', name: 'Expedition', cats: ['Artifact', 'Astrolabe'], art: null },
+    { id: 'divination', name: 'Divination cards', cats: ['DivinationCard'], art: '*DivinationCard' },
+  ];
+  async function farmDashboard() {
+    const league = await getLeague();
+    const divine = await ninja.divinePrice(league).catch(() => null);
+    const slim = (l) => {
+      const trend = trendOf(l.sparkline, l.chaos);
+      return { name: l.name, chaos: l.chaos, icon: l.icon || null, volume: l.volume ?? l.listingCount ?? null, change: trend?.change ?? null, old: trend?.old ?? null, points: trend?.points || null, big: isBigChange(trend) };
+    };
+    const lists = {};
+    let ageMs = 0;
+    const load = async (c) => {
+      if (lists[c]) return lists[c];
+      try { lists[c] = await ninja.category(league, c); ageMs = Math.max(ageMs, ninja.cachedAge(league, c) || 0); } catch (e) { log('farm', c, e.message); lists[c] = []; }
+      return lists[c];
+    };
+    const groups = [];
+    const allMovers = [];
+    for (const g of FARM_GROUPS) {
+      let items = [];
+      for (const c of g.cats) items.push(...(await load(c)));
+      items = items.filter((l) => l.name && l.chaos > 0 && (!g.only || g.only.test(l.name)) && (!g.skip || !g.skip.test(l.name)));
+      if (!items.length) continue;
+      const rows = items.map(slim);
+      // the market moves where the trading is: weight by how much of each item trades (volume x price)
+      let nowSum = 0; let oldSum = 0;
+      for (const r of rows) {
+        if (r.old == null) continue;
+        const w = Math.max(1, Number(r.volume) || 1);
+        nowSum += r.chaos * w; oldSum += r.old * w;
+      }
+      const change = oldSum > 0 ? Math.round((nowSum / oldSum - 1) * 1000) / 10 : null;
+      const traded = rows.filter((r) => (r.volume ?? 0) > 0).sort((a, b) => (b.volume || 0) - (a.volume || 0)).slice(0, 15);
+      const typical = (traded.length ? traded : rows).map((r) => r.chaos).sort((a, b) => a - b);
+      const top = [...rows].sort((a, b) => b.chaos - a.chaos).slice(0, 5);
+      const moving = rows.filter((r) => r.change != null && Math.max(r.chaos, r.old || 0) >= 1);
+      const up = [...moving].sort((a, b) => b.change - a.change).filter((r) => r.change > 0).slice(0, 3);
+      const down = [...moving].sort((a, b) => a.change - b.change).filter((r) => r.change < 0).slice(0, 3);
+      for (const r of rows) if (r.big) allMovers.push({ ...r, group: g.name });
+      groups.push({ id: g.id, name: g.name, art: g.art, count: rows.length, change, typical: typical[Math.floor(typical.length / 2)] ?? null, top, up, down });
+    }
+    groups.sort((a, b) => (b.change ?? -1e9) - (a.change ?? -1e9));
+    allMovers.sort((a, b) => Math.abs(Math.log((b.chaos + 0.1) / ((b.old ?? b.chaos) + 0.1))) - Math.abs(Math.log((a.chaos + 0.1) / ((a.old ?? a.chaos) + 0.1))));
+    return { league, divine, ageMs, groups, movers: allMovers.slice(0, 40) };
+  }
   // Categories auto-tiered by default. Uniques are opt-in: one base can hold a 1c and a 300c unique.
   const DEFAULT_REVIEW_TYPES = ['divination', 'fragments->scarabs', 'fragments', 'currency', 'currency->fossil', 'currency->oil', 'currency->essence', 'currency->deliriumorbs', 'currency->trial->omen', 'currency->trial->tattoo', 'runesgrafts', 'vials'];
 
@@ -904,7 +1093,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

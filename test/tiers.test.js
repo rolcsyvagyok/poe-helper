@@ -423,3 +423,36 @@ test('My bases: one rule per base with item level range and rarities, never uniq
   assert.deepEqual(r.conditions[1], { keyword: 'ItemLevel', op: '>=', values: ['82'] });
   assert.deepEqual(r.conditions.at(-1), { keyword: 'BaseType', op: '==', values: ['Goliath Greaves'] });
 });
+
+test('poe.ninja sparkline becomes a 7-day price history; doubling or halving is a big change', () => {
+  const { trendOf, isBigChange } = require('../src/core/ninja');
+  const t = trendOf({ totalChange: 100, data: [10, 20, 40, 60, 80, 90, 100] }, 20, 8 * 86400000);
+  assert.equal(t.change, 100);
+  assert.equal(t.old, 10);
+  assert.equal(t.points.length, 8);
+  assert.equal(t.points[0].chaos, 10);
+  assert.equal(t.points.at(-1).chaos, 20);
+  assert.equal(t.points.at(-1).ts, 8 * 86400000);
+  assert.ok(isBigChange(t));
+  assert.ok(!isBigChange(trendOf({ totalChange: 40, data: [40] }, 20)));
+  assert.ok(isBigChange(trendOf({ totalChange: -60, data: [-60] }, 20)));
+  assert.ok(!isBigChange(trendOf({ totalChange: 300, data: [300] }, 0.2)), 'cheap items are noise');
+  const gaps = trendOf({ totalChange: -4.76, data: [0, -32.54, -32.54, -4.76, null, null, null] }, 93, 10 * 86400000);
+  assert.equal(gaps.points.at(-1).ts, 10 * 86400000, 'the last value present is today');
+  assert.equal(trendOf(null, 5), null);
+});
+
+test('hidden bases get Hide blocks for their fractured and synthesised copies when switched on', () => {
+  const { hiddenBaseRules } = require('../src/core/filter/manager');
+  const { HIDDEN_TIER } = require('../src/core/filter/tiers');
+  const patch = { moves: { [`rings\tIron Ring`]: HIDDEN_TIER, [`rings\tGold Ring`]: 't1' } };
+  assert.deepEqual(hiddenBaseRules('', patch), []);
+  const rules = hiddenBaseRules('', patch, { fractured: true, synthesised: true });
+  assert.equal(rules.length, 2);
+  assert.equal(rules[0].action, 'Hide');
+  const kw = (r, k) => r.conditions.find((c) => c.keyword === k);
+  assert.deepEqual(kw(rules[0], 'FracturedItem').values, ['True']);
+  assert.deepEqual(kw(rules[1], 'SynthesisedItem').values, ['True']);
+  assert.deepEqual(kw(rules[0], 'BaseType').values, ['Iron Ring']);
+  assert.ok(!kw(rules[0], 'Rarity').values.includes('Unique'));
+});

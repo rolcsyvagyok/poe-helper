@@ -5,7 +5,7 @@
  * typical price of its tier and suggests moves when an item clearly belongs elsewhere.
  */
 
-const { norm } = require('../ninja');
+const { norm, trendOf, isBigChange } = require('../ninja');
 
 const UNIQUE_CATS = ['UniqueWeapon', 'UniqueArmour', 'UniqueAccessory', 'UniqueFlask', 'UniqueJewel', 'UniqueRelic', 'UniqueTincture'];
 
@@ -47,7 +47,10 @@ function priceIndex(type, catData) {
       } else {
         const k = norm(l.name);
         const prev = out.get(k);
-        if (!prev || (l.listingCount ?? l.volume ?? 0) > (prev.listings ?? 0)) out.set(k, { name: l.name, chaos: l.chaos, listings: l.listingCount ?? l.volume ?? null });
+        if (!prev || (l.listingCount ?? l.volume ?? 0) > (prev.listings ?? 0)) {
+          const trend = trendOf(l.sparkline, l.chaos);
+          out.set(k, { name: l.name, chaos: l.chaos, listings: l.listingCount ?? l.volume ?? null, ...(trend ? { trend, big: isBigChange(trend) } : {}) });
+        }
       }
     }
   }
@@ -209,7 +212,7 @@ function autoTierPlan(typeView, index, cfg = {}) {
         // hidden -> hidden changes nothing you'd see in game: skip the noise
         if ((t.action === 'Hide' || t.generated) && target.action === 'Hide') continue;
         if (p.chaos >= r.lo / margin && p.chaos < r.hi * margin) continue; // close enough to its own tier
-        moves.push({ base: b, from: t.tier, to: target.tier, toAction: target.action, chaos: p.chaos, listings: p.listings ?? null, direction: p.chaos >= r.hi ? 'up' : 'down' });
+        moves.push({ base: b, from: t.tier, to: target.tier, toAction: target.action, chaos: p.chaos, listings: p.listings ?? null, direction: p.chaos >= r.hi ? 'up' : 'down', trend: p.trend || null, big: !!p.big });
       }
     }
     if (cfg.includeNew) {
@@ -218,7 +221,7 @@ function autoTierPlan(typeView, index, cfg = {}) {
         if (!name || seen.has(name) || (cfg.knownNames && cfg.knownNames.has(k))) continue;
         if (!Number.isFinite(p.chaos) || (p.listings != null && p.listings < minListings)) continue;
         const target = targetFor(p.chaos);
-        if (target && target !== hideTier) moves.push({ base: name, from: null, to: target.tier, toAction: target.action, chaos: p.chaos, listings: p.listings ?? null, direction: 'new' });
+        if (target && target !== hideTier) moves.push({ base: name, from: null, to: target.tier, toAction: target.action, chaos: p.chaos, listings: p.listings ?? null, direction: 'new', trend: p.trend || null, big: !!p.big });
       }
     }
   }

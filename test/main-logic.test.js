@@ -38,6 +38,7 @@ function setup(opts = {}) {
   const svc = createServices({ dataDir: path.join(dir, 'data'), secrets, fetchImpl: fakeFetch(log), log: () => {} });
   // older tests check exact tier lists; the default Giga tier has its own test
   if (!opts.giga) svc.settings.set('gigaDone', true);
+  if (!opts.belts) svc.settings.set('bigBeltsDone', true);
   return { svc, log, filterDir };
 }
 
@@ -192,7 +193,7 @@ test('price review: plans moves from poe.ninja prices, applies them, logs and un
     return ok(prices[type] ? ex(prices[type]) : { core: { items: [] }, lines: [] });
   };
   const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl, log: () => {} });
-  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', gigaDone: true });
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', gigaDone: true, bigBeltsDone: true });
 
   const r = await svc.priceReview();
   const byType = Object.fromEntries(r.categories.map((c) => [c.type, c]));
@@ -305,6 +306,18 @@ test('currency gets a Giga tier above Tier 1 once, with the mirror-level items',
   assert.notEqual(svc.tierViewNow().types.find((t) => t.type === 'currency').tiers[0].tier, 'poehelper-giga', 'stays deleted');
 });
 
+test('uniques get a Big belts tier above S tier once, holding Heavy Belt and Leather Belt', () => {
+  const { svc, filterDir } = setup({ belts: true });
+  fs.writeFileSync(path.join(filterDir, 'NS.filter'), F.nsFilter);
+  svc.settings.set('filterDir', filterDir);
+  svc.settings.set('baseFilter', 'NS.filter');
+  const uni = svc.tierViewNow().types.find((t) => t.type === 'uniques');
+  assert.equal(uni.tiers[0].tier, 'poehelper-bigbelts');
+  assert.equal(uni.tiers[0].customName, 'Big belts');
+  assert.deepEqual(uni.tiers[0].bases, ['Leather Belt']);
+  assert.ok(!uni.tiers.find((t) => t.tier === 't3').bases.includes('Leather Belt'));
+});
+
 test('a synced filter renamed on FilterBlade is still found when it is the only one', () => {
   const { FilterManager } = require('../src/core/filter/manager');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-online2-'));
@@ -365,4 +378,107 @@ test('cluster jewel rules use base, item level and passives, and can hide', () =
   const hide = myBaseRule({ id: 'c2', group: 'cluster', base: 'Small Cluster Jewel', ilvlMax: 67, action: 'Hide' });
   assert.equal(hide.action, 'Hide');
   assert.match(hide.label, /hide Small Cluster Jewel ilvl up to 67/);
+});
+
+test('"Also when fractured" writes a Hide block for hidden bases above the filter', () => {
+  const { svc, filterDir } = setup();
+  fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', hideFractured: true });
+  const { target } = svc.moveBases('divination', ['Rain of Chaos'], '__hide__');
+  const out = fs.readFileSync(target, 'utf8');
+  const at = out.indexOf('FracturedItem True');
+  assert.ok(at > 0, 'has the fractured block');
+  assert.match(out.slice(at, at + 200), /BaseType == "Rain of Chaos"/);
+  assert.ok(at < out.indexOf('$type->currency'), 'above the FilterBlade tiers');
+  assert.doesNotMatch(out, /SynthesisedItem/);
+});
+
+test('base visibility: hide a base, show or hide its fractured copies, written above the filter', () => {
+  const { svc, filterDir } = setup();
+  fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter' });
+  const v = svc.baseMatrixView();
+  assert.ok(v.bases['Body Armours'].es.some((b) => b.name === 'Vaal Regalia'));
+  svc.setBaseMatrix({ bases: ['Vaal Regalia', 'Silk Robe', 'Not A Base'], vis: 'hide' });
+  svc.setBaseMatrix({ bases: ['Vaal Regalia'], frac: 'show' });
+  const { state, target } = svc.setBaseMatrix({ bases: ['Silk Robe'], frac: 'hide' });
+  assert.deepEqual(state, { 'Vaal Regalia': { vis: 'hide', frac: 'show' }, 'Silk Robe': { vis: 'hide', frac: 'hide' } });
+  const out = fs.readFileSync(target, 'utf8');
+  const show = out.indexOf('Show # Base visibility: fractured bases you want');
+  const fh = out.indexOf('Hide # Base visibility: hide fractured');
+  const hide = out.indexOf('Hide # Base visibility: bases you hid');
+  assert.ok(show > 0 && show < fh && fh < hide && hide < out.indexOf('$type->currency'), 'fractured rules first, all above the filter');
+  const hideBlock = out.slice(hide, out.indexOf('\n\n', hide));
+  assert.match(hideBlock, /FracturedItem False/);
+  assert.match(hideBlock, /AreaLevel >= 68/);
+  assert.match(hideBlock, /BaseType == "Silk Robe" "Vaal Regalia"/);
+  assert.doesNotMatch(hideBlock, /Unique/);
+  // options: everywhere, keep ilvl 86+
+  svc.setBaseMatrixOpts({ mapsOnly: false, keepIlvl: 86 });
+  const out2 = fs.readFileSync(target, 'utf8');
+  const hb2 = out2.slice(out2.indexOf('Hide # Base visibility: bases you hid'));
+  assert.doesNotMatch(hb2.slice(0, hb2.indexOf('\n\n')), /AreaLevel/);
+  assert.match(hb2, /ItemLevel < 86/);
+  // back to the filter
+  svc.setBaseMatrix({ bases: ['Vaal Regalia', 'Silk Robe'], vis: null, frac: null });
+  assert.doesNotMatch(fs.readFileSync(target, 'utf8'), /Base visibility/);
+});
+
+test('cluster jewels: reads the filter grid, prices loosely, writes your choices above the filter', () => {
+  const C = require('../src/core/cluster');
+  const T = require('../src/core/filter/tiers');
+  const text = `Show # $type->jewels->clustereco $tier->n12_i84_t1
+	ItemLevel >= 84
+	Rarity Normal Magic Rare
+	EnchantmentPassiveNum 12
+	BaseType == "Large Cluster Jewel"
+	EnchantmentPassiveNode "Fire Damage" "Minion Damage"
+	SetFontSize 45
+	SetBackgroundColor 255 255 255 255
+
+#Show # $type->jewels->clustereco $tier->n4_i84_t2
+#	ItemLevel >= 84
+#	EnchantmentPassiveNum <= 5
+#	BaseType == "Medium Cluster Jewel"
+#	EnchantmentPassiveNode "Minion Life"
+
+Show # %D8 $type->jewels->clustereco $tier->n4_i68_t2
+	ItemLevel >= 68
+	ItemLevel <= 74
+	EnchantmentPassiveNum <= 5
+	BaseType == "Medium Cluster Jewel"
+	EnchantmentPassiveNode "Chaos Damage over Time"
+	SetFontSize 40
+`;
+  const eco = T.tierView(text).types.find((t) => t.type === 'jewels->clustereco');
+  const r = C.readFilter(eco);
+  assert.equal(r.cells['Large|Fire Damage|12|84'], 't1');
+  assert.equal(r.cells['Medium|Chaos Damage over Time|4|68'], 't2');
+  assert.equal(r.cells['Medium|Chaos Damage over Time|5|68'], 't2', 'n4 means 4 or 5 passives');
+  assert.equal(r.cells['Medium|Minion Life|4|84'], undefined, 'switched-off tiers do nothing');
+  assert.equal(r.looks.Large.t1.fontSize, 45);
+  const prices = C.priceCells([{ name: 'Minions deal 10% increased Damage while you are affected by a Herald', baseType: 'Medium Cluster Jewel', variant: '4 passives', levelRequired: 84, chaos: 12 }]);
+  assert.deepEqual(prices, { 'Medium|Minion Damage while you have a Herald|4|84': 12 });
+  const st = { total: 0, missed: [] };
+  const more = C.priceCells([
+    { name: '12% increased Burning Damage', baseType: 'Medium Cluster Jewel', variant: '5 passives', levelRequired: 75, chaos: 4 },
+    { name: '3% increased effect of Non-Curse Auras from your Skills', baseType: 'Small Cluster Jewel', variant: '2 passives', levelRequired: 84, chaos: 90 },
+    { name: 'Something new', baseType: 'Small Cluster Jewel', variant: '2 passives', levelRequired: 84, chaos: 1 },
+  ], st);
+  assert.deepEqual(more, { 'Medium|Fire Damage over Time|5|75': 4, 'Small|Reservation Efficiency|2|84': 90 });
+  assert.equal(st.missed.length, 1);
+
+  const { svc, filterDir } = setup();
+  fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter + '\n' + text);
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter' });
+  svc.setCluster({ keys: ['Large|Minion Damage|12|84', 'Large|Spell Damage|12|84', 'Large|Bogus|12|84'], value: 'top' });
+  const { state, target } = svc.setCluster({ keys: ['Small|Life|2|68'], value: 'hide' });
+  assert.deepEqual(Object.keys(state).sort(), ['Large|Minion Damage|12|84', 'Large|Spell Damage|12|84', 'Small|Life|2|68']);
+  const out = fs.readFileSync(target, 'utf8');
+  const top = out.indexOf('Show # Cluster jewels: top large 12 passives');
+  assert.ok(top > 0 && top < out.indexOf('$type->currency'));
+  const block = out.slice(top, out.indexOf('\n\n', top));
+  assert.match(block, /EnchantmentPassiveNode "Minion Damage" "Spell Damage"/);
+  assert.match(block, /SetBackgroundColor 255 255 255 255/, "uses the filter's T1 look");
+  assert.match(out, /Hide # Cluster jewels: hide small 2 passives, item level 68-74[\s\S]*?ItemLevel <= 74[\s\S]*?EnchantmentPassiveNode "Life"/);
 });

@@ -101,6 +101,33 @@ function parseExchange(json) {
   return out;
 }
 
+/**
+ * poe.ninja's 7-day sparkline -> { change, old, now, points: [{ts, chaos}] }.
+ * data[i] is the change in % since the start of the week; the last value present is today
+ * (it equals totalChange). Returns null when there's nothing usable.
+ */
+function trendOf(sparkline, chaos, nowMs = Date.now()) {
+  if (!sparkline || !Array.isArray(sparkline.data) || !(chaos > 0)) return null;
+  const vals = sparkline.data.map((v) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v)));
+  let last = vals.length - 1;
+  while (last >= 0 && vals[last] == null) last--;
+  if (last < 0) return null;
+  const change = Number.isFinite(Number(sparkline.totalChange)) ? Number(sparkline.totalChange) : vals[last];
+  if (!(change > -100)) return null;
+  const old = chaos / (1 + change / 100);
+  const DAY = 86400000;
+  const points = [{ ts: nowMs - (last + 1) * DAY, chaos: old }];
+  vals.forEach((v, i) => { if (v != null && i <= last) points.push({ ts: nowMs - (last - i) * DAY, chaos: old * (1 + v / 100) }); });
+  return { change: Math.round(change * 10) / 10, old, now: chaos, points };
+}
+
+/** A price change worth a look: doubled (+100% or more) or halved (-50% or more), on something worth at least 1c. */
+function isBigChange(trend, { up = 100, down = -50, minChaos = 1 } = {}) {
+  if (!trend) return false;
+  if (Math.max(trend.old, trend.now) < minChaos) return false;
+  return trend.change >= up || trend.change <= down;
+}
+
 /** poe.ninja gives pictures as "/gen/image/..." on GGG's image server. */
 function imageUrl(p) {
   if (!p) return null;
@@ -263,4 +290,4 @@ class NinjaClient {
   }
 }
 
-module.exports = { slugify, unslug, NinjaClient, parseExchange, parseCurrency, parseItems, EXCHANGE_TYPES, ITEM_TYPES, norm };
+module.exports = { trendOf, isBigChange, slugify, unslug, NinjaClient, parseExchange, parseCurrency, parseItems, EXCHANGE_TYPES, ITEM_TYPES, norm };

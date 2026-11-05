@@ -2,13 +2,10 @@
 
 ## Next
 
-- **Hide bases even when they're fractured.** NeverSink shows fractured items above most hide rules
-  (the "exotic → fractured" tiers), so a base you hid still shows up when it drops fractured.
-  Add an option per hidden base (and on My bases / the price check's "Hide…") to also hide it
-  when it's fractured: write a `Hide` block with `FracturedItem True` + that `BaseType`, placed
-  above NeverSink's fractured tiers. Optionally a whole-category switch ("hide fractured items
-  of hidden bases"), and the same for synthesised items.
+Nothing queued. Done in 1.0.5: current-league currencies, map pictures, bigger previews, Big belts, chaos/div threshold boxes, big price changes with graphs, What to farm, hiding fractured/synthesised copies of hidden bases.
 
 ## Later
+
+- Price changes "since your last check" (today they're poe.ninja's 7-day change).
 
 - Check the live poe.ninja and trade API responses against the parsers after each league start.

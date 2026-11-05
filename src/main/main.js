@@ -115,7 +115,7 @@ function lockNavigation(win) {
 function openExternal(url) {
   try {
     const u = new URL(url);
-    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz)$/.test(u.hostname);
+    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com)$/.test(u.hostname);
     if (ok) shell.openExternal(u.toString());
   } catch { /* ignore */ }
 }
@@ -280,6 +280,7 @@ function registerHotkeys({ quiet = false } = {}) {
   };
   tryReg('hotkeyPrice', (acc) => priceCheck({ advanced: false, accelerator: acc }));
   tryReg('hotkeyPriceAdvanced', (acc) => priceCheck({ advanced: true, accelerator: acc }));
+  tryReg('hotkeyLab', () => toggleLab());
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
   return hotkeyStatus;
 }
@@ -418,6 +419,43 @@ function applyFilterWatch() {
 // Opens the official login page in a separate, locked-down window (no app code runs in it). You log in
 // yourself; once pathofexile.com takes you to your account page, the session cookie is read from that
 // window, stored encrypted like a pasted one, and the window closes. The app never sees your password.
+// ---------------- daily lab overlay ----------------
+// One small always-on-top window: the hotkey opens it on a difficulty picker (1-4 or a click), it then
+// shows poelab's layout for today. The same hotkey (or Esc, or ✕) hides it again.
+let labWin = null;
+function createLabWin() {
+  const b = services.settings.get('labOverlayBounds');
+  const area = screen.getPrimaryDisplay().workArea;
+  labWin = new BrowserWindow({
+    width: b?.width || 980, height: b?.height || 560,
+    x: b?.x ?? Math.round(area.x + (area.width - 980) / 2), y: b?.y ?? area.y + 40,
+    minWidth: 360, minHeight: 220,
+    frame: false, transparent: false, backgroundColor: '#16181d', resizable: true, skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: true,
+    title: 'Daily lab',
+    webPreferences: { preload: path.join(__dirname, '..', 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  labWin.setAlwaysOnTop(true, 'screen-saver');
+  labWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  labWin.setOpacity(Math.min(1, Math.max(0.3, Number(services.settings.get('labOpacity')) || 1)));
+  labWin.loadFile(path.join(__dirname, '..', 'renderer', 'lab.html'));
+  let t = null;
+  const save = () => { clearTimeout(t); t = setTimeout(() => { if (labWin && !labWin.isDestroyed()) services.settings.set('labOverlayBounds', labWin.getBounds()); }, 400); };
+  labWin.on('move', save);
+  labWin.on('resize', save);
+  labWin.on('closed', () => { labWin = null; });
+}
+/** Hotkey: hidden -> show the picker; shown -> hide. diff given: show that layout straight away. */
+function toggleLab(diff = null) {
+  if (!labWin || labWin.isDestroyed()) createLabWin();
+  if (!diff && labWin.isVisible()) { labWin.hide(); return; }
+  // your favourite lab opens straight away; without one you pick each time
+  if (!diff && services.settings.get('labFavorite')) diff = services.settings.get('labFavorite');
+  const send = () => labWin.webContents.send('lab:pick', { diff, last: services.settings.get('labLast') });
+  if (labWin.webContents.isLoading()) labWin.webContents.once('did-finish-load', send); else send();
+  labWin.show();
+  labWin.focus();
+}
+
 let loginWin = null;
 function loginForSession() {
   if (loginWin && !loginWin.isDestroyed()) { loginWin.focus(); return Promise.resolve({ pending: true }); }
@@ -440,6 +478,14 @@ function loginForSession() {
     const tryCookie = async () => {
       if (win.isDestroyed()) return;
       const url = win.webContents.getURL();
+      // after logging in the site sends you to its front page (or back from Steam/Xbox/PlayStation):
+      // open your account page once; it only opens when you really are logged in
+      if (/^https:\/\/(www\.)?pathofexile\.com\//i.test(url) && !/\/(login|my-account|account\/view-profile)/i.test(url) && !win.checkedAccount) {
+        win.checkedAccount = true;
+        win.loadURL('https://www.pathofexile.com/my-account');
+        return;
+      }
+      if (/\/login/i.test(url)) win.checkedAccount = false;
       // logged in = pathofexile.com shows you your account
       if (!/^https:\/\/(www\.)?pathofexile\.com\/(my-account|account\/view-profile)/i.test(url)) return;
       const cookies = await win.webContents.session.cookies.get({ url: 'https://www.pathofexile.com', name: 'POESESSID' }).catch(() => []);
@@ -495,11 +541,11 @@ function registerIpc() {
     const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.includes(k)));
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('startWithWindows' in clean) applyLoginItem();
     if ('autoSnapshotMin' in clean || 'clientLogPath' in clean) applyAutoSnapshot();
-    if ('baseFilter' in clean || 'filterDir' in clean || 'autoWatchFilter' in clean) {
+    if ('baseFilter' in clean || 'filterDir' in clean || 'autoWatchFilter' in clean || 'hideFractured' in clean || 'hideSynthesised' in clean) {
       applyFilterWatch();
       if (services.filters.basePath()) { try { services.filters.write(); } catch (e) { log('write after choosing filter', e.message); } }
     }
@@ -559,6 +605,11 @@ function registerIpc() {
   handle('tiers:add', (a) => services.addTier(a || {}));
   handle('tiers:stack', ({ key, size }) => services.setStackSize(String(key), size == null || size === '' ? null : Number(size)));
   handle('bases:list', () => services.myBases());
+  handle('matrix:get', () => services.baseMatrixView());
+  handle('cluster:get', () => services.clusterView());
+  handle('cluster:set', (a) => services.setCluster(a || {}));
+  handle('matrix:set', (a) => services.setBaseMatrix(a || {}));
+  handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('bases:add', (a) => services.addMyBase(a || {}));
   handle('bases:update', ({ id, patch }) => services.updateMyBase(String(id), patch || {}));
   handle('bases:remove', (id) => services.removeMyBase(String(id)));
@@ -593,6 +644,7 @@ function registerIpc() {
   handle('tiers:action', ({ key, action }) => services.setTierAction(String(key), ['Show', 'Hide', 'Off'].includes(action) ? action : null));
   handle('tiers:suggest', (type) => services.tierSuggest(String(type)));
   handle('review:run', (args) => services.priceReview(args || {}));
+  handle('farm:dashboard', () => services.farmDashboard());
   handle('designer:state', () => services.designerState());
   handle('designer:draft', (d) => services.designerSaveDraft(d || {}));
   handle('designer:apply', (a) => services.designerApply(a || {}));
@@ -669,6 +721,11 @@ function registerIpc() {
   handle('overlay:keep', (on) => keepOverlay(!!on));
   handle('overlay:resetPos', () => { services.settings.set('overlayPos', null); return true; });
   handle('shell:open', (url) => openExternal(url));
+  handle('lab:get', (a) => services.labLayout(a || {}));
+  handle('lab:show', (diff) => { toggleLab(services.LAB_DIFFS.some((d) => d.id === diff) ? diff : services.settings.get('labLast') || 'uber'); return true; });
+  handle('lab:hide', () => { labWin?.hide(); return true; });
+  handle('lab:favorite', (diff) => { const v = services.LAB_DIFFS.some((d) => d.id === diff) ? diff : null; services.settings.set('labFavorite', v); return v; });
+  handle('lab:opacity', (v) => { const o = Math.min(1, Math.max(0.3, Number(v) || 1)); services.settings.set('labOpacity', o); labWin?.setOpacity(o); return o; });
   handle('app:show', () => mainWin?.show());
 }
 
