@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.12 - 2026-11-05
+
+- **Tier designer: no more jumping to the top.** Changing a sound, colour or anything else keeps you where you are on the page.
+- **Tier designer: no Apply button any more.** "Use this theme" puts the theme into every category of your filter straight away, and your changes to a tier go in by themselves a moment after you make them. "Undo last change" and "Save as theme" stay.
+
 ## 1.0.11 - 2026-11-05
 
 - **Hear the game's own drop sounds.** PoE Helper finds your Path of Exile install and makes preview copies of its item filter sounds: Game sound 1 to 16 and the named ones (ShDivine, ShMirror, ShExalted…). Every ▶ for a game sound now plays the real sound, in the price check, the Loot filter page and the designer. It happens by itself at start, again after a game patch, and from Settings → Game sound previews ("Find my game", or pick the folder if it's somewhere unusual). Nothing from the game comes with the app: each PC makes its own copies from its own install. Your own recordings still work and take over where you added one.

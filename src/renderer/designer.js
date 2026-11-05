@@ -46,11 +46,36 @@ async function renderDesignerNow() {
   draw();
 }
 
+// redraws keep where you are on the page (changing a sound or a colour used to jump to the top)
 function draw() {
+  const main = document.querySelector('.main');
+  const top = main ? main.scrollTop : 0;
+  const page = document.getElementById('page-designer');
+  if (page) page.style.minHeight = `${page.offsetHeight}px`;
+  drawNow();
+  if (main) main.scrollTop = top;
+  if (page) requestAnimationFrame(() => { page.style.minHeight = ''; });
+}
+
+// your changes go into the filter by themselves, a moment after you stop changing things
+function applySoon(delay = 700) {
+  clearTimeout(D.applyTimer);
+  if (!D.state?.hasFilter) return;
+  D.applyTimer = setTimeout(async () => {
+    try {
+      const r = await call('designer:apply', { levels: D.levels, groups: null, lockTier1: D.lock });
+      D.state = await call('designer:state');
+      toast(`Restyled ${r.count} tiers in ${r.categories} categories. Zone or reload the filter in game.`);
+      draw();
+    } catch { /* toast shown */ }
+  }, delay);
+}
+
+function drawNow() {
   const el = document.getElementById('page-designer');
   if (D.lock) lockT1();
   mount(el,
-    pageHead('Tier designer', 'Design how Tier 1 to Tier 6 look, then apply it to every category in your filter at once.'),
+    pageHead('Tier designer', 'Pick a theme or design how Tier 1 to Tier 6 look; it goes into every category of your filter at once.'),
     !D.state.hasFilter || !D.state.groups?.length ? h('div', { class: 'panel row', style: { borderColor: 'var(--warn)', marginBottom: '16px' } },
       h('span', { style: { flex: 1 } }, D.state.missing
         ? `Your filter${D.state.missing.name ? ` "${D.state.missing.name}"` : ''} isn't in the filter folder any more (the game may have saved it under a new name when it synced). Pick it again on the Loot filter page and its tiers show up here.`
@@ -87,7 +112,7 @@ function gallery() {
       h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, t.name), D.presetId === t.id ? h('span', { class: 'pill good' }, 'In use') : null),
       t.description ? h('p', { class: 'small muted' }, t.description) : null,
       h('div', { class: 'row', style: { marginTop: '6px' } },
-        h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = clone(t.levels); D.presetId = t.id; D.level = 1; persist(); draw(); toast(`Loaded "${t.name}". Press Apply to use it in your filter.`); } }, D.presetId === t.id ? 'Reload' : 'Use this theme'),
+        h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = clone(t.levels); D.presetId = t.id; D.level = 1; D.groups = null; persist(); draw(); applySoon(0); } }, D.presetId === t.id ? 'Use it again' : 'Use this theme'),
         own ? h('button', { class: 'danger sm', onclick: async () => { await call('designer:deleteTheme', t.id); D.state = await call('designer:state'); draw(); } }, 'Delete') : null)));
   return h('section', { class: 'section', style: { marginTop: 0 } },
     h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with FilterBlade\'s Divine sound (game sound 6). Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
@@ -120,7 +145,7 @@ function editor() {
   const lv = D.level;
   const st = D.levels[lv] = D.levels[lv] || { fontSize: 32, text: [200, 200, 200, 255] };
   const locked = D.lock && lv === 1;
-  const changed = () => { D.presetId = null; persist(); draw(); };
+  const changed = () => { D.presetId = null; persist(); draw(); applySoon(); };
   const hex = (a) => '#' + (a || [0, 0, 0]).slice(0, 3).map((n) => Math.max(0, Math.min(255, +n || 0)).toString(16).padStart(2, '0')).join('');
   const fromHex = (v, alpha) => [parseInt(v.slice(1, 3), 16), parseInt(v.slice(3, 5), 16), parseInt(v.slice(5, 7), 16), alpha];
 
@@ -151,7 +176,7 @@ function editor() {
   h('optgroup', { label: 'PoE Helper tinks' }, (S.sounds || []).filter((x) => !x.user).map((x) => h('option', { value: x.id, selected: cur === x.id }, `${x.name}, ${x.note}`))),
   (S.sounds || []).some((x) => x.user) ? h('optgroup', { label: 'Your sounds' }, S.sounds.filter((x) => x.user).map((x) => h('option', { value: x.id, selected: cur === x.id }, x.name))) : null,
   h('optgroup', { label: 'Game sounds (heard in game only)' }, Array.from({ length: 16 }, (_, i) => h('option', { value: `game:${i + 1}`, selected: cur === `game:${i + 1}` }, `Game sound ${i + 1}`))));
-  const vol = h('input', { type: 'range', min: 0, max: 300, value: st.sound?.volume ?? st.customVolume ?? 300, style: { width: '140px' }, 'aria-label': 'Volume', onchange: (e) => { if (st.sound) st.sound.volume = +e.target.value; else if (st.customSound) st.customVolume = +e.target.value; persist(); } });
+  const vol = h('input', { type: 'range', min: 0, max: 300, value: st.sound?.volume ?? st.customVolume ?? 300, style: { width: '140px' }, 'aria-label': 'Volume', onchange: (e) => { if (st.sound) st.sound.volume = +e.target.value; else if (st.customSound) st.customVolume = +e.target.value; persist(); applySoon(); } });
 
   const beam = h('select', { disabled: locked, 'aria-label': 'Light beam', onchange: (e) => { if (e.target.value) st.beam = { color: e.target.value, temp: !!st.beam?.temp }; else delete st.beam; changed(); } },
     h('option', { value: '' }, 'No beam'), COLOURS.map((c) => h('option', { value: c, selected: st.beam?.color === c }, `${c} beam`)));
@@ -167,7 +192,7 @@ function editor() {
     h('div', { class: 'row' },
       h('h2', { style: { margin: 0 } }, `Tier ${lv}`), h('span', { class: 'small muted' }, LEVEL_NOTE[lv]),
       h('span', { class: 'spacer' }),
-      lv === 1 ? toggle(D.lock, (v) => { D.lock = v; persist(); draw(); }, 'Keep white with the Divine sound') : null),
+      lv === 1 ? toggle(D.lock, (v) => { D.lock = v; persist(); draw(); applySoon(); }, 'Keep white with the Divine sound') : null),
     locked ? h('p', { class: 'small muted' }, 'Tier 1 stays a white label with a white beam, a white star and FilterBlade\'s Divine sound (game sound 6). You can still change its text colour and size, or switch the lock off.') : null,
     h('div', { class: 'ground stage', style: { minHeight: '110px', padding: '22px' } },
       h('div', { class: 'row', style: { gap: '10px' } }, dropLabel(SAMPLE[lv], st, { rarity: 'Currency' }), soundButton(soundOf(st)))),
@@ -194,27 +219,16 @@ function editor() {
 
 // ---------------------------------------------------------------- apply
 function applyBar() {
-  const groups = D.state.groups;
-  const chosen = new Set(D.groups || groups.map((g) => g.id));
   const name = h('input', { placeholder: 'Name your design', style: { width: '200px' } });
-  const affected = groups.filter((g) => chosen.has(g.id)).reduce((a, g) => a + g.tiers, 0);
   return h('section', { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Use it in your filter'), h('p', {}, 'Restyles every Tier 1 to Tier 6 in the categories you tick. Special cases and catch-all tiers keep their look.')),
-    h('div', { class: 'panel stack' },
-      !D.state.hasFilter ? h('p', { class: 'small muted' }, 'Choose your filter on the Loot filter page first.') : h('div', { class: 'dz-groups' }, groups.map((g) => h('label', { class: 'check small' },
-        h('input', { type: 'checkbox', checked: chosen.has(g.id), onchange: (e) => { e.target.checked ? chosen.add(g.id) : chosen.delete(g.id); D.groups = chosen.size === groups.length ? null : [...chosen]; persist(); draw(); } }),
-        `${g.label}`, h('span', { class: 'faint' }, ` ${g.tiers}`)))),
-      h('div', { class: 'row' },
-        h('button', { class: 'primary', disabled: !D.state.hasFilter || !chosen.size, onclick: async () => {
-          const r = await call('designer:apply', { levels: D.levels, groups: D.groups, lockTier1: D.lock });
-          toast(`Restyled ${r.count} tiers in ${r.categories} categories. Zone or reload the filter in game.`);
-          D.state = await call('designer:state');
-          draw();
-        } }, `Apply to ${affected} tiers`),
-        D.state.canUndo ? h('button', { onclick: async () => { await call('designer:undo'); toast('Put the previous looks back'); D.state = await call('designer:state'); draw(); } }, 'Undo last apply') : null,
-        h('span', { class: 'spacer' }),
-        name,
-        h('button', { onclick: async () => { const t = await call('designer:saveTheme', { name: name.value.trim() || 'My design', levels: D.levels }); D.presetId = t.id; toast(`Saved "${t.name}"`); D.state = await call('designer:state'); persist(); draw(); } }, 'Save as theme'))));
+    h('div', { class: 'section-head' }, h('h2', {}, 'In your filter'), h('p', {}, !D.state.hasFilter
+      ? 'Choose your filter on the Loot filter page first.'
+      : 'A theme you pick, and every change you make here, restyles Tier 1 to Tier 6 in every category of your filter by itself. Special cases and catch-all tiers keep their look.')),
+    h('div', { class: 'panel row' },
+      D.state.canUndo ? h('button', { onclick: async () => { clearTimeout(D.applyTimer); await call('designer:undo'); toast('Put the previous looks back'); D.state = await call('designer:state'); draw(); } }, 'Undo last change') : null,
+      h('span', { class: 'spacer' }),
+      name,
+      h('button', { onclick: async () => { const t = await call('designer:saveTheme', { name: name.value.trim() || 'My design', levels: D.levels }); D.presetId = t.id; toast(`Saved "${t.name}"`); D.state = await call('designer:state'); persist(); draw(); } }, 'Save as theme')));
 }
 
 window.renderDesigner = renderDesigner;
