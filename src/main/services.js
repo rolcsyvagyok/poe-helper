@@ -61,6 +61,8 @@ const DEFAULT_SETTINGS = {
   bigBeltsLookV2: false,
   gigaOwnLook: false, // you edited the Giga look yourself, so it stops following the top currency tier
   gigaLookV3: false,
+  tinkToGame6: false, // Tier 1 got FilterBlade's sound back once
+
   bigBeltsOwnLook: false, // the default "Big belts" tier in uniques was set up once
   myBases: [], // [{id, base, ilvlMin, ilvlMax, rarities, enabled}]
   myBasesStyle: null, // look of My bases (null = the default teal)
@@ -494,6 +496,19 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       const p = settings.get('tierPatch') || {};
       const next = syncBigBelts(p);
       if (next !== p) { gigaBusy = true; try { const r = savePatch(next); if (r?.view) return r.view; } finally { gigaBusy = false; } }
+    }
+    // 1.0.8: themes used the app's own "Divine tink" file on Tier 1; put back FilterBlade's sound (game sound 6)
+    if (!settings.get('tinkToGame6') && !gigaBusy) {
+      settings.set('tinkToGame6', true);
+      const TINK = 'poehelper-sounds/divine-tink.mp3';
+      const fix = (st) => { if (st?.customSound !== TINK) return st; const { customSound, customVolume, ...rest } = st; return { ...rest, sound: { ...designer.TIER1_SOUND } }; };
+      const fixLevels = (lv) => (lv && lv[1] ? { ...lv, 1: fix(lv[1]) } : lv);
+      const d = settings.get('designer');
+      if (d?.levels) settings.set('designer', { ...d, levels: fixLevels(d.levels) });
+      settings.set('designerThemes', (settings.get('designerThemes') || []).map((t) => ({ ...t, levels: fixLevels(t.levels) })));
+      const p = settings.get('tierPatch') || {};
+      const styles = Object.fromEntries(Object.entries(p.styles || {}).map(([k, v]) => [k, fix(v)]));
+      if (JSON.stringify(styles) !== JSON.stringify(p.styles || {})) { gigaBusy = true; try { const r = savePatch({ ...p, styles }); if (r?.view) return r.view; } finally { gigaBusy = false; } }
     }
     // 1.0.7: Giga follows the theme's top currency look, reversed
     if (settings.get('gigaDone') && !settings.get('gigaLookV3') && !gigaBusy) {
@@ -1167,6 +1182,20 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       const here = t.tiers.find((x) => x.tier === loc.tier);
       const state = here?.state || here?.action;
       return { base, type: t.type, label: t.label, tier: loc.tier, state, key: here?.key, special: !!here?.special, options: t.tiers.filter(movable).map(optionOf), candidates: state === 'Off' ? candidates() : null };
+    }
+    // hidden by you (the Hide button): say so, and offer every tier of that category to bring it back,
+    // with the tier your filter had it in first
+    const hidKey = Object.keys((settings.get('tierPatch') || {}).moves || {}).find((k) => k.endsWith(`\t${base}`) && settings.get('tierPatch').moves[k] === tiers.HIDE);
+    const hidType = fromHit?.[2] === tiers.HIDDEN_TIER ? fromHit[1] : hidKey ? hidKey.split('\t')[0] : null;
+    if (!loc && hidType) {
+      const t = view.types.find((x) => x.type === hidType);
+      if (t) {
+        let orig = null;
+        try { orig = tiers.extractTiers(require('../core/filter/parser').parse(filters.readBase())).find((x) => x.type === hidType)?.tiers.find((x) => x.bases.includes(base))?.tier || null; } catch { /* no base filter */ }
+        const opts = t.tiers.filter((x) => movable(x) && !x.off).map((x) => ({ ...optionOf(x), original: x.tier === orig }));
+        opts.sort((a, b) => (b.original ? 1 : 0) - (a.original ? 1 : 0));
+        return { base, type: t.type, label: t.label, tier: tiers.HIDDEN_TIER, state: 'Hide', hiddenByYou: true, options: opts };
+      }
     }
     // tiers that pick items by a property instead of a base list (regular maps by map tier:
     // "Map (Tier 16)" is in "Tier 16" because MapTier >= 16): show that tier, there is nothing to move

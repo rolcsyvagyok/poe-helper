@@ -249,7 +249,7 @@ test('auto-tier skips hidden-to-hidden moves and single-item tiers', () => {
 });
 
 const D = require('../src/core/filter/designer');
-test('designer: tier levels, presets keep Tier 1 white with the tink, apply to every category', () => {
+test('designer: tier levels, presets keep Tier 1 white with FilterBlade Divine sound, apply to every category', () => {
   assert.equal(D.tierLevel('t1exalted'), 1);
   assert.equal(D.tierLevel('t3boss'), 3);
   assert.equal(D.tierLevel('t4c'), 4);
@@ -259,14 +259,14 @@ test('designer: tier levels, presets keep Tier 1 white with the tink, apply to e
   for (const p of D.PRESETS) {
     const t1 = p.levels[1];
     assert.deepEqual(t1.background, [255, 255, 255, 255], `${p.name}: Tier 1 background is white`);
-    assert.equal(t1.customSound, 'poehelper-sounds/divine-tink.mp3', `${p.name}: Tier 1 plays the tink`);
+    assert.deepEqual(t1.sound, { id: 6, volume: 300 }, `${p.name}: Tier 1 plays game sound 6`);
     assert.equal(t1.beam.color, 'White');
   }
   // the lock repairs a design that drifted
   const locked = D.lockTier1({ 1: { text: [10, 20, 30, 255], background: [0, 0, 0, 255], sound: { id: 3 } }, 2: { fontSize: 40 } });
   assert.deepEqual(locked[1].background, [255, 255, 255, 255]);
   assert.deepEqual(locked[1].text, [10, 20, 30, 255], 'text colour kept');
-  assert.equal(locked[1].customSound, D.TINK);
+  assert.deepEqual(locked[1].sound, D.TIER1_SOUND);
   assert.equal(locked[2].fontSize, 40);
 
   const view = T.tierView(F.nsFilter, {});
@@ -276,7 +276,7 @@ test('designer: tier levels, presets keep Tier 1 white with the tink, apply to e
   const out = T.applyTierPatch(F.nsFilter, patch);
   const cur = T.extractTiers(parse(out))[0].tiers;
   assert.deepEqual(cur[0].style.background, [255, 255, 255, 255]);
-  assert.equal(cur[0].style.customSound, D.TINK);
+  assert.equal(cur[0].style.sound.id, 6);
   assert.deepEqual(cur[1].style.background, [112, 52, 180, 255]);
   // scoped to one category
   const only = D.applyDesign(view, {}, D.PRESETS[0].levels, { groups: ['divination'] });

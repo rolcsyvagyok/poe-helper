@@ -26,11 +26,11 @@ function soundOf(st) {
   return 'none';
 }
 
-/** Tier 1 lock: white label, white beam, white star, Divine tink (text colour and size stay yours). */
+/** Tier 1 lock: white label, white beam, white star, FilterBlade's Divine sound (text colour and size stay yours). */
 function lockT1() {
   const t1 = D.levels[1] || {};
-  D.levels[1] = { ...t1, background: [255, 255, 255, 255], border: [255, 255, 255, 255], customSound: 'poehelper-sounds/divine-tink.mp3', beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
-  delete D.levels[1].sound;
+  D.levels[1] = { ...t1, background: [255, 255, 255, 255], border: [255, 255, 255, 255], sound: { id: 6, volume: 300 }, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
+  delete D.levels[1].customSound;
 }
 
 function renderDesigner() { return window.UI.keepScroll(() => renderDesignerNow()); }
@@ -90,7 +90,7 @@ function gallery() {
         h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = clone(t.levels); D.presetId = t.id; D.level = 1; persist(); draw(); toast(`Loaded "${t.name}". Press Apply to use it in your filter.`); } }, D.presetId === t.id ? 'Reload' : 'Use this theme'),
         own ? h('button', { class: 'danger sm', onclick: async () => { await call('designer:deleteTheme', t.id); D.state = await call('designer:state'); draw(); } }, 'Delete') : null)));
   return h('section', { class: 'section', style: { marginTop: 0 } },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with the Divine tink. Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with FilterBlade's Divine sound (game sound 6). Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
     h('div', { class: 'dz-gallery' }, D.state.presets.map((t) => card(t, false)), D.state.themes.map((t) => card(t, true))));
 }
 
@@ -167,8 +167,8 @@ function editor() {
     h('div', { class: 'row' },
       h('h2', { style: { margin: 0 } }, `Tier ${lv}`), h('span', { class: 'small muted' }, LEVEL_NOTE[lv]),
       h('span', { class: 'spacer' }),
-      lv === 1 ? toggle(D.lock, (v) => { D.lock = v; persist(); draw(); }, 'Keep white with the tink') : null),
-    locked ? h('p', { class: 'small muted' }, 'Tier 1 stays a white label with a white beam, a white star and the Divine tink. You can still change its text colour and size, or switch the lock off.') : null,
+      lv === 1 ? toggle(D.lock, (v) => { D.lock = v; persist(); draw(); }, 'Keep white with the Divine sound') : null),
+    locked ? h('p', { class: 'small muted' }, 'Tier 1 stays a white label with a white beam, a white star and FilterBlade's Divine sound (game sound 6). You can still change its text colour and size, or switch the lock off.') : null,
     h('div', { class: 'ground stage', style: { minHeight: '110px', padding: '22px' } },
       h('div', { class: 'row', style: { gap: '10px' } }, dropLabel(SAMPLE[lv], st, { rarity: 'Currency' }), soundButton(soundOf(st)))),
     colour('Text', 'text', false, false),

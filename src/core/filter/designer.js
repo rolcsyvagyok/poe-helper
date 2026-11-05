@@ -5,7 +5,7 @@
  * FilterBlade/NeverSink tier names carry the level: "t1", "t1exalted", "t2divine", "t3boss", "t4c".
  * A design maps level -> style; applying it writes those styles into the tier patch for every
  * matching tier (normal tiers only; special cases, "new" tiers and your hidden-by-you tier keep
- * their own look). Tier 1 is locked to a white label with the Divine tink unless you unlock it.
+ * their own look). Tier 1 is locked to a white label with FilterBlade's Divine sound (game sound 6) unless you unlock it.
  */
 
 const LEVELS = [1, 2, 3, 4, 5, 6];
@@ -13,9 +13,12 @@ const TINK = 'poehelper-sounds/divine-tink.mp3';
 const sound = (id) => ({ customSound: `poehelper-sounds/${id}.mp3` });
 const game = (id, volume = 300) => ({ sound: { id, volume } });
 
-/** Tier 1 in every theme: white label, white beam, white star, Divine tink. Only the text colour varies. */
+// Tier 1 keeps FilterBlade's own top-currency sound: the game's alert sound 6 (the Divine drop sound).
+// It is part of the game, so the filter only names its number; there is no file to copy.
+const TIER1_SOUND = { id: 6, volume: 300 };
+/** Tier 1 in every theme: white label, white beam, white star, FilterBlade's Divine sound. Only the text colour varies. */
 function tier1(textRgb, size = 45) {
-  return { fontSize: size, text: [...textRgb, 255], border: [255, 255, 255, 255], background: [255, 255, 255, 255], customSound: TINK, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
+  return { fontSize: size, text: [...textRgb, 255], border: [255, 255, 255, 255], background: [255, 255, 255, 255], sound: { ...TIER1_SOUND }, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
 }
 
 /**
@@ -112,7 +115,7 @@ function tierLevel(tierName) {
   return m ? Number(m[1]) : null;
 }
 
-/** Force Tier 1 to the white look with the Divine tink, keeping its text colour and size. */
+/** Force Tier 1 to the white look with FilterBlade's Divine sound, keeping its text colour and size. */
 function lockTier1(levels) {
   const t1 = levels?.[1] || {};
   return { ...levels, 1: { ...tier1((t1.text || [220, 0, 0]).slice(0, 3), t1.fontSize || 45), ...(t1.customVolume ? { customVolume: t1.customVolume } : {}) } };
@@ -154,4 +157,4 @@ function applyDesign(view, patch, levels, { groups = null } = {}) {
 
 for (const p of PRESETS) p.levels.giga = gigaLook(p.levels[1]);
 
-module.exports = { gigaLook, PRESETS, LEVELS, TINK, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

@@ -252,13 +252,12 @@ test('tier designer: apply a preset to the whole filter, Tier 1 locked white + t
   const st = svc.designerState();
   assert.equal(st.presets.length, 6);
   assert.deepEqual(st.groups.map((g) => g.id).sort(), ['currency', 'divination', 'uniques']);
-  // a design that tries to make Tier 1 black gets locked back to white with the tink
+  // a design that tries to make Tier 1 black gets locked back to white with FilterBlade's Divine sound
   const levels = { ...st.presets[2].levels, 1: { fontSize: 40, text: [255, 0, 0, 255], background: [0, 0, 0, 255] } };
   const r = svc.designerApply({ levels, lockTier1: true });
   assert.equal(r.count, 8);
   const out = fs.readFileSync(r.target, 'utf8');
-  assert.match(out, /Show # %D5 \$type->currency \$tier->t1\n(?:\t.*\n)*?\tSetBackgroundColor 255 255 255 255\n(?:\t.*\n)*?\tCustomAlertSound "poehelper-sounds\/divine-tink\.mp3"/);
-  assert.ok(fs.existsSync(path.join(filterDir, 'poehelper-sounds', 'divine-tink.mp3')), 'tink copied next to the filter');
+  assert.match(out, /Show # %D5 \$type->currency \$tier->t1\n(?:\t.*\n)*?\tSetBackgroundColor 255 255 255 255\n(?:\t.*\n)*?\tPlayAlertSound 6 300/, 'FilterBlade\'s Divine sound (game sound 6)');
   const divine = await svc.priceText(`Item Class: Stackable Currency\nRarity: Currency\nDivine Orb\n--------\nStack Size: 1/20`);
   assert.deepEqual(divine.filterHit.style.SetBackgroundColor, ['255', '255', '255', '255']);
   svc.designerUndo();
@@ -501,4 +500,19 @@ Show # %D8 $type->jewels->clustereco $tier->n4_i68_t2
   assert.match(block, /EnchantmentPassiveNode "Minion Damage" "Spell Damage"/);
   assert.match(block, /SetBackgroundColor 255 255 255 255/, "uses the filter's T1 look");
   assert.match(out, /Hide # Cluster jewels: hide small 2 passives, item level 68-74[\s\S]*?ItemLevel <= 74[\s\S]*?EnchantmentPassiveNode "Life"/);
+});
+
+test('price check: an item you hid shows where it is and offers its tiers back, the original first', () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
+  const view = svc.tierViewNow();
+  const t = view.types.find((x) => x.tiers.some((y) => y.hasBaseList && y.bases.length && !y.special && !y.generated));
+  const tier = t.tiers.find((y) => y.hasBaseList && y.bases.length && !y.special && !y.generated);
+  const base = tier.bases[0];
+  svc.moveBases(t.type, [base], '__hide__');
+  const ti = svc.tierInfoFor({ baseType: base, typeLine: base, rarity: 'Normal' }, null);
+  assert.equal(ti.hiddenByYou, true);
+  assert.equal(ti.type, t.type);
+  assert.equal(ti.options[0].tier, tier.tier);
+  assert.equal(ti.options[0].original, true);
 });

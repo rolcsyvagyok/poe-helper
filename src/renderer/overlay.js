@@ -119,6 +119,10 @@ function render(p) {
   if (ti && !ti.notListed) {
     // FilterBlade tiers: hide the base or move it to another tier of its category
     const rows = [h('div', { class: 't' }, `In your filter: ${ti.label}, ${tierLabel(ti.tier)}`)];
+    if (ti.hiddenByYou) {
+      rows[0].textContent = `In your filter: ${ti.label}, hidden by you`;
+      rows.push(h('div', { class: 'small muted' }, 'You hid this. Pick a tier to show it again; the first one is where your filter had it.'));
+    }
     if (ti.byCondition) {
       rows[0].textContent = `In your filter: ${ti.label}, ${nameOf(ti.type, ti)}`;
       rows.push(h('div', { class: 'small muted' }, `This tier takes items by ${ti.conditions.length ? ti.conditions.map(readableCondition).join(' and ') : 'their properties'}, not by name, so there is nothing to move. Change its look on the Loot filter page in the app.`),
@@ -130,17 +134,17 @@ function render(p) {
         h('div', { class: 'ov-actions' }, h('button', { class: 'primary', onclick: () => switchOn(ti) }, `Switch ${tierLabel(ti.tier)} on`)));
     }
     if (ti.options.length && ti.state !== 'Off') {
-      const opts = ti.options.map((o) => h('option', { value: o.tier, selected: o.tier === ti.tier }, `${nameOf(ti.type, o)}${stateNote(o)}`));
+      const opts = ti.options.map((o) => h('option', { value: o.tier, selected: o.tier === ti.tier }, `${nameOf(ti.type, o)}${o.original ? ' (where your filter had it)' : ''}${stateNote(o)}`));
       const sel = h('select', { 'aria-label': 'Move to tier' }, opts);
       // picking a tier shows its look at the top, so you see what it will look like on the ground
       sel.addEventListener('change', () => previewLook(ti.options.find((o) => o.tier === sel.value)));
-      rows.push(h('div', { class: 'ov-actions' }, sel, h('button', { onclick: () => moveTier(ti.type, ti.base, sel.value, ti.options.find((o) => o.tier === sel.value)) }, 'Move'), h('button', { onclick: () => moveTier(ti.type, ti.base, '__hide__') }, 'Hide')));
+      rows.push(h('div', { class: 'ov-actions' }, sel, h('button', { onclick: () => moveTier(ti.type, ti.base, sel.value, ti.options.find((o) => o.tier === sel.value)) }, ti.hiddenByYou ? 'Show here' : 'Move'), ti.hiddenByYou ? null : h('button', { onclick: () => moveTier(ti.type, ti.base, '__hide__') }, 'Hide')));
       // each tier's typical price, like the tier list in the app ("Tier 2, typically 1 div")
       call('tiers:prices', ti.type).then((pr) => {
         if (!pr?.tiers) return;
         ti.options.forEach((o, i) => {
           const med = pr.tiers[o.key || `${ti.type}|${o.tier}`]?.median;
-          if (med != null) opts[i].textContent = `${nameOf(ti.type, o)}, typically ${chaosDiv(med, pr.divine)}${stateNote(o)}`;
+          if (med != null) opts[i].textContent = `${nameOf(ti.type, o)}, typically ${chaosDiv(med, pr.divine)}${o.original ? ' (where your filter had it)' : ''}${stateNote(o)}`;
         });
       }).catch(() => {});
     }

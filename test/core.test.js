@@ -438,3 +438,42 @@ test('trade: a mod the trade site writes in the singular still matches (Magebloo
   assert.equal(m.enabled, true, 'ticked: the number of flasks sets the price');
   assert.equal(m.min, 4);
 });
+
+test('trade: Forbidden Shako supports match the trade site\'s support stats, from your gem level', () => {
+  const { matchItemMods } = require('../src/core/trade');
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_1384629003', text: 'Socketed Gems are Supported by Level # Ice Bite', type: 'explicit' },
+    { id: 'explicit.indexable_support_73', text: 'Socketed Gems are Supported by Level # Ice Bite', type: 'explicit' },
+  ] }] };
+  const item = parseItem(['Item Class: Helmets', 'Rarity: Unique', 'Forbidden Shako', 'Great Crown', '--------', 'Item Level: 85', '--------',
+    '{ Unique Modifier — Gem }', 'Socketed Gems are Supported by Level 30 Ice Bite(Greater Multiple Projectiles-Hallow)', '+27(10-30) to all Attributes'].join('\n'));
+  assert.ok(item.mods.explicit.includes('Socketed Gems are Supported by Level 30 Ice Bite'));
+  const m = matchItemMods(stats, item).find((x) => /Ice Bite/.test(x.text));
+  assert.equal(m.id, 'explicit.indexable_support_73');
+  assert.equal(m.enabled, true);
+  assert.equal(m.min, 30);
+});
+
+test('maps: the tier comes from the base name when the copy has no Map Tier line', () => {
+  const it = parseItem(['Item Class: Maps', 'Rarity: Rare', 'Torture Bearings', 'Map (Tier 16)', '--------', 'Item Level: 85', '--------', 'Players have Elemental Weakness'].join('\n'));
+  assert.equal(it.mapTier, 16);
+  assert.equal(it.baseType, 'Map (Tier 16)');
+});
+
+test('unidentified map: no help text as a mod, only implicits, searched as unidentified', () => {
+  const { matchItemMods, buildQuery, defaultProps } = require('../src/core/trade');
+  const item = parseItem(['Item Class: Maps', 'Rarity: Rare', 'Map (Tier 16)', '--------', 'Monster Level: 83', '--------', 'Item Level: 83', '--------',
+    "Map contains Al-Hezmin's Citadel (implicit)", '--------', 'Unidentified', '--------',
+    'Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once.'].join('\n'));
+  assert.equal(item.flags.unidentified, true);
+  assert.deepEqual(item.mods.explicit, []);
+  const stats = { result: [{ id: 'implicit', entries: [{ id: 'implicit.stat_x', text: "Map contains Al-Hezmin's Citadel", type: 'implicit' }] }] };
+  const mods = matchItemMods(stats, item);
+  assert.ok(mods.every((m) => m.group === 'implicit'));
+  if (typeof defaultProps === 'function' && typeof buildQuery === 'function') {
+    const props = defaultProps(item);
+    assert.equal(props.identified, 'no');
+    const q = buildQuery(item, mods, { props });
+    assert.deepEqual(q.query.filters.misc_filters?.filters?.identified, { option: 'false' });
+  }
+});

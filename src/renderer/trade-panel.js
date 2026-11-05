@@ -98,6 +98,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   rangeRow('gemLevel', 'Gem level');
   rangeRow('mapTier', 'Map tier');
   const corr = h('select', { 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
+  const ident = h('select', { 'aria-label': 'Identified', onchange: (e) => { props.identified = e.target.value; } }, [['any', 'Identified or not'], ['yes', 'Identified only'], ['no', 'Unidentified only']].map(([v, l]) => h('option', { value: v, selected: (props.identified || 'any') === v }, l)));
   const infl = Object.keys(props.influences || {}).map((inf) => h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: props.influences[inf], onchange: (e) => { props.influences[inf] = e.target.checked; } }), `${inf} item`));
 
   // ---------- search ----------
@@ -143,7 +144,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
         h('span', { class: 'spacer' }),
         mods.length ? h('button', { class: 'quiet sm', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id) m.enabled = on; }); mountAgain(); } }, 'All / none') : null),
       groups,
-      propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'Item'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0' } }, corr, infl)) : null,
+      propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'Item'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
       h('div', { class: 'row tp-go' }, go, statusSel, countEl),
       h('div', { class: 'small faint' }, 'Uses 1 to 2 GGG requests per search.'),
       results));

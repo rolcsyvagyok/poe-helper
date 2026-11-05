@@ -52,7 +52,7 @@ function indexStats(statsJson) {
   return idx;
 }
 
-function matchMod(idx, modText, type, itemClass) {
+function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   const table = idx[type] || {};
   let key = normTemplate(modTemplate(modText));
   let hits = table[key] || table[`~${looseKey(key)}`];
@@ -68,7 +68,8 @@ function matchMod(idx, modText, type, itemClass) {
   }
   if (!hits) return null;
   const wantLocal = LOCAL_CLASSES.test(itemClass || '');
-  const entry = hits.find((h) => h.local === wantLocal) || hits[0];
+  // random-support uniques (Forbidden Shako...) are searched by the trade site's "support" stats
+  const entry = (unique && hits.find((h) => /indexable_support/.test(h.id))) || hits.find((h) => h.local === wantLocal && !/indexable_support/.test(h.id)) || hits.find((h) => !/indexable_support/.test(h.id)) || hits[0];
   const vals = modValues(modText);
   // "Adds 10 to 20 Fire Damage" is searched by its average on trade
   const display = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
@@ -104,7 +105,10 @@ function resistanceTotals(item) {
 }
 
 // unique mods whose roll sets the price
-const KEY_UNIQUE_ROLLS = [/^Leftmost \d+ Magic Utility Flasks?\b/i];
+const KEY_UNIQUE_ROLLS = [
+  /^Leftmost \d+ Magic Utility Flasks?\b/i, // Mageblood
+  /^Socketed Gems are Supported by Level \d+ /i, // Forbidden Shako and other random-support uniques: the gem and its level
+];
 
 const PSEUDO = [
   { key: 'ele', text: '+#% total Elemental Resistance', fallback: 'pseudo.pseudo_total_elemental_resistance', label: (v) => `+${v}% total Elemental Resistance` },
@@ -137,12 +141,14 @@ function matchItemMods(statsJson, item, { tolerance = 0.1 } = {}) {
   if (classify(item) === 'gem') return []; // gem text isn't affixes; level, quality and corruption are props
   const idx = indexStats(statsJson);
   const out = [];
-  const kinds = ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible'];
+  // an unidentified item only shows its implicits (and enchantments); its other mods are unknown
+  const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible'];
   for (const kind of kinds) {
     for (const m of item.mods[kind] || []) {
       const type = kind === 'scourge' || kind === 'crucible' ? kind : kind;
       // Fractured mods can also be searched as explicit; try fractured first then explicit.
-      const hit = matchMod(idx, m, type, item.itemClass) || (type === 'fractured' ? matchMod(idx, m, 'explicit', item.itemClass) : null);
+      const opts = { unique: item.rarity === 'Unique' };
+      const hit = matchMod(idx, m, type, item.itemClass, opts) || (type === 'fractured' ? matchMod(idx, m, 'explicit', item.itemClass, opts) : null);
       if (hit) out.push({ ...hit, group: kind, enabled: false });
       else out.push({ id: null, text: m, type: kind, group: kind, enabled: false, unmatched: true });
     }
@@ -214,6 +220,8 @@ function defaultProps(item) {
     gemLevel: { on: kind === 'gem' && !!item.gemLevel, min: item.gemLevel || null, show: kind === 'gem' },
     mapTier: { on: !!item.mapTier, min: item.mapTier || null, show: item.mapTier != null },
     corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' ? 'no' : 'any',
+    // unidentified items are compared with other unidentified ones
+    identified: item.flags?.unidentified ? 'no' : 'any',
     influences: Object.fromEntries((item.influences || []).map((i) => [i, true])),
     fractured: !!item.flags?.fractured,
     synthesised: !!item.flags?.synthesised,
@@ -284,6 +292,8 @@ function buildQuery(item, mods, opts = {}) {
     if (props.gemLevel?.on && range(props.gemLevel)) misc.gem_level = range(props.gemLevel);
     if (props.corrupted === 'yes') misc.corrupted = { option: 'true' };
     if (props.corrupted === 'no') misc.corrupted = { option: 'false' };
+    if (props.identified === 'yes') misc.identified = { option: 'true' };
+    if (props.identified === 'no') misc.identified = { option: 'false' };
     for (const [inf, on] of Object.entries(props.influences || {})) if (on) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };
     if (props.fractured) misc.fractured_item = { option: 'true' };
     if (props.synthesised) misc.synthesised_item = { option: 'true' };
@@ -298,6 +308,7 @@ function buildQuery(item, mods, opts = {}) {
     }
     if (item.flags.corrupted) misc.corrupted = { option: 'true' };
     else if (kind === 'unique' || kind === 'gem') misc.corrupted = { option: 'false' };
+    if (item.flags.unidentified) misc.identified = { option: 'false' };
     if (item.flags.fractured) misc.fractured_item = { option: 'true' };
     if (item.flags.synthesised) misc.synthesised_item = { option: 'true' };
     for (const inf of item.influences) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };

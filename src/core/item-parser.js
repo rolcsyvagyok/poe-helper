@@ -232,14 +232,22 @@ function parseItem(rawText) {
         continue;
       }
       // Ctrl+Alt+C writes roll ranges into the line: "+45(40-49) to maximum Life" -> "+45 to maximum Life"
-      const clean = line.replace(/\s*—\s*Unscalable Value$/, '').replace(/(\d)\((?:-?\d+(?:\.\d+)?)(?:-(?:-?\d+(?:\.\d+)?))?\)/g, '$1');
+      const clean = line.replace(/\s*—\s*Unscalable Value$/, '').replace(/(\d)\((?:-?\d+(?:\.\d+)?)(?:-(?:-?\d+(?:\.\d+)?))?\)/g, '$1')
+        // and the possible choices for random mods: "Level 30 Ice Bite(Greater Multiple Projectiles-Hallow)" -> "Level 30 Ice Bite"
+        .replace(/([A-Za-z])\([^()]*[A-Za-z][^()]*-[^()]*\)/g, '$1');
       const stripped = stripModSuffix(clean);
       const modText = stripped.text;
       const type = stripped.type === 'explicit' && headerKind ? headerKind : stripped.type;
       // Skip help text that appears on currency/div cards/maps
-      if (/^(Right click|Place into|Travel to this Map|Shift click|Can be used|Use this|This is a)/i.test(modText)) continue;
+      if (/^(Right click|Place into|Travel to (?:this|a) Map|Maps can only be used|Shift click|Can be used|Use this|This is a)/i.test(modText)) continue;
       item.mods[type].push(modText);
     }
+  }
+
+  // Maps copied from the game carry their tier only in the base name now: "Map (Tier 16)"
+  if (item.mapTier == null) {
+    const t = /\(Tier (\d+)\)\s*$/.exec(item.baseType || item.typeLine || '');
+    if (t && (/map/i.test(item.itemClass || '') || /\bMap\b/.test(item.baseType || item.typeLine || ''))) item.mapTier = Number(t[1]);
   }
 
   // Gems: transfigured gems have a different name on the base line
