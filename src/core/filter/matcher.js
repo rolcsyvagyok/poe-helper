@@ -92,7 +92,12 @@ function evalCondition(c, item, assumed) {
       // plain Ctrl+C doesn't, so without names we assume the item doesn't have the mod.
       const names = (item.modNames || []).map((n) => n.toLowerCase());
       const texts = mods.map((m) => m.toLowerCase());
-      const hits = v.filter((name) => { const n = name.toLowerCase(); return names.some((x) => x === n || x.includes(n)) || texts.some((t) => t.includes(n)); }).length;
+      // the count is how many of the item's mods match any of the listed names (NeverSink's
+      // HasExplicitMod >=8 "a" "e" "i" "o" "u" "y" means "8 or more mods"); without mod names, each
+      // mod line stands for one mod
+      const want = v.map((x) => x.toLowerCase());
+      const pool = names.length ? names : texts;
+      const hits = pool.filter((x) => want.some((n) => x === n || x.includes(n))).length;
       if (!names.length) assumed?.push(c.keyword);
       if (c.count != null) return cmp(c.op || '>=', hits, c.count);
       return hits > 0;

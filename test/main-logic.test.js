@@ -37,7 +37,7 @@ function setup(opts = {}) {
   const secrets = { encrypt: (s) => 'x:' + s, decrypt: (v) => (v ? v.slice(2) : null) };
   const svc = createServices({ dataDir: path.join(dir, 'data'), secrets, fetchImpl: fakeFetch(log), log: () => {} });
   // older tests check exact tier lists; the default Giga tier has its own test
-  if (!opts.giga) svc.settings.set('gigaDone', true);
+  if (!opts.giga) { svc.settings.set('gigaDone', true); svc.settings.set('gigaRestoreV1', true); }
   if (!opts.belts) svc.settings.set('bigBeltsDone', true);
   return { svc, log, filterDir };
 }
@@ -193,7 +193,7 @@ test('price review: plans moves from poe.ninja prices, applies them, logs and un
     return ok(prices[type] ? ex(prices[type]) : { core: { items: [] }, lines: [] });
   };
   const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl, log: () => {} });
-  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', gigaDone: true, bigBeltsDone: true });
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', gigaDone: true, gigaRestoreV1: true, bigBeltsDone: true });
 
   const r = await svc.priceReview();
   const byType = Object.fromEntries(r.categories.map((c) => [c.type, c]));
@@ -515,4 +515,18 @@ test('price check: an item you hid shows where it is and offers its tiers back, 
   assert.equal(ti.type, t.type);
   assert.equal(ti.options[0].tier, tier.tier);
   assert.equal(ti.options[0].original, true);
+});
+
+test('resetting another category keeps the Giga tier; resetting currency brings it back after a delete', () => {
+  const { svc, filterDir } = setup({ giga: true });
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
+  const gigaThere = () => svc.tierViewNow().types.find((t) => t.type === 'currency').tiers.some((t) => t.tier === 'poehelper-giga');
+  if (!gigaThere()) return; // fixture without currency tiers
+  svc.resetTiers({ type: 'uniques' });
+  assert.ok(gigaThere(), 'a reset elsewhere leaves Giga alone');
+  svc.removeTier({ type: 'currency', tier: 'poehelper-giga' });
+  assert.ok(!gigaThere(), 'deleted by you');
+  assert.ok(!gigaThere(), 'and stays deleted');
+  svc.resetTiers({ type: 'currency' });
+  assert.ok(gigaThere(), 'resetting currency restores the default Giga tier');
 });

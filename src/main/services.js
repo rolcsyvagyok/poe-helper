@@ -61,6 +61,9 @@ const DEFAULT_SETTINGS = {
   bigBeltsLookV2: false,
   gigaOwnLook: false, // you edited the Giga look yourself, so it stops following the top currency tier
   gigaLookV3: false,
+  gigaDeleted: false, // you deleted the Giga tier yourself
+  bigBeltsDeleted: false,
+  gigaRestoreV1: false,
   tinkToGame6: false, // Tier 1 got FilterBlade's sound back once
 
   bigBeltsOwnLook: false, // the default "Big belts" tier in uniques was set up once
@@ -488,8 +491,14 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const patch = settings.get('tierPatch') || {};
     const sig = `${base}|${mtime}|${JSON.stringify(patch)}`;
     if (viewCache?.sig !== sig) viewCache = { sig, view: tiers.tierView(filters.readBase(), patch) };
-    if (!settings.get('gigaDone') && !gigaBusy) { const r = ensureGiga(viewCache.view); if (r?.view) return r.view; }
-    if (!settings.get('bigBeltsDone') && !gigaBusy) { const r = ensureBigBelts(viewCache.view); if (r?.view) return r.view; }
+    // 1.0.10: resetting a category used to drop the Giga tier for good; bring it back once
+    if (!settings.get('gigaRestoreV1')) {
+      settings.set('gigaRestoreV1', true);
+      if (settings.get('gigaDone') && !((settings.get('tierPatch') || {}).newTiers || []).some((x) => x.type === 'currency' && x.name === 'Giga')) settings.set('gigaDone', false);
+      if (settings.get('bigBeltsDone') && !((settings.get('tierPatch') || {}).newTiers || []).some((x) => x.name === 'Big belts')) settings.set('bigBeltsDone', false);
+    }
+    if (!settings.get('gigaDone') && !settings.get('gigaDeleted') && !gigaBusy) { const r = ensureGiga(viewCache.view); if (r?.view) return r.view; }
+    if (!settings.get('bigBeltsDone') && !settings.get('bigBeltsDeleted') && !gigaBusy) { const r = ensureBigBelts(viewCache.view); if (r?.view) return r.view; }
     // 1.0.6: Big belts was made with the S tier look; give it the multi-base look once
     if (settings.get('bigBeltsDone') && !settings.get('bigBeltsLookV2') && !gigaBusy) {
       settings.set('bigBeltsLookV2', true);
@@ -638,6 +647,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return { ...savePatch(patch), tier };
   }
   function removeTier({ type, tier }) {
+    // deleting a default tier yourself keeps it deleted; a reset brings it back
+    const nt = ((settings.get('tierPatch') || {}).newTiers || []).find((x) => x.type === type && x.tier === tier);
+    if (nt?.type === 'currency' && nt.name === 'Giga') settings.set('gigaDeleted', true);
+    if (nt?.name === 'Big belts') settings.set('bigBeltsDeleted', true);
     return savePatch(tiers.withoutNewTier(settings.get('tierPatch') || {}, type, tier));
   }
   function renameTier({ type, tier, name }) {
@@ -684,18 +697,28 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
 
   function resetTiers({ key, type, types = null, base, all } = {}) {
     let patch = settings.get('tierPatch') || {};
-    if (all) patch = {};
+    // the default tiers (Giga, Big belts) come back after a reset of their category or of everything
+    const again = (t) => {
+      if (t === 'currency') { settings.set('gigaDone', false); settings.set('gigaDeleted', false); }
+      if (/^uniques/.test(t)) { settings.set('bigBeltsDone', false); settings.set('bigBeltsDeleted', false); }
+    };
+    if (all) { patch = {}; again('currency'); again('uniques'); }
     if (key) patch = tiers.withStyle(patch, key, null);
     if (type && base) patch = tiers.withoutMove(patch, type, base);
     // a whole category (or several): every move, look and Shown/Hidden/Off change in it
     const typesToReset = types || (type && !base ? [type] : null);
     if (typesToReset) {
       const inType = (k, sep) => typesToReset.includes(k.split(sep)[0]);
+      // only the reset categories lose their changes; other categories keep theirs, own tiers included
       patch = {
+        ...patch,
         moves: Object.fromEntries(Object.entries(patch.moves || {}).filter(([k]) => !inType(k, '\t'))),
         styles: Object.fromEntries(Object.entries(patch.styles || {}).filter(([k]) => !inType(k, '|'))),
         actions: Object.fromEntries(Object.entries(patch.actions || {}).filter(([k]) => !inType(k, '|'))),
+        conditions: Object.fromEntries(Object.entries(patch.conditions || {}).filter(([k]) => !inType(k, '|'))),
+        newTiers: (patch.newTiers || []).filter((x) => !typesToReset.includes(x.type)),
       };
+      for (const t of typesToReset) again(t);
     }
     return savePatch(patch);
   }

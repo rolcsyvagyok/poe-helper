@@ -200,6 +200,14 @@ async function moveTier(type, base, to, option) {
 
 /** "MapTier >= 16" -> "map tier 16 or higher" */
 function readableCondition(c) {
+  // NeverSink's "any mod" trick: HasExplicitMod >=8 "a" "e" "i" "o" "u" "y" = 8 or more mods
+  const many = /^HasExplicitMod\s*>=\s*(\d+)\s+"a" "e" "i" "o" "u" "y"/.exec(c);
+  if (many) return `${many[1]} or more mods`;
+  const flag = /^(Corrupted|Identified|Mirrored|FracturedItem|SynthesisedItem|AnyEnchantment|HasImplicitMod)\s+(True|False)$/.exec(c);
+  if (flag) {
+    const word = { Corrupted: 'corrupted', Identified: 'identified', Mirrored: 'mirrored', FracturedItem: 'fractured', SynthesisedItem: 'synthesised', AnyEnchantment: 'enchanted', HasImplicitMod: 'with implicit mods' }[flag[1]];
+    return flag[2] === 'True' ? word : `not ${word}`;
+  }
   const m = /^(\w+)\s*(>=|<=|==|=|>|<)?\s*(.+)$/.exec(c);
   if (!m) return c;
   const what = { MapTier: 'map tier', ItemLevel: 'item level', AreaLevel: 'area level', Quality: 'quality', StackSize: 'stack size', GemLevel: 'gem level', DropLevel: 'drop level', Sockets: 'sockets', LinkedSockets: 'linked sockets' }[m[1]]

@@ -487,3 +487,17 @@ test('every source file parses (a syntax error in one page script blanks the who
     }
   }
 });
+
+test('filter: HasExplicitMod >=8 "a" "e"... counts the item\'s mods (corrupted 8-mod maps)', () => {
+  const { parse } = require('../src/core/filter/parser');
+  const doc = parse([
+    'Show # $type->maps->corruptedspecial $tier->mod8',
+    '\tCorrupted True', '\tIdentified True', '\tClass == "Maps"', '\tHasExplicitMod >=8 "a" "e" "i" "o" "u" "y"', '\tSetTextColor 145 30 220 255', '',
+    'Show # $type->maps $tier->maps_a_t16', '\tMapTier >= 16', '\tClass == "Maps"', '\tSetTextColor 0 0 0 255', ''].join('\n'));
+  const lines = ['Monsters deal 90% extra Physical Damage as Fire', 'Monsters have 300% increased Critical Strike Chance', 'Players have 40% less Recovery Rate of Life and Energy Shield',
+    'Monsters reflect 18% of Elemental Damage', 'Area has patches of burning ground', '+40% Monster Physical Damage Reduction', 'Monsters are Hexproof', 'Players are Cursed with Elemental Weakness'];
+  const map = parseItem(['Item Class: Maps', 'Rarity: Rare', 'Iron Lands', 'Map (Tier 16)', '--------', 'Item Quantity: +104% (augmented)', '--------', 'Item Level: 83', '--------', ...lines, '--------', 'Corrupted'].join('\n'));
+  assert.match(explain(doc, map).line ? String(explain(doc, map).chain?.map((c) => c.comment).join(' ') || '') : '', /mod8/);
+  const seven = parseItem(['Item Class: Maps', 'Rarity: Rare', 'Iron Lands', 'Map (Tier 16)', '--------', 'Item Level: 83', '--------', ...lines.slice(0, 7), '--------', 'Corrupted'].join('\n'));
+  assert.doesNotMatch(String(explain(doc, seven).chain?.map((c) => c.comment).join(' ') || ''), /mod8/);
+});
