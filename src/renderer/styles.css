@@ -868,3 +868,5 @@ body.resizing { cursor: col-resize; user-select: none; }
 .rx-flag.on { background: #2b4a33; border-color: var(--good); color: #d6f0dc; }
 .rx-flag:disabled { cursor: default; opacity: .6; }
 .rx-flag:focus-visible { outline: 2px solid var(--accent); }
+.bm-groups summary { cursor: pointer; }
+.bm-groupset { display: grid; grid-template-columns: 140px minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 0; }

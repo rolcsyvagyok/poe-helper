@@ -78,24 +78,38 @@
     out.notes = h('div', { class: 'stack', style: { gap: '2px' } });
     out.parts = h('div', { class: 'rx-parts' });
 
+    // the saved search you loaded stays picked, so you can change it and save it again under its name
+    if (R.preset && !presets.some((p) => p.name === R.preset)) R.preset = null;
     const presetSel = h('select', { 'aria-label': 'Saved searches', onchange: (e) => {
       const p = presets.find((x) => x.name === e.target.value);
-      if (p) { update({ ...blank(), ...p.choices }, { redraw: true }); toast(`"${p.name}" loaded`); }
-    } }, h('option', { value: '' }, presets.length ? 'Saved searches…' : 'No saved searches yet'), presets.map((p) => h('option', { value: p.name }, p.name)));
-    // the app's windows have no prompt() box, so the name is typed in a field next to the button
-    const nameIn = h('input', { placeholder: 'Name, e.g. Juicy T16 no reflect', style: { width: '220px' }, 'aria-label': 'Name for this search', onkeydown: (e) => { if (e.key === 'Enter') saveAs(); } });
-    const saveAs = async () => {
-      const name = nameIn.value.trim();
-      if (!name) { nameIn.focus(); return toast('Type a name for the search first.', true); }
+      R.preset = p ? p.name : null;
+      if (p) { update({ ...blank(), ...p.choices }, { redraw: true }); toast(`"${p.name}" loaded`); } else renderRegexPage();
+    } }, h('option', { value: '' }, presets.length ? 'Saved searches…' : 'No saved searches yet'), presets.map((p) => h('option', { value: p.name, selected: R.preset === p.name }, p.name)));
+    // the app's windows have no prompt() box, so a new name is typed in a field next to the button
+    const nameIn = h('input', { placeholder: 'New name, e.g. Juicy T16 no reflect', style: { width: '220px' }, 'aria-label': 'Name for a new saved search', onkeydown: (e) => { if (e.key === 'Enter') saveNew(); } });
+    const save = async (name) => {
       S.settings.regexPresets = await call('regex:savePreset', { name, kind: 'maps', choices: choices() });
-      toast(`Saved as "${name.trim()}"`);
+      R.preset = name;
       renderRegexPage();
     };
+    const saveNew = async () => {
+      const name = nameIn.value.trim();
+      if (!name) { nameIn.focus(); return toast('Type a name for the new search first.', true); }
+      if (presets.some((p) => p.name === name) && !confirm(`"${name}" exists. Replace it with these choices?`)) return;
+      await save(name);
+      toast(`Saved as "${name}"`);
+    };
+    const updatePreset = async () => {
+      if (!R.preset) return;
+      await save(R.preset);
+      toast(`"${R.preset}" updated`);
+    };
     const delPreset = async () => {
-      const name = presetSel.value;
+      const name = R.preset;
       if (!name) return toast('Pick a saved search first.', true);
       if (!confirm(`Delete the saved search "${name}"?`)) return;
       S.settings.regexPresets = await call('regex:deletePreset', { name, kind: 'maps' });
+      R.preset = null;
       renderRegexPage();
     };
 
@@ -174,7 +188,10 @@
           h('div', { class: 'stack', style: { gap: '6px', alignItems: 'flex-end' } }, h('button', { class: 'primary', onclick: copy }, 'Copy'), out.count)),
         out.parts, out.notes,
         h('div', { class: 'row small', style: { gap: '8px', marginTop: '4px' } },
-          presetSel, nameIn, h('button', { class: 'sm', onclick: saveAs }, 'Save'), presets.length ? h('button', { class: 'sm quiet', onclick: delPreset }, 'Delete') : null,
+          presetSel,
+          R.preset ? h('button', { class: 'sm primary', title: `Save the choices on this page into "${R.preset}"`, onclick: updatePreset }, `Update "${R.preset}"`) : null,
+          R.preset ? h('button', { class: 'sm quiet', onclick: delPreset }, 'Delete') : null,
+          h('span', { class: 'faint' }, '·'), nameIn, h('button', { class: 'sm', onclick: saveNew }, 'Save as new'),
           h('span', { class: 'spacer' }),
           h('button', { class: 'sm quiet', onclick: () => { if (confirm('Clear every choice on this page?')) update({ ...blank(), kind: c.kind, nightmare: c.nightmare }, { redraw: true }); } }, 'Clear all'))),
 
@@ -186,7 +203,7 @@
           c.kind === 'regular' ? toggle(!!c.nightmare, (val) => set({ nightmare: val }, true), 'Show Originator mods') : null,
           h('span', { class: 'small faint' }, 'The search only knows the mods of the maps you pick here, so the pieces stay short.')),
         h('div', { class: 'rx-grid' },
-          h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), toggle(!!c.numbersAny, (val) => set({ numbersAny: val }), 'Any one is enough')),
+          h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'The map must reach' }, [[false, 'Reach all'], [true, 'Any one']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': !!c.numbersAny === val ? 'true' : 'false', class: !!c.numbersAny === val ? 'on' : '', title: val ? 'Reaching any one of these minimums is enough' : 'The map must reach every minimum you fill in', onclick: () => set({ numbersAny: val }, true) }, l)))),
             h('div', { class: 'rx-nums' }, v.numbers.map((n) => num(n.label, c.numbers?.[n.id], (val) => setIn('numbers', n.id, val))))),
           h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Map')),
             // nightmare maps are always rare and never influenced: only corrupted and identified apply
@@ -203,9 +220,7 @@
       h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } },
         h('h2', { style: { margin: 0 } }, 'Map mods'), counts,
         h('span', { class: 'small faint' }, 'Left click: skip maps with it. Right click: want it. Click again to undo.'),
-        h('span', { class: 'spacer' }), search, showSel,
-        h('button', { class: 'sm quiet', onclick: () => { for (const m of shown) put(m.id, 'avoid'); commit(); renderRegexPage(); } }, 'Skip all shown'),
-        h('button', { class: 'sm quiet', onclick: () => { for (const m of shown) put(m.id, null); commit(); renderRegexPage(); } }, 'Unpick shown')),
+        h('span', { class: 'spacer' }), search, showSel),
       shown.length ? h('div', { class: 'rx-list' }, shown.map(modRow)) : h('div', { class: 'panel small muted' }, 'No mod matches that.'));
 
     drawOutput(await call('regex:mapBuild', c));

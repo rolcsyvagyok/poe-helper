@@ -924,6 +924,44 @@ async function renderBaseMatrix(body, view) {
     return h('div', { class: 'bm-kind' }, h('b', {}, k.name), h('span', { class: 'small muted' }, k.about), sel, ilvl, note);
   });
 
+  // ---------- a whole group at once: every shield, every staff, every pure armour base… ----------
+  const namesOf = (list) => [...new Set(list.map((b) => b.name))];
+  // shields and weapon types, then the armour defences; body armours, boots, gloves, helmets and
+  // jewellery are never hidden as a whole
+  const GROUP_SETS = [
+    { title: 'Shields', items: ['Shields'].filter((c) => data.classes.includes(c)).map((c) => ({ label: 'All shields', names: () => namesOf(data.defences.flatMap((d) => data.bases[c][d.id] || [])) })) },
+    ...(data.groups || []).filter((g) => ['weapons1', 'weapons2'].includes(g.id)).map((g) => ({ title: g.name, items: g.columns.map((col) => ({ label: col.title, names: () => namesOf(col.list) })) })),
+    { title: 'Armour bases by defence', items: data.defences.map((d) => ({ label: d.name, names: () => namesOf(data.classes.flatMap((c) => data.bases[c][d.id] || [])) })) },
+  ];
+  // only ever down to D (untiered): a whole group is pushed out of the ranks, never all made S
+  const setWholeGroup = async (label, names) => {
+    const r = LOW;
+    // remember where they were, for Undo
+    const before = {};
+    for (const n of names) before[n] = rankOf(n);
+    FB.groupUndo = { label, before };
+    ranks = (await call('ranks:set', { bases: names, rank: r })).ranks;
+    S.settings.baseRanks = ranks;
+    toast(`${label}: ${names.length} bases moved to D (untiered)`);
+    renderFilters();
+  };
+  const undoGroup = async () => {
+    const u = FB.groupUndo;
+    if (!u) return;
+    const byRank = {};
+    for (const [n, r] of Object.entries(u.before)) (byRank[r] = byRank[r] || []).push(n);
+    for (const [r, names] of Object.entries(byRank)) ranks = (await call('ranks:set', { bases: names, rank: r })).ranks;
+    S.settings.baseRanks = ranks;
+    FB.groupUndo = null;
+    toast(`${u.label}: back as it was`);
+    renderFilters();
+  };
+  const groupPanel = h('details', { class: 'panel bm-groups', open: FB.groupsOpen || null, ontoggle: (e) => { FB.groupsOpen = e.target.open; } },
+    h('summary', {}, h('b', {}, 'Hide whole groups'), h('span', { class: 'small faint' }, ' Move all shields, a weapon type or the armour bases of one defence to D (untiered).')),
+    FB.groupUndo ? h('div', { class: 'row small', style: { gap: '8px', margin: '8px 0' } }, h('button', { class: 'sm', onclick: undoGroup }, `Undo "${FB.groupUndo.label}"`)) : null,
+    GROUP_SETS.map((set) => h('div', { class: 'bm-groupset' }, h('span', { class: 'small muted' }, set.title),
+      h('div', { class: 'row', style: { gap: '5px' } }, set.items.map((it) => h('button', { class: 'sm', title: `Every ${it.label.toLowerCase()} base to D (untiered)`, onclick: () => setWholeGroup(it.label, it.names()) }, it.label))))));
+
   const summary = h('div', { class: 'small muted' });
   function drawSummary() {
     const n = Object.fromEntries(RANKS.map((r) => [r, 0]));
@@ -947,6 +985,7 @@ async function renderBaseMatrix(body, view) {
         h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, 'Lowest rank shown'), h('span', { class: 'small faint' }, 'For each kind of drop. "Rares: S only" and "Fractured: B and up" hide a B rank rare but show it fractured. Uniques are never touched.')),
         kindRows,
         h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Looks:'), RANKS.map((r) => dressRank(h('span', { class: 'bm-cell sample' }, `Rank ${r}`), r)))),
+      groupPanel,
       h('div', { class: 'panel bm-tools' },
         h('div', { class: 'row', style: { gap: '10px' } }, pick, rankToggle, h('span', { class: 'small muted' }, 'Brush:'), brushBar),
         h('div', { class: 'row small', style: { gap: '14px' } },
