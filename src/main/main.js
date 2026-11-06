@@ -706,6 +706,7 @@ function registerIpc() {
   handle('clipboard:write', (t) => { clipboard.writeText(String(t ?? '').slice(0, 5000)); return true; });
   handle('ranks:set', (a) => services.setBaseRanks(a || {}));
   handle('ranks:kind', (a) => services.setRankKind(a || {}));
+  handle('ranks:default', () => services.defaultRanks());
   handle('ranks:auto', (a) => services.autoRanks(a || {}));
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('bases:add', (a) => services.addMyBase(a || {}));

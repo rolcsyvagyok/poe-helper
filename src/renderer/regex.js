@@ -82,9 +82,11 @@
       const p = presets.find((x) => x.name === e.target.value);
       if (p) { update({ ...blank(), ...p.choices }, { redraw: true }); toast(`"${p.name}" loaded`); }
     } }, h('option', { value: '' }, presets.length ? 'Saved searches…' : 'No saved searches yet'), presets.map((p) => h('option', { value: p.name }, p.name)));
+    // the app's windows have no prompt() box, so the name is typed in a field next to the button
+    const nameIn = h('input', { placeholder: 'Name, e.g. Juicy T16 no reflect', style: { width: '220px' }, 'aria-label': 'Name for this search', onkeydown: (e) => { if (e.key === 'Enter') saveAs(); } });
     const saveAs = async () => {
-      const name = prompt('Name this search (e.g. "Juicy T16, no reflect")');
-      if (!name) return;
+      const name = nameIn.value.trim();
+      if (!name) { nameIn.focus(); return toast('Type a name for the search first.', true); }
       S.settings.regexPresets = await call('regex:savePreset', { name, kind: 'maps', choices: choices() });
       toast(`Saved as "${name.trim()}"`);
       renderRegexPage();
@@ -128,7 +130,7 @@
       },
       h('span', { class: 'rx-mod-t' }, m.lines.map((l) => h('span', {}, l.replace(/#/g, '#')))),
       h('span', { class: 'rx-mod-m' },
-        m.nightmareOnly ? h('span', { class: 'rx-badge nm', title: 'Nightmare mod (Originator maps)' }, 'NM') : null,
+        m.nightmareOnly ? h('span', { class: 'rx-badge nm', title: 'Originator mod (Originator-influenced maps)' }, 'Orig') : null,
         h('span', { class: 'rx-mod-s' }, stateOf(m.id) === 'avoid' ? 'Skip' : stateOf(m.id) === 'want' ? 'Want' : '')));
       rows.set(m.id, el);
       return el;
@@ -142,17 +144,16 @@
       [['all', 'All mods'], ['avoid', 'Skipped'], ['want', 'Wanted'], ['none', 'Not picked']].map(([val, l]) => h('option', { value: val, selected: R.show === val }, l)));
 
     // ---------- buy them: the same choices as a trade site search ----------
-    const tr = S.settings.regexTrade || { tierMin: 16, tierMax: 16 };
-    const tierIn = (val, label) => h('input', { type: 'number', min: 1, max: 17, value: val ?? '', style: { width: '56px' }, 'aria-label': label, disabled: c.kind === 't17' });
-    const tMin = tierIn(c.kind === 't17' ? 17 : tr.tierMin, 'Lowest map tier');
-    const tMax = tierIn(c.kind === 't17' ? 17 : tr.tierMax, 'Highest map tier');
-    const modsIn = h('input', { type: 'number', min: 1, max: 12, value: tr.modsMin ?? '', placeholder: 'any', style: { width: '56px' }, 'aria-label': 'At least this many mods' });
+    const tr = { tier16: true, eightMods: false, ...(S.settings.regexTrade || {}) };
+    const flag = (key, label, title, disabled) => h('button', {
+      type: 'button', class: 'rx-flag' + (tr[key] && !disabled ? ' on' : ''), 'aria-pressed': tr[key] && !disabled ? 'true' : 'false', title, disabled,
+      onclick: () => { S.settings.regexTrade = { ...tr, [key]: !tr[key] }; call('settings:set', { regexTrade: S.settings.regexTrade }).catch(() => {}); renderRegexPage(); },
+    }, label);
     const tradeNote = h('div', { class: 'stack', style: { gap: '2px' } });
     const tradeBtn = h('button', { class: 'primary sm', onclick: async () => {
       tradeBtn.disabled = true;
       try {
-        const r = await call('regex:mapTrade', { choices: choices(), tierMin: tMin.value || null, tierMax: tMax.value || null, modsMin: modsIn.value || null });
-        S.settings.regexTrade = { tierMin: tMin.value || null, tierMax: tMax.value || null, modsMin: modsIn.value || null };
+        const r = await call('regex:mapTrade', { choices: choices(), tier16: !!tr.tier16, eightMods: !!tr.eightMods });
         toast(`${r.total} maps found. The trade site opened in your browser.`);
         mount(tradeNote, r.notes.map((n) => h('div', { class: 'small muted' }, n)));
       } catch { /* toast shown */ } finally { tradeBtn.disabled = false; }
@@ -160,10 +161,10 @@
     const tradeBox = h('div', { class: 'panel rx-trade' },
       h('div', { class: 'row', style: { gap: '10px' } },
         h('b', {}, 'Buy maps like these'),
-        h('label', { class: 'row small', style: { gap: '6px' } }, 'Tier', tMin, 'to', tMax),
-        h('label', { class: 'row small', style: { gap: '6px' }, title: 'The trade site counts a map\'s mods; the stash search can\'t, so this is for the trade search only' }, 'At least', modsIn, 'mods'),
+        c.kind === 't17' ? h('span', { class: 'rx-flag on', title: 'Nightmare maps are tier 17 on the trade site' }, 'Nightmare (tier 17)') : flag('tier16', 'Tier 16', 'Only tier 16 maps (off: any tier)'),
+        flag('eightMods', '8 mods', 'Only maps with 8 mods (fully rolled). The trade site counts mods; the stash search can\'t, so this is for the trade search only'),
         tradeBtn,
-        h('span', { class: 'small faint' }, `${({ securable: 'Instant buyout', online: 'Sellers online', onlineleague: 'Sellers online in the league', any: 'Every listing' })[S.settings.tradeStatus || 'securable'] || 'Instant buyout'}, cheapest first. Uses your skipped and wanted mods, map type, item quantity, item rarity, pack size, more maps / currency / scarabs / divination cards, the map's rarity, corrupted and identified.`)),
+        h('span', { class: 'small faint' }, `${({ securable: 'Instant buyout', online: 'Sellers online', onlineleague: 'Sellers online in the league', any: 'Every listing' })[S.settings.tradeStatus || 'securable'] || 'Instant buyout'}, cheapest first. Uses your skipped and wanted mods, ${c.kind === 't17' ? '' : 'map type, '}item quantity, item rarity, pack size, more maps / currency / scarabs / divination cards, ${c.kind === 't17' ? '' : 'the map\'s rarity, '}corrupted and identified.`)),
       tradeNote);
 
     mount(main,
@@ -173,7 +174,7 @@
           h('div', { class: 'stack', style: { gap: '6px', alignItems: 'flex-end' } }, h('button', { class: 'primary', onclick: copy }, 'Copy'), out.count)),
         out.parts, out.notes,
         h('div', { class: 'row small', style: { gap: '8px', marginTop: '4px' } },
-          presetSel, h('button', { class: 'sm', onclick: saveAs }, 'Save as…'), presets.length ? h('button', { class: 'sm quiet', onclick: delPreset }, 'Delete') : null,
+          presetSel, nameIn, h('button', { class: 'sm', onclick: saveAs }, 'Save'), presets.length ? h('button', { class: 'sm quiet', onclick: delPreset }, 'Delete') : null,
           h('span', { class: 'spacer' }),
           h('button', { class: 'sm quiet', onclick: () => { if (confirm('Clear every choice on this page?')) update({ ...blank(), kind: c.kind, nightmare: c.nightmare }, { redraw: true }); } }, 'Clear all'))),
 
@@ -181,17 +182,16 @@
       h('div', { class: 'panel rx-opts' },
         h('div', { class: 'row', style: { gap: '14px' } },
           h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'Maps' },
-            [['regular', 'Regular maps'], ['t17', 'Tier 17 maps']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': c.kind === val ? 'true' : 'false', class: c.kind === val ? 'on' : '', onclick: () => set({ kind: val }, true) }, l))),
-          c.kind === 'regular' ? toggle(!!c.nightmare, (val) => set({ nightmare: val }, true), 'Show Nightmare mods') : null,
+            [['regular', 'Regular maps'], ['t17', 'Nightmare maps']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': c.kind === val ? 'true' : 'false', class: c.kind === val ? 'on' : '', onclick: () => set({ kind: val }, true) }, l))),
+          c.kind === 'regular' ? toggle(!!c.nightmare, (val) => set({ nightmare: val }, true), 'Show Originator mods') : null,
           h('span', { class: 'small faint' }, 'The search only knows the mods of the maps you pick here, so the pieces stay short.')),
         h('div', { class: 'rx-grid' },
           h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), toggle(!!c.numbersAny, (val) => set({ numbersAny: val }), 'Any one is enough')),
             h('div', { class: 'rx-nums' }, v.numbers.map((n) => num(n.label, c.numbers?.[n.id], (val) => setIn('numbers', n.id, val))))),
-          h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Quality'), toggle(!!c.qualityAny, (val) => set({ qualityAny: val }), 'Any one is enough')),
-            h('div', { class: 'rx-nums' }, v.quality.map((n) => num(((x) => x[0].toUpperCase() + x.slice(1))(n.label.replace('Quality ', '').replace(/[()]/g, '')), c.quality?.[n.id], (val) => setIn('quality', n.id, val))))),
           h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Map')),
-            v.mapTypes.map((t) => tri(t.label, c.mapTypes?.[t.id], (val) => setIn('mapTypes', t.id, val, true))),
-            ['normal', 'magic', 'rare'].map((r) => tri(r[0].toUpperCase() + r.slice(1), c.rarity?.[r], (val) => setIn('rarity', r, val, true))),
+            // nightmare maps are always rare and never influenced: only corrupted and identified apply
+            c.kind === 't17' ? null : v.mapTypes.map((t) => tri(t.label, c.mapTypes?.[t.id], (val) => setIn('mapTypes', t.id, val, true))),
+            c.kind === 't17' ? null : ['normal', 'magic', 'rare'].map((r) => tri(r[0].toUpperCase() + r.slice(1), c.rarity?.[r], (val) => setIn('rarity', r, val, true))),
             tri('Corrupted', c.corrupted, (val) => set({ corrupted: val }, true)),
             tri('Unidentified', c.unidentified, (val) => set({ unidentified: val }, true))),
         ),

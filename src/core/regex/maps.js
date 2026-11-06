@@ -181,7 +181,9 @@ function buildMapRegex(o = {}) {
   const notes = [];
   const label = (id) => byId.get(id)?.lines.join(' / ') || id;
 
-  const typeTerms = (side) => MAP_TYPES.filter((t) => o.mapTypes?.[t.id] === side).map((t) => t.term);
+  // nightmare (tier 17) maps are always rare and never influenced: those choices don't apply to them
+  const t17 = kind === 't17';
+  const typeTerms = (side) => (t17 ? [] : MAP_TYPES.filter((t) => o.mapTypes?.[t.id] === side).map((t) => t.term));
 
   const bad = coverMods(avoid, kind);
   const badTerms = [...bad.pieces, ...typeTerms('avoid')];
@@ -206,7 +208,7 @@ function buildMapRegex(o = {}) {
     if (o.numbersAny && nums.length > 1) parts.push({ label: 'At least one of', text: quote(nums.map((x) => `${x.n.prefix}${x.r}%`).join('|')) });
     else for (const x of nums) parts.push({ label: `${x.n.label} ${o.numbers[x.n.id]}%+`, text: quote(`${x.n.prefix}${x.r}%`) });
   }
-  const qs = QUALITY.map((q) => ({ q, r: atLeast(o.quality?.[q.id]) })).filter((x) => x.r);
+  const qs = []; // quality isn't asked any more (the page has no quality box)
   if (qs.length) {
     if (o.qualityAny && qs.length > 1) parts.push({ label: 'Quality, one of', text: quote(qs.map((x) => `${x.q.prefix}${x.r}%`).join('|')) });
     else for (const x of qs) parts.push({ label: `${x.q.label} ${o.quality[x.q.id]}%+`, text: quote(`${x.q.prefix}${x.r}%`) });
@@ -214,7 +216,7 @@ function buildMapRegex(o = {}) {
 
   const RAR = { normal: 'n', magic: 'm', rare: 'r' };
   for (const side of ['want', 'avoid']) {
-    const r = Object.keys(RAR).filter((k) => o.rarity?.[k] === side);
+    const r = t17 ? [] : Object.keys(RAR).filter((k) => o.rarity?.[k] === side);
     if (!r.length) continue;
     const inner = r.length === 1 ? RAR[r[0]] : `(${r.map((k) => RAR[k]).join('|')})`;
     parts.push({ label: side === 'want' ? `Rarity: ${r.join(' or ')}` : `Not ${r.join(' or ')}`, text: quote(`${side === 'avoid' ? '!' : ''}rity: ${inner}`) });

@@ -548,14 +548,14 @@ test('base ranks: a B rank base hides as a plain rare (rares S only) but shows f
   const { svc, filterDir } = setup();
   svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
   svc.setBaseRanks({ bases: ['Vaal Regalia'], rank: 'B' });
-  svc.setBaseRanks({ bases: ['Vaal Regalia', 'Simple Robe'], dir: +1 }); // B -> A, C -> B
+  svc.setBaseRanks({ bases: ['Vaal Regalia', 'Simple Robe'], dir: +1 }); // B -> A, D -> C
   assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'A');
-  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], 'B');
+  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], 'C');
   svc.setBaseRanks({ bases: ['Vaal Regalia'], dir: -1 });
   svc.setBaseRanks({ bases: ['Simple Robe'], dir: -1 });
-  svc.setBaseRanks({ bases: ['Simple Robe'], dir: -1 }); // already C: stays, the floor
+  svc.setBaseRanks({ bases: ['Simple Robe'], dir: -1 }); // already D: stays, the floor
   assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'B');
-  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], undefined, 'C is the default');
+  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], undefined, 'D (untiered) is the default');
   svc.setRankKind({ kind: 'rares', min: 'S' });
   svc.setRankKind({ kind: 'fractured', min: 'B' });
   const { rankRules } = require('../src/core/filter/manager');
@@ -571,18 +571,27 @@ test('base ranks: a B rank base hides as a plain rare (rares S only) but shows f
   assert.match(text, /Base ranks: fractured, rank B/);
 });
 
-test('base ranks: the old fractured looks move over once, and ranks come from the base order', () => {
+test('base ranks: the usual ranking to start from, the old fractured choices move over, and ranks by base order', () => {
   const { svc } = setup();
-  svc.settings.set('baseMatrix', { 'Vaal Regalia': { frac: 'top' }, 'Simple Robe': { frac: 'show', vis: 'hide' }, 'Plate Vest': { frac: 'hide' } });
-  const v = svc.baseMatrixView();
-  assert.equal(v.ranks['Vaal Regalia'], 'S');
-  assert.equal(v.ranks['Simple Robe'], 'B');
-  assert.equal(v.ranks['Plate Vest'], undefined);
-  assert.equal(v.kinds.fractured, 'B');
+  let v = svc.baseMatrixView();
+  assert.equal(v.ranks['Royal Plate'], 'S');
+  assert.equal(v.ranks['Legion Plate'], 'A');
+  assert.equal(v.ranks['Vaal Regalia'], 'B');
+  assert.equal(v.ranks['Gladiator Plate'], 'C');
+  assert.equal(v.ranks['Simple Robe'], undefined, 'untiered (D)');
+  assert.deepEqual(v.rankList, ['S', 'A', 'B', 'C', 'D']);
+  // an older install: fractured looks and "all ranks" = C
+  svc.settings.patch({ ranksV1: false, ranksV2: false, rankKinds: { rares: 'C' }, baseMatrix: { 'Vaal Regalia': { frac: 'top' }, 'Simple Robe': { frac: 'show', vis: 'hide' } } });
+  v = svc.baseMatrixView();
+  assert.equal(v.kinds.fractured, 'B', 'fractured copies keep showing');
+  assert.equal(v.kinds.rares, 'D', 'all ranks is D now');
   assert.deepEqual(svc.settings.get('baseMatrix'), { 'Simple Robe': { vis: 'hide' } });
-  const r = svc.autoRanks({ s: 1, a: 2, b: 2 });
+  assert.equal(v.ranks['Royal Plate'], 'S');
+  const r = svc.autoRanks({ s: 1, a: 2, b: 2, c: 2 });
   const col = svc.baseMatrixView().bases['Body Armours'].ar.map((b) => b.name);
-  assert.deepEqual(col.slice(0, 6).map((n) => r.ranks[n] || 'C'), ['S', 'A', 'A', 'B', 'B', 'C'].slice(0, Math.min(6, col.length)));
+  assert.deepEqual(col.slice(0, 8).map((n) => r.ranks[n] || 'D'), ['S', 'A', 'A', 'B', 'B', 'C', 'C', 'D'].slice(0, Math.min(8, col.length)));
+  svc.defaultRanks();
+  assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'B');
 });
 
 test('reset everything: your changes go, account and filter choice stay, and it can be undone once', () => {

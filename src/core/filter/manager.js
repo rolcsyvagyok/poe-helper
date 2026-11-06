@@ -332,12 +332,13 @@ function hiddenBaseRules(baseText, patch, { fractured = false, synthesised = fal
 // ---------- base ranks: one rank per base (S best, C lowest and the default), and per kind of drop
 // the lowest rank you still want to see. "Rares: S only, Fractured: B and up" hides a B-rank Vaal
 // Regalia as a plain rare but shows it fractured.
-const RANKS = ['S', 'A', 'B', 'C'];
+const RANKS = ['S', 'A', 'B', 'C', 'D']; // D: untiered, the lowest and the default
 const RANK_LOOKS = {
   S: { fontSize: 45, text: [255, 255, 255, 255], border: [255, 255, 255, 255], background: [30, 110, 200, 255], customSound: 'poehelper-sounds/chime.mp3', beam: { color: 'Blue' }, icon: { size: 0, color: 'Blue', shape: 'Star' } },
   A: { fontSize: 42, text: [20, 30, 10, 255], border: [20, 30, 10, 255], background: [140, 200, 40, 255], customSound: 'poehelper-sounds/sparkle.mp3', beam: { color: 'Green', temp: true }, icon: { size: 1, color: 'Green', shape: 'Diamond' } },
   B: { fontSize: 38, text: [40, 30, 0, 255], border: [40, 30, 0, 255], background: [250, 200, 60, 240], icon: { size: 2, color: 'Yellow', shape: 'Circle' } },
-  C: { fontSize: 34, text: [255, 220, 210, 255], border: [180, 40, 40, 255], background: [120, 25, 25, 220] },
+  C: { fontSize: 36, text: [30, 15, 0, 255], border: [30, 15, 0, 255], background: [230, 130, 40, 230], icon: { size: 2, color: 'Orange', shape: 'Triangle' } },
+  D: { fontSize: 32, text: [255, 220, 210, 255], border: [180, 40, 40, 255], background: [120, 25, 25, 220] },
 };
 const NO_FLAGS = [{ keyword: 'Mirrored', values: ['False'] }, { keyword: 'Corrupted', values: ['False'] }];
 const RANK_KINDS = [
@@ -347,10 +348,10 @@ const RANK_KINDS = [
   { id: 'crafting', name: 'Crafting bases', about: 'Normal and magic items of a high item level', ilvl: true, conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
   { id: 'rares', name: 'Rares', about: 'Plain rares (not fractured, synthesised or influenced)', conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
 ];
-const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : 'C');
+const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : 'D');
 
 /**
- * ranks: { base: 'S' | 'A' | 'B' | 'C' } (missing = C); kinds: { fractured: 'B', rares: 'S', ... } where the
+ * ranks: { base: 'S' | 'A' | 'B' | 'C' | 'D' } (missing = D); kinds: { fractured: 'B', rares: 'S', ... } where the
  * value is the lowest rank still shown, 'none' hides them all, and 'off' (or missing) leaves the kind to
  * your filter. bases: every base the ranking covers.
  */

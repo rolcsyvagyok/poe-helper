@@ -610,7 +610,8 @@ const BRUSHES = [
   { id: 'S', label: 'S', rank: 'S', title: 'Paint rank S, the best' },
   { id: 'A', label: 'A', rank: 'A', title: 'Paint rank A' },
   { id: 'B', label: 'B', rank: 'B', title: 'Paint rank B' },
-  { id: 'C', label: 'C', rank: 'C', title: 'Paint rank C, the lowest' },
+  { id: 'C', label: 'C', rank: 'C', title: 'Paint rank C' },
+  { id: 'D', label: 'D', rank: 'D', title: 'Paint rank D: untiered, the lowest' },
   { id: 'hide', label: 'Hide plain drops', vis: 'hide', title: 'Hide plain (normal, magic, rare) copies of this base, whatever the rank' },
   { id: 'show', label: 'Unhide', vis: null, title: 'Plain copies back to your filter and the ranks' },
 ];
@@ -801,8 +802,9 @@ async function renderBaseMatrix(body, view) {
   let state = data.state || {};
   let ranks = data.ranks || {};
   let kinds = data.kinds || {};
-  const RANKS = data.rankList || ['S', 'A', 'B', 'C'];
-  const rankOf = (n) => (RANKS.includes(ranks[n]) ? ranks[n] : 'C');
+  const RANKS = data.rankList || ['S', 'A', 'B', 'C', 'D'];
+  const LOW = RANKS[RANKS.length - 1]; // D: untiered, the default
+  const rankOf = (n) => (RANKS.includes(ranks[n]) ? ranks[n] : LOW);
   const col = (a) => (a ? `rgba(${+a[0] || 0},${+a[1] || 0},${+a[2] || 0},${((a[3] == null ? 255 : +a[3]) / 255).toFixed(3)})` : '');
   const [mode, key] = FB.matrixView.split(':');
   const byRank = FB.matrixByRank || mode === 'a';
@@ -824,7 +826,7 @@ async function renderBaseMatrix(body, view) {
         : data.defences.map((d) => ({ title: d.name, list: data.bases[key]?.[d.id] || [] }));
   const scope = (() => { const seen = new Set(); return columns.flatMap((c) => c.list).filter((b) => !seen.has(b.name) && seen.add(b.name)); })();
   // "Show by rank": the same bases, one column per rank, so you can see what's in and what's out
-  const rankColumns = () => RANKS.map((r) => ({ title: `Rank ${r}`, rank: r, list: scope.filter((b) => rankOf(b.name) === r) }));
+  const rankColumns = () => RANKS.map((r) => ({ title: r === LOW ? `${r} · untiered` : `Rank ${r}`, rank: r, list: scope.filter((b) => rankOf(b.name) === r) }));
   if (byRank) columns = rankColumns();
 
   const pick = h('select', { 'aria-label': 'Show bases by', onchange: (e) => { FB.matrixView = e.target.value; renderFilters(); } },
@@ -846,7 +848,7 @@ async function renderBaseMatrix(body, view) {
     return b.rank ? dressRank(el, b.rank) : el;
   }));
 
-  const cellClass = (n) => 'bm-cell bm-rank' + ((state[n] || {}).vis === 'hide' ? ' hidden' : '') + (rankOf(n) === 'C' ? ' rank-low' : '');
+  const cellClass = (n) => 'bm-cell bm-rank' + ((state[n] || {}).vis === 'hide' ? ' hidden' : '') + (rankOf(n) === LOW ? ' rank-low' : '');
   const shownFor = (n) => (data.rankKinds || []).filter((k) => { const m = kinds[k.id]; return m && m !== 'off' && m !== 'none' && RANKS.indexOf(rankOf(n)) <= RANKS.indexOf(m); }).map((k) => k.name.toLowerCase());
   const cellTitle = (b) => {
     const r = rankOf(b.name);
@@ -860,7 +862,7 @@ async function renderBaseMatrix(body, view) {
   const paintLocal = (names) => {
     const b = brush();
     for (const n of names) {
-      if (b.rank) { if (b.rank === 'C') delete ranks[n]; else ranks[n] = b.rank; }
+      if (b.rank) { if (b.rank === LOW) delete ranks[n]; else ranks[n] = b.rank; }
       if ('vis' in b) { const e = { ...(state[n] || {}) }; if (b.vis) e.vis = b.vis; else delete e.vis; if (Object.keys(e).length) state[n] = e; else delete state[n]; }
       redraw(n);
     }
@@ -874,10 +876,10 @@ async function renderBaseMatrix(body, view) {
     else state = (await call('matrix:set', { bases: list, vis: b.vis })).state;
     after();
   };
-  // left click: a rank up, right click: a rank down (C is the floor, S the top), like the cluster grid
+  // left click: a rank up, right click: a rank down (D is the floor, S the top), like the cluster grid
   const step = async (names, dir) => {
     const list = [...new Set(names)];
-    for (const n of list) { const i = Math.max(0, Math.min(3, RANKS.indexOf(rankOf(n)) - dir)); if (RANKS[i] === 'C') delete ranks[n]; else ranks[n] = RANKS[i]; redraw(n); }
+    for (const n of list) { const i = Math.max(0, Math.min(RANKS.length - 1, RANKS.indexOf(rankOf(n)) - dir)); if (RANKS[i] === LOW) delete ranks[n]; else ranks[n] = RANKS[i]; redraw(n); }
     ranks = (await call('ranks:set', { bases: list, dir })).ranks;
     after();
   };
@@ -908,7 +910,7 @@ async function renderBaseMatrix(body, view) {
       c.list.length ? c.list.map(cellOf) : h('div', { class: 'small faint', style: { padding: '6px' } }, 'None'))));
 
   // per kind of drop: the lowest rank you still want to see
-  const MIN_OPTS = [['off', 'Filter decides'], ['S', 'S only'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'All ranks'], ['none', 'Hide all']];
+  const MIN_OPTS = [['off', 'Filter decides'], ['S', 'S only'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'C and up'], ['D', 'All ranks'], ['none', 'Hide all']];
   const kindCount = (k) => { const m = kinds[k.id]; if (!m || m === 'off') return ''; if (m === 'none') return 'all hidden'; const n = scope.filter((b) => RANKS.indexOf(rankOf(b.name)) <= RANKS.indexOf(m)).length; return `${n} of ${scope.length} here shown`; };
   const kindRows = (data.rankKinds || []).map((k) => {
     const note = h('span', { class: 'small faint' }, kindCount(k));
@@ -924,10 +926,10 @@ async function renderBaseMatrix(body, view) {
 
   const summary = h('div', { class: 'small muted' });
   function drawSummary() {
-    const n = { S: 0, A: 0, B: 0, C: 0 };
+    const n = Object.fromEntries(RANKS.map((r) => [r, 0]));
     for (const b of scope) n[rankOf(b.name)]++;
     const hid = Object.values(state).filter((e) => e.vis === 'hide').length;
-    mount(summary, `Here: ${n.S} S · ${n.A} A · ${n.B} B · ${n.C} C${hid ? ` · ${hid} plain drops hidden` : ''}`);
+    mount(summary, `Here: ${RANKS.map((r) => `${n[r]} ${r}`).join(' · ')}${hid ? ` · ${hid} plain drops hidden` : ''}`);
   }
   drawSummary();
 
@@ -940,7 +942,7 @@ async function renderBaseMatrix(body, view) {
     h('aside', {}, cats),
     h('div', {},
       h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('eye', { size: 22 })), h('h2', {}, 'Base ranks'),
-        h('span', { class: 'small muted' }, 'Every base has a rank, S best and C lowest. Left click a base for a rank up, right click for a rank down, or drag to paint with the brush.')),
+        h('span', { class: 'small muted' }, 'Every base has a rank, S best to D (untiered, the lowest). Left click a base for a rank up, right click for a rank down, or drag to paint with the brush.')),
       h('div', { class: 'panel bm-kinds' },
         h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, 'Lowest rank shown'), h('span', { class: 'small faint' }, 'For each kind of drop. "Rares: S only" and "Fractured: B and up" hide a B rank rare but show it fractured. Uniques are never touched.')),
         kindRows,
@@ -950,18 +952,17 @@ async function renderBaseMatrix(body, view) {
         h('div', { class: 'row small', style: { gap: '14px' } },
           h('label', { class: 'check' }, mapsOnly, 'Hide only in maps (area level 68+)'),
           h('label', { class: 'row', style: { gap: '6px' } }, 'Keep item level', keep, 'and above'),
-          h('button', { class: 'sm', title: 'In every column: the best base gets S, the next 2 A, the next 2 B, the rest C', onclick: async () => {
+          h('button', { class: 'sm', title: 'In every column: the best base gets S, the next 2 A, the next 2 B, the next 2 C, the rest D', onclick: async () => {
             if (Object.keys(ranks).length && !confirm('Rank every base again from the base order? Your own ranks are replaced.')) return;
-            const r = await call('ranks:auto', { s: 1, a: 2, b: 2 });
-            toast(`Ranked: ${r.S} S, ${r.A} A, ${r.B} B, ${r.C} C`);
+            const r = await call('ranks:auto', { s: 1, a: 2, b: 2, c: 2 });
+            toast(`Ranked: ${r.S} S, ${r.A} A, ${r.B} B, ${r.C} C, ${r.D} D`);
             renderFilters();
           } }, 'Rank by base order'),
           h('span', { class: 'spacer' }), summary,
-          h('button', { class: 'quiet sm', onclick: async () => {
-            const all = [...new Set([...Object.keys(ranks), ...Object.keys(state)])];
-            if (!all.length || !confirm(`Set all ${all.length} bases back to rank C and unhide them?`)) return;
-            await call('ranks:set', { bases: Object.keys(ranks), rank: 'C' });
-            await call('matrix:set', { bases: Object.keys(state), vis: null, frac: null });
+          h('button', { class: 'quiet sm', title: 'Back to the usual ranking, and unhide every base', onclick: async () => {
+            if (!confirm('Put every base back to the usual ranking and unhide them? Your own ranks are replaced.')) return;
+            await call('ranks:default');
+            if (Object.keys(state).length) await call('matrix:set', { bases: Object.keys(state), vis: null, frac: null });
             renderFilters();
           } }, 'Reset all'))),
       grid)));

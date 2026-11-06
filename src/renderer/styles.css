@@ -864,3 +864,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .rx-badge.nm { background: #3b2a52; color: #d7c4f0; }
 .rx-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 5px; }
 .rx-trade { display: grid; gap: 6px; margin-bottom: 12px; }
+.rx-flag { all: unset; cursor: pointer; font-size: 12.5px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+.rx-flag.on { background: #2b4a33; border-color: var(--good); color: #d6f0dc; }
+.rx-flag:disabled { cursor: default; opacity: .6; }
+.rx-flag:focus-visible { outline: 2px solid var(--accent); }

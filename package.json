@@ -1,7 +1,7 @@
 {
   "name": "poe-helper",
   "productName": "PoE Helper",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Path of Exile helper: price check overlay, net worth tracking, local loot filter overrides. Built to make as few API calls as possible.",
   "main": "src/main/main.js",
   "license": "MIT",

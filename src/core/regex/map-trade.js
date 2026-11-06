@@ -52,6 +52,8 @@ function buildMapTradeQuery(choices = {}, opts = {}, tradeStats = null) {
   const index = tradeStats ? statIndex(tradeStats) : null;
   const byId = new Map(DATA.mods.map((m) => [m.id, m]));
   const t17 = choices.kind === 't17';
+  // nightmare (tier 17) maps are always rare and never influenced
+  if (t17) choices = { ...choices, mapTypes: {}, rarity: {} };
   const kindOk = (m) => (t17 ? m.kinds.includes('t17') : m.kinds.includes('regular') || (choices.nightmare && m.kinds.includes('nightmare')));
   const left = [];
   const collect = (ids) => {
@@ -96,7 +98,7 @@ function buildMapTradeQuery(choices = {}, opts = {}, tradeStats = null) {
     if (choices.mapTypes?.[k] === 'want') mapFilters[f] = { option: 'true' };
     if (choices.mapTypes?.[k] === 'avoid') mapFilters[f] = { option: 'false' };
   }
-  const qualityAsked = Object.values(choices.quality || {}).some(min);
+  const qualityAsked = false;
 
   // how many mods the map has (8 = a fully rolled map)
   if (min(opts.modsMin)) {

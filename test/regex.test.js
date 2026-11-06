@@ -136,3 +136,17 @@ test('trade search: skipped mods are a "not" group, wanted ones "any of", number
   const t17 = T.buildMapTradeQuery({ kind: 't17' }, { tierMin: 3 }).query.query;
   assert.deepEqual(t17.filters.map_filters.filters.map_tier, { min: 17, max: 17 });
 });
+
+test('nightmare (tier 17) maps: no influence or rarity choices, corrupted and identified still apply', () => {
+  const T = require('../src/core/regex/map-trade');
+  const c = { kind: 't17', mapTypes: { shaper: 'want' }, rarity: { magic: 'want' }, corrupted: 'avoid', unidentified: 'avoid' };
+  const r = R.buildMapRegex(c);
+  assert.doesNotMatch(r.regex, /shaper|rity: m/);
+  assert.match(r.regex, /!corrupted/);
+  assert.match(r.regex, /!unidentified/);
+  const q = T.buildMapTradeQuery(c, {}).query.query;
+  assert.ok(!q.stats.some((s) => s.filters.some((f) => f.id.startsWith('implicit.'))));
+  assert.equal(q.filters.type_filters.filters.rarity, undefined);
+  assert.equal(q.filters.misc_filters.filters.corrupted.option, 'false');
+  assert.equal(q.filters.misc_filters.filters.identified.option, 'true');
+});

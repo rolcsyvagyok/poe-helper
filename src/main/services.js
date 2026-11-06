@@ -58,9 +58,9 @@ const DEFAULT_SETTINGS = {
   baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
   baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
   regexMaps: { kind: 'regular', avoid: [], want: [] }, // the Regex page's map choices
-  regexTrade: { tierMin: 16, tierMax: 16 }, // map tier for the trade search
+  regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
   regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]
-  baseRanks: {}, // { "Vaal Regalia": 'B' }: S best, missing = C (the lowest)
+  baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
   rankKinds: {}, // lowest rank shown per kind of drop: { rares: 'S', fractured: 'B' }
   rankCraftIlvl: 82,
   hideFractured: false, // also hide fractured copies of bases you hid
@@ -426,7 +426,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -943,8 +943,28 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       rankKinds: RANK_KINDS.map((k) => ({ id: k.id, name: k.name, about: k.about, ilvl: !!k.ilvl })),
     };
   }
+  /** The usual ranking back (Reset all on the Base ranks page). */
+  function defaultRanks() {
+    const ranks = { ...require('../core/base-ranks').DEFAULT_RANKS };
+    settings.set('baseRanks', ranks);
+    if (filters.basePath()) filters.write();
+    return { ranks };
+  }
   /** Once: the old fractured looks become ranks (best look = S, good look = B, hidden = C). */
   function migrateRanks() {
+    migrateRanksV1();
+    // 1.0.16: five ranks (D = untiered) and the usual ranking to start from; "all ranks" is now D
+    if (!settings.get('ranksV2')) {
+      settings.set('ranksV2', true);
+      settings.set('baseRanks', { ...require('../core/base-ranks').DEFAULT_RANKS });
+      const kinds = { ...(settings.get('rankKinds') || {}) };
+      for (const k of Object.keys(kinds)) if (kinds[k] === 'C') kinds[k] = 'D';
+      settings.set('rankKinds', kinds);
+      return true;
+    }
+    return false;
+  }
+  function migrateRanksV1() {
     if (settings.get('ranksV1')) return;
     const state = { ...(settings.get('baseMatrix') || {}) };
     const ranks = { ...(settings.get('baseRanks') || {}) };
@@ -972,11 +992,14 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return mapRegex.buildMapRegex(choices);
   }
   /** The same choices as a trade site search for maps: { url, total, notes } */
-  async function regexMapTrade({ choices, tierMin = 16, tierMax = 16, modsMin = null } = {}) {
+  async function regexMapTrade({ choices, tier16 = true, eightMods = false } = {}) {
     const { buildMapTradeQuery } = require('../core/regex/map-trade');
     const league = await getLeague();
     const c = choices || settings.get('regexMaps') || {};
-    settings.set('regexTrade', { tierMin, tierMax, modsMin });
+    settings.set('regexTrade', { tier16: !!tier16, eightMods: !!eightMods });
+    const tierMin = tier16 ? 16 : null;
+    const tierMax = tier16 ? 16 : null;
+    const modsMin = eightMods ? 8 : null;
     const stats = await ggg.tradeStats().catch(() => null); // once a week at most
     const { query, notes } = buildMapTradeQuery(c, { tierMin, tierMax, modsMin, status: settings.get('tradeStatus') || 'securable' }, stats);
     const res = await ggg.tradeSearch(league, query);
@@ -996,7 +1019,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return list;
   }
 
-  const RANK_ORDER = ['S', 'A', 'B', 'C'];
+  const RANK_ORDER = ['S', 'A', 'B', 'C', 'D'];
   /** Give bases a rank: rank 'S'..'C', or dir +1 (a rank up) / -1 (a rank down) from where each is. */
   function setBaseRanks({ bases = [], rank, dir } = {}) {
     const { MATRIX_NAMES } = require('../core/filter/manager');
@@ -1006,11 +1029,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       if (!valid.has(b)) continue;
       let r = rank;
       if (dir) {
-        const i = RANK_ORDER.indexOf(ranks[b] || 'C');
-        r = RANK_ORDER[Math.max(0, Math.min(3, i - Math.sign(dir)))];
+        const i = RANK_ORDER.indexOf(ranks[b] || 'D');
+        r = RANK_ORDER[Math.max(0, Math.min(RANK_ORDER.length - 1, i - Math.sign(dir)))];
       }
       if (!RANK_ORDER.includes(r)) continue;
-      if (r === 'C') delete ranks[b]; else ranks[b] = r; // C is the lowest and the default
+      if (r === 'D') delete ranks[b]; else ranks[b] = r; // D (untiered) is the lowest and the default
     }
     settings.set('baseRanks', ranks);
     const target = filters.basePath() ? filters.write() : null;
@@ -1035,7 +1058,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
    * Ranks in one go from the base order: in every column (item class and defence, or weapon type) the
    * best bases (listed first) get S, then A, then B, the rest C.
    */
-  function autoRanks({ s = 1, a = 2, b = 2 } = {}) {
+  function autoRanks({ s = 1, a = 2, b = 2, c = 2 } = {}) {
     const v = baseMatrixView();
     const cols = [];
     for (const c of v.classes) for (const d of v.defences) cols.push(v.bases[c][d.id] || []);
@@ -1046,14 +1069,14 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       list.filter((x) => x.inFilter !== false).forEach((x, i) => {
         if (done.has(x.name)) return; // a base in several columns keeps its first (best) place
         done.add(x.name);
-        const r = i < s ? 'S' : i < s + a ? 'A' : i < s + a + b ? 'B' : 'C';
-        if (r !== 'C') ranks[x.name] = r;
+        const r = i < s ? 'S' : i < s + a ? 'A' : i < s + a + b ? 'B' : i < s + a + b + c ? 'C' : 'D';
+        if (r !== 'D') ranks[x.name] = r;
       });
     }
     settings.set('baseRanks', ranks);
     if (filters.basePath()) filters.write();
     const vals = Object.values(ranks);
-    return { ranks, S: vals.filter((r) => r === 'S').length, A: vals.filter((r) => r === 'A').length, B: vals.filter((r) => r === 'B').length, C: done.size - vals.length };
+    return { ranks, S: vals.filter((r) => r === 'S').length, A: vals.filter((r) => r === 'A').length, B: vals.filter((r) => r === 'B').length, C: vals.filter((r) => r === 'C').length, D: done.size - vals.length };
   }
   /** Paint bases: vis 'hide' | null (filter decides), frac 'show' | 'hide' | null; undefined leaves it as it is. */
   function setBaseMatrix({ bases = [], vis, frac } = {}) {
@@ -1480,7 +1503,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { regexMapTrade, regexMapView, regexMapBuild, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
+  try { if (migrateRanks() && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
+
+  return { defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {
