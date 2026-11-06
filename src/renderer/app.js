@@ -263,6 +263,28 @@ function historyList(rows) {
 }
 
 // ---------------- price check (manual) ----------------
+// ---------------- net worth ----------------
+let nwWindow = 24 * 3600 * 1000;
+let nwTabs = null;
+let nwCat = null; // the category picked on the dashboard
+let nwFind = '';
+const nwArt = {}; // item name -> picture, for snapshots taken before pictures were kept
+
+// ---------------- WealthyExile dashboard ----------------
+const WX_CATS = {
+  Currency: 'Currency', Fragment: 'Fragments', Scarab: 'Scarabs', Essence: 'Essences', Fossil: 'Fossils', Resonator: 'Resonators', Oil: 'Oils',
+  DeliriumOrb: 'Delirium orbs', DivinationCard: 'Divination cards', Unique: 'Uniques', Gem: 'Gems', Map: 'Maps', UniqueMap: 'Unique maps',
+  BlightedMap: 'Blighted maps', Omen: 'Omens', Tattoo: 'Tattoos', Artifact: 'Expedition', Incubator: 'Incubators', Invitation: 'Invitations',
+  Memory: 'Memories', Vial: 'Vials', Runegraft: 'Runegrafts', AllflameEmber: 'Allflame embers', Astrolabe: 'Astrolabes',
+  EnshroudingCrystal: 'Enshrouding crystals', DjinnCoin: 'Djinn coins', Beast: 'Beasts', Ducat: 'Ducats', Corpse: 'Corpses', KalguuranRune: 'Runes',
+};
+const wxName = (c) => WX_CATS[c] || String(c || 'Other').replace(/([a-z])([A-Z])/g, '$1 $2');
+const wxBase = (n) => String(n).replace(/ \((?:5|6)L\)$/, '').replace(/ \d+\/\d+$/, '').replace(/ T\d+$/, '');
+const wxIcon = (item, size = 26) => {
+  const url = item.i || nwArt[wxBase(item.n)];
+  return url ? h('img', { src: url, alt: '', width: size, height: size, loading: 'lazy', style: { objectFit: 'contain' } }) : h('span', { class: 'wx-noimg', style: { width: size + 'px', height: size + 'px' } });
+};
+
 function wealthDashboard(latest) {
   const d = latest.divine;
   const items = latest.items || [];
@@ -377,6 +399,33 @@ async function renderNetworthNow() {
 let ecoRules = null;
 
 /** The original filter sections, now shown inside tabs of the FilterBlade-style page (filters.js). */
+// The loot filter file: which FilterBlade filter, writing it, the folder (in Settings).
+function filterFileBox(info, st, redraw) {
+  const writeNow = async () => {
+    try {
+      const p = await call('filter:write');
+      toast(`Written to ${p.split(/[\\/]/).pop()}. Zone or reload the filter in game.`);
+      redraw();
+    } catch { /* toast */ }
+  };
+  const helperName = info.base ? info.base.replace(/\.filter$/i, ' (helper).filter') : null;
+  return h('div', { class: 'panel stack' },
+    h('div', { class: 'row' },
+      h('select', { 'aria-label': 'Base filter', onchange: async (e) => { await call('settings:set', { baseFilter: e.target.value }); redraw(); } },
+        h('option', { value: '' }, 'Choose your filter'),
+        info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.display || f.name.replace(/\.filter$/i, '')))),
+      h('span', { class: 'small muted' }, !info.files.length ? 'No .filter files found in the folder below.' : info.base ? (info.lastWrite ? `Written to "${helperName}" ${ago(Date.now() - info.lastWrite.at)}.` : `Will be written to "${helperName}".`) : 'Pick the filter you normally use.'),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'primary', onclick: writeNow, disabled: !info.base }, 'Write filter')),
+    h('div', { class: 'row' },
+      toggle(st.autoWatchFilter, (v) => call('settings:set', { autoWatchFilter: v }), 'Rewrite automatically when you download a new version of the filter')),
+    (() => {
+      const dirInput = h('input', { value: st.filterDir || info.dir || '', style: { flex: 1, minWidth: '300px' }, 'aria-label': 'Filter folder' });
+      return h('details', {}, h('summary', {}, `Filter folder: ${info.dir || 'not found'}`),
+        h('div', { class: 'row', style: { marginTop: '8px' } }, dirInput, h('button', { onclick: async () => { await call('settings:set', { filterDir: dirInput.value.trim() }); redraw(); } }, 'Use this folder')));
+    })());
+}
+
 async function renderFilterExtras(el, which) {
   const info = await call('filter:list');
   const overrides = await call('filter:overrides');
@@ -390,31 +439,6 @@ async function renderFilterExtras(el, which) {
     if (info.base) await call('filter:write').catch(() => {});
   };
   let editing = null;
-  const writeNow = async () => {
-    try {
-      const p = await call('filter:write');
-      toast(`Written to ${p.split(/[\\/]/).pop()}. Zone or reload the filter in game.`);
-      renderFilters();
-    } catch { /* toast */ }
-  };
-
-  // --- filter file ---
-  const helperName = info.base ? info.base.replace(/\.filter$/i, ' (helper).filter') : null;
-  const fileBox = h('div', { class: 'panel stack' },
-    h('div', { class: 'row' },
-      h('select', { 'aria-label': 'Base filter', onchange: async (e) => { await call('settings:set', { baseFilter: e.target.value }); renderFilters(); } },
-        h('option', { value: '' }, 'Choose your filter'),
-        info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.name.replace(/\.filter$/i, '')))),
-      h('span', { class: 'small muted' }, !info.files.length ? 'No .filter files found in the folder below.' : info.base ? (info.lastWrite ? `Written to "${helperName}" ${ago(Date.now() - info.lastWrite.at)}.` : `Will be written to "${helperName}".`) : 'Pick the filter you normally use.'),
-      h('span', { class: 'spacer' }),
-      h('button', { class: 'primary', onclick: writeNow, disabled: !info.base }, 'Write filter')),
-    h('div', { class: 'row' },
-      toggle(st.autoWatchFilter, (v) => call('settings:set', { autoWatchFilter: v }), 'Rewrite automatically when you download a new version of the filter')),
-    (() => {
-      const dirInput = h('input', { value: st.filterDir || info.dir || '', style: { flex: 1, minWidth: '300px' }, 'aria-label': 'Filter folder' });
-      return h('details', {}, h('summary', {}, `Filter folder: ${info.dir || 'not found'}`),
-        h('div', { class: 'row', style: { marginTop: '8px' } }, dirInput, h('button', { onclick: async () => { await call('settings:set', { filterDir: dirInput.value.trim() }); renderFilters(); } }, 'Use this folder')));
-    })());
 
   // --- rules on the ground ---
   const rulesBox = h('div', { class: 'ground rules' });
@@ -502,7 +526,6 @@ async function renderFilterExtras(el, which) {
   const exOut = h('div');
 
   const parts = {
-    file: [fileBox],
     rules: [section('Your rules', 'Extra rules placed above everything else. The first rule that matches an item wins.', rulesBox), section('New rule', null, newRule)],
     price: [sectionWith('Value tiers', 'Highlights valuable drops using current poe.ninja prices.',
       toggle(!!eco.enabled, async (v) => { await saveEco(v); if (v) ecoRules = await call('filter:economyRules'); renderFilters(); }, 'Use in my filter'),
@@ -811,6 +834,7 @@ function appIconBox(st) {
 }
 
 async function renderSettingsNow() {
+  const filterInfo = await call('filter:list').catch(() => ({ files: [], base: null }));
   await refreshState();
   const st = S.settings;
   const el = $('page-settings');
@@ -877,6 +901,7 @@ async function renderSettingsNow() {
         toggle(!!st.minimizeToTray, (v) => call('settings:set', { minimizeToTray: v }).then(() => toast(v ? 'Minimizing now hides PoE Helper in the tray' : 'Minimizing keeps PoE Helper in the taskbar')), 'Minimize to the tray instead of the taskbar'),
         h('div', { class: 'row' }, h('button', { onclick: () => call('tray:hide') }, 'Hide to tray now'),
           h('span', { class: 'small muted' }, 'Closing the window also keeps PoE Helper running in the tray, so Alt+E keeps working. Click the tray icon to open it again; right-click it and choose Quit to close it for good.')))),
+    section('Loot filter file', 'The FilterBlade filter PoE Helper builds on, and where your version of it is written.', filterFileBox(filterInfo, st, renderSettings)),
     section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
       h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
     notesSection(await call('app:changelog').catch(() => [])),

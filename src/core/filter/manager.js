@@ -355,14 +355,16 @@ const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : '
  * value is the lowest rank still shown, 'none' hides them all, and 'off' (or missing) leaves the kind to
  * your filter. bases: every base the ranking covers.
  */
-function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82 } = {}) {
+function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {} } = {}) {
   const out = [];
   const area = mapsOnly ? [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }] : [];
   const sockets = [{ keyword: 'Sockets', op: '<', values: ['6'] }];
   for (const k of RANK_KINDS) {
     const min = kinds?.[k.id];
     if (!min || min === 'off') continue;
-    const conds = [...k.conditions, ...(k.ilvl ? [{ keyword: 'ItemLevel', op: '>=', values: [String(craftIlvl || 82)] }] : [])];
+    // the item level a kind starts at (crafting bases: 82 unless you change it; others: any)
+    const lv = Math.round(Number(ilvls?.[k.id] ?? (k.ilvl ? craftIlvl || 82 : 1)));
+    const conds = [...k.conditions, ...(lv > 1 ? [{ keyword: 'ItemLevel', op: '>=', values: [String(Math.min(100, lv))] }] : [])];
     const keep = min === 'none' ? [] : RANKS.slice(0, RANKS.indexOf(min) + 1);
     for (const r of keep) {
       const list = bases.filter((b) => rankOf(ranks, b) === r).sort();
@@ -589,7 +591,7 @@ class FilterManager {
     const hidden = hiddenBaseRules(baseText, patch, { fractured: !!this.store.get('hideFractured'), synthesised: !!this.store.get('hideSynthesised') });
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
-    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, MATRIX_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82 });
+    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, MATRIX_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {} });
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
     if (Object.keys(clusterState).length) {

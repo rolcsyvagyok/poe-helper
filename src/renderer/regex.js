@@ -24,8 +24,11 @@
     }).catch(() => { artAsked = false; });
   }
 
-  const blank = () => ({ kind: 'regular', nightmare: false, avoid: [], want: [], wantAll: false, numbers: {}, numbersAny: false, quality: {}, qualityAny: false, mapTypes: {}, rarity: {}, corrupted: null, unidentified: null, custom: '' });
-  const choices = () => ({ ...blank(), ...(S.settings?.regexMaps || {}) });
+  // influenced and blighted maps are skipped unless you say otherwise
+  const SKIP_TYPES = { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' };
+  const blank = () => ({ kind: 'regular', nightmare: false, avoid: [], want: [], numbers: {}, mapTypes: { ...SKIP_TYPES }, rarity: {}, corrupted: null, unidentified: null, custom: '' });
+  // the search is always what you set up: every wanted mod and every number must be there
+  const choices = () => ({ ...blank(), ...(S.settings?.regexMaps || {}), wantAll: true, numbersAny: false });
 
   let saveTimer = null;
   async function update(c, { redraw = false } = {}) {
@@ -135,7 +138,18 @@
     const q = R.filter.trim().toLowerCase();
     const shown = v.mods.filter((m) => (!q || m.lines.join(' ').toLowerCase().includes(q) || (m.name || '').toLowerCase().includes(q))
       && (R.show === 'all' || stateOf(m.id) === R.show || (R.show === 'none' && !stateOf(m.id))));
+    // favourites: only a place at the top of the list (they're not skipped or wanted by it)
+    const favs = new Set(S.settings.regexFavMods || []);
+    const toggleFav = async (id) => {
+      if (favs.has(id)) favs.delete(id); else favs.add(id);
+      S.settings.regexFavMods = [...favs];
+      await call('settings:set', { regexFavMods: S.settings.regexFavMods }).catch(() => {});
+      renderRegexPage();
+    };
+    const favShown = shown.filter((m) => favs.has(m.id));
+    const restShown = shown.filter((m) => !favs.has(m.id));
     const modRow = (m) => {
+      const star = h('button', { type: 'button', class: 'rx-star' + (favs.has(m.id) ? ' on' : ''), 'aria-pressed': favs.has(m.id) ? 'true' : 'false', title: favs.has(m.id) ? 'Remove from favourites' : 'Favourite: keep it at the top of the list', 'aria-label': 'Favourite', onclick: () => toggleFav(m.id) }, favs.has(m.id) ? '★' : '☆');
       const el = h('button', {
         type: 'button', class: rowClass(m.id),
         title: `Left click: skip maps with this mod. Right click: want it.${m.piece ? `\nSearch piece: "${m.piece}"` : '\nThis mod\'s text is part of another mod, so the search also matches that one.'}`,
@@ -147,7 +161,7 @@
         m.nightmareOnly ? h('span', { class: 'rx-badge nm', title: 'Originator mod (Originator-influenced maps)' }, 'Orig') : null,
         h('span', { class: 'rx-mod-s' }, stateOf(m.id) === 'avoid' ? 'Skip' : stateOf(m.id) === 'want' ? 'Want' : '')));
       rows.set(m.id, el);
-      return el;
+      return h('div', { class: 'rx-mod-row' }, star, el);
     };
     const counts = h('span', { class: 'small muted' });
     function drawCounts() { mount(counts, `${[...avoid].filter((id) => listed.has(id)).length} skipped · ${[...want].filter((id) => listed.has(id)).length} wanted`); }
@@ -203,25 +217,27 @@
           c.kind === 'regular' ? toggle(!!c.nightmare, (val) => set({ nightmare: val }, true), 'Show Originator mods') : null,
           h('span', { class: 'small faint' }, 'The search only knows the mods of the maps you pick here, so the pieces stay short.')),
         h('div', { class: 'rx-grid' },
-          h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'The map must reach' }, [[false, 'Reach all'], [true, 'Any one']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': !!c.numbersAny === val ? 'true' : 'false', class: !!c.numbersAny === val ? 'on' : '', title: val ? 'Reaching any one of these minimums is enough' : 'The map must reach every minimum you fill in', onclick: () => set({ numbersAny: val }, true) }, l)))),
+          h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), h('span', { class: 'small faint' }, 'at least')),
             h('div', { class: 'rx-nums' }, v.numbers.map((n) => num(n.label, c.numbers?.[n.id], (val) => setIn('numbers', n.id, val))))),
           h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Map')),
             // nightmare maps are always rare and never influenced: only corrupted and identified apply
             c.kind === 't17' ? null : v.mapTypes.map((t) => tri(t.label, c.mapTypes?.[t.id], (val) => setIn('mapTypes', t.id, val, true))),
+            c.kind === 't17' ? null : h('div', { class: 'rx-sep', role: 'separator' }),
             c.kind === 't17' ? null : ['normal', 'magic', 'rare'].map((r) => tri(r[0].toUpperCase() + r.slice(1), c.rarity?.[r], (val) => setIn('rarity', r, val, true))),
             tri('Corrupted', c.corrupted, (val) => set({ corrupted: val }, true)),
             tri('Unidentified', c.unidentified, (val) => set({ unidentified: val }, true))),
         ),
         h('div', { class: 'row small', style: { gap: '10px' } },
-          h('span', { class: 'muted' }, 'Wanted mods:'),
-          h('div', { class: 'rx-seg' }, [[false, 'Any one of them'], [true, 'All of them']].map(([val, l]) => h('button', { type: 'button', class: !!c.wantAll === val ? 'on' : '', onclick: () => set({ wantAll: val }, true) }, l))),
           h('label', { class: 'row', style: { gap: '6px', flex: 1 } }, 'Your own text', (() => { const i = h('input', { value: c.custom || '', placeholder: 'added as it is, e.g. "!delirium"', style: { flex: 1 } }); i.addEventListener('input', () => set({ custom: i.value })); return i; })()))),
 
       h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } },
         h('h2', { style: { margin: 0 } }, 'Map mods'), counts,
         h('span', { class: 'small faint' }, 'Left click: skip maps with it. Right click: want it. Click again to undo.'),
         h('span', { class: 'spacer' }), search, showSel),
-      shown.length ? h('div', { class: 'rx-list' }, shown.map(modRow)) : h('div', { class: 'panel small muted' }, 'No mod matches that.'));
+      favShown.length ? h('div', { class: 'rx-list-h' }, `Favourites (${favShown.length})`) : null,
+      favShown.length ? h('div', { class: 'rx-list' }, favShown.map(modRow)) : null,
+      favShown.length && restShown.length ? h('div', { class: 'rx-list-h' }, 'All the others') : null,
+      restShown.length ? h('div', { class: 'rx-list' }, restShown.map(modRow)) : (favShown.length ? null : h('div', { class: 'panel small muted' }, 'No mod matches that.')));
 
     drawOutput(await call('regex:mapBuild', c));
   }

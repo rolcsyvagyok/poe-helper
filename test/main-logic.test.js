@@ -571,6 +571,24 @@ test('base ranks: a B rank base hides as a plain rare (rares S only) but shows f
   assert.match(text, /Base ranks: fractured, rank B/);
 });
 
+test('base ranks: a lowest item level per kind of drop', () => {
+  const { svc } = setup();
+  svc.setRankKind({ kind: 'fractured', min: 'S' });
+  svc.setRankKind({ kind: 'fractured', ilvl: 68 });
+  svc.setRankKind({ kind: 'crafting', min: 'A' });
+  svc.setRankKind({ kind: 'crafting', ilvl: 84 });
+  assert.equal(svc.settings.get('rankKinds').fractured, 'S', 'setting the item level keeps the rank');
+  const { rankRules } = require('../src/core/filter/manager');
+  const rules = rankRules(svc.settings.get('baseRanks'), svc.settings.get('rankKinds'), ['Royal Plate', 'Simple Robe'], { craftIlvl: svc.settings.get('rankCraftIlvl'), ilvls: svc.settings.get('rankIlvl') });
+  const il = (id) => rules.find((r) => r.id === id).conditions.find((c) => c.keyword === 'ItemLevel')?.values[0];
+  assert.equal(il('rank-fractured-S'), '68');
+  assert.equal(il('rank-fractured-hide'), '68');
+  assert.equal(il('rank-crafting-hide'), '84');
+  svc.setRankKind({ kind: 'fractured', ilvl: 1 });
+  const any = rankRules(svc.settings.get('baseRanks'), svc.settings.get('rankKinds'), ['Royal Plate'], { ilvls: svc.settings.get('rankIlvl') });
+  assert.ok(!any.find((r) => r.id === 'rank-fractured-S').conditions.some((c) => c.keyword === 'ItemLevel'), '1 = any item level');
+});
+
 test('base ranks: the usual ranking to start from, the old fractured choices move over, and ranks by base order', () => {
   const { svc } = setup();
   let v = svc.baseMatrixView();

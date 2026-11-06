@@ -86,6 +86,7 @@ function splitTiers(view) {
 }
 
 async function renderFiltersNow() {
+  if (FB.tab === 'rules' || FB.tab === 'price' || FB.tab === 'file') FB.tab = 'tiers'; // tabs that moved or went away
   await refreshState();
   const el = $('page-filters');
   const info = await call('filter:list');
@@ -105,7 +106,7 @@ async function renderFiltersNow() {
       info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.display || f.name.replace(/\.filter$/i, '')))),
     info.missing ? h('span', { class: 'pill bad', title: info.missing.file }, `${info.missing.name ? `"${info.missing.name}"` : 'Your filter'} is no longer in the folder. Pick it again here.`) : null,
     h('span', { class: 'small muted' },
-      info.missing ? '' : !info.files.length ? 'No filters found. Download your filter from FilterBlade into the folder in File options.'
+      info.missing ? '' : !info.files.length ? 'No filters found. Download your filter from FilterBlade into the folder set in Settings, Loot filter file.'
         : !info.base ? 'Pick the filter you downloaded from FilterBlade.'
           : info.lastWrite ? `Your version is "${helperName}", saved ${ago(Date.now() - info.lastWrite.at)}. Select it in game once.` : `Changes are saved to "${helperName}". Select it in game once.`),
     h('span', { class: 'spacer' }),
@@ -113,7 +114,7 @@ async function renderFiltersNow() {
     edits ? h('span', { class: 'pill' }, `${edits} ${edits === 1 ? 'change' : 'changes'}`) : null,
     edits ? h('button', { class: 'quiet sm', onclick: async () => { if (confirm('Undo all tier moves and look changes?')) { await call('tiers:reset', { all: true }); toast('All changes undone'); renderFilters(); } } }, 'Undo all') : null);
 
-  const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['check', 'Check an item'], ['file', 'File options']].map(([id, label]) =>
+  const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['check', 'Check an item']].map(([id, label]) =>
     h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)));
 
   const body = h('div', { class: 'fb-body' });
@@ -126,7 +127,6 @@ async function renderFiltersNow() {
   }
   show();
 
-  if (FB.tab === 'rules' || FB.tab === 'price') FB.tab = 'tiers';
   if (FB.tab === 'review') {
     if (!info.base) return mount(body, h('div', { class: 'panel empty' }, 'Choose your FilterBlade filter above first.'));
     if (!view?.types?.length) return mount(body, h('div', { class: 'panel empty' }, 'Price review needs a FilterBlade (NeverSink-based) filter with tiers.'));
@@ -806,24 +806,38 @@ async function renderBaseMatrix(body, view) {
   const LOW = RANKS[RANKS.length - 1]; // D: untiered, the default
   const rankOf = (n) => (RANKS.includes(ranks[n]) ? ranks[n] : LOW);
   const col = (a) => (a ? `rgba(${+a[0] || 0},${+a[1] || 0},${+a[2] || 0},${((a[3] == null ? 255 : +a[3]) / 255).toFixed(3)})` : '');
-  const [mode, key] = FB.matrixView.split(':');
-  const byRank = FB.matrixByRank || mode === 'a';
+  // three parts: armours and weapons, jewellery, and the minion bases (a view: they keep their one rank)
+  const SECTIONS = [['gear', 'Armours and Weapons'], ['jewellery', 'Jewellery'], ['minion', 'Minion']];
+  FB.rankSection = SECTIONS.some(([id]) => id === FB.rankSection) ? FB.rankSection : 'gear';
+  const part = FB.rankSection;
+  const gearGroups = (data.groups || []).filter((g) => g.id !== 'jewellery');
+  const jewelGroup = (data.groups || []).find((g) => g.id === 'jewellery');
+  if (part === 'gear' && FB.matrixView === 'g:jewellery') FB.matrixView = 'd:es';
+  const [mode, key] = part === 'gear' ? FB.matrixView.split(':') : [part, ''];
+  const byRank = FB.matrixByRank || mode === 'a' || mode === 'minion';
 
   // every base once, in class / defence order (for "All bases")
   const everything = () => {
     const seen = new Set(); const out = [];
     const add = (b) => { if (!seen.has(b.name)) { seen.add(b.name); out.push(b); } };
     for (const c of data.classes) for (const d of data.defences) (data.bases[c][d.id] || []).forEach(add);
-    for (const g of data.groups || []) for (const c of g.columns) c.list.forEach(add);
+    for (const g of gearGroups) for (const c of g.columns) c.list.forEach(add);
     return out;
   };
+  const findBase = (n) => {
+    for (const c of data.classes) for (const d of data.defences) { const b = (data.bases[c][d.id] || []).find((x) => x.name === n); if (b) return b; }
+    for (const g of data.groups || []) for (const c of g.columns) { const b = c.list.find((x) => x.name === n); if (b) return b; }
+    return { name: n };
+  };
   // a defence type shows every class side by side; a class shows every defence type side by side
-  let columns = mode === 'd'
-    ? data.classes.map((c) => ({ title: c, list: data.bases[c][key] || [] }))
-    : mode === 'g'
-      ? (data.groups.find((g) => g.id === key) || data.groups[0]).columns
-      : mode === 'a' ? [{ title: 'All', list: everything() }]
-        : data.defences.map((d) => ({ title: d.name, list: data.bases[key]?.[d.id] || [] }));
+  let columns = mode === 'jewellery' ? (jewelGroup?.columns || [])
+    : mode === 'minion' ? [{ title: 'Minion bases', list: (data.minionBases || []).map(findBase) }]
+      : mode === 'd'
+        ? data.classes.map((c) => ({ title: c, list: data.bases[c][key] || [] }))
+        : mode === 'g'
+          ? (gearGroups.find((g) => g.id === key) || gearGroups[0]).columns
+          : mode === 'a' ? [{ title: 'All', list: everything() }]
+            : data.defences.map((d) => ({ title: d.name, list: data.bases[key]?.[d.id] || [] }));
   const scope = (() => { const seen = new Set(); return columns.flatMap((c) => c.list).filter((b) => !seen.has(b.name) && seen.add(b.name)); })();
   // "Show by rank": the same bases, one column per rank, so you can see what's in and what's out
   const rankColumns = () => RANKS.map((r) => ({ title: r === LOW ? `${r} · untiered` : `Rank ${r}`, rank: r, list: scope.filter((b) => rankOf(b.name) === r) }));
@@ -833,9 +847,11 @@ async function renderBaseMatrix(body, view) {
     h('option', { value: 'a:all', selected: mode === 'a' }, 'All bases'),
     h('optgroup', { label: 'Armour types' }, data.defences.map((d) => h('option', { value: `d:${d.id}`, selected: FB.matrixView === `d:${d.id}` }, d.name))),
     h('optgroup', { label: 'Armour classes' }, data.classes.map((c) => h('option', { value: `c:${c}`, selected: FB.matrixView === `c:${c}` }, c))),
-    h('optgroup', { label: 'Other items' }, (data.groups || []).map((g) => h('option', { value: `g:${g.id}`, selected: FB.matrixView === `g:${g.id}` }, g.name))));
-  const rankToggle = h('label', { class: 'check small', title: mode === 'a' ? 'All bases are always shown by rank' : 'One column per rank instead of per item type' },
-    h('input', { type: 'checkbox', checked: byRank, disabled: mode === 'a', onchange: (e) => { FB.matrixByRank = e.target.checked; renderFilters(); } }), 'Show by rank');
+    h('optgroup', { label: 'Weapons' }, gearGroups.map((g) => h('option', { value: `g:${g.id}`, selected: FB.matrixView === `g:${g.id}` }, g.name))));
+  const sectionTabs = h('div', { class: 'fb-tabs bm-sections', role: 'tablist', 'aria-label': 'Which bases' }, SECTIONS.map(([id, label]) =>
+    h('button', { role: 'tab', 'aria-selected': part === id ? 'true' : 'false', class: part === id ? 'active' : '', onclick: () => { FB.rankSection = id; renderFilters(); } }, label)));
+  const rankToggle = h('label', { class: 'check small', title: mode === 'a' || mode === 'minion' ? 'These are always shown by rank' : 'One column per rank instead of per item type' },
+    h('input', { type: 'checkbox', checked: byRank, disabled: mode === 'a' || mode === 'minion', onchange: (e) => { FB.matrixByRank = e.target.checked; renderFilters(); } }), 'Show by rank');
 
   const lookOf = (r) => window.UI.normalizeStyle(data.rankLooks?.[r] || {}, 'Rare');
   const dressRank = (el, r) => { const lk = lookOf(r); el.style.color = col(lk.text); el.style.background = col(lk.background) || 'rgba(0,0,0,0.72)'; el.style.borderColor = col(lk.border) || 'transparent'; return el; };
@@ -909,6 +925,33 @@ async function renderBaseMatrix(body, view) {
         : h('button', { class: 'bm-head', title: `Left click: every base in ${c.title} a rank up. Right click: a rank down.`, onclick: () => step(c.list.map((b) => b.name), +1), oncontextmenu: (e) => { e.preventDefault(); step(c.list.map((b) => b.name), -1); } }, c.title),
       c.list.length ? c.list.map(cellOf) : h('div', { class: 'small faint', style: { padding: '6px' } }, 'None'))));
 
+  // item level: "at least" with a slider and a box, like FilterBlade (1 = any)
+  function ilvlSlider(value, label, onSet) {
+    const MAXL = 86;
+    const box = h('input', { type: 'number', min: 1, max: 100, value, 'aria-label': label, class: 'il-box' });
+    const range = h('input', { type: 'range', min: 1, max: MAXL, value: Math.min(MAXL, value), 'aria-label': label, class: 'il-range' });
+    const tag = h('span', { class: 'il-tag' });
+    const paint = (v) => {
+      const pct = ((Math.min(MAXL, v) - 1) / (MAXL - 1)) * 100;
+      range.style.setProperty('--il', `${pct}%`);
+      tag.textContent = v > 1 ? `${v}+` : 'any';
+      tag.classList.toggle('any', v <= 1);
+    };
+    let t = null;
+    const set = (v, fromBox) => {
+      v = Math.max(1, Math.min(100, Math.round(Number(v) || 1)));
+      if (!fromBox) box.value = v;
+      range.value = Math.min(MAXL, v);
+      paint(v);
+      clearTimeout(t);
+      t = setTimeout(() => onSet(v), 350); // write the filter once you stop dragging
+    };
+    range.addEventListener('input', () => set(range.value));
+    box.addEventListener('change', () => set(box.value, true));
+    paint(value);
+    return h('div', { class: 'il', title: 'Only items of at least this item level count (1 = any)' }, h('span', { class: 'il-l small muted' }, 'Item level ≥'), box, range, tag);
+  }
+
   // per kind of drop: the lowest rank you still want to see
   const MIN_OPTS = [['off', 'Filter decides'], ['S', 'S only'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'C and up'], ['D', 'All ranks'], ['none', 'Hide all']];
   const kindCount = (k) => { const m = kinds[k.id]; if (!m || m === 'off') return ''; if (m === 'none') return 'all hidden'; const n = scope.filter((b) => RANKS.indexOf(rankOf(b.name)) <= RANKS.indexOf(m)).length; return `${n} of ${scope.length} here shown`; };
@@ -919,8 +962,10 @@ async function renderBaseMatrix(body, view) {
       kinds = r.kinds; S.settings.rankKinds = kinds; mount(note, kindCount(k)); drawSummary();
       grid.querySelectorAll('.bm-cell').forEach((el) => { const n = el.querySelector('.bm-n')?.textContent; if (n) el.title = cellTitle({ name: n }); });
     } }, MIN_OPTS.map(([v, l]) => h('option', { value: v, selected: (kinds[k.id] || 'off') === v }, l)));
-    const ilvl = k.ilvl ? h('label', { class: 'row small', style: { gap: '6px' } }, 'item level',
-      (() => { const i = h('input', { type: 'number', min: 1, max: 100, value: data.craftIlvl || 82, style: { width: '58px' }, 'aria-label': 'Crafting bases: lowest item level' }); i.addEventListener('change', async () => { const r = await call('ranks:kind', { craftIlvl: i.value }); i.value = r.craftIlvl; toast(`Crafting bases: item level ${r.craftIlvl}+`); }); return i; })(), '+') : h('span');
+    const ilvl = ilvlSlider(k.id === 'crafting' ? (data.craftIlvl || 82) : (data.ilvls?.[k.id] || 1), `${k.name}: lowest item level`, async (v) => {
+      await call('ranks:kind', { kind: k.id, ilvl: v });
+      toast(v > 1 ? `${k.name}: item level ${v} and up` : `${k.name}: any item level`);
+    });
     return h('div', { class: 'bm-kind' }, h('b', {}, k.name), h('span', { class: 'small muted' }, k.about), sel, ilvl, note);
   });
 
@@ -928,11 +973,16 @@ async function renderBaseMatrix(body, view) {
   const namesOf = (list) => [...new Set(list.map((b) => b.name))];
   // shields and weapon types, then the armour defences; body armours, boots, gloves, helmets and
   // jewellery are never hidden as a whole
+  const colOf = (gid, title) => (data.groups || []).find((g) => g.id === gid)?.columns.find((c) => c.title === title);
   const GROUP_SETS = [
-    { title: 'Shields', items: ['Shields'].filter((c) => data.classes.includes(c)).map((c) => ({ label: 'All shields', names: () => namesOf(data.defences.flatMap((d) => data.bases[c][d.id] || [])) })) },
-    ...(data.groups || []).filter((g) => ['weapons1', 'weapons2'].includes(g.id)).map((g) => ({ title: g.name, items: g.columns.map((col) => ({ label: col.title, names: () => namesOf(col.list) })) })),
-    { title: 'Armour bases by defence', items: data.defences.map((d) => ({ label: d.name, names: () => namesOf(data.classes.flatMap((c) => data.bases[c][d.id] || [])) })) },
-  ];
+    { title: 'Off-hand', items: [
+      ...(data.classes.includes('Shields') ? [{ label: 'Shields', names: () => namesOf(data.defences.flatMap((d) => data.bases.Shields[d.id] || [])) }] : []),
+      ...(colOf('weapons2', 'Quivers') ? [{ label: 'Quivers', names: () => namesOf(colOf('weapons2', 'Quivers').list) }] : []),
+    ] },
+    ...(data.groups || []).filter((g) => ['weapons1', 'weapons2'].includes(g.id)).map((g) => ({ title: g.name, items: g.columns.filter((col) => col.title !== 'Quivers').map((col) => ({ label: col.title, names: () => namesOf(col.list) })) })),
+    { title: 'Minion', items: [{ label: 'All minion bases', names: () => [...(data.minionBases || [])] }] },
+    { title: 'Armour bases', items: data.defences.map((d) => ({ label: d.name, names: () => namesOf(data.classes.flatMap((c) => data.bases[c][d.id] || [])) })) },
+  ].filter((set) => set.items.length);
   // only ever down to D (untiered): a whole group is pushed out of the ranks, never all made S
   const setWholeGroup = async (label, names) => {
     const r = LOW;
@@ -986,8 +1036,9 @@ async function renderBaseMatrix(body, view) {
         kindRows,
         h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Looks:'), RANKS.map((r) => dressRank(h('span', { class: 'bm-cell sample' }, `Rank ${r}`), r)))),
       groupPanel,
+      sectionTabs,
       h('div', { class: 'panel bm-tools' },
-        h('div', { class: 'row', style: { gap: '10px' } }, pick, rankToggle, h('span', { class: 'small muted' }, 'Brush:'), brushBar),
+        h('div', { class: 'row', style: { gap: '10px' } }, part === 'gear' ? pick : null, rankToggle, h('span', { class: 'small muted' }, 'Brush:'), brushBar),
         h('div', { class: 'row small', style: { gap: '14px' } },
           h('label', { class: 'check' }, mapsOnly, 'Hide only in maps (area level 68+)'),
           h('label', { class: 'row', style: { gap: '6px' } }, 'Keep item level', keep, 'and above'),
@@ -1202,7 +1253,7 @@ function catIconId(cat) {
   const art = [].concat(cat.art || []).find((n) => window.UI.hasArt(n));
   return art ? `art:${art}` : cat.icon;
 }
-const DEFAULT_PINS = ['currency', 'divination', 'fragments->scarabs', 'uniques'];
+const DEFAULT_PINS = []; // nothing pinned until you pin it
 // Line icon per filter subcategory, used where no picture is set; the most specific part of the type wins.
 const ICON_FOR = {
   currency: 'coin', gold: 'coins', divination: 'card', uniques: 'crown', fragments: 'shard', scarabs: 'scarab', scarab: 'scarab',

@@ -57,12 +57,14 @@ const DEFAULT_SETTINGS = {
   clusterGrid: {}, // cluster jewels: { "Large|Fire Damage|12|84": 'top' | 'good' | 'hide' }
   baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
   baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
-  regexMaps: { kind: 'regular', avoid: [], want: [] }, // the Regex page's map choices
+  regexMaps: { kind: 'regular', avoid: [], want: [], mapTypes: { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' } }, // the Regex page's map choices
+  regexFavMods: [], // map mods kept at the top of the list
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
   regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]
   baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
   rankKinds: {}, // lowest rank shown per kind of drop: { rares: 'S', fractured: 'B' }
   rankCraftIlvl: 82,
+  rankIlvl: {}, // lowest item level per kind of drop: { fractured: 68 } (crafting bases: rankCraftIlvl)
   hideFractured: false, // also hide fractured copies of bases you hid
   hideSynthesised: false, // and synthesised ones
   bigBeltsDone: false,
@@ -99,7 +101,7 @@ const DEFAULT_SETTINGS = {
   autoWatchFilter: true,
   tierPatch: { moves: {}, styles: {}, actions: {} },
   labelFontPath: '',
-  filterPins: ['currency', 'divination', 'fragments->scarabs', 'uniques'],
+  filterPins: [], // categories pinned to the top of the Loot filter list: none until you pin one
   // Price review / auto-tiering. categories[type] = { enabled, thresholds: { tier: chaos } }
   priceReview: { minListings: 5, margin: 1.5, auto: false, includeNew: false, categories: {} },
   priceReviewLog: [],
@@ -426,7 +428,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -938,9 +940,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       ranks: settings.get('baseRanks') || {},
       kinds: settings.get('rankKinds') || {},
       craftIlvl: settings.get('rankCraftIlvl') || 82,
+      ilvls: settings.get('rankIlvl') || {},
       rankList: RANKS,
       rankLooks: RANK_LOOKS,
       rankKinds: RANK_KINDS.map((k) => ({ id: k.id, name: k.name, about: k.about, ilvl: !!k.ilvl })),
+      minionBases: require('../core/base-ranks').MINION_BASES,
     };
   }
   /** The usual ranking back (Reset all on the Base ranks page). */
@@ -960,6 +964,15 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       const kinds = { ...(settings.get('rankKinds') || {}) };
       for (const k of Object.keys(kinds)) if (kinds[k] === 'C') kinds[k] = 'D';
       settings.set('rankKinds', kinds);
+      settings.set('ranksV3', true);
+      return true;
+    }
+    // 1.0.18: jewellery gets its usual ranking (only rings, amulets and belts you haven't ranked yourself)
+    if (!settings.get('ranksV3')) {
+      settings.set('ranksV3', true);
+      const ranks = { ...(settings.get('baseRanks') || {}) };
+      for (const [b, r] of Object.entries(require('../core/base-ranks').JEWELLERY_RANKS)) if (!ranks[b]) ranks[b] = r;
+      settings.set('baseRanks', ranks);
       return true;
     }
     return false;
@@ -1040,19 +1053,31 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { ranks, target, leftOut: filters.lastDropped };
   }
   /** The lowest rank shown for one kind of drop: 'S' | 'A' | 'B' | 'C' (all) | 'none' | 'off' (filter decides). */
-  function setRankKind({ kind, min, craftIlvl } = {}) {
+  function setRankKind({ kind, min, craftIlvl, ilvl } = {}) {
     const { RANK_KINDS } = require('../core/filter/manager');
     const kinds = { ...(settings.get('rankKinds') || {}) };
-    if (kind && RANK_KINDS.some((k) => k.id === kind)) {
+    const known = kind && RANK_KINDS.some((k) => k.id === kind);
+    if (known && min !== undefined) {
       if ([...RANK_ORDER, 'none'].includes(min)) kinds[kind] = min; else delete kinds[kind];
     }
     settings.set('rankKinds', kinds);
+    // the lowest item level for one kind (1 = any)
+    if (known && ilvl !== undefined) {
+      const n = Math.round(Number(ilvl));
+      const lv = Number.isFinite(n) ? Math.max(1, Math.min(100, n)) : 1;
+      if (kind === 'crafting') settings.set('rankCraftIlvl', lv);
+      else {
+        const all = { ...(settings.get('rankIlvl') || {}) };
+        if (lv > 1) all[kind] = lv; else delete all[kind];
+        settings.set('rankIlvl', all);
+      }
+    }
     if (craftIlvl !== undefined) {
       const n = Math.round(Number(craftIlvl));
       settings.set('rankCraftIlvl', n >= 1 && n <= 100 ? n : 82);
     }
     const target = filters.basePath() ? filters.write() : null;
-    return { kinds, craftIlvl: settings.get('rankCraftIlvl') || 82, target };
+    return { kinds, craftIlvl: settings.get('rankCraftIlvl') || 82, ilvls: settings.get('rankIlvl') || {}, target };
   }
   /**
    * Ranks in one go from the base order: in every column (item class and defence, or weapon type) the
@@ -1503,6 +1528,18 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
+  // 1.0.18: influenced and blighted maps are skipped by default on the Regex page
+  if (!settings.get('regexTypesV1')) {
+    const rm = settings.get('regexMaps') || {};
+    if (!rm.mapTypes || !Object.keys(rm.mapTypes).length) settings.set('regexMaps', { ...rm, mapTypes: { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' } });
+    settings.set('regexTypesV1', true);
+  }
+  // 1.0.18: nothing is pinned by default any more; drop the old default pins (your own pins stay)
+  if (!settings.get('pinsDefaultV2')) {
+    const was = settings.get('filterPins');
+    if (Array.isArray(was) && JSON.stringify(was) === JSON.stringify(['currency', 'divination', 'fragments->scarabs', 'uniques'])) settings.set('filterPins', []);
+    settings.set('pinsDefaultV2', true);
+  }
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if (migrateRanks() && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
