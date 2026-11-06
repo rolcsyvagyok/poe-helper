@@ -39,6 +39,10 @@ const TIER_SPLITS = [
   { type: 'exoticbases', tier: 'exoticheistbases', key: 'exoticbases#heist', label: 'Heist bases' },
   { type: 'exoticbases', tier: 'exoticritualbases', key: 'exoticbases#ritual', label: 'Ritual bases' },
   // cards that only matter in stacks get their own page, below the card tiers
+  // abyss jewels in the same parts as normal jewels: normal, special (corrupted), levelling
+  { type: 'jewels->abyss', tier: 'corruptedabyssjewel', key: 'jewels->abyss#special', label: 'Special (corrupted)' },
+  { type: 'jewels->abyss', tier: 'extramodcorruptedabyssjewel', key: 'jewels->abyss#special', label: 'Special (corrupted)' },
+  { type: 'jewels->leveling', tier: 'abyss', key: 'jewels->abyss#leveling', label: 'Levelling' },
   { type: 'divination', tier: 'excustomstack', key: 'divination#stacks', label: 'Stacked cards' },
   { type: 'divination', tier: 'exstack', key: 'divination#stacks', label: 'Stacked cards' },
 ];
@@ -82,7 +86,9 @@ function splitTiers(view) {
   for (const t of view.types) {
     const splits = TIER_SPLITS.filter((x) => x.type === t.type && t.tiers.some((y) => y.tier === x.tier));
     const rest = t.tiers.filter((y) => !splits.some((x) => x.tier === y.tier));
-    if (rest.length || !splits.length) out.push({ ...t, key: t.type, tiers: rest });
+    // what's left of a split category keeps its page, under a plain name ("Normal" for abyss jewels)
+    const restLabel = { 'jewels->abyss': 'Normal' }[t.type];
+    if (rest.length || !splits.length) out.push({ ...t, key: t.type, tiers: rest, ...(restLabel && splits.length ? { subLabel: restLabel } : {}) });
     // several tiers can share one page (both stack tiers of divination cards)
     for (const key of [...new Set(splits.map((x) => x.key))]) {
       const x = splits.find((y) => y.key === key);
@@ -249,8 +255,11 @@ function renderTiers(body, view) {
 
   // ---- a tier's own conditions, FilterBlade style: item level / area level / quality sliders,
   // rarity, and the bases as boxes you can untick ----
-  const COND_LABEL = { ItemLevel: 'Item level', AreaLevel: 'Area level', Quality: 'Quality' };
-  const COND_MAX = { ItemLevel: 86, AreaLevel: 86, Quality: 30 };
+  const COND_LABEL = { GemLevel: 'Gem level', ItemLevel: 'Item level', AreaLevel: 'Area level', Quality: 'Quality' };
+  const COND_MAX = { GemLevel: 21, ItemLevel: 86, AreaLevel: 86, Quality: 30 };
+  // the bases as tick boxes: for class-wide tiers and short lists; long lists (economy-built gem
+  // lists) stay chips
+  const checkBases = (t) => !!(t.implied || (t.special && t.bases.length + ((S.settings.tierPatch?.conditions || {})[t.key]?.exclude || []).length <= 40));
   function hasCondEditor(t) {
     if (t.generated || t.stackSize) return false;
     return !!(t.implied || (t.numbers && Object.values(t.numbers).some(Boolean)));
@@ -269,7 +278,7 @@ function renderTiers(body, view) {
       const sel = h('select', { 'aria-label': `${COND_LABEL[k]}: how`, onchange: (e) => {
         const o = e.target.value;
         if (o === 'any') return setCond(k, 'any');
-        setCond(k, { op: o, value: Number(box.value) || (k === 'Quality' ? 20 : 68) });
+        setCond(k, { op: o, value: Number(box.value) || (k === 'Quality' ? 20 : k === 'GemLevel' ? 20 : 68) });
       } }, [['any', 'any'], ['>=', '≥ at least'], ['<=', '≤ at most'], ['=', '= exactly']].map(([v, l]) => h('option', { value: v, selected: op === v }, l)));
       let timer = null;
       const send = (v) => { clearTimeout(timer); timer = setTimeout(() => setCond(k, { op: op === 'any' ? '>=' : op, value: v }), 400); };
@@ -292,7 +301,7 @@ function renderTiers(body, view) {
     // the bases: every one the tier has (or stands for), unticked = switched off for this tier
     const excluded = new Set(mine.exclude || []);
     const all = t.implied ? t.implied : [...t.bases, ...[...excluded].filter((b) => !t.bases.includes(b))];
-    const baseBox = (t.implied || t.special) && all.length ? h('div', { class: 'fb-checks' }, all.map((b) => {
+    const baseBox = checkBases(t) && all.length ? h('div', { class: 'fb-checks' }, all.map((b) => {
       const on = !excluded.has(b);
       return h('button', { type: 'button', class: 'fb-check' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', title: on ? `Switch ${b} off for this tier` : `Switch ${b} back on`, onclick: () => {
         const next = new Set(excluded);
@@ -301,7 +310,14 @@ function renderTiers(body, view) {
         setCond('exclude', next.size ? [...next] : null);
       } }, (on ? '☑ ' : '☐ ') + b);
     })) : null;
-    return h('div', { class: 'fb-conds' }, baseBox, ['ItemLevel', 'AreaLevel', 'Quality'].map(numberRow), rarRow);
+    // gem level only where the tier uses it; the others always (any = not used)
+    // what matters for this kind of item: gems by gem level, everything else by item level; area level
+    // and quality only where the tier uses them (quality also for flasks, tinctures and gems)
+    const qualityKind = /flask|tincture|^gems/.test(t.type);
+    // jewels: item level only; area level only on campaign tiers (endgame ones are all 68+)
+    const jewel = /^jewels/.test(t.type);
+    const rows = [...(t.numbers?.GemLevel ? ['GemLevel'] : []), ...(/^gems/.test(t.type) ? [] : ['ItemLevel']), ...(t.numbers?.AreaLevel && t.campaign && !jewel ? ['AreaLevel'] : []), ...((t.numbers?.Quality || qualityKind) && !jewel ? ['Quality'] : [])];
+    return h('div', { class: 'fb-conds' }, baseBox, rows.map(numberRow), rarRow);
   }
 
   function tierCard(t) {
@@ -311,7 +327,8 @@ function renderTiers(body, view) {
     if (q && !bases.length) return null;
     // the label shows the tier's most valuable item (by today's poe.ninja price), else its first one
     const priced = (list) => list.filter((b) => Number.isFinite(pricing?.prices?.[b]?.chaos)).sort((a, b) => (pricing.prices[b].max ?? pricing.prices[b].chaos) - (pricing.prices[a].max ?? pricing.prices[a].chaos));
-    const sample = priced(bases)[0] || bases[0] || priced(t.bases)[0] || t.bases[0] || t.implied?.[0] || type.label;
+    // a gem tier without a list shows a gem, like FilterBlade (Blight)
+    const sample = priced(bases)[0] || bases[0] || priced(t.bases)[0] || t.bases[0] || t.implied?.[0] || (/^gems/.test(type.type) ? 'Blight' : type.label);
     const preview = h('div', { class: 'fb-preview' });
     const drawPreview = () => {
       const st = isEditing ? FB.draft : t.style;
@@ -352,7 +369,7 @@ function renderTiers(body, view) {
             if (set != null && set !== '') return `, ${typeof set === 'number' ? `${set}c` : String(set).replace(/\s*div$/i, 'd').replace(/\s*c$/i, 'c')}+`;
             return pricing?.tiers?.[t.key]?.median != null ? `, typically ${fmtC(pricing.tiers[t.key].median)}` : '';
           })()),
-        t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity|ItemLevel|AreaLevel|Quality)\b/.test(c)).join(', ') || 'the conditions below'}`) : null),
+        t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity|ItemLevel|AreaLevel|Quality|GemLevel)\b/.test(c)).join(', ') || 'the conditions below'}`) : null),
       h('span', { class: 'spacer' }),
       visSwitch,
       t.generated ? null : h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) { FB.editing = null; } else { FB.editing = t.key; FB.draft = structuredClone(t.style || {}); } drawList(); } }, isEditing ? 'Close' : 'Edit look'));
@@ -360,7 +377,7 @@ function renderTiers(body, view) {
     const conds = !folded && hasCondEditor(t);
     const card = h('div', { class: 'fb-tier' + (t.generated ? ' generated' : '') + (hidden ? ' is-hidden' : '') + (state === 'Off' ? ' is-off' : ''), 'data-key': t.key }, head,
       conds ? condEditor(t) : null,
-      folded || (conds && (t.implied || t.special)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, t.stackSize ? 'Empty: your filter has no cards here right now. (Items can\'t be moved in: they would leave their own tier.)' : canAdd ? 'Empty. Drag bases here or add one below.' : 'Empty.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
+      folded || (conds && checkBases(t)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, t.stackSize ? 'Empty: your filter has no cards here right now. (Items can\'t be moved in: they would leave their own tier.)' : canAdd ? 'Empty. Drag bases here or add one below.' : 'Empty.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
       folded || !canAdd ? null : addBox(t),
       isEditing && !folded ? lookEditor(t, () => drawList(), drawPreview) : null);
     // drop a sound file anywhere on the tier: it becomes this tier's drop sound
@@ -567,7 +584,26 @@ function renderTiers(body, view) {
   }
 
   /** Uniques: tier cards grouped by letter; a group with several tiers can be combined into one. */
+  // FilterBlade's sections for gems (shown grouped; the filter still checks them in its own order)
+  const GEM_SECTIONS = {
+    'gems->generic': [['Gems with gem levels', /^lt\d/], ['Gems with quality', /^qt/], ['+1 gems', /^plusonegem/], ['Gems during the campaign', /^(firstzone|leveling|levelingvaal)$/], ['Other gems', /./]],
+    'gems->special': [['Top gems, high level and quality', /^(2023|2120|2123any|21xx|xx23|2020z|xx20z|vaal20)$/], ['Transfigured and special cases', /./]],
+    'gems->exceptional': [['Exceptional gems tier list', /^t[1-4]$/], ['Transfigured and special cases', /./]],
+  };
+  function sectionGroups(cards) {
+    const secs = GEM_SECTIONS[type.type];
+    if (!secs) return null;
+    const groups = secs.map(([title]) => ({ title, list: [] }));
+    type.tiers.forEach((t, i) => {
+      if (!cards[i]) return;
+      const at = secs.findIndex(([, re]) => re.test(t.tier));
+      groups[at < 0 ? groups.length - 1 : at].list.push(cards[i]);
+    });
+    return groups.filter((g) => g.list.length).map((g) => h('div', { class: 'fb-lettergroup' }, h('div', { class: 'fb-letter' }, h('b', {}, g.title)), g.list));
+  }
   function letterGroups(cards) {
+    const secs = sectionGroups(cards);
+    if (secs) return secs;
     if (!/^uniques/.test(type.type)) return cards;
     const ORDER = ['Yours', 'S', 'A', 'B+C', 'D', 'High variety'];
     const groups = new Map(ORDER.map((l) => [l, []]));
@@ -1223,6 +1259,10 @@ const CATEGORIES = [
     { id: 'scarab', name: 'Scarab', match: ['fragments->scarabs', 'scarabs'], art: ['Delirium Scarab of Paranoia', '*Scarab'], icon: 'scarab' },
     { id: 'fragments', name: 'Other fragments', match: ['fragments', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
   ]],
+  ['Cards & gems', [
+    { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['Stacked Deck', 'The Doctor'], icon: 'card' },
+    { id: 'gems', name: 'Gems', match: ['gems'], order: ['gems->generic', 'gems->special', 'gems->exceptional'], art: "Gemcutter's Prism", icon: 'gem' },
+  ]],
   ['League mechanics', [
     { id: 'league', name: 'Current league', match: ['event', 'currency->ducats', 'currency->deadmansulphur', 'currency->leagueexclusive'], art: null, icon: 'star' },
     { id: 'delirium', name: 'Delirium', match: ['currency->deliriumorbs', 'delirium'], art: ['Fine Delirium Orb', '*DeliriumOrb'], icon: 'orb' },
@@ -1243,16 +1283,9 @@ const CATEGORIES = [
     { id: 'specialmaps', name: 'Special maps', match: ['maps->enchanted', 'maps->corruptedspecial', 'maps->corruptedimplicit', 'maps->implicitmod', 'maps->vaaltemple'], art: ['*Map16'], icon: 'map' },
     { id: 'mapitems', name: 'Other map items', match: ['exoticmap', 'charts', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'book' },
   ]],
-  ['Cards & gems', [
-    { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['Stacked Deck', 'The Doctor'], icon: 'card' },
-    { id: 'gems', name: 'Gems', match: ['gems'], art: "Gemcutter's Prism", icon: 'gem' },
-  ]],
   ['Rare items', [
     { id: 'mybases', name: 'My bases', match: [], special: 'mybases', art: null, icon: 'hammer' },
     { id: 'basevis', name: 'Base ranks', match: [], special: 'matrix', art: 'Fracturing Orb', icon: 'eye' },
-    { id: 'rares', name: 'Rares', match: ['rare', 'rareid', 'rareblendid', 'rareoptional', 'corruptedid', 'influenced', 'animatedweapons'], art: 'Orb of Alchemy', icon: 'sword' },
-    { id: 'crafting', name: 'Crafting bases', match: ['crafting', 'normalcraft', 'gear', 'magicid'], art: 'Orb of Fusing', icon: 'hammer' },
-    { id: 'special', name: 'Special bases', match: ['exoticbases', 'exoticbaseslower', 'exotic', 'exoticmods'], art: 'Fracturing Orb', icon: 'bolt' },
     { id: 'chancing', name: 'Chancing bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
     { id: 'recipes', name: 'Vendor recipes', match: ['rr', '6l', 'socketslinks', 'endgamergb'], art: 'Chromatic Orb', icon: 'link' },
     { id: 'flasks', name: 'Flasks & tinctures', match: ['endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
@@ -1260,7 +1293,7 @@ const CATEGORIES = [
   ]],
   ['Jewels', [
     { id: 'jewels', name: 'Normal jewels', match: ['jewels', 'jewels->generic', 'jewels->special', 'jewels->leveling'], order: ['jewels->generic', 'jewels->special', 'jewels->leveling'], art: ['Cobalt Jewel', 'Crimson Jewel'], icon: 'hex' },
-    { id: 'abyssjewels', name: 'Abyss jewels', match: ['jewels->abyss'], art: ['Hypnotic Eye Jewel', 'Searching Eye Jewel'], icon: 'eye' },
+    { id: 'abyssjewels', name: 'Abyss jewels', match: ['jewels->abyss'], order: ['jewels->abyss', 'jewels->abyss#special', 'jewels->abyss#leveling'], art: ['Hypnotic Eye Jewel', 'Searching Eye Jewel'], icon: 'eye' },
     { id: 'clusterjewels', name: 'Cluster jewels', match: ['jewels->cluster', 'jewels->clustereco'], art: ['Large Cluster Jewel'], icon: 'hex', clusters: true },
     { id: 'clustergrid', name: 'Cluster jewels', match: [], special: 'clustergrid', art: ['Large Cluster Jewel'], icon: 'hex' },
   ]],
@@ -1274,6 +1307,9 @@ const CATEGORIES = [
   ['Miscellaneous', [
     { id: 'leaguespecific', name: 'League-specific items and mods', match: ['vials', 'enshrouded', 'artefact'], art: 'Vaal Orb', icon: 'bolt' },
     { id: 'quest', name: 'Quest items', match: ['questlike', 'questlikeexception', 'heisttarget'], art: null, icon: 'book' },
+    { id: 'rares', name: 'Rares', match: ['rare', 'rareid', 'rareblendid', 'rareoptional', 'corruptedid', 'influenced', 'animatedweapons'], art: 'Orb of Alchemy', icon: 'sword' },
+    { id: 'crafting', name: 'Crafting bases', match: ['crafting', 'normalcraft', 'gear', 'magicid'], art: 'Orb of Fusing', icon: 'hammer' },
+    { id: 'special', name: 'Special bases', match: ['exoticbases', 'exoticbaseslower', 'exotic', 'exoticmods'], art: 'Fracturing Orb', icon: 'bolt' },
     { id: 'misc', name: 'Miscellaneous', match: [], art: 'Orb of Scouring', icon: 'box' },
   ]],
 ];

@@ -23,6 +23,7 @@ const VERSION = require('../../package.json').version;
 
 const DEFAULT_SETTINGS = {
   leagueOverride: '',
+  uiTheme: 'dark', // the app's look: 'dark' (default), 'hideout' or 'atlas'
   accountName: '',
   sessionEnc: null, // encrypted POESESSID
   contact: '', // optional contact for User-Agent, e.g. a GitHub URL
@@ -809,7 +810,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   /** Item level / area level / quality ({ op, value } or 'any'), rarity [..] or switched-off bases (exclude: [..]) of one tier; null = the filter's own. */
   function setTierCondition(key, field, value) {
-    const ok = ['ItemLevel', 'AreaLevel', 'Quality', 'Rarity', 'exclude'];
+    const ok = ['GemLevel', 'ItemLevel', 'AreaLevel', 'Quality', 'Rarity', 'exclude'];
     if (!ok.includes(field)) throw new Error('That condition can\'t be changed here.');
     return savePatch(tiers.withCondition(settings.get('tierPatch') || {}, key, field, value));
   }

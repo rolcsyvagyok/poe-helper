@@ -49,11 +49,13 @@ async function refreshState() {
   Object.assign(S, await call('state:get'));
   if (!S.sounds.length) S.sounds = await call('sounds:list').catch(() => []);
   window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
+  window.UI.applyTheme(S.settings.uiTheme);
   if (!S.iconsLoaded) { S.userIcons = await call('icons:list').catch(() => []); UI.setUserIcons(S.userIcons); S.iconsLoaded = true; }
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
     h('div', {}, h('span', { class: 'league-chip' }, S.league), S.settings.leagueOverride ? '' : h('span', { class: 'faint' }, ' (auto)')),
     h('div', {}, `${u?.total ?? 0} of ${S.usage?.ggg?.dailyBudget ?? '–'} GGG requests today`),
+    themeDots(),
     versionLine());
   if (!S.ver) {
     S.ver = await call('app:version').catch(() => null);
@@ -63,6 +65,27 @@ async function refreshState() {
       if (S.ver.justUpdated && !S.ver.notesShown) whatsNewBanner();
     }
   }
+}
+
+// ---------------- the app's look ----------------
+async function setUiTheme(id) {
+  S.settings.uiTheme = window.UI.applyTheme(id);
+  await call('settings:set', { uiTheme: S.settings.uiTheme }).catch(() => {});
+  document.querySelectorAll('[data-theme-id]').forEach((b) => b.classList.toggle('on', b.dataset.themeId === S.settings.uiTheme));
+}
+function themeDots() {
+  const cur = S.settings.uiTheme || 'dark';
+  return h('div', { class: 'theme-dots', role: 'group', 'aria-label': 'Look' }, window.UI.UI_THEMES.map((t) => h('button', {
+    class: t.id === cur ? 'on' : '', 'data-theme-id': t.id, title: `${t.name} look`, 'aria-label': `${t.name} look`,
+    style: { background: `linear-gradient(135deg, ${t.sw[1]} 50%, ${t.sw[2]} 50%)` }, onclick: () => setUiTheme(t.id),
+  })));
+}
+function themePicker() {
+  const cur = S.settings.uiTheme || 'dark';
+  return h('div', { class: 'theme-pick' }, window.UI.UI_THEMES.map((t) => h('button', { class: 'tp' + (t.id === cur ? ' on' : ''), 'data-theme-id': t.id, onclick: () => setUiTheme(t.id) },
+    h('div', { class: 'tp-sw', style: { boxShadow: `inset 0 0 0 1px ${t.sw[3]}` } }, h('i', { style: { background: t.sw[0] } }),
+      h('b', { style: { background: t.sw[1], color: t.sw[2] } }, 'Aa', h('span', { style: { background: t.sw[3] } }))),
+    h('span', { class: 'tp-name' }, t.name), h('span', { class: 'help' }, t.note))));
 }
 
 // ---------------- version and patch notes ----------------
@@ -871,8 +894,12 @@ async function renderSettingsNow() {
             field('Keep prices for (minutes)', h('input', { type: 'number', min: 5, value: st.ninjaTtlMin, onchange: set('ninjaTtlMin', Number) }), 'poe.ninja updates about every 15 minutes, so lower values only add downloads.'),
             field('Your name or link for request headers', h('input', { value: st.contact || '', placeholder: 'Optional, for example github.com/you', onchange: set('contact', (v) => v.trim()) })),
             h('details', {}, h('summary', {}, 'Price server address'),
-              h('div', { class: 'stack', style: { marginTop: '8px' } }, h('input', { value: st.ninjaBaseUrl, onchange: set('ninjaBaseUrl', (v) => v.trim()), 'aria-label': 'Price server address' }), h('span', { class: 'help' }, 'Change only if you run your own caching proxy for poe.ninja.')))))),
+              h('div', { class: 'stack', style: { marginTop: '8px' } }, h('input', { value: st.ninjaBaseUrl, onchange: set('ninjaBaseUrl', (v) => v.trim()), 'aria-label': 'Price server address' }), h('span', { class: 'help' }, 'Change only if you run your own caching proxy for poe.ninja.'))))),
+        section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
+          h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox()))),
       h('div', {},
+        section('Appearance', 'How PoE Helper looks. Items keep the colours your filter gives them. You can also switch with the dots at the bottom of the menu.',
+          h('div', { class: 'panel' }, themePicker())),
         section('Price check', null,
           h('div', { class: 'panel stack' },
             field('League', h('select', { onchange: set('leagueOverride') }, h('option', { value: '' }, `Follow the current league (${leagues[0]?.name || 'automatic'})`), leagues.map((l) => h('option', { value: l.id, selected: st.leagueOverride === l.id }, l.name || l.id)))),
@@ -911,8 +938,6 @@ async function renderSettingsNow() {
           try { const r = await call('filterShare:import'); if (r) { toast(`Imported${r.from ? ` (made with PoE Helper ${r.from})` : ''}. Your filter is rewritten; zone or reload it in game.`); renderSettings(); } } catch { /* toast */ }
         } }, 'Import…'),
         shareUndo ? h('button', { class: 'quiet', onclick: async () => { await call('filterShare:undo'); toast('Your own settings are back'); renderSettings(); } }, 'Undo import') : null)),
-    section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
-      h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
     notesSection(await call('app:changelog').catch(() => [])),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',
       h('div', { class: 'panel row', style: { gap: '16px' } }, appIconBox(st))),

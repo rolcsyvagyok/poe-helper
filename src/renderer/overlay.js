@@ -314,7 +314,7 @@ let gameSoundsLoaded = false;
 window.poe.on('overlay:show', (p) => {
   if (!gameSoundsLoaded) {
     gameSoundsLoaded = true;
-    window.poe.call('state:get').then((st) => window.UI.setGameSounds(window.UI.gameSoundMap(st?.settings))).catch(() => { gameSoundsLoaded = false; });
+    window.poe.call('state:get').then((st) => { window.UI.applyTheme(st?.settings?.uiTheme); window.UI.setGameSounds(window.UI.gameSoundMap(st?.settings)); }).catch(() => { gameSoundsLoaded = false; });
   }
   render(p);
 });

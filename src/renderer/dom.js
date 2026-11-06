@@ -364,5 +364,21 @@ async function keepScroll(fn) {
   }
 }
 
-window.UI = { gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
+// ---------------- the app's look (Settings → Appearance); kept in localStorage too so windows open in it without a flash
+const UI_THEMES = [
+  { id: 'dark', name: 'Dark', note: 'The quiet slate look', sw: ['#181a20', '#1e2027', '#ece9e2', '#9db8e8'] },
+  { id: 'hideout', name: 'Hideout', note: 'Stone, bronze and gold', sw: ['#080706', '#15110d', '#e2c48e', '#6b4a1c'] },
+  { id: 'atlas', name: 'Atlas', note: 'Night blue and silver', sw: ['#070a0f', '#0f1720', '#d9ecfb', '#2c6c9a'] },
+];
+function applyTheme(t) {
+  const id = UI_THEMES.some((x) => x.id === t) ? t : 'dark';
+  if (id === 'dark') delete document.documentElement.dataset.uiTheme;
+  else document.documentElement.dataset.uiTheme = id;
+  try { localStorage.setItem('uiTheme', id); } catch { /* no storage */ }
+  return id;
+}
+try { applyTheme(localStorage.getItem('uiTheme')); } catch { /* no storage */ }
+if (window.poe) window.poe.on('uiTheme:changed', (t) => { applyTheme(t); document.dispatchEvent(new CustomEvent('uitheme', { detail: t })); });
+
+window.UI = { UI_THEMES, applyTheme, gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
 })();

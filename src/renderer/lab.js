@@ -94,7 +94,7 @@
       if (e.key === 'Enter' && !v.current) return v.load(last);
       if ((e.key === 'r' || e.key === 'R') && v.current) return v.load(v.current.diff, true);
     });
-    call('state:get').then((s) => { window.labOpacity = s.settings.labOpacity || 1; last = s.settings.labLast || last; v.setFav(s.settings.labFavorite); v.picker(last); }).catch(() => v.picker(last));
+    call('state:get').then((s) => { window.UI.applyTheme(s.settings.uiTheme); window.labOpacity = s.settings.labOpacity || 1; last = s.settings.labLast || last; v.setFav(s.settings.labFavorite); v.picker(last); }).catch(() => v.picker(last));
   }
 
   /** The Daily lab page in the main window. */

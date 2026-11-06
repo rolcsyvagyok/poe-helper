@@ -620,6 +620,7 @@ function registerIpc() {
     services.applySettings();
     if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
+    if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
     if ('autoSnapshotMin' in clean || 'clientLogPath' in clean) applyAutoSnapshot();
     if ('baseFilter' in clean || 'filterDir' in clean || 'autoWatchFilter' in clean || 'hideFractured' in clean || 'hideSynthesised' in clean) {

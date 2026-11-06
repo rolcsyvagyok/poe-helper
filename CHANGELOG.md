@@ -3,6 +3,16 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.21 - 2026-11-06
+
+- **Two new looks, Hideout and Atlas** (Settings → Appearance, or the three dots at the bottom of the menu). Hideout is dark stone with bronze trim and gold headings; Atlas is night blue with silver-blue trim. Both use the game font for headings and buttons. Dark stays the default, and items keep the colours your filter gives them.
+- **Cards & gems sit right below Fragments** in the Loot filter list.
+- **Abyss jewels in parts like normal jewels:** Normal, Special (corrupted) and Levelling, with the four abyss jewels as tick boxes. Jewel tiers only show the item level slider (no area level or quality).
+- **The area level slider is only on campaign tiers** (levelling flasks, rares, currency, gems…), where it sets the area level they stop at; endgame tiers (flasks, tinctures, RGB, maps…) don't show it.
+- **Settings: Updates sit right below Requests**, so Check now is in view straight away.
+- **Rares, Crafting bases and Special bases moved to Miscellaneous** at the bottom of the list (Base ranks does most of that work now).
+- **Gems, FilterBlade style:** Generic first, then Special, then Exceptional. Each page is in FilterBlade's sections (gems with gem levels, with quality, +1 gems, the campaign; top gems; the exceptional tier list S/A/B/C; transfigured and special cases), the tiers have FilterBlade's names (Level 21+, Level 20, Level 18-19, Level 2-17, Quality 23%+…), and gem level, area level and quality have sliders. Tiers without a list show a gem (Blight) instead of the category name.
+
 ## 1.0.20 - 2026-11-06
 
 - **Base ranks: the kinds of drop are Rares, High ilvl bases, Fractured and Influenced**, in that order, and all start at "All ranks". Synthesised items are left to your filter. ("Crafting bases" is now called High ilvl bases.)

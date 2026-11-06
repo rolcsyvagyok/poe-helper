@@ -512,3 +512,16 @@ test('a tier\'s item level, quality, rarity and bases can be changed, FilterBlad
   const back = T.tierView(src, p).types[0].tiers[0];
   assert.equal(back.bases.length, 9);
 });
+
+test('area level: campaign tiers change their upper bound, the lower one stays', () => {
+  const T = require('../src/core/filter/tiers');
+  const src = ['Show # $type->leveling->flasks->life $tier->t1', '\tAreaLevel >= 2', '\tAreaLevel <= 67', '\tClass == "Life Flasks"', '\tBaseType == "Small Life Flask"', '\tSetFontSize 40', ''].join('\n');
+  const t = T.tierView(src, {}).types[0].tiers[0];
+  assert.equal(t.campaign, true);
+  assert.deepEqual(t.numbers.AreaLevel, { op: '<=', value: 67 });
+  const out = T.applyTierPatch(src, T.withCondition({}, 'leveling->flasks->life|t1', 'AreaLevel', { op: '<=', value: 40 }));
+  assert.match(out, /AreaLevel >= 2\n/);
+  assert.match(out, /AreaLevel <= 40\n/);
+  const end = T.tierView(['Show # $type->endgameflasks $tier->utility85', '\tAreaLevel >= 68', '\tItemLevel >= 85', '\tClass == "Utility Flasks"', '\tSetFontSize 40', ''].join('\n'), {}).types[0].tiers[0];
+  assert.equal(end.campaign, false, 'an endgame tier has no area level slider');
+});

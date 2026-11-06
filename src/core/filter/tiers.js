@@ -54,10 +54,11 @@ function quoteList(values) {
 // you can switch single ones off (the block then gets a BaseType line with the rest)
 const CLASS_BASES = {
   'Utility Flasks': ['Quicksilver Flask', 'Bismuth Flask', 'Stibnite Flask', 'Amethyst Flask', 'Ruby Flask', 'Sapphire Flask', 'Topaz Flask', 'Silver Flask', 'Aquamarine Flask', 'Granite Flask', 'Jade Flask', 'Quartz Flask', 'Sulphur Flask', 'Basalt Flask', 'Diamond Flask', 'Gold Flask', 'Corundum Flask', 'Iron Flask'],
+  'Abyss Jewels': ['Searching Eye Jewel', 'Murderous Eye Jewel', 'Hypnotic Eye Jewel', 'Ghastly Eye Jewel'],
   Tinctures: ['Rosethorn Tincture', 'Prismatic Tincture', 'Ironwood Tincture', 'Fulgurite Tincture', 'Borealwood Tincture', 'Ashbark Tincture', 'Poisonberry Tincture', 'Blood Sap Tincture', 'Sporebloom Tincture', 'Oakbranch Tincture'],
 };
 // conditions you can change on a tier, FilterBlade style: "at least / at most / exactly / any"
-const NUMBER_CONDS = ['ItemLevel', 'AreaLevel', 'Quality'];
+const NUMBER_CONDS = ['GemLevel', 'ItemLevel', 'AreaLevel', 'Quality'];
 const impliedBases = (lines) => {
   const cls = lines.find((l) => l.keyword === 'Class');
   if (!cls) return null;
@@ -100,9 +101,13 @@ function extractTiers(doc) {
       // item level, area level and quality as the filter has them (missing = any)
       t0.numbers = {};
       for (const k of NUMBER_CONDS) {
-        const l = b.lines.find((x) => x.keyword === k);
+        // area level: the upper bound ("AreaLevel <= 67", the campaign) is the one that matters
+        const all = b.lines.filter((x) => x.keyword === k);
+        const l = (k === 'AreaLevel' && all.find((x) => /^</.test(x.op || ''))) || all[0];
         t0.numbers[k] = l ? { op: l.op || '=', value: Number(l.values?.[0]) } : null;
       }
+      // a campaign tier: it stops at some area level
+      t0.campaign = b.lines.some((x) => x.keyword === 'AreaLevel' && /^</.test(x.op || ''));
       const rar = b.lines.find((l) => l.keyword === 'Rarity');
       t0.rarity = rar ? rar.values.slice() : null;
       if (!baseLines(b).length) t0.implied = impliedBases(b.lines);
@@ -329,7 +334,10 @@ function applyTierPatch(text, patch = {}) {
       for (const k of NUMBER_CONDS) {
         const c = cond?.[k];
         if (c === undefined) continue;
-        const at = b.lines.findIndex((l) => l.keyword === k);
+        // with two area level lines (">= 2" and "<= 67") the one on the same side is changed
+        const upper = /^</.test(c?.op || '');
+        const same = b.lines.findIndex((l) => l.keyword === k && (k !== 'AreaLevel' || /^</.test(l.op || '') === upper));
+        const at = same >= 0 ? same : b.lines.findIndex((l) => l.keyword === k);
         if (c === 'any' || c?.op === 'any') { if (at >= 0) b.lines.splice(at, 1); continue; }
         const v = Math.round(Number(c?.value));
         const op = ['>=', '<=', '=', '>', '<'].includes(c?.op) ? c.op : '>=';
