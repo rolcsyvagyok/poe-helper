@@ -183,7 +183,10 @@ function buildMapRegex(o = {}) {
 
   // nightmare (tier 17) maps are always rare and never influenced: those choices don't apply to them
   const t17 = kind === 't17';
-  const typeTerms = (side) => (t17 ? [] : MAP_TYPES.filter((t) => o.mapTypes?.[t.id] === side).map((t) => t.term));
+  // map types (Shaper, Elder, Conqueror, Originator, blighted) sit in their own sections of the map
+  // stash, so the search leaves them out; they're used by the trade search only
+  const typeTerms = () => [];
+  void t17;
 
   const bad = coverMods(avoid, kind);
   const badTerms = [...bad.pieces, ...typeTerms('avoid')];

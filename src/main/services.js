@@ -428,7 +428,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -753,6 +753,12 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return savePatch(p);
   }
 
+  /** Item level / area level / quality ({ op, value } or 'any'), rarity [..] or switched-off bases (exclude: [..]) of one tier; null = the filter's own. */
+  function setTierCondition(key, field, value) {
+    const ok = ['ItemLevel', 'AreaLevel', 'Quality', 'Rarity', 'exclude'];
+    if (!ok.includes(field)) throw new Error('That condition can\'t be changed here.');
+    return savePatch(tiers.withCondition(settings.get('tierPatch') || {}, key, field, value));
+  }
   function setStackSize(key, n) {
     return savePatch(tiers.withStackSize(settings.get('tierPatch') || {}, key, n));
   }
@@ -930,7 +936,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       for (const d of DEFENCES) bases[c][d.id] = (BASES[c][d.id] || []).map((name) => ({ name, inFilter: known ? known.has(name) : null }));
     }
     const mark = (name) => ({ name, inFilter: known ? known.has(name) : null });
-    const groups = GROUPS.map((g) => ({ id: g.id, name: g.name, columns: Object.entries(g.columns).map(([title, list]) => ({ title, list: list.map(mark) })) }));
+    const { NOT_RANKED_GROUPS } = require('../core/filter/manager');
+    const groups = GROUPS.filter((g) => !NOT_RANKED_GROUPS.has(g.id)).map((g) => ({ id: g.id, name: g.name, columns: Object.entries(g.columns).map(([title, list]) => ({ title, list: list.map(mark) })) }));
     migrateRanks();
     const { RANKS, RANK_LOOKS, RANK_KINDS } = require('../core/filter/manager');
     return {
@@ -965,13 +972,18 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       for (const k of Object.keys(kinds)) if (kinds[k] === 'C') kinds[k] = 'D';
       settings.set('rankKinds', kinds);
       settings.set('ranksV3', true);
+      settings.set('ranksV4', true);
       return true;
     }
-    // 1.0.18: jewellery gets its usual ranking (only rings, amulets and belts you haven't ranked yourself)
-    if (!settings.get('ranksV3')) {
+    // 1.0.19: jewellery gets its usual ranking (the 1.0.18 one was off by a rank); every ring, amulet
+    // and belt is set from it, the rest of jewellery is D
+    if (!settings.get('ranksV4')) {
       settings.set('ranksV3', true);
+      settings.set('ranksV4', true);
+      const { JEWELLERY_RANKS } = require('../core/base-ranks');
+      const jewels = Object.values(require('../core/base-data').GROUPS.find((g) => g.id === 'jewellery')?.columns || {}).flat();
       const ranks = { ...(settings.get('baseRanks') || {}) };
-      for (const [b, r] of Object.entries(require('../core/base-ranks').JEWELLERY_RANKS)) if (!ranks[b]) ranks[b] = r;
+      for (const b of jewels) { if (JEWELLERY_RANKS[b]) ranks[b] = JEWELLERY_RANKS[b]; else delete ranks[b]; }
       settings.set('baseRanks', ranks);
       return true;
     }
@@ -1035,8 +1047,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RANK_ORDER = ['S', 'A', 'B', 'C', 'D'];
   /** Give bases a rank: rank 'S'..'C', or dir +1 (a rank up) / -1 (a rank down) from where each is. */
   function setBaseRanks({ bases = [], rank, dir } = {}) {
-    const { MATRIX_NAMES } = require('../core/filter/manager');
-    const valid = new Set(MATRIX_NAMES);
+    const { RANKED_NAMES } = require('../core/filter/manager');
+    const valid = new Set(RANKED_NAMES);
     const ranks = { ...(settings.get('baseRanks') || {}) };
     for (const b of bases) {
       if (!valid.has(b)) continue;
@@ -1543,7 +1555,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if (migrateRanks() && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

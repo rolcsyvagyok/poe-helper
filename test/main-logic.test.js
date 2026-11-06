@@ -626,3 +626,18 @@ test('reset everything: your changes go, account and filter choice stay, and it 
   assert.equal(svc.settings.get('hotkeyPrice'), 'Ctrl+Q');
   assert.equal(svc.canUndoReset(), false);
 });
+
+test('base ranks leave heist and ritual bases to the filter', () => {
+  const M = require('../src/core/filter/manager');
+  const D = require('../src/core/base-data');
+  const heist = Object.values(D.GROUPS.find((g) => g.id === 'heist').columns).flat();
+  const ritual = Object.values(D.GROUPS.find((g) => g.id === 'ritual').columns).flat();
+  const ranked = new Set(M.RANKED_NAMES);
+  assert.ok(heist.length && ritual.length);
+  assert.ok(![...heist, ...ritual].some((b) => ranked.has(b)));
+  const { svc } = setup();
+  const v = svc.baseMatrixView();
+  assert.ok(!v.groups.some((g) => g.id === 'heist' || g.id === 'ritual'));
+  svc.setBaseRanks({ bases: [heist[0]], rank: 'S' });
+  assert.equal(svc.settings.get('baseRanks')[heist[0]], undefined);
+});

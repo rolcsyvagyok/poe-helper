@@ -457,3 +457,58 @@ test('hidden bases get Hide blocks for their fractured and synthesised copies wh
   assert.deepEqual(kw(rules[0], 'BaseType').values, ['Iron Ring']);
   assert.ok(!kw(rules[0], 'Rarity').values.includes('Unique'));
 });
+
+test('a tier FilterBlade emptied can take items again, and stays out of the game while empty', () => {
+  const T = require('../src/core/filter/tiers');
+  const src = [
+    '#Show # $type->currency->essence $tier->t1',
+    '#\tClass == "Stackable Currency"',
+    '#\tSetFontSize 45',
+    '',
+    'Show # $type->currency->essence $tier->t2',
+    '\tClass == "Stackable Currency"',
+    '\tBaseType == "Essence of Delirium" "Essence of Horror"',
+    '\tSetFontSize 40',
+    '',
+  ].join('\n');
+  const view = T.tierView(src, {});
+  const t1 = view.types[0].tiers.find((x) => x.tier === 't1');
+  assert.equal(t1.hasBaseList, true, 'Tier 1 takes items');
+  assert.equal(t1.off, true, 'still Off in FilterBlade');
+  assert.deepEqual(t1.bases, []);
+  const out = T.applyTierPatch(src, { moves: { 'currency->essence\tEssence of Horror': 't1' }, actions: { 'currency->essence|t1': 'Show' } });
+  assert.match(out, /Show # \$type->currency->essence \$tier->t1[^\n]*\n\tClass == "Stackable Currency"\n\tBaseType == "Essence of Horror"/);
+  const empty = T.applyTierPatch(src, { actions: { 'currency->essence|t1': 'Show' } });
+  assert.match(empty, /#Show # \$type->currency->essence \$tier->t1/, 'switched on but empty: still commented out, never catches everything');
+});
+
+test('a tier\'s item level, quality, rarity and bases can be changed, FilterBlade style', () => {
+  const T = require('../src/core/filter/tiers');
+  const src = [
+    'Show # $type->endgametinctures $tier->t1',
+    '\tClass == "Tinctures"',
+    '\tQuality >= 26',
+    '\tItemLevel >= 82',
+    '\tRarity Normal Magic',
+    '\tSetFontSize 45',
+    '',
+  ].join('\n');
+  const t = T.tierView(src, {}).types[0].tiers[0];
+  assert.equal(t.implied.length, 10, 'stands for every tincture');
+  assert.deepEqual(t.numbers.ItemLevel, { op: '>=', value: 82 });
+  assert.equal(t.numbers.AreaLevel, null);
+  let p = T.withCondition({}, 'endgametinctures|t1', 'ItemLevel', { op: '>=', value: 84 });
+  p = T.withCondition(p, 'endgametinctures|t1', 'Quality', 'any');
+  p = T.withCondition(p, 'endgametinctures|t1', 'AreaLevel', { op: '>=', value: 68 });
+  p = T.withCondition(p, 'endgametinctures|t1', 'Rarity', ['Magic']);
+  p = T.withCondition(p, 'endgametinctures|t1', 'exclude', ['Oakbranch Tincture']);
+  const out = T.applyTierPatch(src, p);
+  assert.match(out, /ItemLevel >= 84/);
+  assert.match(out, /AreaLevel >= 68/);
+  assert.doesNotMatch(out, /Quality/);
+  assert.match(out, /Rarity Magic\n/);
+  assert.match(out, /BaseType == "Rosethorn Tincture"[^\n]*"Blood Sap Tincture" "Sporebloom Tincture"\n/);
+  assert.doesNotMatch(out, /Oakbranch/);
+  const back = T.tierView(src, p).types[0].tiers[0];
+  assert.equal(back.bases.length, 9);
+});

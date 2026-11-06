@@ -23,6 +23,9 @@ const { parse, serialize, blocks, parseLine, renderBlock, renderStyleLines, styl
 const HIDE = '__hide__';
 const HIDDEN_TIER = 'poehelper-hidden';
 const NEVER = 'PoE Helper: moved to another tier';
+// an empty tier that FilterBlade emptied (not you): still off in FilterBlade, but items can go in
+const EMPTY = 'PoE Helper: empty tier';
+const isMarker = (v) => v === NEVER || v === EMPTY;
 const STYLE_SET = new Set(STYLE_KEYWORDS);
 
 function tagsOf(block) {
@@ -46,6 +49,21 @@ function indentOf(block) {
 function quoteList(values) {
   return values.map((v) => `"${String(v).replace(/"/g, '')}"`).join(' ');
 }
+
+// Blocks that pick items by class alone stand for every base of the class; their bases are listed so
+// you can switch single ones off (the block then gets a BaseType line with the rest)
+const CLASS_BASES = {
+  'Utility Flasks': ['Quicksilver Flask', 'Bismuth Flask', 'Stibnite Flask', 'Amethyst Flask', 'Ruby Flask', 'Sapphire Flask', 'Topaz Flask', 'Silver Flask', 'Aquamarine Flask', 'Granite Flask', 'Jade Flask', 'Quartz Flask', 'Sulphur Flask', 'Basalt Flask', 'Diamond Flask', 'Gold Flask', 'Corundum Flask', 'Iron Flask'],
+  Tinctures: ['Rosethorn Tincture', 'Prismatic Tincture', 'Ironwood Tincture', 'Fulgurite Tincture', 'Borealwood Tincture', 'Ashbark Tincture', 'Poisonberry Tincture', 'Blood Sap Tincture', 'Sporebloom Tincture', 'Oakbranch Tincture'],
+};
+// conditions you can change on a tier, FilterBlade style: "at least / at most / exactly / any"
+const NUMBER_CONDS = ['ItemLevel', 'AreaLevel', 'Quality'];
+const impliedBases = (lines) => {
+  const cls = lines.find((l) => l.keyword === 'Class');
+  if (!cls) return null;
+  const list = cls.values.flatMap((v) => CLASS_BASES[v] || (Object.keys(CLASS_BASES).find((k) => k.toLowerCase() === String(v).toLowerCase()) ? CLASS_BASES[Object.keys(CLASS_BASES).find((k) => k.toLowerCase() === String(v).toLowerCase())] : []));
+  return list.length ? list : null;
+};
 
 /** Read tiers from a parsed filter. */
 function extractTiers(doc) {
@@ -79,6 +97,15 @@ function extractTiers(doc) {
       t0.special = t0.conditions.some((c) => !/^(Class|Rarity)\b/.test(c));
       const ss = b.lines.find((l) => l.keyword === 'StackSize');
       if (ss) t0.stackSize = { op: ss.op || '>=', value: Number(ss.values?.[0]) };
+      // item level, area level and quality as the filter has them (missing = any)
+      t0.numbers = {};
+      for (const k of NUMBER_CONDS) {
+        const l = b.lines.find((x) => x.keyword === k);
+        t0.numbers[k] = l ? { op: l.op || '=', value: Number(l.values?.[0]) } : null;
+      }
+      const rar = b.lines.find((l) => l.keyword === 'Rarity');
+      t0.rarity = rar ? rar.values.slice() : null;
+      if (!baseLines(b).length) t0.implied = impliedBases(b.lines);
     }
     const tier = t.tiers.get(key);
     tier.blockCount++;
@@ -88,7 +115,7 @@ function extractTiers(doc) {
     if (tier.off) tier.action = b.action;
     for (const l of baseLines(b)) {
       tier.hasBaseList = true;
-      for (const v of l.values) if (v !== NEVER && !tier.bases.includes(v)) tier.bases.push(v);
+      for (const v of l.values) if (!isMarker(v) && !tier.bases.includes(v)) tier.bases.push(v);
     }
   }
   return [...types.values()]
@@ -183,6 +210,23 @@ function applyTierPatch(text, patch = {}) {
     (byType.get(tags.type) || byType.set(tags.type, []).get(tags.type)).push(b);
   }
 
+  // ---- tiers FilterBlade emptied ----
+  // An emptied tier (Tier 1 of essences with nothing in it, say) comes without a BaseType line, which
+  // would make it catch everything once switched on. It gets an empty base list instead, so you can
+  // put items into it, and it stays out of the game until something is in it.
+  const condOnly = (b) => b.lines.filter((l) => l.keyword && l.keyword !== 'BaseType' && !STYLE_SET.has(l.keyword) && l.keyword !== 'Continue');
+  for (const typeBlocks of byType.values()) {
+    if (!typeBlocks.some((b) => baseLines(b).length)) continue; // a category without base lists
+    for (const b of typeBlocks) {
+      if (baseLines(b).length || !/^t\d+[a-z]*$/i.test(b._tags.tier)) continue;
+      if (condOnly(b).some((l) => !/^(Class|Rarity)$/.test(l.keyword))) continue; // a special case, not a tier
+      const ind = indentOf(b);
+      const cr = crOf(b.lines.find((l) => l.keyword)?.raw || '');
+      const at = b.lines.findIndex((l) => l.keyword && (STYLE_SET.has(l.keyword) || l.keyword === 'Continue'));
+      b.lines.splice(at < 0 ? b.lines.length : at, 0, parseLine(`${ind}BaseType == ${quoteList([EMPTY])}${cr}`));
+    }
+  }
+
   // ---- your own tiers (e.g. a "Giga" tier above Tier 1) ----
   // newTiers: [{ type, tier, name, copyFrom: "<tier>", before: "<tier>" }]. A new tier is a copy of
   // copyFrom's first block (same conditions and look) with its own base list, placed before `before`.
@@ -246,7 +290,7 @@ function applyTierPatch(text, patch = {}) {
     const l = baseLines(target)[0];
     if (!l.values.includes(base)) {
       const ind = /^[ \t]*/.exec(l.raw)[0];
-      l.values = l.values.filter((v) => v !== NEVER).concat(base);
+      l.values = l.values.filter((v) => !isMarker(v)).concat(base);
       l.raw = `${ind}BaseType == ${quoteList(l.values)}${crOf(l.raw)}`;
     }
   }
@@ -265,18 +309,59 @@ function applyTierPatch(text, patch = {}) {
   }
 
   // ---- your stack sizes: conditions: { "currency->stackedsix|t1": { StackSize: 8 } } ----
+  // and your item level, area level, quality, rarity and switched-off bases:
+  // { "endgameflasks|t1": { ItemLevel: { op: '>=', value: 84 }, AreaLevel: 'any', Rarity: ['Magic'], exclude: ['Iron Flask'] } }
   for (const [key, cond] of Object.entries(patch.conditions || {})) {
     const [type, tier] = key.split('|');
     const n = Number(cond?.StackSize);
-    if (!Number.isFinite(n) || n < 1) continue;
     for (const b of byType.get(type) || []) {
       if (b._tags.tier !== tier) continue;
-      for (const l of b.lines) {
-        if (l.keyword !== 'StackSize') continue;
-        const ind = /^[ \t]*/.exec(l.raw)[0];
-        l.op = l.op || '>=';
-        l.values = [String(Math.round(n))];
-        l.raw = `${ind}StackSize ${l.op} ${Math.round(n)}${crOf(l.raw)}`;
+      const ind = indentOf(b);
+      const cr = crOf(b.lines.find((l) => l.keyword)?.raw || '');
+      if (Number.isFinite(n) && n >= 1) {
+        for (const l of b.lines) {
+          if (l.keyword !== 'StackSize') continue;
+          l.op = l.op || '>=';
+          l.values = [String(Math.round(n))];
+          l.raw = `${/^[ \t]*/.exec(l.raw)[0]}StackSize ${l.op} ${Math.round(n)}${crOf(l.raw)}`;
+        }
+      }
+      for (const k of NUMBER_CONDS) {
+        const c = cond?.[k];
+        if (c === undefined) continue;
+        const at = b.lines.findIndex((l) => l.keyword === k);
+        if (c === 'any' || c?.op === 'any') { if (at >= 0) b.lines.splice(at, 1); continue; }
+        const v = Math.round(Number(c?.value));
+        const op = ['>=', '<=', '=', '>', '<'].includes(c?.op) ? c.op : '>=';
+        if (!Number.isFinite(v)) continue;
+        const line = parseLine(`${ind}${k} ${op} ${v}${cr}`);
+        if (at >= 0) b.lines[at] = line;
+        else b.lines.splice(Math.max(0, b.lines.findIndex((l) => l.keyword)), 0, line); // with the other conditions
+      }
+      if (Array.isArray(cond?.Rarity) && cond.Rarity.length) {
+        const vals = cond.Rarity.filter((r) => ['Normal', 'Magic', 'Rare', 'Unique'].includes(r));
+        const at = b.lines.findIndex((l) => l.keyword === 'Rarity');
+        if (vals.length) {
+          const line = parseLine(`${ind}Rarity ${vals.join(' ')}${cr}`);
+          if (at >= 0) b.lines[at] = line; else b.lines.splice(Math.max(0, b.lines.findIndex((l) => l.keyword)), 0, line);
+        }
+      }
+      const ex = new Set(Array.isArray(cond?.exclude) ? cond.exclude : []);
+      if (ex.size) {
+        const bl = baseLines(b);
+        if (bl.length) {
+          for (const l of bl) {
+            const keep = l.values.filter((v) => !ex.has(v));
+            l.values = keep.length ? keep : [NEVER];
+            l.raw = `${/^[ \t]*/.exec(l.raw)[0]}BaseType ${l.op || '=='} ${quoteList(l.values)}${crOf(l.raw)}`;
+          }
+        } else {
+          const all = impliedBases(b.lines);
+          if (all) {
+            const keep = all.filter((v) => !ex.has(v));
+            b.lines.splice(Math.max(0, b.lines.findIndex((l) => l.keyword === 'Class') + 1), 0, parseLine(`${ind}BaseType == ${quoteList(keep.length ? keep : [NEVER])}${cr}`));
+          }
+        }
       }
     }
   }
@@ -322,7 +407,7 @@ function applyTierPatch(text, patch = {}) {
   // A block whose base list is now empty must not reach the game: it rejects the whole filter
   // over a BaseType value that matches nothing. Such a block can't match anything anyway, so it
   // is commented out (even if you switched its tier on; it comes back when a base is moved in).
-  for (const b of all) if (baseLines(b).some((l) => l.values.length === 1 && l.values[0] === NEVER)) b.disabled = true;
+  for (const b of all) if (baseLines(b).some((l) => l.values.length === 1 && isMarker(l.values[0]))) b.disabled = true;
   return serialize(doc);
 }
 
@@ -353,9 +438,15 @@ const clonePatch = (patch = {}) => ({ moves: { ...(patch.moves || {}) }, styles:
 
 /** Change a tier's stack size (null puts the filter's own back). */
 function withStackSize(patch, key, n) {
+  return withCondition(patch, key, 'StackSize', n == null || n === '' ? null : Math.max(1, Math.round(Number(n))));
+}
+
+/** One of your condition changes on a tier; null puts that one back to what the filter has. */
+function withCondition(patch, key, field, value) {
   const p = clonePatch(patch);
-  if (n == null || n === '') delete p.conditions[key];
-  else p.conditions[key] = { StackSize: Math.max(1, Math.round(Number(n))) };
+  const c = { ...(p.conditions[key] || {}) };
+  if (value == null) delete c[field]; else c[field] = value;
+  if (Object.keys(c).length) p.conditions[key] = c; else delete p.conditions[key];
   return p;
 }
 
@@ -420,4 +511,4 @@ function themeFromView(view, onlyKeys = null) {
   return styles;
 }
 
-module.exports = { withStackSize, withNewTier, withoutNewTier, clonePatch, withAction, extractTiers, applyTierPatch, tierView, withMove, withoutMove, withStyle, locateBase, themeFromView, typeLabel, HIDE, HIDDEN_TIER, renderBlock };
+module.exports = { withCondition, CLASS_BASES, NUMBER_CONDS, withStackSize, withNewTier, withoutNewTier, clonePatch, withAction, extractTiers, applyTierPatch, tierView, withMove, withoutMove, withStyle, locateBase, themeFromView, typeLabel, HIDE, HIDDEN_TIER, renderBlock };

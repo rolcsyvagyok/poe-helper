@@ -220,6 +220,7 @@
           h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), h('span', { class: 'small faint' }, 'at least')),
             h('div', { class: 'rx-nums' }, v.numbers.map((n) => num(n.label, c.numbers?.[n.id], (val) => setIn('numbers', n.id, val))))),
           h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Map')),
+            c.kind === 't17' ? null : h('div', { class: 'small faint' }, 'Map types are for the trade search; the map stash already keeps them apart.'),
             // nightmare maps are always rare and never influenced: only corrupted and identified apply
             c.kind === 't17' ? null : v.mapTypes.map((t) => tri(t.label, c.mapTypes?.[t.id], (val) => setIn('mapTypes', t.id, val, true))),
             c.kind === 't17' ? null : h('div', { class: 'rx-sep', role: 'separator' }),

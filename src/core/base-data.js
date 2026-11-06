@@ -84,8 +84,8 @@ const GROUPS = [
   } },
   { id: 'jewellery', name: 'Jewellery', columns: {
     'Rings': s('Cerulean Ring|Vermillion Ring|Iolite Ring|Opal Ring|Steel Ring|Amethyst Ring|Bone Ring|Two-Stone Ring|Unset Ring|Prismatic Ring|Diamond Ring|Moonstone Ring|Ruby Ring|Topaz Ring|Sapphire Ring|Coral Ring|Gold Ring|Paua Ring|Iron Ring'),
-    'Amulets': s('Blue Pearl Amulet|Marble Amulet|Seaglass Amulet|Onyx Amulet|Agate Amulet|Citrine Amulet|Turquoise Amulet|Stygian Vise|Amber Amulet|Jade Amulet|Lapis Amulet|Gold Amulet|Coral Amulet|Paua Amulet'),
-    'Belts': s('Vanguard Belt|Crystal Belt|Heavy Belt|Leather Belt|Cloth Belt|Studded Belt|Chain Belt|Rustic Sash'),
+    'Amulets': s('Blue Pearl Amulet|Marble Amulet|Seaglass Amulet|Onyx Amulet|Agate Amulet|Citrine Amulet|Turquoise Amulet|Amber Amulet|Jade Amulet|Lapis Amulet|Gold Amulet|Coral Amulet|Paua Amulet'),
+    'Belts': s('Stygian Vise|Vanguard Belt|Crystal Belt|Heavy Belt|Leather Belt|Cloth Belt|Studded Belt|Chain Belt|Rustic Sash'),
   } },
   // Heist bases: only from Heist (blueprints, contracts, Rogue rewards). NeverSink lists them as "exotic heist bases".
   { id: 'heist', name: 'Heist bases', columns: {

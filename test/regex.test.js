@@ -87,11 +87,11 @@ test('wanted mods: any one, or all of them', () => {
 });
 
 test('rarity, corrupted, map types and your own text', () => {
-  const r = R.buildMapRegex({ rarity: { normal: 'avoid', magic: 'avoid' }, corrupted: 'avoid', mapTypes: { blighted: 'avoid' }, custom: '!delirium' });
+  const r = R.buildMapRegex({ rarity: { normal: 'avoid', magic: 'avoid' }, corrupted: 'avoid', mapTypes: { blighted: 'avoid', shaper: 'avoid' }, custom: '!delirium' });
+  assert.doesNotMatch(r.regex, /blighted|shaper/, 'map types are only for the trade search');
   assert.equal(gameSearch(r.regex, mapText([], { rarity: 'Rare' })), true);
   assert.equal(gameSearch(r.regex, mapText([], { rarity: 'Magic' })), false);
   assert.equal(gameSearch(r.regex, mapText([], { corrupted: true })), false);
-  assert.equal(gameSearch(r.regex, mapText([]).replace('Strand Map', 'Blighted Strand Map')), false);
   assert.match(r.regex, /!delirium$/);
 });
 

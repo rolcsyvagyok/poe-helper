@@ -24,6 +24,9 @@ const { applyTierPatch, tierView, HIDDEN_TIER, HIDE } = require('./tiers');
 const { BASES, GROUPS } = require('../base-data');
 const cluster = require('../cluster');
 
+// heist and ritual bases are shown by the filter's own settings, so base ranks leave them alone
+const NOT_RANKED_GROUPS = new Set(['heist', 'ritual', 'flasks']); // flasks and jewels too: their own filter sections show them
+const RANKED_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.filter((g) => !NOT_RANKED_GROUPS.has(g.id)).flatMap((g) => Object.values(g.columns).flat())])];
 const MATRIX_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.flatMap((g) => Object.values(g.columns).flat())])];
 // fractured bases have their own palette: the best bases loud, good ones clear, the rest hidden
 const FRACTURED_TOP_STYLE = { fontSize: 45, text: [255, 255, 255, 255], border: [255, 214, 150, 255], background: [150, 86, 22, 255], customSound: 'poehelper-sounds/sparkle.mp3', beam: { color: 'Orange' }, icon: { size: 0, color: 'Brown', shape: 'Star' } };
@@ -377,7 +380,8 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
 }
 
 function matrixRules(state = {}, { mapsOnly = true, keepIlvl = null } = {}) {
-  const pick = (f) => Object.entries(state || {}).filter(([n, v]) => n && v && f(v)).map(([n]) => n).sort();
+  const ranked = new Set(RANKED_NAMES); // heist and ritual bases: left to the filter
+  const pick = (f) => Object.entries(state || {}).filter(([n, v]) => n && v && ranked.has(n) && f(v)).map(([n]) => n).sort();
   const fracTop = pick((v) => v.frac === 'top');
   const fracShow = pick((v) => v.frac === 'show');
   const fracHide = pick((v) => v.frac === 'hide');
@@ -591,7 +595,7 @@ class FilterManager {
     const hidden = hiddenBaseRules(baseText, patch, { fractured: !!this.store.get('hideFractured'), synthesised: !!this.store.get('hideSynthesised') });
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
-    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, MATRIX_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {} });
+    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {} });
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
     if (Object.keys(clusterState).length) {
@@ -681,4 +685,4 @@ class FilterManager {
   }
 }
 
-module.exports = { matrixRules, MATRIX_NAMES, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

@@ -239,6 +239,63 @@ function renderTiers(body, view) {
     return el;
   }
 
+  // ---- a tier's own conditions, FilterBlade style: item level / area level / quality sliders,
+  // rarity, and the bases as boxes you can untick ----
+  const COND_LABEL = { ItemLevel: 'Item level', AreaLevel: 'Area level', Quality: 'Quality' };
+  const COND_MAX = { ItemLevel: 86, AreaLevel: 86, Quality: 30 };
+  function hasCondEditor(t) {
+    if (t.generated || t.stackSize) return false;
+    return !!(t.implied || (t.numbers && Object.values(t.numbers).some(Boolean)));
+  }
+  function condEditor(t) {
+    const mine = (S.settings.tierPatch?.conditions || {})[t.key] || {};
+    const setCond = async (field, value) => { await call('tiers:cond', { key: t.key, field, value }); renderFilters(); };
+    const numberRow = (k) => {
+      const cur = t.numbers?.[k];
+      const op = cur ? (cur.op === '>' ? '>=' : cur.op === '<' ? '<=' : cur.op) : 'any';
+      const max = COND_MAX[k];
+      const box = h('input', { type: 'number', min: 0, max: 100, value: cur ? cur.value : '', disabled: op === 'any', class: 'il-box', 'aria-label': `${COND_LABEL[k]} value` });
+      const range = h('input', { type: 'range', min: 0, max, value: cur ? Math.min(max, cur.value) : 0, disabled: op === 'any', class: 'il-range', 'aria-label': COND_LABEL[k] });
+      const paint = (v) => range.style.setProperty('--il', `${(Math.min(max, v) / max) * 100}%`);
+      paint(cur ? cur.value : 0);
+      const sel = h('select', { 'aria-label': `${COND_LABEL[k]}: how`, onchange: (e) => {
+        const o = e.target.value;
+        if (o === 'any') return setCond(k, 'any');
+        setCond(k, { op: o, value: Number(box.value) || (k === 'Quality' ? 20 : 68) });
+      } }, [['any', 'any'], ['>=', '≥ at least'], ['<=', '≤ at most'], ['=', '= exactly']].map(([v, l]) => h('option', { value: v, selected: op === v }, l)));
+      let timer = null;
+      const send = (v) => { clearTimeout(timer); timer = setTimeout(() => setCond(k, { op: op === 'any' ? '>=' : op, value: v }), 400); };
+      range.addEventListener('input', () => { box.value = range.value; paint(range.value); send(Number(range.value)); });
+      box.addEventListener('change', () => { const v = Math.max(0, Math.min(100, Math.round(Number(box.value) || 0))); box.value = v; range.value = Math.min(max, v); paint(v); send(v); });
+      const changed = mine[k] !== undefined;
+      return h('div', { class: 'fb-cond' }, h('span', { class: 'fb-cond-l' }, COND_LABEL[k]), sel, box, range,
+        changed ? h('button', { class: 'quiet sm', title: 'Back to the filter\'s value', onclick: () => setCond(k, null) }, 'Reset') : h('span'));
+    };
+    // rarity (normal / magic / rare) when the tier asks for it
+    const rarRow = t.rarity ? h('div', { class: 'fb-cond' }, h('span', { class: 'fb-cond-l' }, 'Rarity'),
+      h('div', { class: 'fb-rar', style: { gridColumn: '2 / 5' } }, ['Normal', 'Magic', 'Rare'].map((r) => {
+        const on = t.rarity.includes(r);
+        return h('button', { type: 'button', class: 'fb-check' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', onclick: () => {
+          const next = on ? t.rarity.filter((x) => x !== r) : [...t.rarity, r];
+          if (!next.length) return toast('Keep at least one rarity.', true);
+          setCond('Rarity', ['Normal', 'Magic', 'Rare'].filter((x) => next.includes(x)));
+        } }, (on ? '☑ ' : '☐ ') + r);
+      })), mine.Rarity ? h('button', { class: 'quiet sm', onclick: () => setCond('Rarity', null) }, 'Reset') : h('span')) : null;
+    // the bases: every one the tier has (or stands for), unticked = switched off for this tier
+    const excluded = new Set(mine.exclude || []);
+    const all = t.implied ? t.implied : [...t.bases, ...[...excluded].filter((b) => !t.bases.includes(b))];
+    const baseBox = (t.implied || t.special) && all.length ? h('div', { class: 'fb-checks' }, all.map((b) => {
+      const on = !excluded.has(b);
+      return h('button', { type: 'button', class: 'fb-check' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', title: on ? `Switch ${b} off for this tier` : `Switch ${b} back on`, onclick: () => {
+        const next = new Set(excluded);
+        if (on) next.add(b); else next.delete(b);
+        if (next.size >= all.length) return toast('Keep at least one base in the tier.', true);
+        setCond('exclude', next.size ? [...next] : null);
+      } }, (on ? '☑ ' : '☐ ') + b);
+    })) : null;
+    return h('div', { class: 'fb-conds' }, baseBox, ['ItemLevel', 'AreaLevel', 'Quality'].map(numberRow), rarRow);
+  }
+
   function tierCard(t) {
     const isEditing = FB.editing === t.key;
     const q = FB.search.trim().toLowerCase();
@@ -246,7 +303,7 @@ function renderTiers(body, view) {
     if (q && !bases.length) return null;
     // the label shows the tier's most valuable item (by today's poe.ninja price), else its first one
     const priced = (list) => list.filter((b) => Number.isFinite(pricing?.prices?.[b]?.chaos)).sort((a, b) => (pricing.prices[b].max ?? pricing.prices[b].chaos) - (pricing.prices[a].max ?? pricing.prices[a].chaos));
-    const sample = priced(bases)[0] || bases[0] || priced(t.bases)[0] || t.bases[0] || type.label;
+    const sample = priced(bases)[0] || bases[0] || priced(t.bases)[0] || t.bases[0] || t.implied?.[0] || type.label;
     const preview = h('div', { class: 'fb-preview' });
     const drawPreview = () => {
       const st = isEditing ? FB.draft : t.style;
@@ -282,13 +339,15 @@ function renderTiers(body, view) {
           t.mine ? h('button', { class: 'quiet sm', title: 'Delete this tier; its items go back to where the filter had them', 'aria-label': `Delete ${tierName(t)}`, onclick: async () => { if (!confirm(`Delete ${tierName(t)}? Its items go back to where your filter had them.`)) return; await call('tiers:remove', { type: type.type, tier: t.tier }); delete FB.prices[type.type]; toast(`${tierName(t)} deleted`); renderFilters(); } }, 'Delete') : null, changedAction ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, changedAction === 'Hide' ? 'Hidden by you' : changedAction === 'Off' ? 'Off by you' : t.origState === 'Off' ? 'Switched on by you' : 'Shown by you') : !changedAction && state === 'Off' ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade switched this tier off for your strictness. Press Shown to use it.' }, 'Off in FilterBlade') : null, edited.has(t.key) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null),
         h('div', { class: 'small', style: { color: '#9a9f8c' } }, t.hasBaseList ? `${t.bases.length} ${t.bases.length === 1 ? 'base' : 'bases'}` : t.special ? 'Special case' : 'Catches the rest of this category',
           pricing?.tiers?.[t.key]?.median != null ? `, typically ${fmtC(pricing.tiers[t.key].median)}` : ''),
-        t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity)\b/.test(c)).join(', ')}`) : null),
+        t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity|ItemLevel|AreaLevel|Quality)\b/.test(c)).join(', ') || 'the conditions below'}`) : null),
       h('span', { class: 'spacer' }),
       visSwitch,
       t.generated ? null : h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) { FB.editing = null; } else { FB.editing = t.key; FB.draft = structuredClone(t.style || {}); } drawList(); } }, isEditing ? 'Close' : 'Edit look'));
     const canAdd = (t.hasBaseList && !t.special) || t.generated;
+    const conds = !folded && hasCondEditor(t);
     const card = h('div', { class: 'fb-tier' + (t.generated ? ' generated' : '') + (hidden ? ' is-hidden' : '') + (state === 'Off' ? ' is-off' : ''), 'data-key': t.key }, head,
-      folded ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, 'Empty. Drag bases here or add one below.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
+      conds ? condEditor(t) : null,
+      folded || (conds && (t.implied || t.special)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, 'Empty. Drag bases here or add one below.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
       folded || !canAdd ? null : addBox(t),
       isEditing && !folded ? lookEditor(t, () => drawList(), drawPreview) : null);
     // drop a sound file anywhere on the tier: it becomes this tier's drop sound
@@ -807,7 +866,7 @@ async function renderBaseMatrix(body, view) {
   const rankOf = (n) => (RANKS.includes(ranks[n]) ? ranks[n] : LOW);
   const col = (a) => (a ? `rgba(${+a[0] || 0},${+a[1] || 0},${+a[2] || 0},${((a[3] == null ? 255 : +a[3]) / 255).toFixed(3)})` : '');
   // three parts: armours and weapons, jewellery, and the minion bases (a view: they keep their one rank)
-  const SECTIONS = [['gear', 'Armours and Weapons'], ['jewellery', 'Jewellery'], ['minion', 'Minion']];
+  const SECTIONS = [['gear', 'Armours and Weapons'], ['jewellery', 'Jewellery']]; // minion bases sit in these; Hide whole groups has a button for all of them
   FB.rankSection = SECTIONS.some(([id]) => id === FB.rankSection) ? FB.rankSection : 'gear';
   const part = FB.rankSection;
   const gearGroups = (data.groups || []).filter((g) => g.id !== 'jewellery');
@@ -842,6 +901,8 @@ async function renderBaseMatrix(body, view) {
   // "Show by rank": the same bases, one column per rank, so you can see what's in and what's out
   const rankColumns = () => RANKS.map((r) => ({ title: r === LOW ? `${r} · untiered` : `Rank ${r}`, rank: r, list: scope.filter((b) => rankOf(b.name) === r) }));
   if (byRank) columns = rankColumns();
+  // every column best rank first (S at the top, D at the bottom); the base order stays within a rank
+  else columns = columns.map((c) => ({ ...c, list: c.list.map((b, i) => [b, i]).sort((x, y) => RANKS.indexOf(rankOf(x[0].name)) - RANKS.indexOf(rankOf(y[0].name)) || x[1] - y[1]).map(([b]) => b) }));
 
   const pick = h('select', { 'aria-label': 'Show bases by', onchange: (e) => { FB.matrixView = e.target.value; renderFilters(); } },
     h('option', { value: 'a:all', selected: mode === 'a' }, 'All bases'),
