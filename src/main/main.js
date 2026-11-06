@@ -1,7 +1,43 @@
 'use strict';
-const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog, session } = require('electron');
 const path = require('path');
 const { createServices } = require('./services');
+
+// ---------- poelab through Chromium ----------
+// poelab is behind Cloudflare, which turns some plain requests away (403), e.g. on a new network.
+// Then the page is opened in a hidden window, like any browser would, and the picture is fetched with
+// the same session (Cloudflare's pass is a cookie, kept in its own partition). If Cloudflare wants a
+// click ("Verify you are human"), the window shows itself so you can do it, then closes.
+const LAB_PARTITION = 'persist:poelab';
+const labWait = (ms) => new Promise((r) => setTimeout(r, ms));
+const isChallenge = (html) => /cf-challenge|challenge-platform|Just a moment|Verify you are human|cf-turnstile/i.test(html) && !/wp-content\/labfiles/i.test(html);
+const labBrowser = {
+  async text(url) {
+    if (!/^https:\/\/www\.poelab\.com\//.test(url)) throw new Error('Only poelab pages are opened this way.');
+    const win = new BrowserWindow({ show: false, width: 520, height: 640, title: 'poelab check', autoHideMenuBar: true,
+      webPreferences: { partition: LAB_PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false } });
+    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    try {
+      await win.loadURL(url).catch(() => {});
+      const start = Date.now();
+      let shown = false;
+      while (Date.now() - start < 120000) {
+        if (win.isDestroyed()) throw new Error('The poelab check window was closed.');
+        const html = await win.webContents.executeJavaScript('document.documentElement.outerHTML').catch(() => '');
+        if (html && !isChallenge(html)) return html;
+        if (!shown && Date.now() - start > 8000) { shown = true; win.show(); win.focus(); }
+        await labWait(700);
+      }
+      throw new Error('poelab\'s Cloudflare check didn\'t finish. Open poelab.com once in your browser, then try again.');
+    } finally { if (!win.isDestroyed()) win.destroy(); }
+  },
+  async buffer(url, referer) {
+    if (!/^https:\/\/www\.poelab\.com\//.test(url)) throw new Error('Only poelab pictures are loaded this way.');
+    const r = await session.fromPartition(LAB_PARTITION).fetch(url, { headers: referer ? { Referer: referer } : {} });
+    if (!r.ok) throw new Error(`poelab's picture answered ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  },
+};
 const { isPoeItemText } = require('../core/item-parser');
 const { sendCopy, hasKeySender, onMouse, stopHook } = require('./keys');
 const { AuthError } = require('../core/ggg');
@@ -570,7 +606,7 @@ function registerIpc() {
   handle('app:resetAll', () => { const r = services.resetAll(); afterReset(); return r; });
   handle('app:undoReset', () => { const r = services.undoResetAll(); afterReset(); return r; });
   handle('app:canUndoReset', () => services.canUndoReset());
-  // put some settings back to how a fresh install has them (e.g. the usual map warnings)
+  // put some settings back to how a fresh install has them
   handle('settings:reset', (keys) => {
     const D = require('./services').DEFAULT_SETTINGS;
     for (const k of (Array.isArray(keys) ? keys : []).filter((x) => x in D && !['sessionEnc', 'history'].includes(x))) s.set(k, structuredClone(D[k]));
@@ -662,6 +698,15 @@ function registerIpc() {
   handle('cluster:set', (a) => services.setCluster(a || {}));
   handle('matrix:fracAuto', (a) => services.autoFractured(a || {}));
   handle('matrix:set', (a) => services.setBaseMatrix(a || {}));
+  handle('regex:mapView', (a) => services.regexMapView(a || {}));
+  handle('regex:mapBuild', (a) => services.regexMapBuild(a || {}));
+  handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
+  handle('regex:savePreset', (a) => services.regexSavePreset(a || {}));
+  handle('regex:deletePreset', (a) => services.regexDeletePreset(a || {}));
+  handle('clipboard:write', (t) => { clipboard.writeText(String(t ?? '').slice(0, 5000)); return true; });
+  handle('ranks:set', (a) => services.setBaseRanks(a || {}));
+  handle('ranks:kind', (a) => services.setRankKind(a || {}));
+  handle('ranks:auto', (a) => services.autoRanks(a || {}));
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('bases:add', (a) => services.addMyBase(a || {}));
   handle('bases:update', ({ id, patch }) => services.updateMyBase(String(id), patch || {}));
@@ -790,7 +835,7 @@ app.on('second-instance', () => mainWin?.show());
 if (process.platform === 'win32') app.setAppUserModelId('dev.poehelper.app');
 
 app.whenReady().then(async () => {
-  services = createServices({ dataDir: app.getPath('userData'), secrets, log });
+  services = createServices({ dataDir: app.getPath('userData'), secrets, log, labBrowser });
   registerIpc();
   createMainWindow();
   createOverlay();

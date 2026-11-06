@@ -12,7 +12,6 @@ const { parseExchange, parseCurrency, NinjaClient } = require('../src/core/ninja
 const { DiskCache, JsonStore } = require('../src/core/cache');
 const { Pricer, categoriesFor } = require('../src/core/pricer');
 const { matchItemMods, buildQuery } = require('../src/core/trade');
-const { checkMap } = require('../src/core/map-mods');
 const { valueTabs, buildIndex, diffItems } = require('../src/core/networth');
 const { parse, serialize, renderBlock } = require('../src/core/filter/parser');
 const { explain } = require('../src/core/filter/matcher');
@@ -165,15 +164,6 @@ test('matches rare mods to trade stats, including reduced->negative', () => {
   const lf = q.query.stats[0].filters.find((f) => f.id === 'explicit.stat_life');
   assert.deepEqual(lf.value, { min: 40 });
   assert.equal(q.query.filters.misc_filters.filters.corrupted.option, 'true');
-});
-
-// ---------- map mods ----------
-test('flags dangerous map mods', () => {
-  const r = checkMap(parseItem(F.map));
-  assert.equal(r.verdict, 'skip');
-  assert.ok(r.hits.find((h) => h.id === 'reflect-ele'));
-  assert.ok(r.hits.find((h) => h.id === 'less-recovery'));
-  assert.equal(r.stats.quantity, 78);
 });
 
 // ---------- net worth ----------

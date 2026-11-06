@@ -544,15 +544,55 @@ test('fractured tiering: the best bases per column top, the next good, the rest 
   assert.ok(rules[0].conditions.some((c) => c.keyword === 'FracturedItem' && c.values[0] === 'True'));
 });
 
+test('base ranks: a B rank base hides as a plain rare (rares S only) but shows fractured (B and up)', () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
+  svc.setBaseRanks({ bases: ['Vaal Regalia'], rank: 'B' });
+  svc.setBaseRanks({ bases: ['Vaal Regalia', 'Simple Robe'], dir: +1 }); // B -> A, C -> B
+  assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'A');
+  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], 'B');
+  svc.setBaseRanks({ bases: ['Vaal Regalia'], dir: -1 });
+  svc.setBaseRanks({ bases: ['Simple Robe'], dir: -1 });
+  svc.setBaseRanks({ bases: ['Simple Robe'], dir: -1 }); // already C: stays, the floor
+  assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'B');
+  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], undefined, 'C is the default');
+  svc.setRankKind({ kind: 'rares', min: 'S' });
+  svc.setRankKind({ kind: 'fractured', min: 'B' });
+  const { rankRules } = require('../src/core/filter/manager');
+  const rules = rankRules(svc.settings.get('baseRanks'), svc.settings.get('rankKinds'), ['Vaal Regalia', 'Simple Robe']);
+  const has = (id, base) => rules.find((r) => r.id === id)?.conditions.find((c) => c.keyword === 'BaseType').values.includes(base);
+  assert.ok(has('rank-fractured-B', 'Vaal Regalia'), 'fractured Vaal Regalia shows');
+  assert.ok(has('rank-rares-hide', 'Vaal Regalia'), 'plain rare Vaal Regalia hides');
+  assert.ok(has('rank-fractured-hide', 'Simple Robe'));
+  const hide = rules.find((r) => r.id === 'rank-rares-hide');
+  assert.ok(hide.conditions.some((c) => c.keyword === 'Sockets'), 'six sockets still show');
+  assert.ok(!rules.some((r) => r.conditions.some((c) => c.keyword === 'Rarity' && c.values.includes('Unique'))), 'uniques untouched');
+  const text = require('fs').readFileSync(svc.filters.write(), 'utf8');
+  assert.match(text, /Base ranks: fractured, rank B/);
+});
+
+test('base ranks: the old fractured looks move over once, and ranks come from the base order', () => {
+  const { svc } = setup();
+  svc.settings.set('baseMatrix', { 'Vaal Regalia': { frac: 'top' }, 'Simple Robe': { frac: 'show', vis: 'hide' }, 'Plate Vest': { frac: 'hide' } });
+  const v = svc.baseMatrixView();
+  assert.equal(v.ranks['Vaal Regalia'], 'S');
+  assert.equal(v.ranks['Simple Robe'], 'B');
+  assert.equal(v.ranks['Plate Vest'], undefined);
+  assert.equal(v.kinds.fractured, 'B');
+  assert.deepEqual(svc.settings.get('baseMatrix'), { 'Simple Robe': { vis: 'hide' } });
+  const r = svc.autoRanks({ s: 1, a: 2, b: 2 });
+  const col = svc.baseMatrixView().bases['Body Armours'].ar.map((b) => b.name);
+  assert.deepEqual(col.slice(0, 6).map((n) => r.ranks[n] || 'C'), ['S', 'A', 'A', 'B', 'B', 'C'].slice(0, Math.min(6, col.length)));
+});
+
 test('reset everything: your changes go, account and filter choice stay, and it can be undone once', () => {
   const { svc, filterDir } = setup();
-  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter', accountName: 'me#1234', hotkeyPrice: 'Ctrl+Q', mapRules: [] });
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter', accountName: 'me#1234', hotkeyPrice: 'Ctrl+Q' });
   svc.setBaseMatrix({ bases: ['Royal Plate'], frac: 'top' });
   svc.resetAll();
   assert.equal(svc.settings.get('accountName'), 'me#1234');
   assert.equal(svc.settings.get('baseFilter'), 'NeverSink.filter');
   assert.notEqual(svc.settings.get('hotkeyPrice'), 'Ctrl+Q');
-  assert.ok(svc.settings.get('mapRules').length > 0, 'the usual map warnings are back');
   assert.deepEqual(svc.settings.get('baseMatrix'), {});
   assert.ok(svc.canUndoReset());
   svc.undoResetAll();

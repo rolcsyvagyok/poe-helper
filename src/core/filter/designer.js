@@ -18,7 +18,7 @@ const game = (id, volume = 300) => ({ sound: { id, volume } });
 const TIER1_SOUND = { id: 6, volume: 300 };
 /** Tier 1 in every theme: white label, white beam, white star, FilterBlade's Divine sound. Only the text colour varies. */
 function tier1(textRgb, size = 45) {
-  return { fontSize: size, text: [...textRgb, 255], border: [255, 255, 255, 255], background: [255, 255, 255, 255], sound: { ...TIER1_SOUND }, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
+  return { fontSize: size, text: [...textRgb, 255], border: [...textRgb, 255], background: [255, 255, 255, 255], sound: { ...TIER1_SOUND }, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
 }
 
 /**
@@ -115,7 +115,7 @@ function tierLevel(tierName) {
   return m ? Number(m[1]) : null;
 }
 
-/** Force Tier 1 to the white look with FilterBlade's Divine sound, keeping its text colour and size. */
+/** Tier 1 is always the white look with FilterBlade's Divine sound; its text colour (the border too) and size are yours. */
 function lockTier1(levels) {
   const t1 = levels?.[1] || {};
   return { ...levels, 1: { ...tier1((t1.text || [220, 0, 0]).slice(0, 3), t1.fontSize || 45), ...(t1.customVolume ? { customVolume: t1.customVolume } : {}) } };

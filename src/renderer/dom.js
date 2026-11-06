@@ -220,7 +220,7 @@ function soundButton(id) {
   if (id.startsWith('game:')) {
     const n = id.slice(5);
     if (gameSoundFile(id)) return h('span', { class: 'row', style: { gap: '4px', flexWrap: 'nowrap' } }, h('span', { class: 'sound-chip' }, `Game sound ${n}`), h('button', { class: 'play', type: 'button', title: `Play game sound ${n}`, 'aria-label': `Play game sound ${n}`, onclick: (e) => { e.stopPropagation(); playSound(id); } }, '▶'));
-    return h('span', { class: 'sound-chip', title: `Built-in game sound ${n}. To preview it here, let PoE Helper find your game in Settings → Game sound previews.` }, `Game sound ${n}`);
+    return h('span', { class: 'sound-chip', title: `Built-in game sound ${n}. To preview it here, let PoE Helper find your game in Tier designer → Game sound previews.` }, `Game sound ${n}`);
   }
   if (id === 'custom') return h('span', { class: 'sound-chip' }, 'Custom sound');
   return h('button', { class: 'play', type: 'button', title: 'Play this sound', 'aria-label': 'Play sound', onclick: (e) => { e.stopPropagation(); playSound(id); } }, '▶');

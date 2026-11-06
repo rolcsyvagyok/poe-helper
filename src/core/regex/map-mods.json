@@ -1,0 +1,2010 @@
+{
+ "source": "Path of Exile game data (RePoE export)",
+ "count": 115,
+ "mods": [
+  {
+   "id": "MapUberModRareFracture",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Splinters",
+   "lines": [
+    "#% chance for Rare Monsters to Fracture on death"
+   ],
+   "trade": [
+    "explicit.stat_3097694855"
+   ]
+  },
+  {
+   "id": "MapBloodlinesModOnMagicsMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "of Bloodlines",
+   "lines": [
+    "#% increased Magic Monsters"
+   ],
+   "trade": [
+    "explicit.stat_1821565133"
+   ]
+  },
+  {
+   "id": "MapMonsterDamage2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Savage",
+   "lines": [
+    "#% increased Monster Damage"
+   ],
+   "trade": [
+    "explicit.stat_1890519597"
+   ]
+  },
+  {
+   "id": "MapMonsterFast2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Fleet",
+   "lines": [
+    "#% increased Monster Movement Speed",
+    "#% increased Monster Attack Speed",
+    "#% increased Monster Cast Speed"
+   ],
+   "trade": [
+    "explicit.stat_2306522833",
+    "explicit.stat_1913583994",
+    "explicit.stat_2488361432"
+   ]
+  },
+  {
+   "id": "MapNemesisModOnRaresMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Antagonist's",
+   "lines": [
+    "#% increased number of Rare Monsters"
+   ],
+   "trade": [
+    "explicit.stat_3126771445"
+   ]
+  },
+  {
+   "id": "MapMonstersCurseEffectOnSelfFinal2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Hexwarded",
+   "lines": [
+    "#% less effect of Curses on Monsters"
+   ],
+   "trade": [
+    "explicit.stat_3796523155"
+   ]
+  },
+  {
+   "id": "MapMonsterLife2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Fecund",
+   "lines": [
+    "#% more Monster Life"
+   ],
+   "trade": [
+    "explicit.stat_2710898947"
+   ]
+  },
+  {
+   "id": "MapMonstersAllResistances2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Resistant",
+   "lines": [
+    "+#% Monster Chaos Resistance",
+    "+#% Monster Elemental Resistances"
+   ],
+   "trade": [
+    "explicit.stat_365540634",
+    "explicit.stat_1054098949"
+   ]
+  },
+  {
+   "id": "MapMonsterPhysicalResistance2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Armoured",
+   "lines": [
+    "+#% Monster Physical Damage Reduction"
+   ],
+   "trade": [
+    "explicit.stat_839186746"
+   ]
+  },
+  {
+   "id": "MapUberModResistancePDR",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Protected",
+   "lines": [
+    "+#% Monster Physical Damage Reduction",
+    "+#% Monster Elemental Resistances",
+    "+#% Monster Chaos Resistance"
+   ],
+   "trade": [
+    "explicit.stat_839186746",
+    "explicit.stat_1054098949",
+    "explicit.stat_365540634"
+   ]
+  },
+  {
+   "id": "MapMonstersAllDamageAlwaysIgnitesMapWorldsMaven",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Conflagrating",
+   "lines": [
+    "All Monster Damage from Hits always Ignites"
+   ],
+   "trade": [
+    "explicit.stat_816367946"
+   ]
+  },
+  {
+   "id": "MapUberModDrowningOrbs",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Hungering",
+   "lines": [
+    "Area contains Drowning Orbs"
+   ],
+   "trade": [
+    "explicit.stat_25225034"
+   ]
+  },
+  {
+   "id": "MapUberModLabyrinthHazards",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Labyrinth's",
+   "lines": [
+    "Area contains Labyrinth Hazards"
+   ],
+   "trade": [
+    "explicit.stat_2577650864"
+   ]
+  },
+  {
+   "id": "MapTotemsMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Ceremonial",
+   "lines": [
+    "Area contains many Totems"
+   ],
+   "trade": [
+    "explicit.stat_1000591322"
+   ]
+  },
+  {
+   "id": "MapUberModPlayerMarked",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Marking",
+   "lines": [
+    "Area contains patches of moving Marked Ground, inflicting random Marks"
+   ],
+   "trade": [
+    "explicit.stat_2796704737"
+   ]
+  },
+  {
+   "id": "MapUberModExarch",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Searing",
+   "lines": [
+    "Area contains Runes of the Searing Exarch"
+   ],
+   "trade": [
+    "explicit.stat_2073168229"
+   ]
+  },
+  {
+   "id": "MapTwoBossesMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Twinned",
+   "lines": [
+    "Area contains two Unique Bosses"
+   ],
+   "trade": [
+    "explicit.stat_799271621"
+   ]
+  },
+  {
+   "id": "MapUberModElderNovas",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Decaying",
+   "lines": [
+    "Area contains Unstable Tentacle Fiends"
+   ],
+   "trade": [
+    "explicit.stat_1943574423"
+   ]
+  },
+  {
+   "id": "MapMoreMonsterPackVarietyMapWorlds_",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Multifarious",
+   "lines": [
+    "Area has increased monster variety"
+   ],
+   "trade": [
+    "explicit.stat_3561450806"
+   ]
+  },
+  {
+   "id": "MapBurningGround1MapWorlds_",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Flames",
+   "lines": [
+    "Area has patches of Burning Ground"
+   ],
+   "trade": [
+    "explicit.stat_133340941"
+   ]
+  },
+  {
+   "id": "MapChilledGroundSuffix1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Ice",
+   "lines": [
+    "Area has patches of Chilled Ground"
+   ],
+   "trade": [
+    "explicit.stat_349586058"
+   ]
+  },
+  {
+   "id": "MapConsecratedGround2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Consecration",
+   "lines": [
+    "Area has patches of Consecrated Ground"
+   ],
+   "trade": [
+    "explicit.stat_1948962470"
+   ]
+  },
+  {
+   "id": "MapDesecratedGround1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Desecration",
+   "lines": [
+    "Area has patches of desecrated ground"
+   ],
+   "trade": [
+    "explicit.stat_3577222856"
+   ]
+  },
+  {
+   "id": "MapShockedGround1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Lightning",
+   "lines": [
+    "Area has patches of Shocked Ground which increase Damage taken by #%"
+   ],
+   "trade": [
+    "explicit.stat_3246076198"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksAbominationMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Abhorrent",
+   "lines": [
+    "Area is inhabited by Abominations"
+   ],
+   "trade": [
+    "explicit.stat_2961018200"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksAnimalsMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Feral",
+   "lines": [
+    "Area is inhabited by Animals"
+   ],
+   "trade": [
+    "explicit.stat_4198346809"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksKitavaMapWorlds_",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Feasting",
+   "lines": [
+    "Area is inhabited by Cultists of Kitava"
+   ],
+   "trade": [
+    "explicit.stat_4252630904"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksDemonsMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Demonic",
+   "lines": [
+    "Area is inhabited by Demons"
+   ],
+   "trade": [
+    "explicit.stat_3916182167"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksGhostsMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Haunting",
+   "lines": [
+    "Area is inhabited by Ghosts"
+   ],
+   "trade": [
+    "explicit.stat_3516340048"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksGoatmenMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Capricious",
+   "lines": [
+    "Area is inhabited by Goatmen"
+   ],
+   "trade": [
+    "explicit.stat_1813544255"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksHumanoidsMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Bipedal",
+   "lines": [
+    "Area is inhabited by Humanoids"
+   ],
+   "trade": [
+    "explicit.stat_2651141461"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksLunarisMapWorlds_",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Lunar",
+   "lines": [
+    "Area is inhabited by Lunaris fanatics"
+   ],
+   "trade": [
+    "explicit.stat_3134632618"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksRangedMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Emanant",
+   "lines": [
+    "Area is inhabited by ranged monsters"
+   ],
+   "trade": [
+    "explicit.stat_645841425"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksSpawnsSeaWitchesMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Slithering",
+   "lines": [
+    "Area is inhabited by Sea Witches and their Spawn"
+   ],
+   "trade": [
+    "explicit.stat_25085466"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksSkeletonsMapWorlds_",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Skeletal",
+   "lines": [
+    "Area is inhabited by Skeletons"
+   ],
+   "trade": [
+    "explicit.stat_45546355"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksSolarisMapWorlds_",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Solar",
+   "lines": [
+    "Area is inhabited by Solaris fanatics"
+   ],
+   "trade": [
+    "explicit.stat_1934713036"
+   ]
+  },
+  {
+   "id": "MapMonsterPacksUndeadMapWorlds_",
+   "affix": "prefix",
+   "kinds": [
+    "regular"
+   ],
+   "name": "Undead",
+   "lines": [
+    "Area is inhabited by Undead"
+   ],
+   "trade": [
+    "explicit.stat_808491979"
+   ]
+  },
+  {
+   "id": "MapUberModAurasAffectMonsters",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Treachery",
+   "lines": [
+    "Auras from Player Skills which affect Allies also affect Enemies"
+   ],
+   "trade": [
+    "explicit.stat_2156372077"
+   ]
+  },
+  {
+   "id": "MapPlayersBuffsExpireFaster2MapWorlds___",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Transience",
+   "lines": [
+    "Buffs on Players expire #% faster"
+   ],
+   "trade": [
+    "explicit.stat_1217583941"
+   ]
+  },
+  {
+   "id": "MapUberModMonsterDebuffSpeed",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Defiance",
+   "lines": [
+    "Debuffs on Monsters expire #% faster"
+   ],
+   "trade": [
+    "explicit.stat_1200027417"
+   ]
+  },
+  {
+   "id": "MapUberModSynthMiniboss",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Synthetic",
+   "lines": [
+    "Map Boss is accompanied by a Synthesis Boss"
+   ],
+   "trade": [
+    "explicit.stat_4150353141"
+   ]
+  },
+  {
+   "id": "MapMonsterAllBossesAtOnceMaven",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare"
+   ],
+   "name": "of Challenge",
+   "lines": [
+    "Maven releases all Bosses at once"
+   ],
+   "trade": [
+    "explicit.stat_3606985138"
+   ]
+  },
+  {
+   "id": "MapUberModEleDamagePenetration",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Penetration",
+   "lines": [
+    "Monster Damage Penetrates #% Elemental Resistances"
+   ],
+   "trade": [
+    "explicit.stat_1898978455"
+   ]
+  },
+  {
+   "id": "MapHexproofMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Hexproof",
+   "lines": [
+    "Monsters are Hexproof"
+   ],
+   "trade": [
+    "explicit.stat_4154059009"
+   ]
+  },
+  {
+   "id": "MapMonstersBlindOnHitMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Blinding",
+   "lines": [
+    "Monsters Blind on Hit"
+   ],
+   "trade": [
+    "explicit.stat_1629869774"
+   ]
+  },
+  {
+   "id": "MapMonsterLifeLeechImmunityMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular"
+   ],
+   "name": "of Congealment",
+   "lines": [
+    "Monsters cannot be Leeched from"
+   ],
+   "trade": [
+    "explicit.stat_1140978125"
+   ]
+  },
+  {
+   "id": "MapMonsterCannotBeStunned2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Unwavering",
+   "lines": [
+    "Monsters cannot be Stunned",
+    "#% more Monster Life"
+   ],
+   "trade": [
+    "explicit.stat_1041951480",
+    "explicit.stat_2710898947"
+   ]
+  },
+  {
+   "id": "MapUberModJuggernaut",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of the Juggernaut",
+   "lines": [
+    "Monsters cannot be Stunned",
+    "Monsters' Action Speed cannot be modified to below Base Value",
+    "Monsters' Movement Speed cannot be modified to below Base Value"
+   ],
+   "trade": [
+    "explicit.stat_1041951480",
+    "explicit.stat_2758454849",
+    "explicit.stat_777421120"
+   ]
+  },
+  {
+   "id": "MapMonsterColdDamage2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Freezing",
+   "lines": [
+    "Monsters deal #% extra Physical Damage as Cold"
+   ],
+   "trade": [
+    "explicit.stat_3448216135"
+   ]
+  },
+  {
+   "id": "MapMonsterFireDamage2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Burning",
+   "lines": [
+    "Monsters deal #% extra Physical Damage as Fire"
+   ],
+   "trade": [
+    "explicit.stat_1497673356"
+   ]
+  },
+  {
+   "id": "MapMonsterLightningDamage2MapWorlds__",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Shocking",
+   "lines": [
+    "Monsters deal #% extra Physical Damage as Lightning"
+   ],
+   "trade": [
+    "explicit.stat_3416853625"
+   ]
+  },
+  {
+   "id": "MapMonsterMultipleProjectilesWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular"
+   ],
+   "name": "Splitting",
+   "lines": [
+    "Monsters fire # additional Projectiles"
+   ],
+   "trade": [
+    "explicit.stat_1309819744"
+   ]
+  },
+  {
+   "id": "MapUberModProjAOE",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Magnifying",
+   "lines": [
+    "Monsters fire # additional Projectiles",
+    "Monsters have #% increased Area of Effect"
+   ],
+   "trade": [
+    "explicit.stat_1309819744",
+    "explicit.stat_1708461270"
+   ]
+  },
+  {
+   "id": "MapMonstersMaximumLifeAddedEnergyShield2MapWorlds_____",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Buffered",
+   "lines": [
+    "Monsters gain #% of Maximum Life as Extra Maximum Energy Shield"
+   ],
+   "trade": [
+    "explicit.stat_2887760183"
+   ]
+  },
+  {
+   "id": "MapMonsterChaosDamage2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Profane",
+   "lines": [
+    "Monsters gain #% of their Physical Damage as Extra Chaos Damage",
+    "Monsters Inflict Withered for 2 seconds on Hit"
+   ],
+   "trade": [
+    "explicit.stat_1840747977",
+    "explicit.stat_3044826007"
+   ]
+  },
+  {
+   "id": "MapUberModDamageAsChaos",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Profane",
+   "lines": [
+    "Monsters gain #% of their Physical Damage as Extra Chaos Damage"
+   ],
+   "trade": [
+    "explicit.stat_1840747977"
+   ]
+  },
+  {
+   "id": "MapUberModDamageAsElemental",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Prismatic",
+   "lines": [
+    "Monsters gain #% of their Physical Damage as Extra Damage of a random Element"
+   ],
+   "trade": [
+    "explicit.stat_4062840317"
+   ]
+  },
+  {
+   "id": "MapMonstersFrenzyChargeOnHitMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Frenzy",
+   "lines": [
+    "Monsters gain a Frenzy Charge on Hit"
+   ],
+   "trade": [
+    "explicit.stat_1742567045"
+   ]
+  },
+  {
+   "id": "MapUberModFrenzyCharges",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Frenzy",
+   "lines": [
+    "Monsters gain a Frenzy Charge on Hit",
+    "Monsters have +# to Maximum Frenzy Charges"
+   ],
+   "trade": [
+    "explicit.stat_1742567045",
+    "explicit.stat_3900284865"
+   ]
+  },
+  {
+   "id": "MapMonstersPowerChargeOnHitMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Power",
+   "lines": [
+    "Monsters gain a Power Charge on Hit"
+   ],
+   "trade": [
+    "explicit.stat_406353061"
+   ]
+  },
+  {
+   "id": "MapUberModPowerCharges",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Power",
+   "lines": [
+    "Monsters gain a Power Charge on Hit",
+    "Monsters have +# to Maximum Power Charges"
+   ],
+   "trade": [
+    "explicit.stat_406353061",
+    "explicit.stat_1103106414"
+   ]
+  },
+  {
+   "id": "MapMonstersEnduranceChargeOnHitMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Endurance",
+   "lines": [
+    "Monsters gain an Endurance Charge on Hit"
+   ],
+   "trade": [
+    "explicit.stat_687813731"
+   ]
+  },
+  {
+   "id": "MapMonsterStatusAilmentAvoidance2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Insulation",
+   "lines": [
+    "Monsters have #% chance to Avoid Elemental Ailments"
+   ],
+   "trade": [
+    "explicit.stat_322206271"
+   ]
+  },
+  {
+   "id": "MapMonsterAreaOfEffect2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Giants",
+   "lines": [
+    "Monsters have #% increased Area of Effect"
+   ],
+   "trade": [
+    "explicit.stat_1708461270"
+   ]
+  },
+  {
+   "id": "MapMonsterCriticalStrikesAndDamage2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Deadliness",
+   "lines": [
+    "Monsters have #% increased Critical Strike Chance",
+    "+#% to Monster Critical Strike Multiplier"
+   ],
+   "trade": [
+    "explicit.stat_2753083623",
+    "explicit.stat_57326096"
+   ]
+  },
+  {
+   "id": "MapUberModEnduranceCharges",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Endurance",
+   "lines": [
+    "Monsters have +# to Maximum Endurance Charges",
+    "Monsters gain an Endurance Charge when hit"
+   ],
+   "trade": [
+    "explicit.stat_4067268731",
+    "explicit.stat_3707756896"
+   ]
+  },
+  {
+   "id": "MapUberModMonsterAttackBlock",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Stalwart",
+   "lines": [
+    "Monsters have +#% Chance to Block Attack Damage"
+   ],
+   "trade": [
+    "explicit.stat_881836292"
+   ]
+  },
+  {
+   "id": "MapMonstersChanceToSuppressSpells2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Oppressive",
+   "lines": [
+    "Monsters have +#% chance to Suppress Spell Damage"
+   ],
+   "trade": [
+    "explicit.stat_2138205941"
+   ]
+  },
+  {
+   "id": "MapMonstersAvoidPoisonBleedBlind2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Impervious",
+   "lines": [
+    "Monsters have a #% chance to avoid Poison, Impale, and Bleeding"
+   ],
+   "trade": [
+    "explicit.stat_144665660"
+   ]
+  },
+  {
+   "id": "MapMonstersChanceToInflictStatusAilments2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Empowered",
+   "lines": [
+    "Monsters have a #% chance to Ignite, Freeze and Shock on Hit"
+   ],
+   "trade": [
+    "explicit.stat_2553656203"
+   ]
+  },
+  {
+   "id": "MapMonstersHinderOnHitMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular"
+   ],
+   "name": "of Impedance",
+   "lines": [
+    "Monsters Hinder on Hit with Spells"
+   ],
+   "trade": [
+    "explicit.stat_962720646"
+   ]
+  },
+  {
+   "id": "MapUberModMonsterAilments",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Afflicting",
+   "lines": [
+    "Monsters Ignite, Freeze and Shock on Hit",
+    "All Monster Damage can Ignite, Freeze and Shock"
+   ],
+   "trade": [
+    "explicit.stat_2553656203",
+    "explicit.stat_2919181457"
+   ]
+  },
+  {
+   "id": "MapUberModVines",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Grasping",
+   "lines": [
+    "Monsters inflict # Grasping Vines on Hit"
+   ],
+   "trade": [
+    "explicit.stat_1751584857"
+   ]
+  },
+  {
+   "id": "MapMonstersMaimOnHitMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Carnage",
+   "lines": [
+    "Monsters Maim on Hit with Attacks"
+   ],
+   "trade": [
+    "explicit.stat_4164174520"
+   ]
+  },
+  {
+   "id": "MapPoisoningMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular"
+   ],
+   "name": "of Venom",
+   "lines": [
+    "Monsters Poison on Hit"
+   ],
+   "trade": [
+    "explicit.stat_3350803563"
+   ]
+  },
+  {
+   "id": "MapUberModPoison",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Venom",
+   "lines": [
+    "Monsters Poison on Hit",
+    "Monsters have #% increased Poison Duration",
+    "All Damage from Monsters' Hits can Poison"
+   ],
+   "trade": [
+    "explicit.stat_3350803563",
+    "explicit.stat_134839587",
+    "explicit.stat_3555807120"
+   ]
+  },
+  {
+   "id": "MapMonstersStealChargesOnHitMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Enervation",
+   "lines": [
+    "Monsters steal Power, Frenzy and Endurance charges on Hit"
+   ],
+   "trade": [
+    "explicit.stat_3222482040"
+   ]
+  },
+  {
+   "id": "MapMonstersBaseSelfCriticalMultiplier2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Toughness",
+   "lines": [
+    "Monsters take #% reduced Extra Damage from Critical Strikes"
+   ],
+   "trade": [
+    "explicit.stat_337935900"
+   ]
+  },
+  {
+   "id": "MapMonstersCantBeSlowedOrTauntedMapWorldsMaven",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Unstoppable",
+   "lines": [
+    "Monsters' Action Speed cannot be modified to below Base Value",
+    "Monsters' Movement Speed cannot be modified to below Base Value",
+    "Monsters cannot be Taunted"
+   ],
+   "trade": [
+    "explicit.stat_798009319",
+    "explicit.stat_1106651798"
+   ]
+  },
+  {
+   "id": "MapMonstersImpaleOnHit2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Impaling",
+   "lines": [
+    "Monsters' Attacks have #% chance to Impale on Hit"
+   ],
+   "trade": [
+    "explicit.stat_1541224187"
+   ]
+  },
+  {
+   "id": "MapMonsterChainMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular"
+   ],
+   "name": "Chaining",
+   "lines": [
+    "Monsters' skills Chain # additional times"
+   ],
+   "trade": [
+    "explicit.stat_3183973644"
+   ]
+  },
+  {
+   "id": "MapUberModChain",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Chaining",
+   "lines": [
+    "Monsters' skills Chain # additional times",
+    "Monsters' Projectiles can Chain when colliding with Terrain"
+   ],
+   "trade": [
+    "explicit.stat_3183973644",
+    "explicit.stat_2753403220"
+   ]
+  },
+  {
+   "id": "MapUberModSawblades",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Ultimate",
+   "lines": [
+    "Players are assaulted by Bloodstained Sawblades"
+   ],
+   "trade": [
+    "explicit.stat_3052102815"
+   ]
+  },
+  {
+   "id": "MapPlayerCurseElementalWeakness1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Elemental Weakness",
+   "lines": [
+    "Players are Cursed with Elemental Weakness"
+   ],
+   "trade": [
+    "explicit.stat_558910024"
+   ]
+  },
+  {
+   "id": "MapPlayerCurseEnfeeblement1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Enfeeblement",
+   "lines": [
+    "Players are Cursed with Enfeeble"
+   ],
+   "trade": [
+    "explicit.stat_4103440490"
+   ]
+  },
+  {
+   "id": "MapPlayerCurseTemporalChains1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Temporal Chains",
+   "lines": [
+    "Players are Cursed with Temporal Chains"
+   ],
+   "trade": [
+    "explicit.stat_2326202293"
+   ]
+  },
+  {
+   "id": "MapPlayerCurseVulnerability1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Vulnerability",
+   "lines": [
+    "Players are Cursed with Vulnerability"
+   ],
+   "trade": [
+    "explicit.stat_1366534040"
+   ]
+  },
+  {
+   "id": "MapUberModCurses",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Curses",
+   "lines": [
+    "Players are Cursed with Vulnerability",
+    "Players are Cursed with Temporal Chains",
+    "Players are Cursed with Elemental Weakness"
+   ],
+   "trade": [
+    "explicit.stat_1366534040",
+    "explicit.stat_2326202293",
+    "explicit.stat_558910024"
+   ]
+  },
+  {
+   "id": "MapUberModFlaskMeteor",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Imbibing",
+   "lines": [
+    "Players are targeted by a Meteor when they use a Flask"
+   ],
+   "trade": [
+    "explicit.stat_4102870672"
+   ]
+  },
+  {
+   "id": "MapPlayerElementalEquilibriumMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular"
+   ],
+   "name": "of Balance",
+   "lines": [
+    "Players cannot inflict Exposure"
+   ],
+   "trade": [
+    "explicit.stat_1026390635"
+   ]
+  },
+  {
+   "id": "MapPlayerNoLifeESRegenMapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Stasis",
+   "lines": [
+    "Players cannot Regenerate Life, Mana or Energy Shield"
+   ],
+   "trade": [
+    "explicit.stat_1910157106"
+   ]
+  },
+  {
+   "id": "MapPlayersGainReducedFlaskCharges2MapWorlds_",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Drought",
+   "lines": [
+    "Players gain #% reduced Flask Charges"
+   ],
+   "trade": [
+    "explicit.stat_2549889921"
+   ]
+  },
+  {
+   "id": "MapPlayersAccuracyRating2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Imprecision",
+   "lines": [
+    "Players have #% less Accuracy Rating"
+   ],
+   "trade": [
+    "explicit.stat_3667574329"
+   ]
+  },
+  {
+   "id": "MapPlayersLessAoERadius2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Impotence",
+   "lines": [
+    "Players have #% less Area of Effect"
+   ],
+   "trade": [
+    "explicit.stat_2312028586"
+   ]
+  },
+  {
+   "id": "MapPlayersLessCooldownRecovery2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Fatigue",
+   "lines": [
+    "Players have #% less Cooldown Recovery Rate"
+   ],
+   "trade": [
+    "explicit.stat_941368244"
+   ]
+  },
+  {
+   "id": "MapUberModGlobalDefences",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Miring",
+   "lines": [
+    "Players have #% less Defences"
+   ],
+   "trade": [
+    "explicit.stat_943960754"
+   ]
+  },
+  {
+   "id": "MapUberModLessFlaskEffect",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Diluted",
+   "lines": [
+    "Players have #% less effect of Flasks applied to them"
+   ],
+   "trade": [
+    "explicit.stat_1207482628"
+   ]
+  },
+  {
+   "id": "MapPlayerReducedRegen1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Smothering",
+   "lines": [
+    "Players have #% less Recovery Rate of Life and Energy Shield"
+   ],
+   "trade": [
+    "explicit.stat_4181072906"
+   ]
+  },
+  {
+   "id": "MapPlayersBlockAndArmour2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Rust",
+   "lines": [
+    "Players have #% reduced Chance to Block",
+    "Players have #% less Armour"
+   ],
+   "trade": [
+    "explicit.stat_3729221884",
+    "explicit.stat_272758639"
+   ]
+  },
+  {
+   "id": "MapPlayersReducedAuraEffect2MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Doubt",
+   "lines": [
+    "Players have #% reduced effect of Non-Curse Auras from Skills"
+   ],
+   "trade": [
+    "explicit.stat_2450628570"
+   ]
+  },
+  {
+   "id": "MapUberModLessPlayerLeech",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Congealment",
+   "lines": [
+    "Players have #% reduced Maximum total Life, Mana and Energy Shield Recovery per second from Leech"
+   ],
+   "trade": [
+    "explicit.stat_2946888410"
+   ]
+  },
+  {
+   "id": "MapPlayerMaxResists1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Exposure",
+   "lines": [
+    "Players have #% to all maximum Resistances"
+   ],
+   "trade": [
+    "explicit.stat_3376488707"
+   ]
+  },
+  {
+   "id": "MapPlayersEvasionAndUnluckyDodge1MapWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "of Miring",
+   "lines": [
+    "Players have +#% to amount of Suppressed Spell Damage Prevented",
+    "Monsters have #% increased Accuracy Rating"
+   ],
+   "trade": [
+    "explicit.stat_286947568",
+    "explicit.stat_1588049749"
+   ]
+  },
+  {
+   "id": "MapUberModRareMonsters",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Antagonist's",
+   "lines": [
+    "Rare Monsters each have # additional Modifier",
+    "#% increased number of Rare Monsters"
+   ],
+   "trade": [
+    "explicit.stat_2550456553",
+    "explicit.stat_3126771445"
+   ]
+  },
+  {
+   "id": "MapMonsterElementalReflection2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Mirrored",
+   "lines": [
+    "Rare Monsters have Elemental Thorns reflecting # Elemental Damage"
+   ],
+   "trade": []
+  },
+  {
+   "id": "MapMonsterPhysicalReflection2MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Punishing",
+   "lines": [
+    "Rare Monsters have Physical Thorns reflecting # Physical Damage"
+   ],
+   "trade": []
+  },
+  {
+   "id": "MapUberModReflect",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Punishing",
+   "lines": [
+    "Rare Monsters have Physical Thorns reflecting # Physical Damage",
+    "Rare Monsters have Elemental Thorns reflecting # Elemental Damage"
+   ],
+   "trade": []
+  },
+  {
+   "id": "MapUberModVolatiles",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Volatile",
+   "lines": [
+    "Rare Monsters have Volatile Cores"
+   ],
+   "trade": [
+    "explicit.stat_1706239920"
+   ]
+  },
+  {
+   "id": "MapUberModShaperTouched",
+   "affix": "prefix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "Valdo's",
+   "lines": [
+    "Rare monsters in area are Shaper-Touched"
+   ],
+   "trade": [
+    "explicit.stat_2931889194"
+   ]
+  },
+  {
+   "id": "MapUberModRaresLastGasp",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Persistence",
+   "lines": [
+    "Rare monsters in area Temporarily Revive on death"
+   ],
+   "trade": [
+    "explicit.stat_1593763475"
+   ]
+  },
+  {
+   "id": "MapUberModMavenFollower",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Collection",
+   "lines": [
+    "The Maven interferes with Players"
+   ],
+   "trade": [
+    "explicit.stat_1594156261"
+   ]
+  },
+  {
+   "id": "MapDangerousBoss1MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Overlord's",
+   "lines": [
+    "Unique Boss deals #% increased Damage",
+    "Unique Boss has #% increased Attack and Cast Speed"
+   ],
+   "trade": [
+    "explicit.stat_124877078",
+    "explicit.stat_2109106920"
+   ]
+  },
+  {
+   "id": "MapMassiveBoss1MapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "nightmare",
+    "regular",
+    "t17"
+   ],
+   "name": "Titan's",
+   "lines": [
+    "Unique Boss has #% increased Life",
+    "Unique Boss has #% increased Area of Effect"
+   ],
+   "trade": [
+    "explicit.stat_1959158336",
+    "explicit.stat_3040667106"
+   ]
+  },
+  {
+   "id": "MapBossPossessedMapWorlds",
+   "affix": "prefix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "Enthralled",
+   "lines": [
+    "Unique Bosses are Possessed"
+   ],
+   "trade": [
+    "explicit.stat_2588474575"
+   ]
+  },
+  {
+   "id": "MapUberModShrineBuff",
+   "affix": "suffix",
+   "kinds": [
+    "t17"
+   ],
+   "name": "of Domination",
+   "lines": [
+    "Unique Monsters have a random Shrine Buff"
+   ],
+   "trade": [
+    "explicit.stat_872972810"
+   ]
+  }
+ ],
+ "mapNames": [
+  "Abomination Map",
+  "Academy Map",
+  "Acid Caverns Map",
+  "Alleyways Map",
+  "Ancient City Map",
+  "Arachnid Nest Map",
+  "Arachnid Tomb Map",
+  "Arcade Map",
+  "Arena Map",
+  "Arid Lake Map",
+  "Armoury Map",
+  "Arsenal Map",
+  "Ashen Wood Map",
+  "Atoll Map",
+  "Barrows Map",
+  "Basilica Map",
+  "Bazaar Map",
+  "Beach Map",
+  "Belfry Map",
+  "Bog Map",
+  "Bone Crypt Map",
+  "Bramble Valley Map",
+  "Burial Chambers Map",
+  "Cage Map",
+  "Caldera Map",
+  "Canyon Map",
+  "Carcass Map",
+  "Castle Ruins Map",
+  "Cells Map",
+  "Cemetery Map",
+  "Chambers of Impurity Map",
+  "Channel Map",
+  "Chateau Map",
+  "Citadel Map",
+  "City Square Map",
+  "Cold River Map",
+  "Colonnade Map",
+  "Colosseum Map",
+  "Conservatory Map",
+  "Coral Ruins Map",
+  "Core Map",
+  "Courthouse Map",
+  "Courtyard Map",
+  "Courtyard of Wasting Map",
+  "Coves Map",
+  "Crater Map",
+  "Crimson Temple Map",
+  "Crimson Township Map",
+  "Crystal Ore Map",
+  "Cursed Crypt Map",
+  "Dark Forest Map",
+  "Defiled Cathedral Map",
+  "Desert Map",
+  "Desert Spring Map",
+  "Dig Map",
+  "Dry Sea Map",
+  "Dunes Map",
+  "Dungeon Map",
+  "Engraved Ultimatum",
+  "Estuary Map",
+  "Excavation Map",
+  "Factory Map",
+  "Fields Map",
+  "Flooded Mine Map",
+  "Forbidden Woods Map",
+  "Forge of the Phoenix Map",
+  "Forking River Map",
+  "Fortress Map",
+  "Foundry Map",
+  "Frozen Cabins Map",
+  "Fungal Hollow Map",
+  "Gardens Map",
+  "Geode Map",
+  "Ghetto Map",
+  "Glacier Map",
+  "Grave Trough Map",
+  "Graveyard Map",
+  "Grotto Map",
+  "Harbinger Map",
+  "Haunted Mansion Map",
+  "Iceberg Map",
+  "Infested Valley Map",
+  "Ivory Temple Map",
+  "Jungle Valley Map",
+  "Laboratory Map",
+  "Lair Map",
+  "Lair of the Hydra Map",
+  "Lava Chamber Map",
+  "Lava Lake Map",
+  "Leyline Map",
+  "Lighthouse Map",
+  "Lookout Map",
+  "Malformation Map",
+  "Marshes Map",
+  "Mausoleum Map",
+  "Maze Map",
+  "Maze of the Minotaur Map",
+  "Mesa Map",
+  "Mineral Pools Map",
+  "Moon Temple Map",
+  "Mud Geyser Map",
+  "Museum Map",
+  "Necropolis Map",
+  "Orchard Map",
+  "Overgrown Ruin Map",
+  "Overgrown Shrine Map",
+  "Palace Map",
+  "Park Map",
+  "Pen Map",
+  "Peninsula Map",
+  "Phantasmagoria Map",
+  "Pier Map",
+  "Pit Map",
+  "Pit of the Chimera Map",
+  "Plateau Map",
+  "Plaza Map",
+  "Port Map",
+  "Precinct Map",
+  "Primordial Blocks Map",
+  "Primordial Pool Map",
+  "Promenade Map",
+  "Racecourse Map",
+  "Ramparts Map",
+  "Reef Map",
+  "Relic Chambers Map",
+  "Residence Map",
+  "Sanctuary Map",
+  "Scriptorium Map",
+  "Sepulchre Map",
+  "Shaped Academy Map",
+  "Shaped Acid Caverns Map",
+  "Shaped Ancient City Map",
+  "Shaped Arachnid Nest Map",
+  "Shaped Arachnid Tomb Map",
+  "Shaped Arcade Map",
+  "Shaped Arena Map",
+  "Shaped Arid Lake Map",
+  "Shaped Armoury Map",
+  "Shaped Arsenal Map",
+  "Shaped Ashen Wood Map",
+  "Shaped Atoll Map",
+  "Shaped Barrows Map",
+  "Shaped Beach Map",
+  "Shaped Bog Map",
+  "Shaped Bone Crypt Map",
+  "Shaped Burial Chambers Map",
+  "Shaped Canyon Map",
+  "Shaped Castle Ruins Map",
+  "Shaped Cells Map",
+  "Shaped Cemetery Map",
+  "Shaped Channel Map",
+  "Shaped Colonnade Map",
+  "Shaped Courtyard Map",
+  "Shaped Coves Map",
+  "Shaped Crystal Ore Map",
+  "Shaped Cursed Crypt Map",
+  "Shaped Desert Map",
+  "Shaped Desert Spring Map",
+  "Shaped Dunes Map",
+  "Shaped Dungeon Map",
+  "Shaped Factory Map",
+  "Shaped Flooded Mine Map",
+  "Shaped Gardens Map",
+  "Shaped Geode Map",
+  "Shaped Ghetto Map",
+  "Shaped Graveyard Map",
+  "Shaped Grotto Map",
+  "Shaped Jungle Valley Map",
+  "Shaped Malformation Map",
+  "Shaped Marshes Map",
+  "Shaped Mesa Map",
+  "Shaped Mud Geyser Map",
+  "Shaped Museum Map",
+  "Shaped Orchard Map",
+  "Shaped Overgrown Shrine Map",
+  "Shaped Peninsula Map",
+  "Shaped Phantasmagoria Map",
+  "Shaped Pier Map",
+  "Shaped Pit Map",
+  "Shaped Port Map",
+  "Shaped Primordial Pool Map",
+  "Shaped Promenade Map",
+  "Shaped Racecourse Map",
+  "Shaped Ramparts Map",
+  "Shaped Reef Map",
+  "Shaped Shore Map",
+  "Shaped Spider Forest Map",
+  "Shaped Spider Lair Map",
+  "Shaped Strand Map",
+  "Shaped Temple Map",
+  "Shaped Thicket Map",
+  "Shaped Tower Map",
+  "Shaped Toxic Sewer Map",
+  "Shaped Tropical Island Map",
+  "Shaped Underground River Map",
+  "Shaped Vaal Pyramid Map",
+  "Shaped Villa Map",
+  "Shaped Waste Pool Map",
+  "Shaped Wharf Map",
+  "Shipyard Map",
+  "Shore Map",
+  "Shrine Map",
+  "Siege Map",
+  "Silo Map",
+  "Spider Forest Map",
+  "Spider Lair Map",
+  "Stagnation Map",
+  "Strand Map",
+  "Sulphur Vents Map",
+  "Summit Map",
+  "Sunken City Map",
+  "Synthesised Map",
+  "Temple Map",
+  "Terrace Map",
+  "The Shaper's Realm",
+  "Theatre of Lies Map",
+  "Thicket Map",
+  "Tower Map",
+  "Toxic Sewer Map",
+  "Tropical Island Map",
+  "Underground River Map",
+  "Underground Sea Map",
+  "Vaal Pyramid Map",
+  "Vaal Temple Map",
+  "Vault Map",
+  "Villa Map",
+  "Volcano Map",
+  "Waste Pool Map",
+  "Wasteland Map",
+  "Waterways Map",
+  "Wharf Map",
+  "Ziggurat Map"
+ ]
+}

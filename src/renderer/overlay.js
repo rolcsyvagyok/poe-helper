@@ -57,7 +57,7 @@ function render(p) {
     mount(root, header(null), h('div', { class: 'ov-body' }, h('div', { class: 'muted' }, p.error)));
     return fit();
   }
-  const { item, price, map, filterHit } = p;
+  const { item, price, filterHit } = p;
   const divine = price?.divine;
   const facts = [];
   if (item.typeLine && item.name && item.name !== item.typeLine) facts.push(item.typeLine);
@@ -92,16 +92,6 @@ function render(p) {
     body.append(h('div', { class: 'muted' }, p.kind === 'rare' || p.kind === 'magic' ? 'Priced by its mods: tick them below and search.' : 'poe.ninja has no price for this item.'));
   }
   if (price?.ageMs != null) body.append(h('div', { class: 'small faint' }, `${p.league} prices from ${ago(price.ageMs)}`));
-
-  // --- map warnings ---
-  if (map) {
-    const verdict = { skip: ['bad', 'Skip or reroll'], careful: ['warn', 'Be careful'], ok: ['good', 'Looks fine'] }[map.verdict];
-    const st = map.stats;
-    const stats = [st.quantity != null ? `${st.quantity}% quantity` : null, st.rarity != null ? `${st.rarity}% rarity` : null, st.packSize != null ? `${st.packSize}% pack size` : null].filter(Boolean).join(', ');
-    body.append(h('div', { class: 'ov-block' },
-      h('div', { class: 'row' }, h('span', { class: `pill ${verdict[0]}` }, verdict[1]), stats ? h('span', { class: 'small muted' }, stats) : null),
-      map.hits.length ? h('div', { class: 'ov-list' }, map.hits.map((x) => h('div', { class: `li sev-${x.severity}` }, x.label))) : h('div', { class: 'small muted' }, 'None of the mods you flagged.')));
-  }
 
   // --- filter ---
   if (filterHit?.line) {

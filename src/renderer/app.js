@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, price: renderPrice, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), regex: () => window.RegexView.renderRegexPage(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -263,74 +263,6 @@ function historyList(rows) {
 }
 
 // ---------------- price check (manual) ----------------
-function renderPrice() { return window.UI.keepScroll(() => renderPriceNow()); }
-async function renderPriceNow() {
-  await refreshState();
-  const el = $('page-price');
-  const ta = h('textarea', { placeholder: 'Paste an item you copied in game with Ctrl+C', 'aria-label': 'Item text' });
-  const out = h('div');
-  const run = async () => {
-    mount(out, h('div', { class: 'panel', style: { marginTop: '16px' } }, h('span', { class: 'spin' }), ' Pricing'));
-    try {
-      const r = await call('price:text', ta.value);
-      if (r.error) return mount(out, h('div', { class: 'panel muted', style: { marginTop: '16px' } }, r.error));
-      r.text = ta.value;
-      mount(out, priceResult(r));
-      refreshState();
-    } catch { mount(out); }
-  };
-  mount(el,
-    pageHead('Price check history', 'Your recent price checks. In game the overlay does this for you; paste an item here to test or look something up later.'),
-    h('div', { class: 'panel stack' }, ta, h('div', { class: 'row' }, h('button', { class: 'primary', onclick: run }, 'Check price'), h('span', { class: 'small faint' }, 'Uses cached poe.ninja prices.'))),
-    out,
-    section('History', null, historyList(S.history)));
-}
-
-function priceResult(r) {
-  const { item, price, map, filterHit } = r;
-  const hidden = filterHit?.action === 'Hide';
-  const tradeBox = h('div', { class: 'panel', style: { marginTop: '12px', display: 'none' } });
-  const tradeBtn = r.tradeable ? h('button', { class: 'primary', onclick: () => { tradeBox.style.display = ''; tradeBtn.remove(); window.TradePanel.mount(tradeBox, { text: r.text, divine: price?.divine }); } }, 'Search trade') : null;
-  return h('div', { style: { marginTop: '16px' } },
-    h('div', { class: 'ground stage' },
-      dropLabel(item.typeLine !== item.name && item.rarity === 'Unique' ? item.name : item.name || item.typeLine, filterHit?.style, { rarity: item.rarity, hidden }),
-      filterHit ? h('div', { class: 'row', style: { gap: '8px' } }, soundButton(window.UI.normalizeStyle(filterHit.style).sound), h('span', { class: 'small', style: { color: '#a9ad9c' } }, hidden ? 'Your filter hides this item' : 'How your filter shows it')) : h('span', { class: 'small', style: { color: '#a9ad9c' } }, 'Pick a filter on the Loot filter page to see how it looks')),
-    h('div', { class: 'panel', style: { marginTop: '12px' } },
-      h('div', { class: 'figures' },
-        figure(price?.found ? chaosDiv(price.chaos, price.divine) : r.kind === 'rare' ? 'Use trade search' : 'Not listed', price?.found ? `Each, ${({ high: 'plenty of listings', medium: 'some listings', low: 'few listings, be careful', range: 'variants differ' })[price.confidence] || ''}` : 'poe.ninja has no price for this'),
-        price?.stackSize > 1 ? figure(chaosDiv(price.totalChaos, price.divine), `For your stack of ${price.stackSize}`) : null,
-        filterHit?.line ? figure(`Line ${filterHit.line}`, 'Filter rule that applies') : null),
-      map ? h('div', { style: { marginTop: '14px' } }, h('h2', {}, map.verdict === 'skip' ? 'Map: skip or reroll' : map.verdict === 'careful' ? 'Map: be careful' : 'Map: looks fine'),
-        map.hits.map((x) => h('div', { class: `small sev-${x.severity}` }, `${x.label}: `, h('span', { class: 'muted' }, x.mod)))) : null,
-      tradeBtn ? h('div', { class: 'row', style: { marginTop: '14px' } }, tradeBtn, h('span', { class: 'small faint' }, 'Pick mods and min/max values, then search instant buyout listings.')) : null,
-      price?.matches?.length > 1 ? h('table', { style: { marginTop: '16px' } },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Close matches on poe.ninja'), h('th', { class: 'r' }, 'Listings'), h('th', { class: 'r' }, 'Price'))),
-        h('tbody', {}, price.matches.map((m) => h('tr', {}, h('td', {}, [m.name, m.variant, m.links && `${m.links}-link`, m.gemLevel && `level ${m.gemLevel}/${m.gemQuality || 0}%`, m.corrupted && 'corrupted', m.levelRequired && `ilvl ${m.levelRequired}+`].filter(Boolean).join(', ')), h('td', { class: 'r muted' }, m.listingCount ?? ''), h('td', { class: 'r' }, chaosDiv(m.chaos, price.divine)))))) : null),
-    tradeBox);
-}
-
-// ---------------- net worth ----------------
-let nwWindow = 24 * 3600 * 1000;
-let nwTabs = null;
-let nwCat = null; // the category picked on the dashboard
-let nwFind = '';
-const nwArt = {}; // item name -> picture, for snapshots taken before pictures were kept
-
-// ---------------- WealthyExile dashboard ----------------
-const WX_CATS = {
-  Currency: 'Currency', Fragment: 'Fragments', Scarab: 'Scarabs', Essence: 'Essences', Fossil: 'Fossils', Resonator: 'Resonators', Oil: 'Oils',
-  DeliriumOrb: 'Delirium orbs', DivinationCard: 'Divination cards', Unique: 'Uniques', Gem: 'Gems', Map: 'Maps', UniqueMap: 'Unique maps',
-  BlightedMap: 'Blighted maps', Omen: 'Omens', Tattoo: 'Tattoos', Artifact: 'Expedition', Incubator: 'Incubators', Invitation: 'Invitations',
-  Memory: 'Memories', Vial: 'Vials', Runegraft: 'Runegrafts', AllflameEmber: 'Allflame embers', Astrolabe: 'Astrolabes',
-  EnshroudingCrystal: 'Enshrouding crystals', DjinnCoin: 'Djinn coins', Beast: 'Beasts', Ducat: 'Ducats', Corpse: 'Corpses', KalguuranRune: 'Runes',
-};
-const wxName = (c) => WX_CATS[c] || String(c || 'Other').replace(/([a-z])([A-Z])/g, '$1 $2');
-const wxBase = (n) => String(n).replace(/ \((?:5|6)L\)$/, '').replace(/ \d+\/\d+$/, '').replace(/ T\d+$/, '');
-const wxIcon = (item, size = 26) => {
-  const url = item.i || nwArt[wxBase(item.n)];
-  return url ? h('img', { src: url, alt: '', width: size, height: size, loading: 'lazy', style: { objectFit: 'contain' } }) : h('span', { class: 'wx-noimg', style: { width: size + 'px', height: size + 'px' } });
-};
-
 function wealthDashboard(latest) {
   const d = latest.divine;
   const items = latest.items || [];
@@ -817,17 +749,17 @@ function updateBox() {
 }
 
 const SH_SOUNDS = ['ShDivine', 'ShMirror', 'ShExalted', 'ShChaos', 'ShVaal', 'ShRegal', 'ShFusing', 'ShAlchemy', 'ShBlessed', 'ShGeneral'];
-function gameSoundRows(st) {
+function gameSoundRows(st, redraw = () => window.renderDesigner?.()) {
   const own = st.gameSoundFiles || {};
   const got = st.gameSounds?.files || {};
-  const save = async (next) => { await call('settings:set', { gameSoundFiles: next }); S.settings.gameSoundFiles = next; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); renderSettings(); };
+  const save = async (next) => { await call('settings:set', { gameSoundFiles: next }); S.settings.gameSoundFiles = next; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); redraw(); };
   const take = async (opts) => {
     try {
       const r = await call('gameSounds:extract', opts);
       S.settings.gameSounds = r;
       window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
       toast(r.count ? `${r.count} sounds taken from your game` : 'No folder picked');
-      renderSettings();
+      redraw();
     } catch { /* toast shown */ }
   };
   const status = Object.keys(got).length
@@ -865,6 +797,8 @@ function gameSoundRows(st) {
     Object.keys(got).some((k) => /^Sh/.test(k)) ? [h('div', { class: 'small muted' }, 'The named sounds (PlayAlertSound ShDivine and so on):'), h('div', { class: 'gs-grid' }, SH_SOUNDS.filter((k) => got[k] || own[k]).map((k) => row(k, k)))] : null);
 }
 
+window.gameSoundRows = gameSoundRows;
+
 function appIconBox(st) {
   const img = h('img', { alt: 'Current icon', width: 48, height: 48, style: { borderRadius: '8px', background: '#0003', objectFit: 'contain' } });
   call('appIcon:get').then((u) => { img.src = u; }).catch(() => {});
@@ -885,8 +819,6 @@ async function renderSettingsNow() {
   const field = (label, input, help) => h('label', { class: 'field' }, label, input, help ? h('span', { class: 'help' }, help) : null);
   const set = (key, transform = (v) => v) => (e) => call('settings:set', { [key]: transform(e.target.type === 'checkbox' ? e.target.checked : e.target.value) }).then(() => toast('Saved'));
   const sid = h('input', { type: 'password', placeholder: st.sessionSet ? 'Saved and encrypted' : '32 characters', autocomplete: 'off', style: { flex: 1 } });
-  const rules = (st.mapRules || []).map((r) => ({ ...r }));
-  const saveRules = () => call('settings:set', { mapRules: rules }).then(() => toast('Saved'));
 
   mount(el,
     pageHead('Settings'),
@@ -948,8 +880,6 @@ async function renderSettingsNow() {
     section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
       h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
     notesSection(await call('app:changelog').catch(() => [])),
-    section('Game sound previews', 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.',
-      h('div', { class: 'panel' }, gameSoundRows(st))),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',
       h('div', { class: 'panel row', style: { gap: '16px' } }, appIconBox(st))),
     section('Start over', 'Puts every look, tier, base, cluster, sound, hotkey and setting you changed in PoE Helper back to how a fresh install has them, and rewrites your filter to match. It keeps your account and login, the league, the filter you picked, your price check history and net worth, your saved themes and the game sound copies.',
@@ -959,31 +889,14 @@ async function renderSettingsNow() {
           try { await call('app:resetAll'); toast('Everything is back to how a fresh install has it. Zone or reload the filter in game.'); renderSettings(); } catch { /* toast */ }
         } }, 'Reset everything'),
         (await call('app:canUndoReset').catch(() => false)) ? h('button', { onclick: async () => { try { await call('app:undoReset'); toast('Your changes are back'); renderSettings(); } catch { /* toast */ } } }, 'Undo the reset') : null,
-        h('span', { class: 'small muted' }, 'Only for what PoE Helper changed: your FilterBlade filter itself is never touched.'))),
-    section('Map warnings', 'Turn on the mods your build can\'t run. A # stands for any number.',
-      h('div', { class: 'panel' },
-        rules.length ? h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Mod'), h('th', {}, 'Matches text'), h('th', {}, 'Warning'), h('th', {}, ''))),
-          h('tbody', {}, rules.map((r) => h('tr', {},
-            h('td', { style: { width: '44px' } }, toggle(r.enabled, (v) => { r.enabled = v; saveRules(); })),
-            h('td', {}, r.label),
-            h('td', { class: 'muted small' }, r.pattern),
-            h('td', {}, h('select', { onchange: (e) => { r.severity = e.target.value; saveRules(); } }, [['deadly', 'Skip the map'], ['danger', 'Dangerous'], ['warn', 'Annoying'], ['info', 'Just so you know']].map(([v, l]) => h('option', { value: v, selected: r.severity === v }, l)))),
-            h('td', { style: { width: '40px' } }, h('button', { class: 'quiet sm', title: `Delete "${r.label}"`, 'aria-label': `Delete ${r.label}`, onclick: () => { rules.splice(rules.indexOf(r), 1); saveRules().then(renderSettings); } }, '✕')))))) : h('p', { class: 'small muted' }, 'No map warnings. Add one below, or bring back the usual list.'),
-        h('div', { class: 'row', style: { marginTop: '10px', gap: '8px' } },
-          rules.length ? h('button', { class: 'quiet sm', onclick: () => { if (!confirm(`Delete all ${rules.length} map warnings?`)) return; rules.length = 0; saveRules().then(renderSettings); } }, 'Delete all') : null,
-          h('button', { class: 'quiet sm', onclick: async () => { await call('settings:reset', ['mapRules']); renderSettings(); } }, 'Bring back the usual warnings')),
-        (() => {
-          const label = h('input', { placeholder: 'Name' });
-          const pat = h('input', { placeholder: 'Monsters have #% increased Area of Effect', style: { flex: 1 } });
-          return h('div', { class: 'row', style: { marginTop: '12px' } }, label, pat, h('button', { onclick: () => { if (!pat.value.trim()) return; rules.push({ id: `c_${Date.now()}`, label: label.value || pat.value, pattern: pat.value, severity: 'danger', enabled: true }); saveRules().then(renderSettings); } }, 'Add warning'));
-        })())));
+        h('span', { class: 'small muted' }, 'Only for what PoE Helper changed: your FilterBlade filter itself is never touched.'))));
 }
 
 // ---------------- events ----------------
 window.poe.on('toast', (m) => toast(m));
 window.poe.on('networth:updated', () => { if (currentPage === 'networth' || currentPage === 'dashboard') go(currentPage); });
 window.poe.on('filter:rebuilt', () => { if (currentPage === 'filters') go('filters'); });
-window.poe.on('history:updated', () => { if (currentPage === 'dashboard' || currentPage === 'price') refreshState(); });
-window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'settings') go('settings'); });
+window.poe.on('history:updated', () => { if (currentPage === 'dashboard') refreshState(); });
+window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'designer') go('designer'); });
 
 go('dashboard');

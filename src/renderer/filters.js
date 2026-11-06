@@ -607,12 +607,12 @@ async function extraRulesPanel() {
 // Like FilterBlade's matrix: pick a brush, then click or drag over bases. Each base has two settings:
 // whether you see it at all (in maps), and what happens when it drops fractured.
 const BRUSHES = [
-  { id: 'show', label: 'Show', set: { vis: null }, title: 'Your filter decides, as before' },
-  { id: 'hide', label: 'Hide', set: { vis: 'hide' }, title: 'Hide plain copies of this base' },
-  { id: 'ftop', label: 'Fractured: top', set: { frac: 'top' }, title: 'Show it loud when it drops fractured: the best-base look' },
-  { id: 'fshow', label: 'Fractured: show', set: { frac: 'show' }, title: 'Always show it when it drops fractured, with the fractured look' },
-  { id: 'fhide', label: 'Fractured: hide', set: { frac: 'hide' }, title: 'Hide it even when it drops fractured' },
-  { id: 'fdefault', label: 'Fractured: filter decides', set: { frac: null }, title: 'Back to what your filter does with fractured copies' },
+  { id: 'S', label: 'S', rank: 'S', title: 'Paint rank S, the best' },
+  { id: 'A', label: 'A', rank: 'A', title: 'Paint rank A' },
+  { id: 'B', label: 'B', rank: 'B', title: 'Paint rank B' },
+  { id: 'C', label: 'C', rank: 'C', title: 'Paint rank C, the lowest' },
+  { id: 'hide', label: 'Hide plain drops', vis: 'hide', title: 'Hide plain (normal, magic, rare) copies of this base, whatever the rank' },
+  { id: 'show', label: 'Unhide', vis: null, title: 'Plain copies back to your filter and the ranks' },
 ];
 
 // ---------------------------------------------------------------- cluster jewels
@@ -797,116 +797,173 @@ async function renderBaseMatrix(body, view) {
   const data = await call('matrix:get');
   const cats = sidebar(view, new Set());
   FB.matrixView = FB.matrixView || 'd:es';
-  FB.brush = FB.brush || 'hide';
+  if (!BRUSHES.some((b) => b.id === FB.brush)) FB.brush = 'S';
   let state = data.state || {};
+  let ranks = data.ranks || {};
+  let kinds = data.kinds || {};
+  const RANKS = data.rankList || ['S', 'A', 'B', 'C'];
+  const rankOf = (n) => (RANKS.includes(ranks[n]) ? ranks[n] : 'C');
+  const col = (a) => (a ? `rgba(${+a[0] || 0},${+a[1] || 0},${+a[2] || 0},${((a[3] == null ? 255 : +a[3]) / 255).toFixed(3)})` : '');
   const [mode, key] = FB.matrixView.split(':');
+  const byRank = FB.matrixByRank || mode === 'a';
+
+  // every base once, in class / defence order (for "All bases")
+  const everything = () => {
+    const seen = new Set(); const out = [];
+    const add = (b) => { if (!seen.has(b.name)) { seen.add(b.name); out.push(b); } };
+    for (const c of data.classes) for (const d of data.defences) (data.bases[c][d.id] || []).forEach(add);
+    for (const g of data.groups || []) for (const c of g.columns) c.list.forEach(add);
+    return out;
+  };
   // a defence type shows every class side by side; a class shows every defence type side by side
-  const columns = mode === 'd'
+  let columns = mode === 'd'
     ? data.classes.map((c) => ({ title: c, list: data.bases[c][key] || [] }))
     : mode === 'g'
       ? (data.groups.find((g) => g.id === key) || data.groups[0]).columns
-      : data.defences.map((d) => ({ title: d.name, list: data.bases[key]?.[d.id] || [] }));
+      : mode === 'a' ? [{ title: 'All', list: everything() }]
+        : data.defences.map((d) => ({ title: d.name, list: data.bases[key]?.[d.id] || [] }));
+  const scope = (() => { const seen = new Set(); return columns.flatMap((c) => c.list).filter((b) => !seen.has(b.name) && seen.add(b.name)); })();
+  // "Show by rank": the same bases, one column per rank, so you can see what's in and what's out
+  const rankColumns = () => RANKS.map((r) => ({ title: `Rank ${r}`, rank: r, list: scope.filter((b) => rankOf(b.name) === r) }));
+  if (byRank) columns = rankColumns();
 
   const pick = h('select', { 'aria-label': 'Show bases by', onchange: (e) => { FB.matrixView = e.target.value; renderFilters(); } },
+    h('option', { value: 'a:all', selected: mode === 'a' }, 'All bases'),
     h('optgroup', { label: 'Armour types' }, data.defences.map((d) => h('option', { value: `d:${d.id}`, selected: FB.matrixView === `d:${d.id}` }, d.name))),
     h('optgroup', { label: 'Armour classes' }, data.classes.map((c) => h('option', { value: `c:${c}`, selected: FB.matrixView === `c:${c}` }, c))),
     h('optgroup', { label: 'Other items' }, (data.groups || []).map((g) => h('option', { value: `g:${g.id}`, selected: FB.matrixView === `g:${g.id}` }, g.name))));
+  const rankToggle = h('label', { class: 'check small', title: mode === 'a' ? 'All bases are always shown by rank' : 'One column per rank instead of per item type' },
+    h('input', { type: 'checkbox', checked: byRank, disabled: mode === 'a', onchange: (e) => { FB.matrixByRank = e.target.checked; renderFilters(); } }), 'Show by rank');
 
-  const brushBar = h('div', { class: 'bm-brushes', role: 'radiogroup', 'aria-label': 'Brush' }, BRUSHES.map((b) => h('button', {
-    class: `bm-brush bm-b-${b.id}` + (FB.brush === b.id ? ' on' : ''), role: 'radio', 'aria-checked': FB.brush === b.id ? 'true' : 'false', title: b.title,
-    onclick: () => { FB.brush = b.id; renderFilters(); },
-  }, b.label)));
+  const lookOf = (r) => window.UI.normalizeStyle(data.rankLooks?.[r] || {}, 'Rare');
+  const dressRank = (el, r) => { const lk = lookOf(r); el.style.color = col(lk.text); el.style.background = col(lk.background) || 'rgba(0,0,0,0.72)'; el.style.borderColor = col(lk.border) || 'transparent'; return el; };
 
-  const cellClass = (n) => {
-    const e = state[n] || {};
-    return 'bm-cell' + (e.vis === 'hide' ? ' hidden' : '') + (e.frac ? ` frac-${e.frac}` : '');
-  };
+  const brushBar = h('div', { class: 'bm-brushes', role: 'radiogroup', 'aria-label': 'Brush for dragging' }, BRUSHES.map((b) => {
+    const el = h('button', {
+      class: `bm-brush bm-b-${b.id}` + (FB.brush === b.id ? ' on' : ''), role: 'radio', 'aria-checked': FB.brush === b.id ? 'true' : 'false', title: b.title,
+      onclick: () => { FB.brush = b.id; renderFilters(); },
+    }, b.label);
+    return b.rank ? dressRank(el, b.rank) : el;
+  }));
+
+  const cellClass = (n) => 'bm-cell bm-rank' + ((state[n] || {}).vis === 'hide' ? ' hidden' : '') + (rankOf(n) === 'C' ? ' rank-low' : '');
+  const shownFor = (n) => (data.rankKinds || []).filter((k) => { const m = kinds[k.id]; return m && m !== 'off' && m !== 'none' && RANKS.indexOf(rankOf(n)) <= RANKS.indexOf(m); }).map((k) => k.name.toLowerCase());
   const cellTitle = (b) => {
-    const e = state[b.name] || {};
-    return `${b.name}: ${e.vis === 'hide' ? 'hidden (plain copies, in maps)' : 'your filter decides'}. Fractured: ${e.frac === 'top' ? 'top look' : e.frac === 'show' ? 'always shown' : e.frac === 'hide' ? 'hidden' : 'your filter decides'}.${b.inFilter === false ? ' (Your filter doesn\'t list this base.)' : ''}`;
+    const r = rankOf(b.name);
+    const on = shownFor(b.name);
+    return `${b.name}: rank ${r}.${on.length ? ` Shown as ${on.join(', ')}.` : ''}${(state[b.name] || {}).vis === 'hide' ? ' Plain drops hidden.' : ''}` +
+      `\nLeft click: a rank up. Right click: a rank down. Drag: paint with the brush.${b.inFilter === false ? '\n(Your filter doesn\'t list this base.)' : ''}`;
   };
   const cells = new Map();
+  const redraw = (n) => { for (const el of cells.get(n) || []) { el.className = cellClass(n); dressRank(el, rankOf(n)); el.title = cellTitle({ name: n }); el.querySelector('.bm-f').textContent = rankOf(n); } };
+  const brush = () => BRUSHES.find((b) => b.id === FB.brush);
   const paintLocal = (names) => {
-    const set = BRUSHES.find((b) => b.id === FB.brush).set;
+    const b = brush();
     for (const n of names) {
-      const e = { ...(state[n] || {}) };
-      if ('vis' in set) { if (set.vis) e.vis = set.vis; else delete e.vis; }
-      if ('frac' in set) { if (set.frac) e.frac = set.frac; else delete e.frac; }
-      if (Object.keys(e).length) state[n] = e; else delete state[n];
-      for (const el of cells.get(n) || []) { el.className = cellClass(n); }
+      if (b.rank) { if (b.rank === 'C') delete ranks[n]; else ranks[n] = b.rank; }
+      if ('vis' in b) { const e = { ...(state[n] || {}) }; if (b.vis) e.vis = b.vis; else delete e.vis; if (Object.keys(e).length) state[n] = e; else delete state[n]; }
+      redraw(n);
     }
   };
+  const after = () => { S.settings.baseRanks = ranks; S.settings.baseMatrix = state; drawSummary(); if (byRank) renderFilters(); };
   const commit = async (names) => {
     if (!names.length) return;
-    const set = BRUSHES.find((b) => b.id === FB.brush).set;
-    const res = await call('matrix:set', { bases: [...new Set(names)], ...set });
-    state = res.state;
-    S.settings.baseMatrix = res.state;
-    drawSummary();
+    const b = brush();
+    const list = [...new Set(names)];
+    if (b.rank) ranks = (await call('ranks:set', { bases: list, rank: b.rank })).ranks;
+    else state = (await call('matrix:set', { bases: list, vis: b.vis })).state;
+    after();
+  };
+  // left click: a rank up, right click: a rank down (C is the floor, S the top), like the cluster grid
+  const step = async (names, dir) => {
+    const list = [...new Set(names)];
+    for (const n of list) { const i = Math.max(0, Math.min(3, RANKS.indexOf(rankOf(n)) - dir)); if (RANKS[i] === 'C') delete ranks[n]; else ranks[n] = RANKS[i]; redraw(n); }
+    ranks = (await call('ranks:set', { bases: list, dir })).ranks;
+    after();
   };
 
-  // click one base, or hold the mouse and drag over several
   let painting = null;
-  const stop = () => { if (painting) { const names = painting; painting = null; commit(names); } };
+  let moved = false;
   // one window listener for every render: it ends whichever drag is going on
   if (!window.bmMouseUp) window.addEventListener('mouseup', () => window.bmMouseUp?.());
-  window.bmMouseUp = stop;
+  window.bmMouseUp = () => { if (!painting) return; const names = painting; painting = null; if (moved) commit(names); else step(names, +1); };
   const cellOf = (b) => {
     const el = h('button', {
       type: 'button', class: cellClass(b.name), title: cellTitle(b),
-      onmousedown: (e) => { e.preventDefault(); painting = [b.name]; paintLocal([b.name]); },
-      onmouseenter: () => { if (painting && !painting.includes(b.name)) { painting.push(b.name); paintLocal([b.name]); } },
-      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); paintLocal([b.name]); commit([b.name]); } },
-    }, h('span', { class: 'bm-n' }, b.name), h('span', { class: 'bm-f', 'aria-hidden': 'true' }));
+      onmousedown: (e) => { if (e.button !== 0) return; e.preventDefault(); painting = [b.name]; moved = false; },
+      onmouseenter: () => { if (painting && !painting.includes(b.name)) { if (!moved) { moved = true; paintLocal(painting); } painting.push(b.name); paintLocal([b.name]); } },
+      oncontextmenu: (e) => { e.preventDefault(); step([b.name], -1); },
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowUp' || e.key === '+') { e.preventDefault(); step([b.name], +1); } else if (e.key === 'ArrowDown' || e.key === '-') { e.preventDefault(); step([b.name], -1); } },
+    }, h('span', { class: 'bm-n' }, b.name), h('span', { class: 'bm-f', 'aria-hidden': 'true' }, rankOf(b.name)));
+    dressRank(el, rankOf(b.name));
     if (!cells.has(b.name)) cells.set(b.name, []);
     cells.get(b.name).push(el);
     return el;
   };
   const grid = h('div', { class: 'bm-grid', style: { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` } },
-    columns.map((col) => h('div', { class: 'bm-col' },
-      h('button', { class: 'bm-head', title: `Use the brush on every base in ${col.title}`, onclick: () => { const names = col.list.map((b) => b.name); paintLocal(names); commit(names); } }, col.title),
-      col.list.map(cellOf))));
+    columns.map((c) => h('div', { class: 'bm-col' },
+      c.rank
+        ? h('div', { class: 'bm-head' }, `${c.title} (${c.list.length})`)
+        : h('button', { class: 'bm-head', title: `Left click: every base in ${c.title} a rank up. Right click: a rank down.`, onclick: () => step(c.list.map((b) => b.name), +1), oncontextmenu: (e) => { e.preventDefault(); step(c.list.map((b) => b.name), -1); } }, c.title),
+      c.list.length ? c.list.map(cellOf) : h('div', { class: 'small faint', style: { padding: '6px' } }, 'None'))));
+
+  // per kind of drop: the lowest rank you still want to see
+  const MIN_OPTS = [['off', 'Filter decides'], ['S', 'S only'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'All ranks'], ['none', 'Hide all']];
+  const kindCount = (k) => { const m = kinds[k.id]; if (!m || m === 'off') return ''; if (m === 'none') return 'all hidden'; const n = scope.filter((b) => RANKS.indexOf(rankOf(b.name)) <= RANKS.indexOf(m)).length; return `${n} of ${scope.length} here shown`; };
+  const kindRows = (data.rankKinds || []).map((k) => {
+    const note = h('span', { class: 'small faint' }, kindCount(k));
+    const sel = h('select', { 'aria-label': `${k.name}: lowest rank shown`, onchange: async (e) => {
+      const r = await call('ranks:kind', { kind: k.id, min: e.target.value });
+      kinds = r.kinds; S.settings.rankKinds = kinds; mount(note, kindCount(k)); drawSummary();
+      grid.querySelectorAll('.bm-cell').forEach((el) => { const n = el.querySelector('.bm-n')?.textContent; if (n) el.title = cellTitle({ name: n }); });
+    } }, MIN_OPTS.map(([v, l]) => h('option', { value: v, selected: (kinds[k.id] || 'off') === v }, l)));
+    const ilvl = k.ilvl ? h('label', { class: 'row small', style: { gap: '6px' } }, 'item level',
+      (() => { const i = h('input', { type: 'number', min: 1, max: 100, value: data.craftIlvl || 82, style: { width: '58px' }, 'aria-label': 'Crafting bases: lowest item level' }); i.addEventListener('change', async () => { const r = await call('ranks:kind', { craftIlvl: i.value }); i.value = r.craftIlvl; toast(`Crafting bases: item level ${r.craftIlvl}+`); }); return i; })(), '+') : h('span');
+    return h('div', { class: 'bm-kind' }, h('b', {}, k.name), h('span', { class: 'small muted' }, k.about), sel, ilvl, note);
+  });
 
   const summary = h('div', { class: 'small muted' });
   function drawSummary() {
-    const v = Object.values(state);
-    mount(summary, `${v.filter((e) => e.vis === 'hide').length} hidden · ${v.filter((e) => e.frac === 'top').length} top and ${v.filter((e) => e.frac === 'show').length} shown when fractured · ${v.filter((e) => e.frac === 'hide').length} hidden when fractured`);
+    const n = { S: 0, A: 0, B: 0, C: 0 };
+    for (const b of scope) n[rankOf(b.name)]++;
+    const hid = Object.values(state).filter((e) => e.vis === 'hide').length;
+    mount(summary, `Here: ${n.S} S · ${n.A} A · ${n.B} B · ${n.C} C${hid ? ` · ${hid} plain drops hidden` : ''}`);
   }
   drawSummary();
 
   const opts = data.opts || {};
-  const mapsOnly = h('input', { type: 'checkbox', checked: opts.mapsOnly !== false, onchange: async (e) => { await call('matrix:opts', { mapsOnly: e.target.checked }); toast(e.target.checked ? 'Hidden bases are hidden in maps only' : 'Hidden bases are hidden everywhere, campaign too'); } });
+  const mapsOnly = h('input', { type: 'checkbox', checked: opts.mapsOnly !== false, onchange: async (e) => { await call('matrix:opts', { mapsOnly: e.target.checked }); toast(e.target.checked ? 'Bases below the rank are hidden in maps only' : 'Bases below the rank are hidden everywhere, campaign too'); } });
   const keep = h('input', { type: 'number', min: 1, max: 100, placeholder: 'off', value: opts.keepIlvl ?? '', style: { width: '64px' }, 'aria-label': 'Keep this item level and above visible' });
   keep.addEventListener('change', async () => { const r = await call('matrix:opts', { keepIlvl: keep.value || null }); toast(r.keepIlvl ? `Item level ${r.keepIlvl} and above always show` : 'Hidden bases are hidden at every item level'); });
 
   mount(body, h('div', { class: 'fb' },
     h('aside', {}, cats),
     h('div', {},
-      h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('eye', { size: 22 })), h('h2', {}, 'Base visibility'),
-        h('span', { class: 'small muted' }, 'Pick a brush, then click or drag over bases. Click a column title to paint the whole column.')),
+      h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('eye', { size: 22 })), h('h2', {}, 'Base ranks'),
+        h('span', { class: 'small muted' }, 'Every base has a rank, S best and C lowest. Left click a base for a rank up, right click for a rank down, or drag to paint with the brush.')),
+      h('div', { class: 'panel bm-kinds' },
+        h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, 'Lowest rank shown'), h('span', { class: 'small faint' }, 'For each kind of drop. "Rares: S only" and "Fractured: B and up" hide a B rank rare but show it fractured. Uniques are never touched.')),
+        kindRows,
+        h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Looks:'), RANKS.map((r) => dressRank(h('span', { class: 'bm-cell sample' }, `Rank ${r}`), r)))),
       h('div', { class: 'panel bm-tools' },
-        h('div', { class: 'row', style: { gap: '10px' } }, pick, brushBar),
+        h('div', { class: 'row', style: { gap: '10px' } }, pick, rankToggle, h('span', { class: 'small muted' }, 'Brush:'), brushBar),
         h('div', { class: 'row small', style: { gap: '14px' } },
           h('label', { class: 'check' }, mapsOnly, 'Hide only in maps (area level 68+)'),
           h('label', { class: 'row', style: { gap: '6px' } }, 'Keep item level', keep, 'and above'),
-          h('button', { class: 'sm', title: 'In every column: the 2 best bases get the top fractured look, the next 3 the fractured look, the rest are hidden when fractured', onclick: async () => {
-            const r = await call('matrix:fracAuto', { top: 2, good: 3 });
-            toast(`Fractured: ${r.top} top, ${r.good} shown, ${r.hidden} hidden`);
+          h('button', { class: 'sm', title: 'In every column: the best base gets S, the next 2 A, the next 2 B, the rest C', onclick: async () => {
+            if (Object.keys(ranks).length && !confirm('Rank every base again from the base order? Your own ranks are replaced.')) return;
+            const r = await call('ranks:auto', { s: 1, a: 2, b: 2 });
+            toast(`Ranked: ${r.S} S, ${r.A} A, ${r.B} B, ${r.C} C`);
             renderFilters();
-          } }, 'Fractured: keep only the best'),
+          } }, 'Rank by base order'),
           h('span', { class: 'spacer' }), summary,
           h('button', { class: 'quiet sm', onclick: async () => {
-            const all = Object.keys(state);
-            if (!all.length || !confirm(`Clear base visibility for all ${all.length} bases? Your filter decides again.`)) return;
-            await call('matrix:set', { bases: all, vis: null, frac: null });
+            const all = [...new Set([...Object.keys(ranks), ...Object.keys(state)])];
+            if (!all.length || !confirm(`Set all ${all.length} bases back to rank C and unhide them?`)) return;
+            await call('ranks:set', { bases: Object.keys(ranks), rank: 'C' });
+            await call('matrix:set', { bases: Object.keys(state), vis: null, frac: null });
             renderFilters();
           } }, 'Reset all'))),
-      h('div', { class: 'bm-legend small' },
-        h('span', { class: 'bm-cell sample' }, 'Shown'), h('span', { class: 'bm-cell sample hidden' }, 'Hidden'),
-        h('span', { class: 'bm-cell sample frac-top' }, h('span', { class: 'bm-n' }, 'Fractured: top'), h('span', { class: 'bm-f' })),
-        h('span', { class: 'bm-cell sample frac-show' }, h('span', { class: 'bm-n' }, 'Fractured: show'), h('span', { class: 'bm-f' })),
-        h('span', { class: 'bm-cell sample frac-hide' }, h('span', { class: 'bm-n' }, 'Fractured: hide'), h('span', { class: 'bm-f' })),
-        h('span', { class: 'faint' }, 'Hidden bases still show when they\'re fractured, synthesised, influenced, corrupted, mirrored, 6-socket or unique, unless you hide their fractured copies too.')),
       grid)));
 }
 
@@ -1010,7 +1067,7 @@ const CATEGORIES = [
   ]],
   ['Rare items', [
     { id: 'mybases', name: 'My bases', match: [], special: 'mybases', art: null, icon: 'hammer' },
-    { id: 'basevis', name: 'Base visibility', match: [], special: 'matrix', art: 'Fracturing Orb', icon: 'eye' },
+    { id: 'basevis', name: 'Base ranks', match: [], special: 'matrix', art: 'Fracturing Orb', icon: 'eye' },
     { id: 'rares', name: 'Rares', match: ['rare', 'rareid', 'rareblendid', 'rareoptional', 'corruptedid', 'influenced', 'animatedweapons'], art: 'Orb of Alchemy', icon: 'sword' },
     { id: 'crafting', name: 'Crafting bases', match: ['crafting', 'normalcraft', 'gear', 'magicid'], art: 'Orb of Fusing', icon: 'hammer' },
     { id: 'special', name: 'Special bases', match: ['exoticbases', 'exoticbaseslower', 'exotic', 'exoticmods'], art: 'Fracturing Orb', icon: 'bolt' },
@@ -1324,7 +1381,7 @@ function sidebar(view, changedTypes) {
       h('button', { class: 'fb-cat-main', onclick: () => select(BASE_MATRIX) },
         h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
         h('span', { class: 'n' }, cat.name),
-        h('span', { class: 'c small faint' }, String(Object.keys(S.settings.baseMatrix || {}).length || '')))));
+        h('span', { class: 'c small faint' }, String(Object.keys(S.settings.baseRanks || {}).length || '')))));
 
   const clusterOn = FB.type === CLUSTER_GRID || FB.type === CLUSTER_SIZE_TYPE;
   const clusterRow = (cat) => h('div', { class: 'fb-cat' + (clusterOn ? ' current' : '') },

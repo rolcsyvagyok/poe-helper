@@ -49,3 +49,25 @@ test('works without a fetch passed in (uses the global one)', () => {
   const lab = new LabClient({ dir: os.tmpdir() });
   assert.equal(typeof lab.fetch, 'function');
 });
+
+test('a 403 from Cloudflare falls back to loading poelab as a browser', async () => {
+  const fs = require('fs'); const os = require('os'); const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lab403-'));
+  const today = todayUtc(Date.now());
+  const html = `<img src="https://www.poelab.com/wp-content/labfiles/${today}_000043330_uber.jpg">`;
+  const used = [];
+  const lab = new LabClient({
+    dir,
+    fetchImpl: async () => ({ ok: false, status: 403 }),
+    browser: { text: async (u) => { used.push(['text', u]); return html; }, buffer: async (u) => { used.push(['pic', u]); return Buffer.alloc(5000, 1); } },
+  });
+  const r = await lab.layout('uber');
+  assert.equal(r.date, today);
+  assert.ok(fs.existsSync(r.file));
+  assert.deepEqual(used.map((x) => x[0]), ['text', 'pic']);
+});
+
+test('without a browser a 403 is still reported', async () => {
+  const lab = new LabClient({ dir: require('os').tmpdir(), fetchImpl: async () => ({ ok: false, status: 403 }) });
+  await assert.rejects(() => lab.layout('uber', { refresh: true }), /403/);
+});

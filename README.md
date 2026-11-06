@@ -143,8 +143,10 @@ src/
     ggg.js              GGG client: stash, trade; budget + counters
     pricer.js           item → category routing + best match
     trade.js            mod → trade stat matching, query builder
-    map-mods.js         dangerous map mod rules
     networth.js         snapshots, valuation, income, diffs
+    regex/maps.js       map mod search strings for the stash / map device (Regex page)
+    regex/map-trade.js  the same choices as a trade site search for maps
+    regex/map-mods.json map mods from the game data (scripts/build-map-mods.js, from a RePoE export)
     filter/
       parser.js         lossless .filter parser + block renderer
       matcher.js        "which block hits this item?"

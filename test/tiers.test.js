@@ -266,6 +266,7 @@ test('designer: tier levels, presets keep Tier 1 white with FilterBlade Divine s
   const locked = D.lockTier1({ 1: { text: [10, 20, 30, 255], background: [0, 0, 0, 255], sound: { id: 3 } }, 2: { fontSize: 40 } });
   assert.deepEqual(locked[1].background, [255, 255, 255, 255]);
   assert.deepEqual(locked[1].text, [10, 20, 30, 255], 'text colour kept');
+  assert.deepEqual(locked[1].border, [10, 20, 30, 255], 'the border follows the text colour');
   assert.deepEqual(locked[1].sound, D.TIER1_SOUND);
   assert.equal(locked[2].fontSize, 40);
 
