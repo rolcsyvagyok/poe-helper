@@ -788,6 +788,19 @@ function registerIpc() {
   handle('themes:save', ({ name, onlyEdited }) => services.saveTheme(name, { onlyEdited }));
   handle('themes:apply', (id) => services.applyTheme(id));
   handle('themes:delete', (id) => services.deleteTheme(id));
+  handle('filterShare:export', async () => {
+    const r = await dialog.showSaveDialog(mainWin, { title: 'Export your loot filter settings', defaultPath: 'loot-filter.poehelper.json', filters: [{ name: 'PoE Helper loot filter settings', extensions: ['json'] }] });
+    if (r.canceled || !r.filePath) return null;
+    require('fs').writeFileSync(r.filePath, services.exportFilterSettings(), 'utf8');
+    return r.filePath;
+  });
+  handle('filterShare:import', async () => {
+    const r = await dialog.showOpenDialog(mainWin, { title: 'Import loot filter settings', properties: ['openFile'], filters: [{ name: 'PoE Helper loot filter settings', extensions: ['json'] }] });
+    if (r.canceled || !r.filePaths?.[0]) return null;
+    return services.importFilterSettings(require('fs').readFileSync(r.filePaths[0], 'utf8'));
+  });
+  handle('filterShare:undo', () => services.undoImportFilterSettings());
+  handle('filterShare:canUndo', () => services.canUndoImport());
   handle('themes:export', async (id) => {
     const json = services.exportTheme(id);
     const name = (services.themes().find((t) => t.id === id)?.name || 'theme').replace(/[^\w -]+/g, '');

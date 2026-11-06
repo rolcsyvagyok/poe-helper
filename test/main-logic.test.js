@@ -402,7 +402,7 @@ test('cluster jewel rules use base, item level and passives, and can hide', () =
 test('"Also when fractured" writes a Hide block for hidden bases above the filter', () => {
   const { svc, filterDir } = setup();
   fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
-  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', hideFractured: true });
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', hideFractured: true, rankKinds: {} });
   const { target } = svc.moveBases('divination', ['Rain of Chaos'], '__hide__');
   const out = fs.readFileSync(target, 'utf8');
   const at = out.indexOf('FracturedItem True');
@@ -640,4 +640,33 @@ test('base ranks leave heist and ritual bases to the filter', () => {
   assert.ok(!v.groups.some((g) => g.id === 'heist' || g.id === 'ritual'));
   svc.setBaseRanks({ bases: [heist[0]], rank: 'S' });
   assert.equal(svc.settings.get('baseRanks')[heist[0]], undefined);
+});
+
+test('loot filter settings: export from one app, import in another, undo', () => {
+  const a = setup().svc;
+  a.setBaseRanks({ bases: ['Simple Robe'], rank: 'S' });
+  a.setRankKind({ kind: 'rares', min: 'A' });
+  a.settings.set('myBases', [{ id: 'x1', base: 'Vaal Regalia', enabled: true }]);
+  a.settings.set('tierPatch', { moves: {}, styles: { 'currency|t1': { customSound: 'poehelper-sounds/my-boom.mp3' } } });
+  require('fs').mkdirSync(require('path').join(a.settings.file ? require('path').dirname(a.settings.file) : '.', 'sounds'), { recursive: true });
+  const text = a.exportFilterSettings();
+  const data = JSON.parse(text);
+  assert.equal(data.kind, 'poe-helper-loot-filter-settings');
+  assert.ok(!('accountName' in data.settings) && !('sessionEnc' in data.settings), 'no account or login in it');
+
+  const b = setup().svc;
+  b.settings.set('accountName', 'Friend');
+  b.setBaseRanks({ bases: ['Simple Robe'], rank: 'C' });
+  b.settings.set('myBases', [{ id: 'y', base: 'Titan Plate', enabled: true }]);
+  b.importFilterSettings(text);
+  assert.equal(b.settings.get('baseRanks')['Simple Robe'], 'S');
+  assert.equal(b.settings.get('rankKinds').rares, 'A');
+  assert.deepEqual(b.settings.get('myBases').map((x) => x.base), ['Vaal Regalia']);
+  assert.equal(b.settings.get('accountName'), 'Friend', 'their account stays');
+  assert.ok(b.canUndoImport());
+  b.undoImportFilterSettings();
+  assert.equal(b.settings.get('baseRanks')['Simple Robe'], 'C');
+  assert.deepEqual(b.settings.get('myBases').map((x) => x.base), ['Titan Plate']);
+  assert.ok(!b.canUndoImport());
+  assert.throws(() => b.importFilterSettings('{"kind":"other"}'), /isn't a PoE Helper/);
 });

@@ -62,7 +62,7 @@ const DEFAULT_SETTINGS = {
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
   regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]
   baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
-  rankKinds: {}, // lowest rank shown per kind of drop: { rares: 'S', fractured: 'B' }
+  rankKinds: { rares: 'D', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks)
   rankCraftIlvl: 82,
   rankIlvl: {}, // lowest item level per kind of drop: { fractured: 68 } (crafting bases: rankCraftIlvl)
   hideFractured: false, // also hide fractured copies of bases you hid
@@ -455,6 +455,60 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return true;
   }
   const canUndoReset = () => require('fs').existsSync(path.join(dataDir, 'settings-before-reset.json'));
+
+  // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
+  // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
+  const FILTER_KEYS = ['tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'rankKinds', 'rankCraftIlvl', 'rankIlvl',
+    'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
+    'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
+  const SHARE_KIND = 'poe-helper-loot-filter-settings';
+  function exportFilterSettings() {
+    const fs = require('fs');
+    const values = Object.fromEntries(FILTER_KEYS.filter((k) => settings.get(k) !== undefined).map((k) => [k, settings.get(k)]));
+    // your own drop sounds go along, so the looks sound the same on the other PC
+    const used = [...new Set(JSON.stringify(values).match(/my-[a-z0-9-]+\.(?:mp3|wav|ogg)/gi) || [])];
+    const sounds = {};
+    for (const f of used) { try { sounds[f] = fs.readFileSync(path.join(userSoundsDir, path.basename(f))).toString('base64'); } catch { /* gone */ } }
+    return JSON.stringify({ kind: SHARE_KIND, version: 1, app: VERSION, exportedAt: new Date().toISOString(), settings: values, sounds }, null, 1);
+  }
+  /** Someone else's loot filter settings replace yours (yours are kept for Undo). */
+  function importFilterSettings(text) {
+    const fs = require('fs');
+    let data;
+    try { data = JSON.parse(String(text)); } catch { throw new Error('That isn\'t a PoE Helper loot filter settings file.'); }
+    if (data?.kind !== SHARE_KIND || typeof data.settings !== 'object' || !data.settings) throw new Error('That isn\'t a PoE Helper loot filter settings file.');
+    fs.writeFileSync(path.join(dataDir, 'settings-before-import.json'), JSON.stringify(Object.fromEntries(FILTER_KEYS.map((k) => [k, settings.data[k] ?? null]))));
+    fs.mkdirSync(userSoundsDir, { recursive: true });
+    for (const [f, b64] of Object.entries(data.sounds || {})) {
+      if (!/^my-[a-z0-9-]+\.(mp3|wav|ogg)$/i.test(f)) continue;
+      const buf = Buffer.from(String(b64), 'base64');
+      if (buf.length && buf.length <= 5 * 1024 * 1024) fs.writeFileSync(path.join(userSoundsDir, f), buf);
+    }
+    // keys the file doesn't have go back to how a fresh install has them, so it's really their setup
+    for (const k of FILTER_KEYS) {
+      if (k in data.settings) settings.data[k] = data.settings[k];
+      else if (k in DEFAULT_SETTINGS) settings.data[k] = structuredClone(DEFAULT_SETTINGS[k]);
+      else delete settings.data[k];
+    }
+    settings.save();
+    viewCache = null;
+    let target = null;
+    try { if (filters.basePath()) target = filters.write(); } catch (e) { log('import write', e.message); }
+    return { count: Object.keys(data.settings).length, from: data.app || null, at: data.exportedAt || null, target };
+  }
+  function undoImportFilterSettings() {
+    const fs = require('fs');
+    const f = path.join(dataDir, 'settings-before-import.json');
+    if (!fs.existsSync(f)) throw new Error('There is no import to undo.');
+    const before = JSON.parse(fs.readFileSync(f, 'utf8'));
+    for (const [k, v] of Object.entries(before)) { if (v === null) delete settings.data[k]; else settings.data[k] = v; }
+    settings.save();
+    fs.unlinkSync(f);
+    viewCache = null;
+    try { if (filters.basePath()) filters.write(); } catch (e) { log('undo import write', e.message); }
+    return true;
+  }
+  const canUndoImport = () => require('fs').existsSync(path.join(dataDir, 'settings-before-import.json'));
 
   // ---------- the game's own alert sounds, for previews ----------
   // Made from the game install on this PC (FMOD/Desktop/ItemFilter.bank) into the app's data folder;
@@ -1540,6 +1594,16 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
+  // 1.0.20: the kinds start at "All ranks"; synthesised items are left to the filter
+  let kindsChanged = false;
+  if (!settings.get('rankKindsV2')) {
+    const k = { ...(settings.get('rankKinds') || {}) };
+    delete k.synthesised;
+    for (const id of ['rares', 'crafting', 'fractured', 'influenced']) if (!k[id] || k[id] === 'off') k[id] = 'D';
+    settings.set('rankKinds', k);
+    settings.set('rankKindsV2', true);
+    kindsChanged = true;
+  }
   // 1.0.18: influenced and blighted maps are skipped by default on the Regex page
   if (!settings.get('regexTypesV1')) {
     const rm = settings.get('regexMaps') || {};
@@ -1553,9 +1617,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     settings.set('pinsDefaultV2', true);
   }
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
-  try { if (migrateRanks() && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
+  try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

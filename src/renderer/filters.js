@@ -38,6 +38,9 @@ function renderFilters() {
 const TIER_SPLITS = [
   { type: 'exoticbases', tier: 'exoticheistbases', key: 'exoticbases#heist', label: 'Heist bases' },
   { type: 'exoticbases', tier: 'exoticritualbases', key: 'exoticbases#ritual', label: 'Ritual bases' },
+  // cards that only matter in stacks get their own page, below the card tiers
+  { type: 'divination', tier: 'excustomstack', key: 'divination#stacks', label: 'Stacked cards' },
+  { type: 'divination', tier: 'exstack', key: 'divination#stacks', label: 'Stacked cards' },
 ];
 // Several filter categories shown as one subcategory, with a switch between them on its page.
 const TYPE_MERGES = [
@@ -80,7 +83,12 @@ function splitTiers(view) {
     const splits = TIER_SPLITS.filter((x) => x.type === t.type && t.tiers.some((y) => y.tier === x.tier));
     const rest = t.tiers.filter((y) => !splits.some((x) => x.tier === y.tier));
     if (rest.length || !splits.length) out.push({ ...t, key: t.type, tiers: rest });
-    for (const x of splits) out.push({ ...t, key: x.key, label: x.label, subLabel: x.label, tiers: t.tiers.filter((y) => y.tier === x.tier) });
+    // several tiers can share one page (both stack tiers of divination cards)
+    for (const key of [...new Set(splits.map((x) => x.key))]) {
+      const x = splits.find((y) => y.key === key);
+      const tiers = splits.filter((y) => y.key === key).map((y) => y.tier);
+      out.push({ ...t, key, label: x.label, subLabel: x.label, tiers: t.tiers.filter((y) => tiers.includes(y.tier)) });
+    }
   }
   return { ...view, types: out };
 }
@@ -338,7 +346,12 @@ function renderTiers(body, view) {
           t.mine ? h('button', { class: 'quiet sm', title: 'Rename this tier', 'aria-label': `Rename ${tierName(t)}`, onclick: async () => { const n = prompt('Name of this tier', tierName(t)); if (n && n.trim()) { await call('tiers:rename', { type: type.type, tier: t.tier, name: n }); renderFilters(); } } }, '✎') : null,
           t.mine ? h('button', { class: 'quiet sm', title: 'Delete this tier; its items go back to where the filter had them', 'aria-label': `Delete ${tierName(t)}`, onclick: async () => { if (!confirm(`Delete ${tierName(t)}? Its items go back to where your filter had them.`)) return; await call('tiers:remove', { type: type.type, tier: t.tier }); delete FB.prices[type.type]; toast(`${tierName(t)} deleted`); renderFilters(); } }, 'Delete') : null, changedAction ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, changedAction === 'Hide' ? 'Hidden by you' : changedAction === 'Off' ? 'Off by you' : t.origState === 'Off' ? 'Switched on by you' : 'Shown by you') : !changedAction && state === 'Off' ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade switched this tier off for your strictness. Press Shown to use it.' }, 'Off in FilterBlade') : null, edited.has(t.key) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null),
         h('div', { class: 'small', style: { color: '#9a9f8c' } }, t.hasBaseList ? `${t.bases.length} ${t.bases.length === 1 ? 'base' : 'bases'}` : t.special ? 'Special case' : 'Catches the rest of this category',
-          pricing?.tiers?.[t.key]?.median != null ? `, typically ${fmtC(pricing.tiers[t.key].median)}` : ''),
+          (() => {
+            // the price you set for this tier (Set category prices) wins over the typical price
+            const set = S.settings.priceReview?.categories?.[type.type]?.thresholds?.[t.tier];
+            if (set != null && set !== '') return `, ${typeof set === 'number' ? `${set}c` : String(set).replace(/\s*div$/i, 'd').replace(/\s*c$/i, 'c')}+`;
+            return pricing?.tiers?.[t.key]?.median != null ? `, typically ${fmtC(pricing.tiers[t.key].median)}` : '';
+          })()),
         t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity|ItemLevel|AreaLevel|Quality)\b/.test(c)).join(', ') || 'the conditions below'}`) : null),
       h('span', { class: 'spacer' }),
       visSwitch,
@@ -347,7 +360,7 @@ function renderTiers(body, view) {
     const conds = !folded && hasCondEditor(t);
     const card = h('div', { class: 'fb-tier' + (t.generated ? ' generated' : '') + (hidden ? ' is-hidden' : '') + (state === 'Off' ? ' is-off' : ''), 'data-key': t.key }, head,
       conds ? condEditor(t) : null,
-      folded || (conds && (t.implied || t.special)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, 'Empty. Drag bases here or add one below.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
+      folded || (conds && (t.implied || t.special)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, t.stackSize ? 'Empty: your filter has no cards here right now. (Items can\'t be moved in: they would leave their own tier.)' : canAdd ? 'Empty. Drag bases here or add one below.' : 'Empty.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
       folded || !canAdd ? null : addBox(t),
       isEditing && !folded ? lookEditor(t, () => drawList(), drawPreview) : null);
     // drop a sound file anywhere on the tier: it becomes this tier's drop sound
@@ -604,14 +617,19 @@ function renderTiers(body, view) {
           if (FB.priceColors) delete FB.prices[type.type];
           renderFilters();
         } }, FB.priceColors ? 'Hide price colours' : 'Check prices'),
-        h('button', { class: 'sm', title: 'Thresholds, Include and hourly auto-update for this category', onclick: async () => {
-          FB.tab = 'review'; FB.reviewOpen.add(type.type); FB.reviewOpen.delete('!' + type.type);
+        h('button', { class: FB.catPrices === type.type ? 'primary sm' : 'sm', title: 'Set the price of each tier and move items to the tier their price fits, for this category only (like Price review)', onclick: async () => {
+          if (FB.catPrices === type.type) { FB.catPrices = null; return renderFilters(); }
+          FB.catPrices = type.type;
           renderFilters();
-          if (!FB.review?.categories?.some((c) => c.type === type.type)) { try { await runReview(FB.review ? [type.type] : null); } catch { /* toast */ } renderFilters(); }
-          if (FB.review && !FB.review.categories.some((c) => c.type === type.type)) toast(`poe.ninja has no prices for ${type.label}, so it can't be auto-tiered.`);
-        } }, 'Auto-tier…'),
+          if (!FB.review?.categories?.some((c) => c.type === type.type)) {
+            try { await runReview([type.type]); } catch { /* toast */ }
+            if (!FB.review?.categories?.some((c) => c.type === type.type)) { FB.catPrices = null; toast(`poe.ninja has no prices for ${type.label}, so its tiers can't be set by price.`); }
+            renderFilters();
+          }
+        } }, FB.catPrices === type.type ? 'Close prices' : 'Set category prices'),
         search),
       partSwitch,
+      FB.catPrices === type.type ? (() => { const box = h('div', { class: 'fb-catprices' }); renderReview(box, { only: type.type }); return box; })() : null,
       list)),
   bar);
 }
@@ -865,6 +883,12 @@ async function renderBaseMatrix(body, view) {
   const LOW = RANKS[RANKS.length - 1]; // D: untiered, the default
   const rankOf = (n) => (RANKS.includes(ranks[n]) ? ranks[n] : LOW);
   const col = (a) => (a ? `rgba(${+a[0] || 0},${+a[1] || 0},${+a[2] || 0},${((a[3] == null ? 255 : +a[3]) / 255).toFixed(3)})` : '');
+  // views across both weapon groups (for looking only: every base keeps its one rank)
+  const MIXES = {
+    caster: ['Wands', 'Sceptres', 'Staves'],
+    melee: ['Claws', 'Daggers', 'One Hand Swords', 'Rapiers', 'One Hand Axes', 'One Hand Maces', 'Two Hand Swords', 'Two Hand Axes', 'Two Hand Maces'],
+    bows: ['Bows', 'Quivers'],
+  };
   // three parts: armours and weapons, jewellery, and the minion bases (a view: they keep their one rank)
   const SECTIONS = [['gear', 'Armours and Weapons'], ['jewellery', 'Jewellery']]; // minion bases sit in these; Hide whole groups has a button for all of them
   FB.rankSection = SECTIONS.some(([id]) => id === FB.rankSection) ? FB.rankSection : 'gear';
@@ -891,6 +915,7 @@ async function renderBaseMatrix(body, view) {
   // a defence type shows every class side by side; a class shows every defence type side by side
   let columns = mode === 'jewellery' ? (jewelGroup?.columns || [])
     : mode === 'minion' ? [{ title: 'Minion bases', list: (data.minionBases || []).map(findBase) }]
+      : mode === 'x' ? (MIXES[key] || []).map((title) => gearGroups.flatMap((g) => g.columns).find((c) => c.title === title)).filter(Boolean)
       : mode === 'd'
         ? data.classes.map((c) => ({ title: c, list: data.bases[c][key] || [] }))
         : mode === 'g'
@@ -908,7 +933,12 @@ async function renderBaseMatrix(body, view) {
     h('option', { value: 'a:all', selected: mode === 'a' }, 'All bases'),
     h('optgroup', { label: 'Armour types' }, data.defences.map((d) => h('option', { value: `d:${d.id}`, selected: FB.matrixView === `d:${d.id}` }, d.name))),
     h('optgroup', { label: 'Armour classes' }, data.classes.map((c) => h('option', { value: `c:${c}`, selected: FB.matrixView === `c:${c}` }, c))),
-    h('optgroup', { label: 'Weapons' }, gearGroups.map((g) => h('option', { value: `g:${g.id}`, selected: FB.matrixView === `g:${g.id}` }, g.name))));
+    h('optgroup', { label: 'Weapons' }, gearGroups.map((g) => h('option', { value: `g:${g.id}`, selected: FB.matrixView === `g:${g.id}` }, g.name))),
+    h('optgroup', { label: 'More' },
+      h('option', { value: 'x:caster', selected: FB.matrixView === 'x:caster' }, 'Caster weapons (wands, sceptres, staves)'),
+      h('option', { value: 'x:melee', selected: FB.matrixView === 'x:melee' }, 'Melee weapons (axes, swords, claws, rapiers, maces, daggers)'),
+      h('option', { value: 'x:bows', selected: FB.matrixView === 'x:bows' }, 'Bows (bows and quivers)'),
+      h('option', { value: 'minion:all', selected: FB.matrixView === 'minion:all' }, 'Minion')));
   const sectionTabs = h('div', { class: 'fb-tabs bm-sections', role: 'tablist', 'aria-label': 'Which bases' }, SECTIONS.map(([id, label]) =>
     h('button', { role: 'tab', 'aria-selected': part === id ? 'true' : 'false', class: part === id ? 'active' : '', onclick: () => { FB.rankSection = id; renderFilters(); } }, label)));
   const rankToggle = h('label', { class: 'check small', title: mode === 'a' || mode === 'minion' ? 'These are always shown by rank' : 'One column per rank instead of per item type' },
@@ -1269,6 +1299,9 @@ const ALL_CATS = CATEGORIES.flatMap(([, cats]) => cats); // the defaults (for pi
 function categoryOf(type) {
   const cats = allCats();
   const assign = layout().assign || {};
+  // a page split off a category ("divination#stacks") lives with that category unless you moved it
+  if (type.includes('#') && assign[type]) { const c = cats.find((x) => x.id === assign[type]); if (c) return c; }
+  type = type.split('#')[0];
   const parts = type.split('->');
   for (let i = parts.length; i > (type.includes('@') ? parts.length - 1 : 0); i--) {
     const id = assign[parts.slice(0, i).join('->')];
@@ -1290,7 +1323,7 @@ async function saveLayout(next) {
 /** Name of a subcategory inside its category: "currency->trial->omen" in Trial is just "Omens". */
 // Shown another way: NeverSink's economy cluster tiers are the Cluster enchantments grid.
 // Cluster jewels opens the enchantment grid; the size tiers ("Large: the rest", ...) are edited from there
-const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster']);
+const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster', 'exotic->fractured']); // fractured: Base ranks decides those
 const CLUSTER_SIZE_TYPE = 'jewels->cluster';
 const SUB_LABELS = {
   'currency->heist': "Rogue's Markers",
@@ -1756,6 +1789,7 @@ async function runReview(types = null) {
     if (types && FB.review) {
       const map = new Map(r.categories.map((c) => [c.type, c]));
       FB.review.categories = FB.review.categories.map((c) => map.get(c.type) || c);
+      for (const c of r.categories) if (!FB.review.categories.some((x) => x.type === c.type)) FB.review.categories.push(c);
       FB.review.cfg = r.cfg;
     } else {
       FB.review = r;
@@ -1767,7 +1801,7 @@ async function runReview(types = null) {
   }
 }
 
-async function renderReview(body) {
+async function renderReview(body, { only = null } = {}) {
   const log = await call('review:log').catch(() => []);
   const cfg = FB.review?.cfg || S.settings.priceReview || {};
   const saveCfg = async (patch) => { const next = await call('review:config', patch); if (FB.review) FB.review.cfg = next; };
@@ -1793,6 +1827,9 @@ async function renderReview(body) {
       h('span', { class: 'muted', style: { flex: 1 } }, `Last run ${ago(Date.now() - last.at)}${last.auto ? ' (automatic)' : ''}: moved ${last.moves.length} ${last.moves.length === 1 ? 'item' : 'items'}${last.moves.length ? ', for example ' + last.moves.slice(0, 3).map((m) => m.base).join(', ') : ''}.`),
       h('button', { class: 'sm', onclick: async () => { const r = await call('review:undo'); toast(`Put back ${r.undone} items`); FB.prices = {}; if (FB.review) await runReview(); renderFilters(); } }, 'Undo last run')) : null);
 
+  if (only && (FB.reviewBusy || !FB.review?.categories?.some((c) => c.type === only))) {
+    return mount(body, h('div', { class: 'panel empty' }, h('span', { class: 'spin' }), ' Checking poe.ninja prices for this category…'));
+  }
   if (FB.reviewBusy) {
     mount(body, head, h('div', { class: 'panel empty', style: { marginTop: '14px' } }, h('span', { class: 'spin' }), ' Checking poe.ninja prices for every category. The first check takes a few seconds; after that prices come from the cache.'));
     return;
@@ -1813,6 +1850,21 @@ async function renderReview(body) {
       h('div', {}, total ? `${total} ${total === 1 ? 'item belongs' : 'items belong'} in a different tier at today's ${r.league} prices.` : `Every priced item already fits its tier at today's ${r.league} prices.`),
       h('div', { class: 'small muted' }, [filterDate ? `Your tiers are from FilterBlade on ${filterDate}.` : null, skipped ? `${skipped} skipped for having few listings.` : null, `${r.categories.length} categories checked.`].filter(Boolean).join(' '))));
 
+  // on a category's own page: just that category's prices table and moves
+  if (only) {
+    const c = r.categories.find((x) => x.type === only);
+    if (!c) return mount(body, h('div', { class: 'panel small muted' }, 'poe.ninja has no prices for this category, so it can\'t be tiered by price.'));
+    FB.reviewOpen.add(only); FB.reviewOpen.delete('!' + only);
+    const mine = c.moves.filter((m) => FB.reviewSel.has(selKey(c.type, m.base)));
+    return mount(body, categoryCard(c), mine.length ? h('div', { class: 'row', style: { marginTop: '8px' } }, h('span', { class: 'spacer' }),
+      h('button', { class: 'primary', onclick: async () => {
+        const res = await call('review:apply', mine.map((m) => ({ type: c.type, base: m.base, from: m.from, to: m.to, chaos: m.chaos })));
+        toast(`Moved ${res.count} items. Zone or reload the filter in game.`);
+        FB.prices = {};
+        await runReview([c.type]);
+        renderFilters();
+      } }, `Apply ${mine.length} ${mine.length === 1 ? 'move' : 'moves'}`)) : null);
+  }
   const cards = r.categories.map((c) => categoryCard(c));
   const bar = h('div', { class: 'fb-selbar' }, selected.length ? h('div', { class: 'fb-selbar-in' },
     h('b', {}, `${selected.length} of ${total} moves selected`),

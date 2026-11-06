@@ -835,6 +835,7 @@ function appIconBox(st) {
 
 async function renderSettingsNow() {
   const filterInfo = await call('filter:list').catch(() => ({ files: [], base: null }));
+  const shareUndo = await call('filterShare:canUndo').catch(() => false);
   await refreshState();
   const st = S.settings;
   const el = $('page-settings');
@@ -902,6 +903,14 @@ async function renderSettingsNow() {
         h('div', { class: 'row' }, h('button', { onclick: () => call('tray:hide') }, 'Hide to tray now'),
           h('span', { class: 'small muted' }, 'Closing the window also keeps PoE Helper running in the tray, so Alt+E keeps working. Click the tray icon to open it again; right-click it and choose Quit to close it for good.')))),
     section('Loot filter file', 'The FilterBlade filter PoE Helper builds on, and where your version of it is written.', filterFileBox(filterInfo, st, renderSettings)),
+    section('Share your loot filter settings', 'Everything you set up for the filter in PoE Helper (tiers and looks, base ranks, my bases, clusters, your rules, category prices, the tier designer, your own sounds) in one file. Someone else imports it and gets your setup; their account, league and filter file stay theirs.',
+      h('div', { class: 'panel row', style: { gap: '10px' } },
+        h('button', { class: 'primary', onclick: async () => { const p = await call('filterShare:export'); if (p) toast(`Saved to ${p.split(/[\\/]/).pop()}`); } }, 'Export…'),
+        h('button', { onclick: async () => {
+          if (!confirm('Importing replaces your loot filter settings with the ones in the file. You can undo it afterwards. Go on?')) return;
+          try { const r = await call('filterShare:import'); if (r) { toast(`Imported${r.from ? ` (made with PoE Helper ${r.from})` : ''}. Your filter is rewritten; zone or reload it in game.`); renderSettings(); } } catch { /* toast */ }
+        } }, 'Import…'),
+        shareUndo ? h('button', { class: 'quiet', onclick: async () => { await call('filterShare:undo'); toast('Your own settings are back'); renderSettings(); } }, 'Undo import') : null)),
     section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
       h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
     notesSection(await call('app:changelog').catch(() => [])),

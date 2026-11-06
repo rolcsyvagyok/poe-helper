@@ -903,3 +903,4 @@ body.resizing { cursor: col-resize; user-select: none; }
 .fb-check { all: unset; cursor: pointer; font-size: 12.5px; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); color: var(--faint); background: #0f1014; }
 .fb-check.on { color: #e8f6fb; background: #1f6f8b; border-color: #2a9ac4; }
 .fb-check:focus-visible { outline: 2px solid var(--accent); }
+.fb-catprices { margin: 0 0 14px; }

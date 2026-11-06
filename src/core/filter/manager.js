@@ -344,12 +344,11 @@ const RANK_LOOKS = {
   D: { fontSize: 32, text: [255, 220, 210, 255], border: [180, 40, 40, 255], background: [120, 25, 25, 220] },
 };
 const NO_FLAGS = [{ keyword: 'Mirrored', values: ['False'] }, { keyword: 'Corrupted', values: ['False'] }];
-const RANK_KINDS = [
-  { id: 'fractured', name: 'Fractured', about: 'Any fractured item of the base', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'FracturedItem', values: ['True'] }] },
-  { id: 'synthesised', name: 'Synthesised', about: 'Synthesised items', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'SynthesisedItem', values: ['True'] }, { keyword: 'FracturedItem', values: ['False'] }] },
-  { id: 'influenced', name: 'Influenced', about: 'Shaper, Elder and Conqueror bases', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'HasInfluence', values: ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }] },
-  { id: 'crafting', name: 'Crafting bases', about: 'Normal and magic items of a high item level', ilvl: true, conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
+const RANK_KINDS = [ // in the order the page lists them; synthesised items are left to the filter
   { id: 'rares', name: 'Rares', about: 'Plain rares (not fractured, synthesised or influenced)', conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
+  { id: 'crafting', name: 'High ilvl bases', about: 'Normal and magic items of a high item level', ilvl: true, conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
+  { id: 'fractured', name: 'Fractured', about: 'Any fractured item of the base', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'FracturedItem', values: ['True'] }] },
+  { id: 'influenced', name: 'Influenced', about: 'Shaper, Elder and Conqueror bases', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'HasInfluence', values: ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }] },
 ];
 const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : 'D');
 

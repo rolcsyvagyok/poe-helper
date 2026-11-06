@@ -3,6 +3,16 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.20 - 2026-11-06
+
+- **Base ranks: the kinds of drop are Rares, High ilvl bases, Fractured and Influenced**, in that order, and all start at "All ranks". Synthesised items are left to your filter. ("Crafting bases" is now called High ilvl bases.)
+- **Base ranks: more views**: Caster weapons (wands, sceptres, staves), Melee weapons (axes, swords, claws, rapiers, maces, daggers), Bows (bows and quivers) and Minion (Convoking Wand, Bone Helmet, the spirit shields…). They're for looking only: every base keeps its one rank.
+- **Share your loot filter settings** (Settings): Export saves everything you set up for the filter (tiers and looks, base ranks, my bases, clusters, your rules, category prices, the tier designer and your own drop sounds) to one file. A friend presses Import and gets your setup; their account, league and filter file stay theirs, and Undo import brings their own back.
+- **Divination cards: Stacked cards are their own subcategory** instead of sitting above Tier 1.
+- **Set category prices**, on every priced category's page: the Price review table (a price per tier, Include, the moves it suggests) for that category only, right above its tiers. ("Auto-tier…" used to take you to the Price review tab.)
+- **Tiers show the price you set** ("39 bases, 20d+") instead of the typical price, once you've typed one.
+- **Special bases: the Fractured part is gone from the list**; Base ranks decides fractured items.
+
 ## 1.0.19 - 2026-11-06
 
 - **Jewellery ranks fixed.** They were one rank off: Vermillion, Amethyst, Prismatic, Two-Stone Ring, Onyx, Agate, Citrine, Turquoise Amulet and Stygian Vise are S; Cerulean, Steel, Diamond Ring, Heavy Belt, Bone Ring and the rest of that list A; Seaglass Amulet, Gold Ring, Chain Belt, Rustic Sash… B; nothing in C; the rest D.
