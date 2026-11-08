@@ -559,10 +559,36 @@
           h('button', { class: 'sm quiet', title: `Pick every gem in ${sec.label}`, onclick: () => { const s = gemPicks(); sec.list.forEach((g) => s.add(g.name)); setGems(s); re(); } }, 'Pick all')),
         h('div', { class: 'rx-gems' }, sec.list.map(chip)))) : h('div', { class: 'small muted' }, 'None match.'));
     const groups = shown.length ? [1] : [];
+    // saved gem searches, each act its own list ("Act 1 · Witch spells", "Act 3 · links"…)
+    const kind = `gems-${f.byAct || 0}`;
+    const tabName = (GEM_TABS.find(([v]) => v === f.byAct) || GEM_TABS[0])[1];
+    const presets = (S.settings.regexPresets || []).filter((p) => p.kind === kind);
+    R.gemPreset = R.gemPreset || {};
+    if (R.gemPreset[kind] && !presets.some((p) => p.name === R.gemPreset[kind])) R.gemPreset[kind] = null;
+    const cur = R.gemPreset[kind];
+    const presetSel = h('select', { 'aria-label': `Saved gem searches for ${tabName}`, onchange: async (e) => {
+      const p = presets.find((x) => x.name === e.target.value);
+      R.gemPreset[kind] = p ? p.name : null;
+      if (p) { if (p.choices?.cls != null) { f.cls = p.choices.cls; S.settings.regexGemClass = f.cls; call('settings:set', { regexGemClass: f.cls }).catch(() => {}); } await setGems(new Set(p.choices?.picks || [])); toast(`"${p.name}" loaded`); }
+      re();
+    } }, h('option', { value: '' }, presets.length ? `Saved ${tabName} searches…` : `No saved ${tabName} searches yet`), presets.map((p) => h('option', { value: p.name, selected: cur === p.name }, `${p.name} (${(p.choices?.picks || []).length})`)));
+    const nameIn = h('input', { placeholder: `New name, e.g. ${f.byAct ? `${tabName} ${f.cls || 'gems'}` : 'My gems'}`, style: { width: '190px' }, 'aria-label': 'Name for a new saved gem search', onkeydown: (e) => { if (e.key === 'Enter') saveNew(); } });
+    const save = async (name) => { S.settings.regexPresets = await call('regex:savePreset', { name, kind, choices: { picks: [...gemPicks()], cls: f.cls, act: f.byAct || 0 } }); R.gemPreset[kind] = name; re(); };
+    const saveNew = async () => {
+      const name = nameIn.value.trim();
+      if (!name) { nameIn.focus(); return toast('Type a name for the new search first.', true); }
+      if (!gemPicks().size) return toast('Pick some gems first.', true);
+      if (presets.some((p) => p.name === name) && !confirm(`"${name}" exists. Replace it with these gems?`)) return;
+      await save(name); toast(`Saved as "${name}" under ${tabName}`);
+    };
     mount(main,
       h('div', { class: 'panel rx-outbar' }, go.box,
         h('div', { class: 'row small', style: { gap: '8px' } }, go.count, h('span', { class: 'faint' }, 'For vendors and your stash. More gems than fit in one search (250 characters) give several searches.'),
-          h('span', { class: 'spacer' }), picks.size ? h('button', { class: 'sm quiet', onclick: () => { setGems(new Set()); re(); } }, 'Clear') : null)),
+          h('span', { class: 'spacer' }), picks.size ? h('button', { class: 'sm quiet', onclick: () => { setGems(new Set()); re(); } }, 'Clear') : null),
+        h('div', { class: 'row small', style: { gap: '8px' } }, presetSel,
+          cur ? h('button', { class: 'sm primary', title: `Save the picked gems into "${cur}"`, onclick: async () => { await save(cur); toast(`"${cur}" updated`); } }, `Update "${cur}"`) : null,
+          cur ? h('button', { class: 'sm quiet', onclick: async () => { if (!confirm(`Delete the saved search "${cur}"?`)) return; S.settings.regexPresets = await call('regex:deletePreset', { name: cur, kind }); R.gemPreset[kind] = null; re(); } }, 'Delete') : null,
+          h('span', { class: 'faint' }, '·'), nameIn, h('button', { class: 'sm', onclick: saveNew }, 'Save as new'))),
       h('div', { class: 'panel rx-opts' },
         h('div', { class: 'row', style: { gap: '10px' } },
           h('div', { class: 'rx-seg', role: 'tablist', 'aria-label': 'Act' }, GEM_TABS.map(([v, l]) => {

@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.26 - 2026-11-08
+
+- **Regex: saved gem searches, per act.** On the Gems page, Save as new keeps the gems you picked (and your class) under the act you're on; each act tab has its own list to load, update or delete.
+
 ## 1.0.25 - 2026-11-08
 
 - **Regex: Gems** (new): every gem in the game, 855 of them (skill and support gems, transfigured, Vaal and Awakened), to click into a search for vendors (Lilly and the act vendors) or your stash. Filter by colour, skill or support, a name or a tag (fire, minion…); pick everything shown at once. Each gem gets the shortest piece of its name that no other gem has ("^fireb"; "Ice Nova" doesn't find "Ice Nova of Frostbolts"), and when they don't fit in one search you get several to copy one after another.
