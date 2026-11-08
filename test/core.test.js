@@ -532,3 +532,18 @@ test('campaign: hidden item types become one Hide block for the campaign only', 
   assert.ok(!r2.conditions.some((c) => c.keyword === 'LinkedSockets'));
   assert.ok(r2.conditions.find((c) => c.keyword === 'Rarity').values.includes('Rare'));
 });
+
+test('show all currency: hidden currency tiers show and switched-off ones are switched on, nothing else changes', () => {
+  const { showAllCurrency } = require('../src/core/filter/manager');
+  const src = [
+    'Hide # %H1 $type->currency $tier->tportal !currency_portal', '\tClass == "Stackable Currency"', '\tBaseType == "Portal Scroll"', '\tSetFontSize 40', '',
+    '#Show # %DS3 $type->currency->stackedsix $tier->t6 !currency_e', '#\tStackSize >= 6', '#\tClass == "Stackable Currency"', '#\tSetFontSize 40', '',
+    'Hide # $type->hidelayer $tier->final', '\tRarity Normal', '',
+    'Show # $type->currency $tier->t1', '\tBaseType == "Divine Orb"', ''].join('\n');
+  const out = showAllCurrency(src).split('\n');
+  assert.strictEqual(out[0], 'Show # %H1 $type->currency $tier->tportal !currency_portal');
+  assert.strictEqual(out[5], 'Show # %DS3 $type->currency->stackedsix $tier->t6 !currency_e');
+  assert.strictEqual(out[6], '\tStackSize >= 6');
+  assert.strictEqual(out[10], 'Hide # $type->hidelayer $tier->final');
+  assert.strictEqual(out[13], 'Show # $type->currency $tier->t1');
+});

@@ -3,6 +3,19 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.23 - 2026-11-08
+
+- **Price check: "Show in app"** (was App) opens the Loot filter at the item's tier, with the item picked and the tier lit up, so you can move or restyle it right there.
+- **Price check: "Shown by line …" knows campaign from maps**: rules for the campaign only count for an item from the campaign (by its item level; currency and cards count as maps).
+- **Show all currency** (a button on the Currency page of the Loot filter): for the league start, every currency tier shows, also the ones your filter hides (Portal and Wisdom scrolls, Augmentations…) or switched off for your strictness, each with its own look. Press it again to go back to your filter's choices.
+- **Scarabs are gone from the Loot filter list** (and from Price review), as they leave the game. Your filter's own scarab rules stay as FilterBlade wrote them.
+- **Regex: Magic item mods** (was Item mods), redone for rolling magic items: pick the item type (and for armour the defence: Armour, Evasion, Energy Shield or a mix; every base of one type rolls the same mods) and tick any of T1 to T4 of the mods you want. The search uses the mods' names, which a magic item has in its own name ("Searing Goat's Horn of Success"), and the item must have every mod you tick. No item level or match options any more, and searches can be saved like the map ones.
+- **Folded category list: subcategories open in a small menu** next to the icon you click (a little corner mark shows which icons have them). Esc or a click elsewhere closes it.
+- **Atlas and Hideout: dropdown lists are readable** (they opened light grey with light text).
+- **Regex: Beasts has no red / yellow choice any more**: every beast you can capture is a red beast now.
+- **Hide item types: "Rapiers (thrusting swords)"** is spelled out, and every button shows a few example bases when you hover it. Rusted Spike and the other rapiers are their own item type in game, so One Hand Swords doesn't hide them.
+- **WealthyExile shows the missing pictures:** gems, astrolabes, runegrafts, essences, divination cards and the rest now look in the right poe.ninja list, including items that have no price right now.
+
 ## 1.0.22 - 2026-11-06
 
 - **Campaign → Hide item types** (new, in the Loot filter list): click the item types your build doesn't use (claws, wands, shields, body armours…) and their normal and magic drops are hidden while you level. Greyed out = hidden, click again to show. Choose up to which area level (67 = the whole campaign), keep linked items (4-links and more by default), and hide rares of those types too if you like.

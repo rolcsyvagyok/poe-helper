@@ -291,6 +291,17 @@ test('category pictures come only from GGG\'s image server, via poe.ninja data',
   assert.equal(art['Orb of Chance'], undefined);
 });
 
+test('WealthyExile pictures: the category of an item says which poe.ninja list to look in', async () => {
+  const { svc } = setup();
+  const asked = [];
+  svc.ninja.category = async () => [];
+  svc.ninja.icons = async (league, c) => { asked.push(c); return new Map(c === 'SkillGem' ? [['Kinetic Blast', 'https://web.poecdn.com/gen/image/kb.png']] : c === 'Astrolabe' ? [['Templar Astrolabe', 'https://web.poecdn.com/gen/image/ta.png']] : []); };
+  const art = await svc.categoryArt(['Kinetic Blast\tGem', 'Templar Astrolabe\tAstrolabe']);
+  assert.equal(art['Kinetic Blast'], 'https://web.poecdn.com/gen/image/kb.png');
+  assert.equal(art['Templar Astrolabe'], 'https://web.poecdn.com/gen/image/ta.png');
+  assert.deepEqual(asked.slice(0, 2), ['SkillGem', 'ImbuedGem']);
+});
+
 test('a synced filter the game saved under a new file name is found again', () => {
   const { FilterManager } = require('../src/core/filter/manager');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-online-'));

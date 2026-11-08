@@ -274,6 +274,30 @@ class NinjaClient {
     throw new Error(`Unknown poe.ninja type ${type}`);
   }
 
+  /**
+   * name -> picture for every item poe.ninja knows in a category, also ones without a price right now
+   * (the exchange lists them in its items list). Uses the same cached lists as category().
+   */
+  async icons(league, type) {
+    const enc = encodeURIComponent(league);
+    const out = new Map();
+    const put = (name, icon) => { const u = imageUrl(icon); if (name && u && !out.has(name)) out.set(name, u); };
+    if (EXCHANGE_TYPES.includes(type)) {
+      const json = await this._get(`/poe1/api/economy/exchange/current/overview?league=${enc}&type=${type}`, `ninja_${league}_ex_${type}`, this.ttlMs);
+      for (const it of [...(Array.isArray(json.items) ? json.items : Object.values(json.items || {})), ...(json.core?.items || [])]) put(it?.name || it?.text, it?.icon || it?.image);
+    }
+    if (type === 'Currency' || type === 'Fragment') {
+      try {
+        const json = await this._get(`/poe1/api/economy/stash/current/currency/overview?league=${enc}&type=${type}`, `ninja_${league}_cur_${type}`, this.ttlMs);
+        for (const d of json.currencyDetails || []) put(d.name, d.icon);
+      } catch { /* the exchange list is enough */ }
+    } else if (ITEM_TYPES.includes(type)) {
+      const json = await this._get(`/poe1/api/economy/stash/current/item/overview?league=${enc}&type=${type}`, `ninja_${league}_item_${type}`, this.ttlMs);
+      for (const l of json.lines || []) put(l.name, l.icon);
+    }
+    return out;
+  }
+
   /** Divine price in chaos, used for display conversions. */
   async divinePrice(league) {
     const cur = await this.category(league, 'Currency');

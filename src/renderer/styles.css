@@ -1004,3 +1004,37 @@ html[data-ui-theme] .fb-sec.card > .fb-sec-h { font-family: var(--item); font-si
 .rx-mod .rx-tier { max-width: 150px; font-size: 12px; padding: 3px 6px; }
 button.bm-group.off { opacity: .45; text-decoration: line-through; text-decoration-color: #ffffff66; filter: grayscale(1); }
 button.bm-group.off:hover { opacity: .75; }
+
+/* dropdown lists: the list that opens is drawn by the system, so give it solid theme colours (a see-through
+   select background made it light grey with light text) */
+html[data-ui-theme] { color-scheme: dark; }
+html[data-ui-theme] select { background-color: var(--raised); }
+html[data-ui-theme] select option, html[data-ui-theme] select optgroup { background-color: var(--raised); color: var(--text); }
+html[data-ui-theme] select option:disabled { color: var(--faint); }
+
+/* folded category list: the subcategories of an icon open in a small menu beside it */
+.fb-fly { position: fixed; z-index: 50; min-width: 220px; max-width: 320px; max-height: 70vh; overflow: auto; display: grid; gap: 1px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: 0 10px 28px #000a; }
+.fb-fly-h { font: 14px var(--item); color: var(--head, var(--text)); padding: 4px 8px 6px; border-bottom: 1px solid var(--line-soft); margin-bottom: 3px; }
+.fb-fly .fb-row-main { all: unset; box-sizing: border-box; cursor: pointer; flex: 1; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r-ctl); font-size: 13px; color: var(--text); }
+.fb-fly .fb-row { display: flex; align-items: center; }
+.fb-fly .fb-row.active .fb-row-main { background: var(--raised); box-shadow: inset 3px 0 0 var(--accent); font-weight: 600; }
+.fb-fly .fb-row-main:hover, .fb-fly .fb-row-main:focus-visible { background: var(--raised); outline: none; }
+.fb-fly .fb-ic { display: none; }
+.fb-fly .n { flex: 1; } .fb-fly .c { font-size: 12px; color: var(--faint); }
+.fb-fly .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.fb-fly .fb-pin { all: unset; cursor: pointer; padding: 0 6px; color: var(--faint); }
+.fb-fly .fb-pin.on { color: var(--warn); }
+.fb-cats.mini .fb-cat:not(.single) .fb-cat-main::after { content: ''; position: absolute; right: 3px; bottom: 3px; border: 4px solid transparent; border-left-color: var(--faint); border-bottom-color: var(--faint); transform: rotate(-90deg); opacity: .8; }
+
+/* Regex → Magic item mods: tick the tiers you want */
+.rx-imod { cursor: default; align-items: flex-start; }
+.rx-tiers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; flex: none; width: 290px; margin-left: auto; }
+.rx-tick { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--r-ctl); font-size: 12px; cursor: pointer; white-space: nowrap; color: var(--muted); }
+.rx-tick input { margin: 0; }
+.rx-tick b { color: var(--text); font-weight: 650; }
+.rx-tick.on { border-color: var(--good); background: #2b4a3380; color: var(--text); }
+.rx-tick-n { min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; }
+
+/* "Show in app" from the price check: the tier and the item glow for a moment */
+.fb-tier.fb-flash { outline: 2px solid var(--accent); outline-offset: 2px; transition: outline-color .6s; }
+.fb-chip.fb-flash { box-shadow: 0 0 0 2px var(--accent), 0 0 14px var(--accent); }

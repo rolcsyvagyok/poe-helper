@@ -385,16 +385,40 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
  */
 const CAMPAIGN_CLASSES = ['Claws', 'Daggers', 'Rune Daggers', 'Wands', 'One Hand Swords', 'Thrusting One Hand Swords', 'One Hand Axes', 'One Hand Maces', 'Sceptres',
   'Bows', 'Staves', 'Warstaves', 'Two Hand Swords', 'Two Hand Axes', 'Two Hand Maces', 'Quivers', 'Shields', 'Body Armours', 'Helmets', 'Gloves', 'Boots', 'Rings', 'Amulets', 'Belts'];
+/**
+ * "Show all currency" (league start): every currency rule of the filter shows, with its own look. Hidden
+ * tiers become Show and tiers FilterBlade switched off for your strictness are switched on.
+ */
+function showAllCurrency(text) {
+  const lines = text.split(/\r?\n/);
+  const isHead = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  const currency = (l) => /\$type->currency(->|\s|$)/.test(l) || /\$type->currency\b/.test(l);
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!isHead(lines[i]) || !currency(lines[i])) continue;
+    const off = /^#/.test(lines[i]);
+    let k = i;
+    for (; k < lines.length && lines[k].trim() !== ''; k += 1) {
+      if (k > i && isHead(lines[k])) break;
+      if (off) lines[k] = lines[k].replace(/^#/, '');
+    }
+    lines[i] = lines[i].replace(/^(\s*)Hide\b/, '$1Show').replace(/^(\s*)Minimal\b/, '$1Show');
+    i = k - 1;
+  }
+  return lines.join('\n');
+}
+
 function campaignHideRules(o = {}) {
-  const classes = (o.classes || []).filter((c) => CAMPAIGN_CLASSES.includes(c));
-  if (!classes.length) return [];
   const until = Math.max(1, Math.min(83, Math.round(Number(o.untilLevel) || 67)));
+  const out = [];
+  const classes = (o.classes || []).filter((c) => CAMPAIGN_CLASSES.includes(c));
+  if (!classes.length) return out;
   const links = Math.round(Number(o.keepLinks));
   const conds = [{ keyword: 'Rarity', values: o.rares ? ['Normal', 'Magic', 'Rare'] : ['Normal', 'Magic'] },
     { keyword: 'AreaLevel', op: '<=', values: [String(until)] },
     ...(links >= 2 && links <= 6 ? [{ keyword: 'LinkedSockets', op: '<', values: [String(links)] }] : []),
     { keyword: 'Class', op: '==', values: classes }];
-  return [{ id: 'campaign-hide', enabled: true, action: 'Hide', group: 'campaign', label: 'Campaign: item types you hid', conditions: conds, style: { disableDropSound: true } }];
+  out.push({ id: 'campaign-hide', enabled: true, action: 'Hide', group: 'campaign', label: 'Campaign: item types you hid', conditions: conds, style: { disableDropSound: true } });
+  return out;
 }
 
 function matrixRules(state = {}, { mapsOnly = true, keepIlvl = null } = {}) {
@@ -606,6 +630,7 @@ class FilterManager {
     const patch = { ...patch0, moves };
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
     let text = applyTierPatch(baseText, patch);
+    if (this.store.get('showAllCurrency')) text = showAllCurrency(text);
     // Synced filters start with metadata the game keeps for online filters; the local copy doesn't need it.
     if (text.startsWith('#Online Item Filter')) text = text.replace(/^(#(Online Item Filter|[a-zA-Z]+:[^\n]*)\r?\n)+/, '');
     const eco = (this.store.get('economy')?.enabled ? this.lastEconomy : []).map((r) => cleanRule(r, fix)).filter(Boolean);
@@ -704,4 +729,4 @@ class FilterManager {
   }
 }
 
-module.exports = { campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

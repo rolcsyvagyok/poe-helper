@@ -8,7 +8,7 @@
 
   const CATS = [
     { id: 'maps', name: 'Map mods', art: '*Map16', icon: 'map' }, // a tier 16 map's picture
-    { id: 'items', name: 'Item mods', art: 'Chaos Orb', icon: 'drop' },
+    { id: 'items', name: 'Magic item mods', art: 'Orb of Alteration', icon: 'drop' },
     { id: 'beasts', name: 'Beasts', art: 'Bestiary Orb', icon: 'leaf' },
   ];
   // the category pictures come from poe.ninja's item art (web.poecdn.com), loaded once
@@ -245,9 +245,9 @@
     drawOutput(await call('regex:mapBuild', c));
   }
 
-  // ---------- item mods: a base, the mods you want and how good, for rolling an item ----------
-  const itemDefaults = { base: '', ilvl: null, influences: [], mode: 'any', picks: {}, custom: '' };
-  const itemChoices = () => ({ ...itemDefaults, ...(S.settings?.regexItems || {}) });
+  // ---------- item mods: magic items by their mod names ("Searing … of Success"), for rolling with alterations ----------
+  const itemDefaults = { type: '', variant: null, picks: {} };
+  const itemChoices = () => { const c = { ...itemDefaults, ...(S.settings?.regexItems || {}) }; if (c.picks && Object.values(c.picks).some((v) => !Array.isArray(v))) c.picks = {}; return c; };
   async function setItems(patch, redraw = true) {
     S.settings.regexItems = { ...itemChoices(), ...patch };
     R.itemOut = await call('regex:itemBuild', S.settings.regexItems);
@@ -257,31 +257,28 @@
   function drawItemOut() {
     const r = R.itemOut;
     if (!r || !io.box) return;
-    io.box.textContent = r.regex || 'Pick the mods you want below.';
+    io.box.textContent = r.regex || 'Tick the mods you want below.';
     io.box.classList.toggle('empty', !r.regex);
     io.count.textContent = `${r.length} / ${r.max}`;
     io.count.className = 'rx-count' + (r.length > r.max ? ' over' : r.length > r.max * 0.85 ? ' near' : '');
-    mount(io.parts, r.parts.map((p) => h('span', { class: 'rx-part', title: p.text }, h('b', {}, p.label), ' ', h('code', {}, p.text))));
+    mount(io.parts, r.parts.map((p) => h('span', { class: 'rx-part', title: p.names.join(', ') }, h('b', {}, p.label), ' ', h('code', {}, p.text))));
     mount(io.notes, r.notes.map((n) => h('div', { class: 'small warn' }, n)));
   }
   async function renderItems(main) {
-    if (!R.itemBases) R.itemBases = await call('regex:itemBases');
+    if (!R.itemTypes) R.itemTypes = await call('regex:itemBases');
     const c = itemChoices();
-    const allBases = R.itemBases.flatMap((g) => g.bases.map((b) => ({ ...b, cls: g.cls })));
-    const cur = allBases.find((b) => b.name === c.base);
-    const cls = R.itemCls || cur?.cls || R.itemBases[0].cls;
-    const group = R.itemBases.find((g) => g.cls === cls) || R.itemBases[0];
-    const viewKey = JSON.stringify([c.base, c.ilvl, c.influences]);
-    if (c.base && R.itemViewKey !== viewKey) { R.itemView = await call('regex:itemView', { base: c.base, ilvl: c.ilvl, influences: c.influences }); R.itemViewKey = viewKey; }
-    const v = c.base ? R.itemView : null;
+    const type = R.itemTypes.find((t) => t.id === c.type) || null;
+    const variant = type?.variants ? (type.variants.find((v) => v.id === c.variant) || type.variants[0]) : null;
+    const viewKey = JSON.stringify([c.type, variant?.id || null]);
+    if (type && R.itemViewKey !== viewKey) { R.itemView = await call('regex:itemView', { type: c.type, variant: variant?.id || null }); R.itemViewKey = viewKey; R.itemOut = null; }
+    const v = type ? R.itemView : null;
     if (!R.itemOut) R.itemOut = await call('regex:itemBuild', c);
+    const presets = (S.settings.regexPresets || []).filter((p) => p.kind === 'items');
 
-    const clsSel = h('select', { 'aria-label': 'Item class', onchange: (e) => { R.itemCls = e.target.value; renderRegexPage(); } },
-      R.itemBases.map((g) => h('option', { value: g.cls, selected: g.cls === cls }, g.name)));
-    const baseSel = h('select', { 'aria-label': 'Base', onchange: (e) => setItems({ base: e.target.value, picks: {}, influences: [] }) },
-      h('option', { value: '' }, 'Pick a base…'), [...group.bases].reverse().map((b) => h('option', { value: b.name, selected: b.name === c.base }, `${b.name} (level ${b.lvl})`)));
-    const ilvlIn = h('input', { type: 'number', min: 1, max: 100, value: c.ilvl ?? '', placeholder: 'any', style: { width: '64px' }, 'aria-label': 'Item level' });
-    ilvlIn.addEventListener('change', () => setItems({ ilvl: ilvlIn.value === '' ? null : Math.max(1, Math.min(100, Math.round(+ilvlIn.value))) }));
+    const typeSel = h('select', { 'aria-label': 'Item type', onchange: (e) => setItems({ type: e.target.value, variant: null, picks: {} }) },
+      h('option', { value: '' }, 'Pick an item type…'), R.itemTypes.map((t) => h('option', { value: t.id, selected: t.id === c.type }, t.name)));
+    const varSel = type?.variants ? h('select', { 'aria-label': type.variants[0].id.endsWith('_armour') ? 'Defence' : 'Base', onchange: (e) => setItems({ variant: e.target.value, picks: {} }) },
+      type.variants.map((x) => h('option', { value: x.id, selected: x.id === variant.id }, x.name))) : null;
 
     io.box = h('code', { class: 'rx-out', tabindex: 0, title: 'Click to copy', onclick: () => copyItem() });
     io.count = h('span', { class: 'rx-count' });
@@ -291,69 +288,79 @@
       const t = R.itemOut?.regex;
       if (!t) return toast('Nothing to copy yet.', true);
       await call('clipboard:write', t);
-      toast('Copied. Paste it in the stash search: the item lights up when it rolls what you want');
+      toast('Copied. Paste it in the stash search: the item lights up when it rolls what you ticked');
     };
 
-    const seg = h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'Match' },
-      [['any', 'Any one of them'], ['all', 'All of them'], ['ps', 'A prefix and a suffix']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': c.mode === val ? 'true' : 'false', class: c.mode === val ? 'on' : '', onclick: () => setItems({ mode: val }) }, l)));
-    const infs = v?.influences?.length ? h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'small muted' }, 'Influence'),
-      v.influences.map((i) => {
-        const on = (c.influences || []).includes(i.id);
-        return h('button', { type: 'button', class: 'rx-flag' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', title: 'Shows the mods this influence adds (an item can have two)',
-          onclick: () => { const list = (c.influences || []).filter((x) => x !== i.id); if (!on) list.push(i.id); setItems({ influences: list.slice(-2) }); } }, i.name);
-      })) : null;
+    // saved searches (favourites), like the map ones
+    if (R.itemPreset && !presets.some((p) => p.name === R.itemPreset)) R.itemPreset = null;
+    const presetSel = h('select', { 'aria-label': 'Saved searches', onchange: (e) => {
+      const p = presets.find((x) => x.name === e.target.value);
+      R.itemPreset = p ? p.name : null;
+      if (p) { setItems({ ...itemDefaults, ...p.choices }); toast(`"${p.name}" loaded`); } else renderRegexPage();
+    } }, h('option', { value: '' }, presets.length ? 'Saved searches…' : 'No saved searches yet'), presets.map((p) => h('option', { value: p.name, selected: R.itemPreset === p.name }, p.name)));
+    const nameIn = h('input', { placeholder: 'New name, e.g. Spell wand T1', style: { width: '200px' }, 'aria-label': 'Name for a new saved search', onkeydown: (e) => { if (e.key === 'Enter') saveNew(); } });
+    const save = async (name) => { S.settings.regexPresets = await call('regex:savePreset', { name, kind: 'items', choices: itemChoices() }); R.itemPreset = name; renderRegexPage(); };
+    const saveNew = async () => {
+      const name = nameIn.value.trim();
+      if (!name) { nameIn.focus(); return toast('Type a name for the new search first.', true); }
+      if (presets.some((p) => p.name === name) && !confirm(`"${name}" exists. Replace it with these choices?`)) return;
+      await save(name); toast(`Saved as "${name}"`);
+    };
+    const delPreset = async () => {
+      const name = R.itemPreset;
+      if (!name || !confirm(`Delete the saved search "${name}"?`)) return;
+      S.settings.regexPresets = await call('regex:deletePreset', { name, kind: 'items' });
+      R.itemPreset = null; renderRegexPage();
+    };
 
     const picks = c.picks || {};
     const q = (R.itemFilter || '').trim().toLowerCase();
+    const flipTier = (f, tier) => {
+      const cur = new Set(picks[f.key] || []);
+      if (cur.has(tier)) cur.delete(tier); else cur.add(tier);
+      const np = { ...picks };
+      if (cur.size) np[f.key] = [...cur].sort(); else delete np[f.key];
+      setItems({ picks: np });
+    };
     const famRow = (f) => {
-      const picked = f.key in picks;
-      const t = Number(picks[f.key]) || 0;
-      const sel = h('select', { class: 'rx-tier', 'aria-label': `Tier for ${f.text[0]}`, onclick: (e) => e.stopPropagation(), onchange: (e) => {
-        const np = { ...picks };
-        if (e.target.value === 'off') delete np[f.key]; else np[f.key] = Number(e.target.value);
-        setItems({ picks: np });
-      } },
-      h('option', { value: 'off', selected: !picked }, '–'),
-      h('option', { value: 0, selected: picked && !t }, 'Any tier'),
-      f.tiers.map((x, i) => h('option', { value: x.tier, selected: picked && t === x.tier }, `T${x.tier}${i === f.tiers.length - 1 ? '' : ' or better'}: ${x.text}${x.name ? ` (${x.name}, level ${x.lvl})` : ''}`)));
-      return h('div', { class: 'rx-mod' + (picked ? ' want' : ''), role: 'button', tabindex: 0,
-        title: f.tiers.map((x) => `T${x.tier}  ${x.text}  ·  ${x.name || ''} level ${x.lvl}`).join('\n'),
-        onclick: () => { const np = { ...picks }; if (picked) delete np[f.key]; else np[f.key] = 0; setItems({ picks: np }); },
-        onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } },
-      h('span', { class: 'rx-mod-t' }, f.text.map((l) => h('span', {}, l)), f.influence ? h('span', { class: 'rx-badge nm' }, f.influence) : null),
-      h('span', { class: 'rx-mod-m' }, h('span', { class: 'small faint' }, `${f.tiers.length} tier${f.tiers.length === 1 ? '' : 's'}`), sel));
+      const on = new Set(picks[f.key] || []);
+      return h('div', { class: 'rx-mod rx-imod' + (on.size ? ' want' : '') },
+        h('span', { class: 'rx-mod-t' }, f.text.map((l) => h('span', {}, l))),
+        h('span', { class: 'rx-tiers' }, f.tiers.map((t) => h('label', { class: 'rx-tick' + (on.has(t.tier) ? ' on' : ''), title: `${t.name}: ${t.text} · level ${t.lvl}` },
+          h('input', { type: 'checkbox', checked: on.has(t.tier), onchange: () => flipTier(f, t.tier) }),
+          h('b', {}, `T${t.tier}`), h('span', { class: 'rx-tick-n' }, t.name)))));
     };
     const shown = (v?.families || []).filter((f) => !q || f.text.join(' ').toLowerCase().includes(q) || f.tiers.some((t) => (t.name || '').toLowerCase().includes(q)));
     const col = (aff, title) => { const l = shown.filter((f) => f.aff === aff); return h('div', { class: 'rx-col' }, h('div', { class: 'rx-col-h' }, `${title} (${l.length})`), l.map(famRow)); };
-    const search = h('input', { type: 'search', placeholder: 'Find a mod, e.g. life, resistance, spell', value: R.itemFilter || '', style: { flex: 1, minWidth: '220px' }, 'aria-label': 'Find a mod' });
+    const search = h('input', { type: 'search', placeholder: 'Find a mod or a name, e.g. life, Searing', value: R.itemFilter || '', style: { flex: 1, minWidth: '220px' }, 'aria-label': 'Find a mod' });
     search.addEventListener('input', () => { R.itemFilter = search.value; const pos = search.selectionStart; renderRegexPage().then(() => { const s = document.querySelector('#page-regex input[type=search]'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } }); });
-    const customIn = h('input', { value: c.custom || '', placeholder: 'added as it is, e.g. "!corrupted"', style: { flex: 1 } });
-    customIn.addEventListener('input', () => setItems({ custom: customIn.value }, false));
 
     mount(main,
       h('div', { class: 'panel rx-outbar' },
         h('div', { class: 'row', style: { gap: '10px', flexWrap: 'nowrap', alignItems: 'stretch' } }, io.box,
           h('div', { class: 'stack', style: { gap: '6px', alignItems: 'flex-end' } }, h('button', { class: 'primary', onclick: copyItem }, 'Copy'), io.count)),
-        io.parts, io.notes),
-      h('div', { class: 'panel rx-opts' },
-        h('div', { class: 'row', style: { gap: '12px' } }, clsSel, baseSel,
-          h('label', { class: 'row', style: { gap: '6px' } }, 'Item level', ilvlIn),
-          h('span', { class: 'small faint' }, 'Tiers your item level can\'t roll are left out.')),
-        h('div', { class: 'row', style: { gap: '12px' } }, seg, infs,
+        io.parts, io.notes,
+        h('div', { class: 'row small', style: { gap: '8px', marginTop: '4px' } },
+          presetSel,
+          R.itemPreset ? h('button', { class: 'sm primary', onclick: async () => { await save(R.itemPreset); toast(`"${R.itemPreset}" updated`); } }, `Update "${R.itemPreset}"`) : null,
+          R.itemPreset ? h('button', { class: 'sm quiet', onclick: delPreset }, 'Delete') : null,
+          h('span', { class: 'faint' }, '·'), nameIn, h('button', { class: 'sm', onclick: saveNew }, 'Save as new'),
           h('span', { class: 'spacer' }),
-          Object.keys(picks).length ? h('button', { class: 'sm quiet', onclick: () => setItems({ picks: {} }) }, 'Clear mods') : null),
-        h('label', { class: 'row small', style: { gap: '6px' } }, 'Your own text', customIn),
-        h('div', { class: 'small faint' }, 'Pick a mod (click) and how good it has to be (the tier list). "T3 or better" asks for at least T3\'s lowest roll. A mod that has the same line as a hybrid mod also finds the hybrid.')),
+          Object.keys(picks).length ? h('button', { class: 'sm quiet', onclick: () => setItems({ picks: {} }) }, 'Clear mods') : null)),
+      h('div', { class: 'panel rx-opts' },
+        h('div', { class: 'row', style: { gap: '12px' } }, typeSel, varSel,
+          v ? h('span', { class: 'small faint' }, `Mods of ${type.name.toLowerCase()}${variant && type.variants[0].id.endsWith('_armour') ? ` (${variant.name.toLowerCase()})` : ''}, like ${v.base}.`) : null),
+        h('div', { class: 'small faint' }, 'For magic items: a magic item\'s name has its mods\' names in it ("Searing Goat\'s Horn of Success"), so the search looks for those. Tick the tiers of each mod you want (T1 to T4); the item must have every mod you tick.')),
       v ? h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } },
-        h('h2', { style: { margin: 0 } }, `${v.base.name} mods`),
-        h('span', { class: 'small muted' }, `${Object.keys(picks).length} picked`),
-        h('span', { class: 'spacer' }), search) : h('div', { class: 'panel small muted', style: { marginTop: '14px' } }, 'Pick an item class and a base to see the mods it can roll.'),
+        h('h2', { style: { margin: 0 } }, 'Mods'),
+        h('span', { class: 'small muted' }, `${Object.keys(picks).length} ticked`),
+        h('span', { class: 'spacer' }), search) : h('div', { class: 'panel small muted', style: { marginTop: '14px' } }, 'Pick an item type to see its mods.'),
       v ? h('div', { class: 'rx-cols' }, col('prefix', 'Prefixes'), col('suffix', 'Suffixes')) : null);
     drawItemOut();
   }
 
   // ---------- beasts: which captured beasts to find in the Bestiary or the stash ----------
-  const beastDefaults = { red: true, yellow: false, harvest: true, minChaos: 10, maxChaos: null, family: '', group: '', skip: [], pick: [] };
+  const beastDefaults = { harvest: true, minChaos: 10, maxChaos: null, family: '', group: '', skip: [], pick: [] };
   const beastChoices = () => ({ ...beastDefaults, ...(S.settings?.regexBeasts || {}) });
   async function setBeasts(patch) {
     S.settings.regexBeasts = { ...beastChoices(), ...patch };
@@ -410,7 +417,7 @@
       title: `${inSearch.has(b.name) ? 'In the search. Click to leave it out.' : skip.has(b.name) ? 'Left out by you. Click to let your choices decide again.' : 'Click to add it to the search.'}\nSearch piece: ${b.piece}${b.recipe ? `\n\n${b.recipe.split('; ').join('\n')}` : ''}`,
       onclick: () => flip(b),
     },
-    h('span', { class: 'rx-beast-n ' + (b.red ? 'red' : 'yellow') }, b.name, b.harvest ? h('span', { class: 'rx-badge', title: 'Harvest beast' }, 'Harvest') : null),
+    h('span', { class: 'rx-beast-n red' }, b.name, b.harvest ? h('span', { class: 'rx-badge', title: 'Harvest beast' }, 'Harvest') : null),
     h('span', { class: 'small faint rx-beast-f' }, `${b.family} · ${b.group}`),
     h('code', { class: 'rx-beast-p' }, b.piece),
     h('span', { class: 'rx-beast-c' }, b.chaos != null ? `${b.chaos}c` : '–'),
@@ -425,8 +432,6 @@
         v.note ? h('div', { class: 'small warn' }, v.note) : null),
       h('div', { class: 'panel rx-opts' },
         h('div', { class: 'row', style: { gap: '16px' } },
-          toggle(!!c.red, (val) => setBeasts({ red: val }), 'Red beasts (with recipes)'),
-          toggle(!!c.yellow, (val) => setBeasts({ yellow: val }), 'Yellow beasts'),
           toggle(!!c.harvest, (val) => setBeasts({ harvest: val }), 'Harvest beasts')),
         h('div', { class: 'row', style: { gap: '16px' } },
           num('Worth at least', 'minChaos'), num('at most', 'maxChaos'),
@@ -434,7 +439,7 @@
           h('span', { class: 'spacer' }),
           (skip.size || pick.size) ? h('button', { class: 'sm quiet', onclick: () => setBeasts({ skip: [], pick: [] }) }, `Undo ${skip.size + pick.size} hand pick${skip.size + pick.size === 1 ? '' : 's'}`) : null,
           h('button', { class: 'sm quiet', onclick: () => { if (confirm('Go back to the default beast choices?')) setBeasts({ ...beastDefaults }); } }, 'Reset')),
-        h('div', { class: 'small faint' }, v.priced ? 'Prices from poe.ninja. A price limit leaves out beasts with 5 or fewer listings (price fixing) and beasts without a price.' : 'No prices yet, so price limits leave every beast out; turn them off (empty) to search by family, group or colour.')),
+        h('div', { class: 'small faint' }, v.priced ? 'Prices from poe.ninja. A price limit leaves out beasts with 5 or fewer listings (price fixing) and beasts without a price.' : 'No prices yet, so price limits leave every beast out; empty them to search by family or group.')),
       h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } },
         h('h2', { style: { margin: 0 } }, 'Beasts'),
         h('span', { class: 'small faint' }, 'Click a beast to add it or leave it out, whatever the choices above say.'),

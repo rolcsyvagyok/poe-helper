@@ -64,6 +64,9 @@ function evalCondition(c, item, assumed) {
       return cmp(c.op, RARITY_ORDER[rarityOf(item)], RARITY_ORDER[v[0]] ?? -1);
     }
     case 'ItemLevel': return numCond(c.op, v, item.itemLevel);
+    // where it dropped isn't on the item: an item level is close to the area level it dropped in; without
+    // one (currency, cards) assume maps (83), where price checks are made
+    case 'AreaLevel': return numCond(c.op, v, Number(item.areaLevel) || Math.min(83, Number(item.itemLevel) || 83));
     case 'Quality': return numCond(c.op, v, item.quality ?? 0);
     case 'Sockets': return socketsCond(c.op, v[0], item.sockets);
     case 'LinkedSockets': return numCond(c.op, v, item.sockets?.links ?? 0);

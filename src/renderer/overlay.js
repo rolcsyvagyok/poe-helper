@@ -155,7 +155,8 @@ function render(p) {
     gear ? h('button', { title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases…') : null,
     inTier ? null : h('button', { title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
     h('span', { class: 'spacer' }),
-    h('button', { class: 'quiet', onclick: () => call('app:show') }, 'App'));
+    h('button', { class: 'quiet', title: inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : 'Open the app',
+      onclick: () => call('app:show', inTier ? { goto: { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } } : null) }, inTier ? 'Show in app' : 'App'));
   if (tierControls) body.append(tierControls);
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });
   body.append(actions, quickBox, tradeBox);

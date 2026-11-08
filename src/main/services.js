@@ -60,9 +60,10 @@ const DEFAULT_SETTINGS = {
   baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
   baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
   regexMaps: { kind: 'regular', avoid: [], want: [], mapTypes: { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' } }, // the Regex page's map choices
-  campaignHide: { classes: [], rares: false, untilLevel: 67, keepLinks: 4 }, // Campaign → Hide item types
+  campaignHide: { classes: [], rares: false, untilLevel: 67, keepLinks: 4 },
+  showAllCurrency: false, // league start: every currency tier shows (Loot filter → Currency) // Campaign → Hide item types
   hiddenGroups: {}, // Base ranks → Hide whole groups: { label: { before: { base: rank } } }
-  regexItems: { base: '', ilvl: null, influences: [], mode: 'any', picks: {}, custom: '' }, // the Regex page's item mod choices
+  regexItems: { type: '', variant: null, picks: {} }, // the Regex page's magic item mod choices ({ mod: [tiers] })
   regexBeasts: { red: true, yellow: false, harvest: true, minChaos: 10 }, // the Regex page's beast choices
   regexFavMods: [], // map mods kept at the top of the list
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
@@ -317,34 +318,49 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     'Expedition Logbook': 'https://web.poecdn.com/image/Art/2DItems/Maps/ExpeditionChronicle3.png',
     Mageblood: 'https://web.poecdn.com/image/Art/2DItems/Belts/InjectorBelt.png', // when poe.ninja's unique list hasn't loaded yet
   };
+  // the app's item categories -> poe.ninja's lists to look in for a picture
+  const ART_LISTS = {
+    Gem: ['SkillGem', 'ImbuedGem'], Unique: ['UniqueWeapon', 'UniqueArmour', 'UniqueAccessory', 'UniqueJewel', 'UniqueFlask', 'UniqueRelic', 'UniqueTincture'],
+    UniqueMap: ['UniqueMap'], Expedition: ['Artifact'],
+  };
+  const ART_DEFAULT = ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'Map', 'BlightedMap', 'ClusterJewel', 'BaseType'];
+  /** names: item names, or "name\tcategory" so the right poe.ninja list is looked in first */
   async function categoryArt(names = []) {
     const league = await getLeague();
-    const want = new Set(names);
+    const hinted = [];
+    const want = new Set();
+    for (const raw of names) {
+      const [n, c] = String(raw).split('\t');
+      want.add(n);
+      if (c) for (const t of ART_LISTS[c] || [c]) if (!hinted.includes(t)) hinted.push(t);
+    }
     const out = {};
+    const ok = (u) => /^https:\/\/web\.poecdn\.com\//.test(u); // the only image host the app loads from
+    // pictures by name from every list the items could be in (priced right now or not)
+    for (const c of [...hinted, ...ART_DEFAULT.filter((x) => !hinted.includes(x))]) {
+      if (![...want].some((n) => !n.startsWith('*') && !out[n])) break;
+      let icons = new Map();
+      try { icons = await ninja.icons(league, c); } catch { /* the priced list below */ }
+      // the priced list too (same cached data), with its spelling fixes
+      try { for (const l of await ninja.category(league, c)) if (l.icon && !icons.has(l.name)) icons.set(l.name, String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon)); } catch { /* none */ }
+      for (const n of want) if (!out[n] && icons.has(n) && ok(icons.get(n))) out[n] = icons.get(n);
+    }
+    // "*Type" (any item of a category), cluster jewel bases and a tier 16 map: from the priced lists
     let anyMap = null; // poe.ninja's map list often has no tiers (only Vaal temple maps), so any map picture will do
-    for (const c of ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'Map', 'BlightedMap', 'ClusterJewel', 'BaseType']) {
-      if (Object.keys(out).length >= want.size) break;
+    const special = [...want].filter((n) => n.startsWith('*') || /Cluster Jewel$/.test(n));
+    for (const c of special.length ? ART_DEFAULT : []) {
+      if (special.every((n) => out[n])) break;
       let list = [];
       try { list = await ninja.category(league, c); } catch { continue; }
       for (const l of list) {
+        const u = l.icon ? (String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon)) : null;
+        if (!u || !ok(u)) continue;
         // cluster jewels are listed by their enchantment; their picture is the base's ("Large Cluster Jewel")
-        if (c === 'ClusterJewel' && l.baseType && want.has(l.baseType) && !out[l.baseType] && l.icon) {
-          const u = String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon);
-          if (/^https:\/\/web\.poecdn\.com\//.test(u)) out[l.baseType] = u;
-        }
-        if ((c === 'Map' || c === 'BlightedMap') && !anyMap && l.icon) {
-          const u = String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon);
-          if (/^https:\/\/web\.poecdn\.com\//.test(u)) anyMap = u;
-        }
-        if (!l.icon || out[l.name] || !(want.has(l.name) || want.has(`*${c}`) || (c === 'Map' && want.has('*Map16')))) continue;
-        let url = String(l.icon);
-        if (url.startsWith('/')) url = `https://web.poecdn.com${url}`;
-        if (!/^https:\/\/web\.poecdn\.com\//.test(url)) continue; // the only image host the app loads from
-        if (want.has(l.name)) out[l.name] = url;
-        if (want.has(`*${c}`) && !out[`*${c}`]) out[`*${c}`] = url; // "any item of this category"
-        if (c === 'Map' && want.has('*Map16') && !out['*Map16'] && Number(l.mapTier) === 16) out['*Map16'] = url; // a tier 16 map
+        if (c === 'ClusterJewel' && l.baseType && want.has(l.baseType) && !out[l.baseType]) out[l.baseType] = u;
+        if ((c === 'Map' || c === 'BlightedMap') && !anyMap) anyMap = u;
+        if (want.has(`*${c}`) && !out[`*${c}`]) out[`*${c}`] = u;
+        if (c === 'Map' && want.has('*Map16') && !out['*Map16'] && Number(l.mapTier) === 16) out['*Map16'] = u;
       }
-      if (c === 'Map' && want.has('*Map16') && !out['*Map16'] && anyMap) out['*Map16'] = anyMap;
     }
     if (want.has('*Map16') && !out['*Map16'] && anyMap) out['*Map16'] = anyMap;
     // items poe.ninja doesn't price: GGG's own picture of the item, loaded when shown (nothing is bundled)
@@ -464,7 +480,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
   // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
-  const FILTER_KEYS = ['tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'rankKinds', 'rankCraftIlvl', 'rankIlvl',
+  const FILTER_KEYS = ['tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
@@ -1083,11 +1099,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     } catch (e) { note = `No beast prices from poe.ninja right now (${e.message}).`; }
     return { ...beasts.beastView(beastPrices), note };
   }
-  function regexItemBases() { return require('../core/regex/items').itemBases(); }
-  function regexItemView(o = {}) { return require('../core/regex/items').modsView(o); }
+  function regexItemBases() { return require('../core/regex/items').itemTypes(); }
+  function regexItemView(o = {}) { return require('../core/regex/items').magicView(o); }
   function regexItemBuild(choices = {}) {
     settings.set('regexItems', choices);
-    return require('../core/regex/items').buildItemRegex(choices);
+    return require('../core/regex/items').buildMagicRegex(choices);
   }
   function regexBeastBuild(choices = {}) {
     settings.set('regexBeasts', choices);
@@ -1249,6 +1265,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (filters.basePath()) filters.write();
     return cur;
   }
+  function setShowAllCurrency(on) {
+    settings.set('showAllCurrency', !!on);
+    if (filters.basePath()) filters.write();
+    return !!on;
+  }
   function setBaseMatrixOpts(o = {}) {
     const cur = { mapsOnly: true, keepIlvl: null, ...(settings.get('baseMatrixOpts') || {}) };
     if ('mapsOnly' in o) cur.mapsOnly = !!o.mapsOnly;
@@ -1317,7 +1338,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { league, divine, ageMs, groups, movers: allMovers.slice(0, 40) };
   }
   // Categories auto-tiered by default. Uniques are opt-in: one base can hold a 1c and a 300c unique.
-  const DEFAULT_REVIEW_TYPES = ['divination', 'fragments->scarabs', 'fragments', 'currency', 'currency->fossil', 'currency->oil', 'currency->essence', 'currency->deliriumorbs', 'currency->trial->omen', 'currency->trial->tattoo', 'runesgrafts', 'vials'];
+  const DEFAULT_REVIEW_TYPES = ['divination', 'fragments', 'currency', 'currency->fossil', 'currency->oil', 'currency->essence', 'currency->deliriumorbs', 'currency->trial->omen', 'currency->trial->tattoo', 'runesgrafts', 'vials'];
 
   function reviewCfg() {
     const c = settings.get('priceReview') || {};
@@ -1662,7 +1683,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, setCampaignHide, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

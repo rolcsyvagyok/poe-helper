@@ -215,4 +215,129 @@ function buildItemRegex(choices = {}) {
   return { regex, length: regex.length, max: MAX, parts, notes };
 }
 
-module.exports = { itemBases, modsView, buildItemRegex, families, termFor, atLeast, template, MAX };
+// ---------- magic items: the mod names ("Searing", "of Success") are in the item's name ----------
+const DEFENCES = [
+  ['str_armour', 'Armour'], ['dex_armour', 'Evasion'], ['int_armour', 'Energy Shield'],
+  ['str_dex_armour', 'Armour / Evasion'], ['str_int_armour', 'Armour / Energy Shield'], ['dex_int_armour', 'Evasion / Energy Shield'],
+  ['str_dex_int_armour', 'Armour / Evasion / Energy Shield'], ['ward_armour', 'Ward'],
+];
+const BY_BASE = new Set(['Jewel', 'AbyssJewel', 'UtilityFlask']); // these differ base by base
+const TYPE_ORDER = ['Body Armour', 'Helmet', 'Gloves', 'Boots', 'Shield', 'Quiver', 'Amulet', 'Ring', 'Belt',
+  'One Hand Sword', 'Thrusting One Hand Sword', 'One Hand Axe', 'One Hand Mace', 'Sceptre', 'Claw', 'Dagger', 'Rune Dagger', 'Wand',
+  'Two Hand Sword', 'Two Hand Axe', 'Two Hand Mace', 'Staff', 'Warstaff', 'Bow', 'LifeFlask', 'ManaFlask', 'HybridFlask', 'UtilityFlask', 'Jewel', 'AbyssJewel'];
+const TYPE_NAMES = { 'Body Armour': 'Body Armours', Helmet: 'Helmets', Shield: 'Shields', Quiver: 'Quivers', Amulet: 'Amulets', Ring: 'Rings', Belt: 'Belts',
+  'One Hand Sword': 'One Hand Swords', 'Thrusting One Hand Sword': 'Rapiers (thrusting swords)', 'One Hand Axe': 'One Hand Axes', 'One Hand Mace': 'One Hand Maces',
+  Sceptre: 'Sceptres', Claw: 'Claws', Dagger: 'Daggers', 'Rune Dagger': 'Rune Daggers', Wand: 'Wands', 'Two Hand Sword': 'Two Hand Swords', 'Two Hand Axe': 'Two Hand Axes',
+  'Two Hand Mace': 'Two Hand Maces', Staff: 'Staves', Warstaff: 'Warstaves', Bow: 'Bows', ...CLASS_NAMES };
+
+/** Item types, and for armour the defence (every base of one type and defence rolls the same mods). */
+function itemTypes() {
+  const out = [];
+  for (const cls of TYPE_ORDER) {
+    const bases = DATA.bases.filter((b) => b.cls === cls);
+    if (!bases.length) continue;
+    // the usual base of the kind: the highest one with the most common tags (not Convoking Wand and other one-offs)
+    const best = (list) => {
+      const key = (x) => x.tags.filter((t) => t !== 'top_tier_base_item_type' && t !== 'not_for_sale').sort().join(',');
+      const count = new Map();
+      for (const x of list) count.set(key(x), (count.get(key(x)) || 0) + 1);
+      const common = [...count].sort((a, b) => b[1] - a[1])[0][0];
+      return [...list].filter((x) => key(x) === common).sort((a, b) => b.lvl - a.lvl)[0];
+    };
+    let variants = null;
+    if (BY_BASE.has(cls)) variants = bases.map((b) => ({ id: b.name, name: b.name, base: b.name }));
+    else if (bases.some((b) => DEFENCES.some(([t]) => b.tags.includes(t)))) {
+      variants = DEFENCES.map(([t, name]) => { const list = bases.filter((b) => b.tags.includes(t)); return list.length ? { id: t, name, base: best(list).name } : null; }).filter(Boolean);
+    }
+    const fixed = { Amulet: 'Onyx Amulet', Ring: 'Diamond Ring', Belt: 'Leather Belt' }[cls]; // talismans, unset rings and the like roll differently
+    out.push({ id: cls, name: TYPE_NAMES[cls] || cls, base: variants ? null : (fixed && baseByName.has(fixed) ? fixed : best(bases).name), variants });
+  }
+  return out;
+}
+function baseFor(o = {}) {
+  const t = itemTypes().find((x) => x.id === o.type);
+  if (!t) return null;
+  if (!t.variants) return t.base;
+  return (t.variants.find((v) => v.id === o.variant) || t.variants[0]).base;
+}
+
+const TOP = 4; // the best tiers: T1 to T4
+
+function magicView(o = {}) {
+  const base = baseFor(o);
+  const r = base && families({ base });
+  if (!r) return null;
+  const fams = r.families.filter((f) => !f.influence).map((f) => ({ key: f.key, aff: f.aff, text: f.show, tiers: f.tiers.filter((t) => t.tier <= TOP).map((t) => ({ tier: t.tier, lvl: t.lvl, name: t.name, text: t.text })) }))
+    .filter((f) => f.tiers.length)
+    .sort((a, b) => (a.aff === b.aff ? 0 : a.aff === 'prefix' ? -1 : 1) || a.text[0].localeCompare(b.text[0]));
+  return { type: o.type, variant: o.variant || null, base, families: fams };
+}
+
+/** The shortest piece of a mod name that nothing else on such an item has: no other mod name, base name or mod line. */
+function namePiece(name, others) {
+  const me = name.toLowerCase();
+  const ok = (p) => /^[a-z' -]+$/.test(p) && !/^ | $/.test(p);
+  for (let len = 3; len <= me.length; len += 1) {
+    for (let i = 0; i + len <= me.length; i += 1) {
+      const p = me.slice(i, i + len);
+      // a piece across a space starts at a word, or its first letters could be the end of the word before it
+      if (p.includes(' ') && i > 0 && me[i - 1] !== ' ') continue;
+      if (ok(p) && !others.some((t) => t.includes(p))) return p;
+    }
+  }
+  return null;
+}
+
+/**
+ * choices: { type, variant, picks: { familyKey: [1, 2] } } -> a search for magic items with every mod you
+ * ticked (any of the tiers you ticked for it), by the mods' names.
+ */
+function buildMagicRegex(choices = {}) {
+  const base = baseFor(choices);
+  const r = base && families({ base });
+  if (!r) return { regex: '', length: 0, max: MAX, parts: [], notes: ['Pick an item type first.'] };
+  const b = baseByName.get(base);
+  const picks = choices.picks || {};
+  const notes = [];
+  const parts = [];
+  // every name and line such an item can show
+  const allNames = [];
+  for (const f of r.families) for (const t of f.tiers) if (t.name) allNames.push({ f, t, n: t.name.toLowerCase() });
+  const lines = [...r.families.flatMap((f) => f.tpl), ...NOISE, ...classNames(b.cls), ...(b.imp || []).flatMap((t) => t.split('\n')).map((l) => template(l).tpl)];
+  for (const f of r.families) {
+    const want = (picks[f.key] || []).map(Number).filter((n) => n >= 1 && n <= TOP);
+    if (!want.length) continue;
+    const tiers = f.tiers.filter((t) => want.includes(t.tier) && t.name);
+    if (!tiers.length) continue;
+    const pieces = [];
+    for (const t of tiers) {
+      const me = t.name.toLowerCase();
+      const rest = allNames.filter((x) => x.t !== t && x.n !== me);
+      const p = namePiece(t.name, [...rest.map((x) => x.n), ...lines]);
+      if (p) { pieces.push(esc(p)); continue; }
+      // the name is part of a longer one ("of the Lightning" / "of the Lightning Rod"): a prefix starts the
+      // item's name and a suffix ends it, so pin the piece there
+      const names = classNames(b.cls);
+      let pinned = null;
+      for (let len = 3; len <= me.length && !pinned; len += 1) {
+        if (f.aff === 'prefix') {
+          const q = me.slice(0, len);
+          if (!/ $/.test(q) && !rest.some((x) => x.f.aff === 'prefix' && x.n.startsWith(q)) && !names.some((n) => n.startsWith(q)) && !lines.some((l) => l.startsWith(q))) pinned = `^${esc(q)}`;
+        } else {
+          const q = me.slice(me.length - len);
+          if (!/^ /.test(q) && !rest.some((x) => x.f.aff === 'suffix' && x.n.endsWith(q)) && !names.some((n) => n.endsWith(q)) && !lines.some((l) => l.endsWith(q))) pinned = `${esc(q)}$`;
+        }
+      }
+      if (pinned) pieces.push(pinned);
+      else { notes.push(`"${t.name}" (${f.show[0]}) can't be told apart from another mod's name.`); pieces.push(esc(me)); }
+    }
+    parts.push({ key: f.key, aff: f.aff, label: `${f.show[0]} ${tiers.map((t) => `T${t.tier}`).join('/')}`, names: tiers.map((t) => t.name), text: [...new Set(pieces)].join('|') });
+  }
+  const prefixes = parts.filter((p) => p.aff === 'prefix').length;
+  const suffixes = parts.length - prefixes;
+  if (prefixes > 1 || suffixes > 1) notes.push('A magic item has one prefix and one suffix: with two mods of the same kind ticked nothing can match.');
+  const regex = parts.map((p) => `"${p.text}"`).join(' ');
+  return { regex, length: regex.length, max: MAX, parts, notes };
+}
+
+module.exports = { itemBases, modsView, buildItemRegex, families, termFor, atLeast, template, itemTypes, magicView, buildMagicRegex, namePiece, MAX };

@@ -320,9 +320,11 @@ function wealthDashboard(latest) {
   }
   const cats = [...groups.values()].sort((a, b) => b.total - a.total);
   // pictures for older snapshots: one lookup by name, then redraw
-  const missing = [...new Set(cats.flatMap((g) => g.items.slice(0, 6)).filter((i) => !i.i && !(wxBase(i.n) in nwArt)).map((i) => wxBase(i.n)))].slice(0, 80);
+  const lack = cats.flatMap((g) => g.items.slice(0, 6)).filter((i) => !i.i && !(wxBase(i.n) in nwArt));
+  // "name<tab>category" so the main process looks in the right poe.ninja list (gems, astrolabes, runegrafts…)
+  const missing = [...new Map(lack.map((i) => [wxBase(i.n), `${wxBase(i.n)}\t${i.c || ''}`])).values()].slice(0, 60);
   if (missing.length) {
-    for (const n of missing) nwArt[n] = null;
+    for (const i of lack) nwArt[wxBase(i.n)] = null;
     call('art:icons', missing).then((m) => { let any = false; for (const [k, v] of Object.entries(m || {})) if (v) { nwArt[k] = v; any = true; } if (any && currentPage === 'networth') renderNetworth(); }).catch(() => {});
   }
   const pct = (v) => { const x = Math.round((v / total) * 1000) / 10; return x > 0 ? `${x}%` : '<0.1%'; };
@@ -955,6 +957,8 @@ async function renderSettingsNow() {
 window.poe.on('toast', (m) => toast(m));
 window.poe.on('networth:updated', () => { if (currentPage === 'networth' || currentPage === 'dashboard') go(currentPage); });
 window.poe.on('filter:rebuilt', () => { if (currentPage === 'filters') go('filters'); });
+// "Show in app" from the price check: the Loot filter at the item's tier, the item picked
+window.poe.on('app:goto', (g) => { if (g?.page === 'filters') { window.showInFilter?.(g); go('filters'); } });
 window.poe.on('history:updated', () => { if (currentPage === 'dashboard') refreshState(); });
 window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'designer') go('designer'); });
 

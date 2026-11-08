@@ -31,7 +31,21 @@ function loadArt() {
 }
 
 function renderFilters() {
-  loadArt(); return window.UI.keepScroll(() => renderFiltersNow()); }
+  loadArt();
+  const g = FB.goto;
+  const p = window.UI.keepScroll(() => renderFiltersNow());
+  if (g) p.then(() => setTimeout(() => {
+    FB.goto = null;
+    const card = [...document.querySelectorAll('#page-filters .fb-tier')].find((el) => el.dataset.key === g.key);
+    if (!card) return;
+    card.scrollIntoView({ block: 'center' });
+    card.classList.add('fb-flash');
+    const chip = [...card.querySelectorAll('.fb-chip')].find((c) => c.textContent.trim().startsWith(g.base));
+    chip?.classList.add('fb-flash');
+    setTimeout(() => card.querySelectorAll('.fb-flash').forEach((x) => x.classList.remove('fb-flash')) || card.classList.remove('fb-flash'), 2600);
+  }, 60));
+  return p;
+}
 // Some FilterBlade tiers belong somewhere else than their category: NeverSink keeps the Heist and Ritual
 // bases in "exotic bases", but you look for them under Heist and Ritual. Those tiers get their own
 // subcategory (key "type#name"); everything you do there still goes to the real filter category.
@@ -174,6 +188,11 @@ function themeMenu(themes, canSave) {
 
 // ---------------------------------------------------------------- tiers
 function renderTiers(body, view) {
+  // "Show in app": the subcategory that holds the item's tier
+  if (FB.goto) {
+    const t = view.types.find((x) => x.type === FB.goto.type && x.tiers.some((y) => y.key === FB.goto.key)) || view.types.find((x) => x.tiers.some((y) => y.key === FB.goto.key)) || view.types.find((x) => x.type === FB.goto.type);
+    if (t) { FB.type = t.key; FB.selected = new Set([FB.goto.base]); FB.collapsed.delete(FB.goto.key); }
+  }
   if (FB.type === MY_BASES) return renderMyBases(body, view);
   if (FB.type === BASE_MATRIX) return renderBaseMatrix(body, view);
   if (FB.type === CLUSTER_GRID) return renderClusterGrid(body, view);
@@ -647,6 +666,10 @@ function renderTiers(body, view) {
     h('aside', {}, cats),
     h('div', {},
       h('div', { class: 'fb-typehead' }, iconPicker(type.type), h('h2', {}, type.key === CLUSTER_SIZE_TYPE ? 'Cluster jewels: looks by size' : merge ? merge.label : type.label), h('span', { class: 'small muted' }, 'Click bases to select them, or drag them between tiers.'), h('span', { class: 'spacer' }),
+        // league start: every currency tier shows (hidden and switched-off ones too), each with its own look
+        /^currency(->|$)/.test(type.type) ? (() => { const on = !!S.settings.showAllCurrency; return h('button', { class: on ? 'primary sm' : 'sm', 'aria-pressed': on ? 'true' : 'false',
+          title: on ? 'Every currency tier shows, hidden ones too. Click to go back to your filter\'s choices' : 'League start: show every currency, also the tiers your filter hides or switched off',
+          onclick: async () => { S.settings.showAllCurrency = await call('currency:showAll', !on); toast(!on ? 'All currency shows now (hidden tiers too). Select the filter in game again' : 'Currency follows your filter again'); renderFilters(); } }, on ? 'All currency shown ✓' : 'Show all currency'); })() : null,
         type.key === CLUSTER_SIZE_TYPE ? h('button', { class: 'sm', onclick: () => { FB.type = CLUSTER_GRID; renderFilters(); } }, '← Back to the enchantments') : null,
         h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
           FB.priceColors = !FB.priceColors;
@@ -749,7 +772,9 @@ const CAMPAIGN_SETS = [
   ['Armour', ['Body Armours', 'Helmets', 'Gloves', 'Boots']],
   ['Jewellery', ['Rings', 'Amulets', 'Belts']],
 ];
-const CAMPAIGN_LABELS = { 'Thrusting One Hand Swords': 'Rapiers', 'Rune Daggers': 'Rune Daggers', Warstaves: 'Warstaves' };
+const CAMPAIGN_LABELS = { 'Thrusting One Hand Swords': 'Rapiers (thrusting swords)' };
+// what each type looks like in game, so it's clear which button an item is under
+const CAMPAIGN_EXAMPLES = { 'One Hand Swords': 'Rusted Sword, Copper Sword, Cutlass…', 'Thrusting One Hand Swords': 'Rusted Spike, Whalebone Rapier, Estoc…', Claws: 'Nailed Fist, Sharktooth Claw…', Daggers: 'Glass Shank, Skinning Knife…', 'Rune Daggers': 'Carving Knife, Boot Knife…', Staves: 'Gnarled Branch, Quarterstaff…', Warstaves: 'Long Staff, Iron Staff…' };
 function renderCampaignHide(body, view) {
   const cats = sidebar(view, new Set());
   const o = { classes: [], rares: false, untilLevel: 67, keepLinks: 4, ...(S.settings.campaignHide || {}) };
@@ -772,7 +797,7 @@ function renderCampaignHide(body, view) {
       h('div', { class: 'panel bm-groups' },
         CAMPAIGN_SETS.map(([title, list]) => h('div', { class: 'bm-groupset' }, h('span', { class: 'small muted' }, title),
           h('div', { class: 'row', style: { gap: '5px' } }, list.map((c) => h('button', { class: 'sm bm-group' + (on.has(c) ? ' off' : ''), 'aria-pressed': on.has(c) ? 'true' : 'false',
-            title: on.has(c) ? 'Hidden in the campaign. Click to show it again' : 'Hide this item type in the campaign', onclick: () => flip(c) }, CAMPAIGN_LABELS[c] || c))))),
+            title: `${c}${CAMPAIGN_EXAMPLES[c] ? `: ${CAMPAIGN_EXAMPLES[c]}` : ''}\n${on.has(c) ? 'Hidden in the campaign. Click to show it again' : 'Hide this item type in the campaign'}`, onclick: () => flip(c) }, CAMPAIGN_LABELS[c] || c))))),
         h('div', { class: 'row small', style: { gap: '8px', marginTop: '4px' } },
           h('button', { class: 'sm quiet', disabled: !on.size, onclick: () => save({ classes: [] }, 'Every item type shows again') }, 'Show all'),
           h('span', { class: 'faint' }, on.size ? `${on.size} item type${on.size === 1 ? '' : 's'} hidden (greyed out)` : 'Click an item type to hide it; greyed out = hidden.'))),
@@ -1319,7 +1344,6 @@ const CATEGORIES = [
     { id: 'levelingcurrency', name: 'Levelling currency', match: ['currency->leveling', 'currency->levelingstacked'], art: ['Orb of Transmutation'], icon: 'leaf' },
   ]],
   ['Fragments', [
-    { id: 'scarab', name: 'Scarab', match: ['fragments->scarabs', 'scarabs'], art: ['Delirium Scarab of Paranoia', '*Scarab'], icon: 'scarab' },
     { id: 'fragments', name: 'Other fragments', match: ['fragments', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
   ]],
   ['Cards & gems', [
@@ -1424,6 +1448,8 @@ async function saveLayout(next) {
 // Shown another way: NeverSink's economy cluster tiers are the Cluster enchantments grid.
 // Cluster jewels opens the enchantment grid; the size tiers ("Large: the rest", ...) are edited from there
 const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster', 'exotic->fractured']); // fractured: Base ranks decides those
+// scarabs leave the game, so their pages aren't listed (the filter's own scarab rules stay as FilterBlade wrote them)
+const GONE = (key) => /^(fragments->scarabs|scarabs)(->|#|@|$)/.test(String(key));
 const CLUSTER_SIZE_TYPE = 'jewels->cluster';
 const SUB_LABELS = {
   'currency->heist': "Rogue's Markers",
@@ -1526,7 +1552,9 @@ function applySideWidth(w) {
   return v;
 }
 const SIDE_MINI = 66;
+function closeFlyout() { document.querySelectorAll('.fb-fly').forEach((m) => { m._off?.(); m.remove(); }); }
 function withResizer(nav) {
+  closeFlyout();
   const mini = !!S.settings.fbSideMini;
   document.documentElement.classList.toggle('fb-mini', mini);
   if (mini) { document.documentElement.style.setProperty('--fb-side', `${SIDE_MINI}px`); return h('div', { class: 'fb-side-wrap' }, nav); }
@@ -1603,9 +1631,9 @@ function sidebar(view, changedTypes) {
 
   // search: categories by name, then bases
   if (q.length >= 2) {
-    const catHits = view.types.filter((t) => !t.inMerge && t.label.toLowerCase().includes(q));
+    const catHits = view.types.filter((t) => !t.inMerge && !GONE(t.key) && t.label.toLowerCase().includes(q));
     const baseHits = [];
-    for (const t of view.types) if (!t.merged && !t.baseView) for (const tier of t.tiers) for (const b of tier.bases) if (b.toLowerCase().includes(q)) baseHits.push({ b, t, tier });
+    for (const t of view.types) if (!t.merged && !t.baseView && !GONE(t.key)) for (const tier of t.tiers) for (const b of tier.bases) if (b.toLowerCase().includes(q)) baseHits.push({ b, t, tier });
     return withResizer(h('nav', { class: 'fb-cats', 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(),
       catHits.length ? h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, 'Categories'), catHits.slice(0, 15).map((t) => row(t))) : null,
       h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, `Bases (${baseHits.length})`),
@@ -1616,7 +1644,7 @@ function sidebar(view, changedTypes) {
   // FilterBlade-style categories, each holding the filter's own subcategories
   const byCat = new Map();
   for (const t of view.types) {
-    if (t.inMerge || HIDDEN_TYPES.has(t.key)) continue;
+    if (t.inMerge || HIDDEN_TYPES.has(t.key) || GONE(t.key)) continue;
     const c = categoryOf(t.key);
     if (!c) continue;
     if (!byCat.has(c.id)) byCat.set(c.id, []);
@@ -1647,10 +1675,32 @@ function sidebar(view, changedTypes) {
     const active = (single || mini) ? (single ? list[0].key === FB.type : cat.id === activeCat) : false;
     // folded list: a click opens the subcategory you were on, else the first one
     const pick = () => select((list.find((t) => t.key === FB.type) || list[0]).key);
+    // folded list: a category with subcategories opens a small menu of them next to its icon
+    const flyout = (btn) => {
+      closeFlyout();
+      const r = btn.getBoundingClientRect();
+      const menu = h('div', { class: 'fb-fly', role: 'menu', 'aria-label': cat.name },
+        h('div', { class: 'fb-fly-h' }, cat.name),
+        list.map((t) => row(t, { sub: true, label: subLabel(t, cat) })));
+      menu.style.left = `${Math.round(r.right + 8)}px`;
+      menu.style.top = `${Math.round(r.top)}px`;
+      document.body.appendChild(menu);
+      // keep it on screen
+      const mr = menu.getBoundingClientRect();
+      if (mr.bottom > window.innerHeight - 8) menu.style.top = `${Math.max(8, window.innerHeight - 8 - mr.height)}px`;
+      menu.addEventListener('click', (e) => { if (e.target.closest('.fb-row-main')) closeFlyout(); });
+      setTimeout(() => {
+        const away = (e) => { if (!menu.contains(e.target) && e.target !== btn) closeFlyout(); };
+        const esc = (e) => { if (e.key === 'Escape') { closeFlyout(); btn.focus(); } };
+        document.addEventListener('mousedown', away); document.addEventListener('keydown', esc);
+        menu._off = () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
+      });
+      menu.querySelector('.fb-row-main')?.focus();
+    };
     const toggleOpen = () => { if (open) { FB.openGroups.delete(cat.id); FB.closedGroups.add(cat.id); } else { FB.openGroups.add(cat.id); FB.closedGroups.delete(cat.id); } renderFilters(); };
-    return h('div', { class: 'fb-cat' + (open ? ' open' : '') + (cat.id === activeCat ? ' current' : '') },
+    return h('div', { class: 'fb-cat' + (open ? ' open' : '') + (single ? ' single' : '') + (cat.id === activeCat ? ' current' : '') },
       h('div', { class: 'fb-cat-bar' + (active ? ' active' : '') },
-        h('button', { class: 'fb-cat-main', title: cat.name, 'aria-expanded': single ? null : open ? 'true' : 'false', onclick: () => (single || mini ? pick() : toggleOpen()) },
+        h('button', { class: 'fb-cat-main', title: cat.name, 'aria-expanded': single ? null : open ? 'true' : 'false', onclick: (e) => (single ? pick() : mini ? flyout(e.currentTarget) : toggleOpen()) },
           h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
           h('span', { class: 'n' }, cat.name),
           changed ? h('span', { class: 'dot', title: 'You changed something here' }) : null,
@@ -1760,7 +1810,7 @@ function sidebar(view, changedTypes) {
     h('button', { class: editing ? 'primary sm' : 'sm', onclick: () => { FB.editCats = !FB.editCats; renderFilters(); } }, editing ? 'Done' : 'Edit categories'),
     editing && Object.keys(L).some((k) => Object.keys(L[k] || {}).length) ? h('button', { class: 'quiet sm', onclick: () => { if (confirm('Go back to the default categories? Your names, new categories and moves are removed.')) saveLayout({}); } }, 'Reset layout') : null);
 
-  const pinned = pins.map((p) => view.types.find((t) => t.key === p)).filter(Boolean);
+  const pinned = pins.filter((p) => !GONE(p)).map((p) => view.types.find((t) => t.key === p)).filter(Boolean);
   const miniBtn = h('button', { class: 'fb-mini-toggle', title: mini ? 'Show the category names' : 'Fold the list down to its icons', 'aria-label': mini ? 'Show the category names' : 'Fold the list down to its icons', 'aria-pressed': mini ? 'true' : 'false',
     onclick: async () => { S.settings.fbSideMini = !mini; FB.editCats = false; await call('settings:set', { fbSideMini: !mini }).catch(() => {}); renderFilters(); } }, mini ? '»' : '«');
   if (mini) {
@@ -2129,5 +2179,7 @@ async function renderReview(body, { only = null } = {}) {
 }
 
 window.renderFilters = renderFilters;
+// from the price check: open the tier an item is in, with the item picked and the tier in view
+window.showInFilter = (g) => { FB.goto = { type: g.type, key: g.key || `${g.type}|${g.tier}`, base: g.base }; FB.tab = 'tiers'; };
 })();
 

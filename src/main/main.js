@@ -717,6 +717,7 @@ function registerIpc() {
   handle('ranks:auto', (a) => services.autoRanks(a || {}));
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('campaignHide:set', (a) => services.setCampaignHide(a || {}));
+  handle('currency:showAll', (on) => services.setShowAllCurrency(on));
   handle('bases:add', (a) => services.addMyBase(a || {}));
   handle('bases:update', ({ id, patch }) => services.updateMyBase(String(id), patch || {}));
   handle('bases:remove', (id) => services.removeMyBase(String(id)));
@@ -847,7 +848,13 @@ function registerIpc() {
   handle('lab:hide', () => { labWin?.hide(); return true; });
   handle('lab:favorite', (diff) => { const v = services.LAB_DIFFS.some((d) => d.id === diff) ? diff : null; services.settings.set('labFavorite', v); return v; });
   handle('lab:opacity', (v) => { const o = Math.min(1, Math.max(0.3, Number(v) || 1)); services.settings.set('labOpacity', o); labWin?.setOpacity(o); return o; });
-  handle('app:show', () => mainWin?.show());
+  // the price check's App button: show the app, and the item's tier in the Loot filter when it has one
+  handle('app:show', (a) => {
+    if (!mainWin) return;
+    if (mainWin.isMinimized()) mainWin.restore();
+    mainWin.show(); mainWin.focus();
+    if (a?.goto) mainWin.webContents.send('app:goto', a.goto);
+  });
 }
 
 // ---------------- lifecycle ----------------
