@@ -10,6 +10,7 @@
     { id: 'maps', name: 'Map mods', art: '*Map16', icon: 'map' }, // a tier 16 map's picture
     { id: 'items', name: 'Magic item mods', art: 'Orb of Alteration', icon: 'drop' },
     { id: 'campaign', name: 'Campaign items', art: 'Scroll of Wisdom', icon: 'leaf' },
+    { id: 'gems', name: 'Gems', art: 'Gemcutter\'s Prism', icon: 'hex' },
     { id: 'beasts', name: 'Beasts', art: 'Bestiary Orb', icon: 'leaf' },
   ];
   // the category pictures come from poe.ninja's item art (web.poecdn.com), loaded once
@@ -263,7 +264,7 @@
     io.count.textContent = `${r.length} / ${r.max}`;
     io.count.className = 'rx-count' + (r.length > r.max ? ' over' : r.length > r.max * 0.85 ? ' near' : '');
     mount(io.parts, r.parts.map((p) => h('span', { class: 'rx-part', title: p.names.join(', ') }, h('b', {}, p.label), ' ', h('code', {}, p.text))));
-    mount(io.notes, r.notes.map((n) => h('div', { class: 'small warn' }, n)));
+    mount(io.notes, r.notes.length ? h('div', { class: 'small warn', title: r.notes.join('\n') }, r.notes.join(' · ')) : null);
   }
   // "+(91-100) to maximum Energy Shield / …" -> "+91–100"
   const amountOf = (text) => { const m = /[+-]?\(?-?[\d.]+(?:-[\d.]+)?\)?%?/.exec(String(text).split(' / ')[0]); return m ? m[0].replace(/[()]/g, '').replace(/(\d)-(\d)/, '$1–$2') : text; };
@@ -292,7 +293,7 @@
     io.box = h('code', { class: 'rx-out', tabindex: 0, title: 'Click to copy', onclick: () => copyItem() });
     io.count = h('span', { class: 'rx-count' });
     io.parts = h('div', { class: 'rx-parts' });
-    io.notes = h('div', { class: 'stack', style: { gap: '2px' } });
+    io.notes = h('div', { class: 'rx-notes' });
     const copyItem = async () => {
       const t = R.itemOut?.regex;
       if (!t) return toast('Nothing to copy yet.', true);
@@ -325,20 +326,28 @@
     const picks = c.picks || {};
     const q = (R.itemFilter || '').trim().toLowerCase();
     // ticking a tier ticks the better ones too (T2 means "T2 or better"); unticking it unticks the worse ones
-    const flipTier = (f, tier) => {
-      const cur = new Set(picks[f.key] || []);
+    // the page isn't rebuilt on a tick (that made it jump): the row and the search update in place
+    const flipTier = (f, tier, rowEl) => {
+      const now = itemChoices().picks || {};
+      const cur = new Set(now[f.key] || []);
       const next = cur.has(tier) ? [...cur].filter((t) => t < tier) : f.tiers.map((t) => t.tier).filter((t) => t <= tier);
-      const np = { ...picks };
+      const np = { ...now };
       if (next.length) np[f.key] = next.sort(); else delete np[f.key];
-      setItems({ picks: np });
+      rowEl.classList.toggle('want', next.length > 0);
+      rowEl.querySelectorAll('.rx-tick').forEach((lab) => { const on = next.includes(Number(lab.dataset.tier)); lab.classList.toggle('on', on); lab.querySelector('input').checked = on; });
+      if (countEl) countEl.textContent = `${Object.keys(np).length} ticked`;
+      setItems({ picks: np }, false);
     };
+    let countEl = null;
     const famRow = (f) => {
       const on = new Set(picks[f.key] || []);
-      return h('div', { class: 'rx-mod rx-imod' + (on.size ? ' want' : '') },
+      const rowEl = h('div', { class: 'rx-mod rx-imod' + (on.size ? ' want' : '') });
+      mount(rowEl,
         h('span', { class: 'rx-mod-t' }, f.text.map((l) => h('span', {}, l))),
-        h('span', { class: 'rx-tiers' }, f.tiers.map((t) => h('label', { class: 'rx-tick' + (on.has(t.tier) ? ' on' : ''), title: `${t.name}: ${t.text} · level ${t.lvl}` },
-          h('input', { type: 'checkbox', checked: on.has(t.tier), onchange: () => flipTier(f, t.tier) }),
+        h('span', { class: 'rx-tiers' }, f.tiers.map((t) => h('label', { class: 'rx-tick' + (on.has(t.tier) ? ' on' : ''), 'data-tier': t.tier, title: `${t.name}: ${t.text} · level ${t.lvl}` },
+          h('input', { type: 'checkbox', checked: on.has(t.tier), onchange: (e) => { e.preventDefault(); flipTier(f, t.tier, rowEl); } }),
           h('b', {}, `T${t.tier}`), h('span', { class: 'rx-tick-n' }, amountOf(t.text))))));
+      return rowEl;
     };
     const shown = (v?.families || []).filter((f) => !q || f.text.join(' ').toLowerCase().includes(q) || f.tiers.some((t) => (t.name || '').toLowerCase().includes(q)));
     const col = (aff, title) => { const l = shown.filter((f) => f.aff === aff); return h('div', { class: 'rx-col' }, h('div', { class: 'rx-col-h' }, `${title} (${l.length})`), l.map(famRow)); };
@@ -363,7 +372,7 @@
         h('div', { class: 'small faint' }, 'For magic items: a magic item\'s name has its mods\' names in it ("Searing Goat\'s Horn of Success"), so the search looks for those. Tick the tiers of each mod you want (T1 to T4); the item must have every mod you tick.')),
       v ? h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } },
         h('h2', { style: { margin: 0 } }, 'Mods'),
-        h('span', { class: 'small muted' }, `${Object.keys(picks).length} ticked`),
+        (countEl = h('span', { class: 'small muted' }, `${Object.keys(picks).length} ticked`)),
         h('span', { class: 'spacer' }), search) : h('div', { class: 'panel small muted', style: { marginTop: '14px' } }, 'Pick an item type to see its mods.'),
       v ? h('div', { class: 'rx-cols' }, col('prefix', 'Prefixes'), col('suffix', 'Suffixes')) : null);
     drawItemOut();
@@ -372,10 +381,22 @@
   // ---------- campaign items: any rarity, every tier, by the mods' own text (vendors and drops while levelling) ----------
   const campDefaults = { type: '', variant: null, picks: {}, mode: 'any' };
   const campChoices = () => { const c = { ...campDefaults, ...(S.settings?.regexCampaign || {}) }; if (Object.values(c.picks || {}).some((v) => Array.isArray(v))) c.picks = {}; return c; };
-  async function setCamp(patch) {
+  const co = { box: null, count: null, parts: null, notes: null, picked: null };
+  function drawCampOut() {
+    const o = R.campOut;
+    if (!o || !co.box) return;
+    co.box.textContent = o.regex || 'Pick the mods you want below.';
+    co.box.classList.toggle('empty', !o.regex);
+    co.count.textContent = `${o.length} / ${o.max}`;
+    co.count.className = 'rx-count' + (o.length > o.max ? ' over' : '');
+    mount(co.parts, o.parts.map((p) => h('span', { class: 'rx-part', title: p.text }, h('b', {}, p.label), ' ', h('code', {}, p.text))));
+    mount(co.notes, o.notes.length ? h('div', { class: 'small warn', title: o.notes.join('\n') }, o.notes.join(' · ')) : null);
+    if (co.picked) co.picked.textContent = `${Object.keys(campChoices().picks || {}).length} picked`;
+  }
+  async function setCamp(patch, redraw = true) {
     S.settings.regexCampaign = { ...campChoices(), ...patch };
     R.campOut = await call('regex:campaignBuild', S.settings.regexCampaign);
-    renderRegexPage();
+    if (redraw) renderRegexPage(); else drawCampOut();
   }
   async function renderCampaign(main) {
     if (!R.itemTypes) R.itemTypes = await call('regex:itemBases');
@@ -394,7 +415,7 @@
       h('option', { value: '' }, 'Pick an item type…'), typeOptions(R.itemTypes, c.type));
     const varSel = type?.variants ? h('select', { 'aria-label': type.variants[0].id.endsWith('_armour') ? 'Defence' : 'Base', onchange: (e) => setCamp({ variant: e.target.value, picks: {} }) },
       type.variants.map((x) => h('option', { value: x.id, selected: x.id === variant.id }, x.name))) : null;
-    const copyIt = async () => { if (!o.regex) return toast('Nothing to copy yet.', true); await call('clipboard:write', o.regex); toast('Copied. Paste it in a vendor\'s or the stash search with Ctrl+V'); };
+    const copyIt = async () => { const cur = R.campOut; if (!cur?.regex) return toast('Nothing to copy yet.', true); await call('clipboard:write', cur.regex); toast('Copied. Paste it in a vendor\'s or the stash search with Ctrl+V'); };
     const seg = h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'Match' },
       [['any', 'Any one of them'], ['all', 'All of them']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': c.mode === val ? 'true' : 'false', class: c.mode === val ? 'on' : '', onclick: () => setCamp({ mode: val }) }, l)));
 
@@ -406,18 +427,26 @@
     const saveNew = async () => { const name = nameIn.value.trim(); if (!name) { nameIn.focus(); return toast('Type a name for the new search first.', true); } if (presets.some((p) => p.name === name) && !confirm(`"${name}" exists. Replace it with these choices?`)) return; await save(name); toast(`Saved as "${name}"`); };
 
     const q = (R.campFilter || '').trim().toLowerCase();
+    // a pick updates its row and the search in place (rebuilding the page made it jump)
+    const pickTier = (f, value, rowEl, sel) => {
+      const np = { ...(campChoices().picks || {}) };
+      if (value === 'off') delete np[f.key]; else np[f.key] = Number(value);
+      rowEl.classList.toggle('want', value !== 'off');
+      sel.value = value === 'off' ? 'off' : String(Number(value));
+      setCamp({ picks: np }, false);
+    };
     const row = (f) => {
       const picked = f.key in picks;
       const t = Number(picks[f.key]) || 0;
-      const sel = h('select', { class: 'rx-tier', 'aria-label': `Tier for ${f.text[0]}`, onclick: (e) => e.stopPropagation(), onchange: (e) => {
-        const np = { ...picks }; if (e.target.value === 'off') delete np[f.key]; else np[f.key] = Number(e.target.value); setCamp({ picks: np });
-      } }, h('option', { value: 'off', selected: !picked }, '–'), h('option', { value: 0, selected: picked && !t }, 'Any tier'),
+      let rowEl = null;
+      const sel = h('select', { class: 'rx-tier', 'aria-label': `Tier for ${f.text[0]}`, onclick: (e) => e.stopPropagation(), onchange: (e) => pickTier(f, e.target.value, rowEl, sel) }, h('option', { value: 'off', selected: !picked }, '–'), h('option', { value: 0, selected: picked && !t }, 'Any tier'),
       f.tiers.slice(0, -1).map((x) => h('option', { value: x.tier, selected: picked && t === x.tier }, `T${x.tier} or better (${amountOf(x.text)}+)`)));
-      return h('div', { class: 'rx-mod' + (picked ? ' want' : ''), role: 'button', tabindex: 0, title: f.tiers.map((x) => `T${x.tier}  ${x.text}  ·  level ${x.lvl}`).join('\n'),
-        onclick: () => { const np = { ...picks }; if (picked) delete np[f.key]; else np[f.key] = 0; setCamp({ picks: np }); },
+      rowEl = h('div', { class: 'rx-mod' + (picked ? ' want' : ''), role: 'button', tabindex: 0, title: f.tiers.map((x) => `T${x.tier}  ${x.text}  ·  level ${x.lvl}`).join('\n'),
+        onclick: () => pickTier(f, f.key in (campChoices().picks || {}) ? 'off' : 0, rowEl, sel),
         onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } },
       h('span', { class: 'rx-mod-t' }, f.text.map((l) => h('span', {}, l))),
       h('span', { class: 'rx-mod-m' }, h('span', { class: 'small faint' }, `${f.tiers.length} tier${f.tiers.length === 1 ? '' : 's'}`), sel));
+      return rowEl;
     };
     const shown = (v?.families || []).filter((f) => !f.influence && (!q || f.text.join(' ').toLowerCase().includes(q)));
     const col = (aff, title) => { const l = shown.filter((f) => f.aff === aff); return h('div', { class: 'rx-col' }, h('div', { class: 'rx-col-h' }, `${title} (${l.length})`), l.map(row)); };
@@ -427,11 +456,11 @@
     mount(main,
       h('div', { class: 'panel rx-outbar' },
         h('div', { class: 'row', style: { gap: '10px', flexWrap: 'nowrap', alignItems: 'stretch' } },
-          h('code', { class: 'rx-out' + (o.regex ? '' : ' empty'), tabindex: 0, title: 'Click to copy', onclick: copyIt }, o.regex || 'Pick the mods you want below.'),
+          (co.box = h('code', { class: 'rx-out', tabindex: 0, title: 'Click to copy', onclick: copyIt })),
           h('div', { class: 'stack', style: { gap: '6px', alignItems: 'flex-end' } }, h('button', { class: 'primary', onclick: copyIt }, 'Copy'),
-            h('span', { class: 'rx-count' + (o.length > o.max ? ' over' : '') }, `${o.length} / ${o.max}`))),
-        h('div', { class: 'rx-parts' }, o.parts.map((p) => h('span', { class: 'rx-part', title: p.text }, h('b', {}, p.label), ' ', h('code', {}, p.text)))),
-        o.notes.map((n) => h('div', { class: 'small warn' }, n)),
+            (co.count = h('span', { class: 'rx-count' })))),
+        (co.parts = h('div', { class: 'rx-parts' })),
+        (co.notes = h('div', { class: 'rx-notes' })),
         h('div', { class: 'row small', style: { gap: '8px', marginTop: '4px' } }, presetSel,
           R.campPreset ? h('button', { class: 'sm primary', onclick: async () => { await save(R.campPreset); toast(`"${R.campPreset}" updated`); } }, `Update "${R.campPreset}"`) : null,
           R.campPreset ? h('button', { class: 'sm quiet', onclick: async () => { if (!confirm(`Delete the saved search "${R.campPreset}"?`)) return; S.settings.regexPresets = await call('regex:deletePreset', { name: R.campPreset, kind: 'campaign' }); R.campPreset = null; renderRegexPage(); } }, 'Delete') : null,
@@ -440,9 +469,125 @@
       h('div', { class: 'panel rx-opts' },
         h('div', { class: 'row', style: { gap: '12px' } }, typeSel, varSel, seg),
         h('div', { class: 'small faint' }, 'While levelling: find items with the mods you want at vendors or in your stash, any rarity (normal, magic, rare). The search looks for the mods\' text, every tier unless you pick a minimum ("T3 or better" asks for at least T3\'s lowest roll).')),
-      v ? h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } }, h('h2', { style: { margin: 0 } }, 'Mods'), h('span', { class: 'small muted' }, `${Object.keys(picks).length} picked`), h('span', { class: 'spacer' }), search)
+      v ? h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } }, h('h2', { style: { margin: 0 } }, 'Mods'), (co.picked = h('span', { class: 'small muted' }, `${Object.keys(picks).length} picked`)), h('span', { class: 'spacer' }), search)
         : h('div', { class: 'panel small muted', style: { marginTop: '14px' } }, 'Pick an item type to see its mods.'),
       v ? h('div', { class: 'rx-cols' }, col('prefix', 'Prefixes'), col('suffix', 'Suffixes')) : null);
+    drawCampOut();
+  }
+
+  // ---------- gems: every gem in the game, for vendors (Lilly, the act vendors) and your stash ----------
+  const CLASSES = ['Marauder', 'Duelist', 'Ranger', 'Shadow', 'Witch', 'Templar', 'Scion'];
+  // where a gem can be had first: bought from a vendor (Nessa, Yeena, Clarissa, Siosa, Lilly…) or a quest reward,
+  // for one class (an empty class list means every class)
+  const forClass = (list, cls) => (list || []).filter((e) => !cls || !e.classes.length || e.classes.includes(cls));
+  const firstBuy = (g, cls) => forClass(g.buy, cls)[0] || null;
+  const firstReward = (g, cls) => forClass(g.reward, cls)[0] || null;
+  const whereText = (g, cls) => {
+    const lines = [];
+    const r = forClass(g.reward, cls);
+    if (r.length) lines.push(`Quest reward: act ${r[0].act}, ${r[0].quest} (${r[0].npc})${cls ? '' : `, ${r[0].classes.join(', ') || 'every class'}`}`);
+    const b = forClass(g.buy, cls);
+    for (const e of b.slice(0, 3)) lines.push(`Sold by ${e.npc} (act ${e.act}) after ${e.quest}${cls || !e.classes.length ? (e.classes.length ? '' : ', every class') : `: ${e.classes.join(', ')}`}`);
+    if (!r.length && !b.length) lines.push(cls ? `Not sold to a ${cls} in the campaign` : 'Not sold or given in the campaign (drops, Lilly can\'t sell it)');
+    return lines.join('\n');
+  };
+  const GEM_COLOURS = [['r', 'Strength (red)'], ['g', 'Dexterity (green)'], ['b', 'Intelligence (blue)'], ['w', 'White']];
+  // each act has its own picks (a search for Nessa, one for Yeena…); "All gems" keeps its own too
+  const GEM_TABS = [[0, 'All gems'], [1, 'Act 1'], [2, 'Act 2'], [3, 'Act 3'], [4, 'Act 4'], [6, 'Act 6+']];
+  const gemTab = () => (R.gemFilter?.byAct ?? S.settings?.regexGems?.tab ?? 0);
+  const gemStore = () => ({ picks: [], acts: {}, ...(S.settings?.regexGems || {}) });
+  const gemPicks = () => { const st = gemStore(); const t = gemTab(); return new Set(t ? st.acts?.[t] || [] : st.picks || []); };
+  const go = { box: null, notes: null, count: null };
+  async function setGems(set) {
+    const st = gemStore();
+    const t = gemTab();
+    S.settings.regexGems = t ? { ...st, tab: t, acts: { ...(st.acts || {}), [t]: [...set] } } : { ...st, tab: 0, picks: [...set] };
+    R.gemOut = await call('regex:gemBuild', { picks: [...set], store: S.settings.regexGems });
+    drawGemOut();
+  }
+  function drawGemOut() {
+    const o = R.gemOut;
+    if (!o || !go.box) return;
+    const copy = async (s, i) => { await call('clipboard:write', s.text); toast(o.strings.length > 1 ? `Copied search ${i + 1} of ${o.strings.length}` : 'Copied. Paste it in the vendor or stash search with Ctrl+V'); };
+    mount(go.box, o.strings.length ? o.strings.map((s, i) => h('div', { class: 'row', style: { gap: '10px', flexWrap: 'nowrap', alignItems: 'stretch' } },
+      h('code', { class: 'rx-out', tabindex: 0, title: 'Click to copy', onclick: () => copy(s, i) }, s.text),
+      h('div', { class: 'stack', style: { gap: '6px', alignItems: 'flex-end' } }, h('button', { class: 'primary', onclick: () => copy(s, i) }, o.strings.length > 1 ? `Copy ${i + 1}` : 'Copy'),
+        h('span', { class: 'rx-count' }, `${s.text.length} / ${o.max} · ${s.count}`)))) : h('code', { class: 'rx-out empty' }, 'Click the gems you want below.'));
+    if (go.count) go.count.textContent = `${o.count} picked`;
+    // the act tabs show how many gems each has picked
+    document.querySelectorAll('#page-regex [data-gemtab]').forEach((b) => { const v = Number(b.dataset.gemtab); const st = gemStore(); const n = (v ? st.acts?.[v] : st.picks)?.length || 0; b.textContent = n ? `${b.dataset.label} (${n})` : b.dataset.label; });
+  }
+  async function renderGems(main) {
+    if (!R.gemView) R.gemView = await call('regex:gemView');
+    const f = R.gemFilter = R.gemFilter || { q: '', colours: [], kind: 'all', trans: true, vaal: true, awakened: true, picked: false, cls: S.settings?.regexGemClass || '', byAct: Number(S.settings?.regexGems?.tab) || 0 };
+    if (!R.gemOut) R.gemOut = await call('regex:gemBuild', { picks: [...gemPicks()], store: gemStore() });
+    const picks = gemPicks();
+    const shownOf = () => R.gemView.gems.filter((g) => (!f.q || g.name.toLowerCase().includes(f.q.toLowerCase()) || g.tags.some((t) => t === f.q.toLowerCase()))
+      && (!f.colours.length || f.colours.includes(g.c)) && (f.kind === 'all' || (f.kind === 'support') === g.support)
+      && (f.trans || !g.trans) && (f.vaal || !g.vaal) && (f.awakened || !g.awakened) && (!f.picked || picks.has(g.name))
+      && (!f.byAct || [firstBuy(g, f.cls), firstReward(g, f.cls)].some((e) => e && e.act <= f.byAct)));
+    const shown = shownOf();
+    const chip = (g) => {
+      const el = h('button', { type: 'button', class: `rx-gem c-${g.c}` + (picks.has(g.name) ? ' on' : ''), 'aria-pressed': picks.has(g.name) ? 'true' : 'false',
+        title: `${g.name}${g.trans ? ` (transfigured ${g.trans})` : ''}\n${whereText(g, f.cls)}${g.tags.length ? `\n${g.tags.join(', ')}` : ''}\nSearch piece: ${g.piece}`,
+        onclick: () => { const s = gemPicks(); if (s.has(g.name)) s.delete(g.name); else s.add(g.name); el.classList.toggle('on', s.has(g.name)); el.setAttribute('aria-pressed', s.has(g.name) ? 'true' : 'false'); setGems(s); } },
+      g.name);
+      return el;
+    };
+    const re = () => renderRegexPage();
+    const flag = (key, label) => h('button', { type: 'button', class: 'rx-flag' + (f[key] ? ' on' : ''), 'aria-pressed': f[key] ? 'true' : 'false', onclick: () => { f[key] = !f[key]; re(); } }, label);
+    const search = h('input', { type: 'search', placeholder: 'Find a gem or a tag, e.g. fire, minion, Cyclone', value: f.q, style: { flex: 1, minWidth: '220px' }, 'aria-label': 'Find a gem' });
+    search.addEventListener('input', () => { f.q = search.value; const pos = search.selectionStart; re().then(() => { const s = document.querySelector('#page-regex input[type=search]'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } }); });
+    go.box = h('div', { class: 'stack', style: { gap: '8px' } });
+    go.count = h('span', { class: 'small muted' });
+    // skill gems and supports side by side, each in parts by where your class can first get the gem
+    const whereKey = (g) => {
+      const b = firstBuy(g, f.cls);
+      if (b) return { order: b.act * 10 + (b.npc === 'Siosa' ? 1 : 0), label: `Act ${b.act} · ${b.npc}` };
+      const r = firstReward(g, f.cls);
+      if (r) return { order: 90 + r.act / 100, label: 'Quest rewards only' };
+      return { order: 99, label: g.trans ? 'Transfigured (drops, not sold)' : g.vaal ? 'Vaal gems (drops, not sold)' : g.awakened ? 'Awakened (drops, not sold)' : 'Not sold in the campaign' };
+    };
+    const sectionsOf = (list) => {
+      const m = new Map();
+      for (const g of list) { const k = whereKey(g); if (!m.has(k.label)) m.set(k.label, { ...k, list: [] }); m.get(k.label).list.push(g); }
+      return [...m.values()].sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+    };
+    const column = (title, list) => h('div', { class: 'rx-gemcol' }, h('div', { class: 'rx-col-h' }, `${title} (${list.length})`),
+      list.length ? sectionsOf(list).map((sec) => h('div', { class: 'rx-gemsec' },
+        h('div', { class: 'rx-gemsec-h' }, h('span', {}, sec.label), h('span', { class: 'faint' }, String(sec.list.length)),
+          h('button', { class: 'sm quiet', title: `Pick every gem in ${sec.label}`, onclick: () => { const s = gemPicks(); sec.list.forEach((g) => s.add(g.name)); setGems(s); re(); } }, 'Pick all')),
+        h('div', { class: 'rx-gems' }, sec.list.map(chip)))) : h('div', { class: 'small muted' }, 'None match.'));
+    const groups = shown.length ? [1] : [];
+    mount(main,
+      h('div', { class: 'panel rx-outbar' }, go.box,
+        h('div', { class: 'row small', style: { gap: '8px' } }, go.count, h('span', { class: 'faint' }, 'For vendors and your stash. More gems than fit in one search (250 characters) give several searches.'),
+          h('span', { class: 'spacer' }), picks.size ? h('button', { class: 'sm quiet', onclick: () => { setGems(new Set()); re(); } }, 'Clear') : null)),
+      h('div', { class: 'panel rx-opts' },
+        h('div', { class: 'row', style: { gap: '10px' } },
+          h('div', { class: 'rx-seg', role: 'tablist', 'aria-label': 'Act' }, GEM_TABS.map(([v, l]) => {
+            const n = v ? (gemStore().acts?.[v] || []).length : (gemStore().picks || []).length;
+            return h('button', { type: 'button', role: 'tab', 'data-gemtab': v, 'data-label': l, 'aria-selected': f.byAct === v ? 'true' : 'false', class: f.byAct === v ? 'on' : '',
+              title: v ? `The gems your class can have by act ${v}${v === 6 ? ' (Lilly Roth sells nearly all of them)' : ''}, with their own picks` : 'Every gem, with its own picks',
+              onclick: async () => { f.byAct = v; const st = gemStore(); S.settings.regexGems = { ...st, tab: v }; R.gemOut = await call('regex:gemBuild', { picks: [...gemPicks()], store: S.settings.regexGems }); re(); } }, n ? `${l} (${n})` : l);
+          })),
+          h('span', { class: 'small faint' }, 'Each act keeps its own picks: one search for Nessa, one for Yeena…')),
+        h('div', { class: 'row', style: { gap: '8px' } },
+          GEM_COLOURS.map(([c, l]) => h('button', { type: 'button', class: `rx-flag rx-gc c-${c}` + (f.colours.includes(c) ? ' on' : ''), title: l, onclick: () => { f.colours = f.colours.includes(c) ? f.colours.filter((x) => x !== c) : [...f.colours, c]; re(); } }, l.split(' ')[0])),
+          h('span', { class: 'faint' }, '·'),
+          h('div', { class: 'rx-seg' }, [['all', 'All'], ['skill', 'Skill gems'], ['support', 'Supports']].map(([k, l]) => h('button', { type: 'button', class: f.kind === k ? 'on' : '', onclick: () => { f.kind = k; re(); } }, l))),
+          flag('trans', 'Transfigured'), flag('vaal', 'Vaal'), flag('awakened', 'Awakened'), flag('picked', 'Only picked')),
+        h('div', { class: 'row', style: { gap: '10px' } },
+          h('label', { class: 'row small', style: { gap: '6px' } }, 'Your class', h('select', { 'aria-label': 'Your class', onchange: (e) => { f.cls = e.target.value; S.settings.regexGemClass = f.cls; call('settings:set', { regexGemClass: f.cls }).catch(() => {}); re(); } },
+            h('option', { value: '' }, 'Any class'), CLASSES.map((c) => h('option', { value: c, selected: f.cls === c }, c)))),
+
+          h('span', { class: 'small faint' }, 'The gems are in parts by the first vendor that sells them to your class; hover a gem for its quest reward and every vendor.')),
+        h('div', { class: 'row', style: { gap: '8px' } }, search,
+          h('button', { class: 'sm', title: 'Pick every gem the filters show', onclick: () => { const s = gemPicks(); shown.forEach((g) => s.add(g.name)); setGems(s); re(); } }, `Pick all ${shown.length} shown`),
+          h('button', { class: 'sm quiet', onclick: () => { const s = gemPicks(); shown.forEach((g) => s.delete(g.name)); setGems(s); re(); } }, 'Unpick shown'))),
+      groups.length ? h('div', { class: 'rx-gemcols' }, f.kind !== 'support' ? column('Skill gems', shown.filter((g) => !g.support)) : null, f.kind !== 'skill' ? column('Support gems', shown.filter((g) => g.support)) : null)
+        : h('div', { class: 'panel small muted' }, 'No gem matches that.'));
+    drawGemOut();
   }
 
   // ---------- beasts: which captured beasts to find in the Bestiary or the stash ----------
@@ -545,6 +690,7 @@
     else if (R.cat === 'beasts') await renderBeasts(main);
     else if (R.cat === 'items') await renderItems(main);
     else if (R.cat === 'campaign') await renderCampaign(main);
+    else if (R.cat === 'gems') await renderGems(main);
     mount(el,
       pageHead('Regex', 'Search strings for the game\'s search boxes (stash, map device, vendors). Pick what you want, copy, and paste it in game with Ctrl+V.'),
       h('div', { class: 'rx' }, nav, main));

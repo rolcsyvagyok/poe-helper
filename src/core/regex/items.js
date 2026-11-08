@@ -232,8 +232,8 @@ const BY_BASE = new Set(['Jewel', 'AbyssJewel', 'UtilityFlask']); // these diffe
 const TYPE_ORDER = ['Body Armour', 'Helmet', 'Gloves', 'Boots', 'Shield', 'Quiver', 'Amulet', 'Ring', 'Belt',
   'One Hand Sword', 'One Hand Axe', 'One Hand Mace', 'Sceptre', 'Claw', 'Dagger', 'Rune Dagger', 'Wand',
   'Two Hand Sword', 'Two Hand Axe', 'Two Hand Mace', 'Staff', 'Warstaff', 'Bow', 'LifeFlask', 'ManaFlask', 'HybridFlask', 'UtilityFlask', 'Jewel', 'AbyssJewel'];
-const TYPE_GROUP = (c) => (['Body Armour', 'Helmet', 'Gloves', 'Boots', 'Shield'].includes(c) ? 'Armour' : ['Amulet', 'Ring', 'Belt'].includes(c) ? 'Jewellery'
-  : ['Quiver'].includes(c) ? 'Off-hand' : ['Two Hand Sword', 'Two Hand Axe', 'Two Hand Mace', 'Staff', 'Warstaff', 'Bow'].includes(c) ? 'Two-handed weapons'
+const TYPE_GROUP = (c) => (['Body Armour', 'Helmet', 'Gloves', 'Boots'].includes(c) ? 'Armour' : ['Amulet', 'Ring', 'Belt'].includes(c) ? 'Jewellery'
+  : ['Shield', 'Quiver'].includes(c) ? 'Off-hand' : ['Two Hand Sword', 'Two Hand Axe', 'Two Hand Mace', 'Staff', 'Warstaff', 'Bow'].includes(c) ? 'Two-handed weapons'
     : /Flask$/.test(c) ? 'Flasks' : /Jewel$/.test(c) ? 'Jewels' : 'One-handed weapons');
 const TYPE_NAMES = { 'Body Armour': 'Body Armours', Helmet: 'Helmets', Shield: 'Shields', Quiver: 'Quivers', Amulet: 'Amulets', Ring: 'Rings', Belt: 'Belts',
   'One Hand Sword': 'One Hand Swords & Rapiers', 'One Hand Axe': 'One Hand Axes', 'One Hand Mace': 'One Hand Maces',

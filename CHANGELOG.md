@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.25 - 2026-11-08
+
+- **Regex: Gems** (new): every gem in the game, 855 of them (skill and support gems, transfigured, Vaal and Awakened), to click into a search for vendors (Lilly and the act vendors) or your stash. Filter by colour, skill or support, a name or a tag (fire, minion…); pick everything shown at once. Each gem gets the shortest piece of its name that no other gem has ("^fireb"; "Ice Nova" doesn't find "Ice Nova of Frostbolts"), and when they don't fit in one search you get several to copy one after another.
+- **Gems: where to get them in the campaign.** Pick your class and every gem shows the first vendor that sells it to you ("A1 Nessa", "A3 Siosa", "A6 Lilly"); hover it for its quest reward and every vendor. Tabs for Act 1, 2, 3, 4 and 6+ list only the gems your class can have by then, and each act keeps its own picks, so you have a search ready for every vendor. Skill gems and supports sit side by side, each in parts by where you get them first (Act 1 · Nessa, Act 2 · Yeena, Act 3 · Clarissa, Act 3 · Siosa, Act 6 · Lilly Roth, quest rewards only, not sold), with a Pick all for each part. (Vendor and quest data from exile-leveling.)
+- **Regex: Shields are with Quivers under Off-hand** in the item type lists.
+- **Regex: the page doesn't jump any more** when you tick a tier or pick a mod: only that row and the search change, and the bar at the top keeps its height.
+
 ## 1.0.24 - 2026-11-08
 
 - **Regex: Campaign items** (new): for levelling, pick an item type and the mods you want (movement speed, life, resistances…); the search finds them on any item, normal, magic or rare, by the mods' own text, at every tier or from a tier you pick ("T3 or better"). Any one of them or all of them, and searches can be saved.

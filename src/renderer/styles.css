@@ -1038,3 +1038,27 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 /* "Show in app" from the price check: the tier and the item glow for a moment */
 .fb-tier.fb-flash { outline: 2px solid var(--accent); outline-offset: 2px; transition: outline-color .6s; }
 .fb-chip.fb-flash { box-shadow: 0 0 0 2px var(--accent), 0 0 14px var(--accent); }
+
+/* the search bar at the top keeps its height while you pick (a growing bar pushed the list down) */
+.rx-outbar .rx-parts { flex-wrap: nowrap; height: 26px; overflow-x: auto; overflow-y: hidden; align-items: center; scrollbar-width: thin; }
+.rx-outbar .rx-parts .rx-part { flex: none; }
+.rx-notes { height: 18px; overflow: hidden; }
+.rx-notes > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Regex → Gems */
+.rx-gems { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+.rx-gem { all: unset; box-sizing: border-box; cursor: pointer; padding: 4px 9px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; border-left: 3px solid var(--gc, var(--line)); }
+.rx-gem:hover { border-color: #ffffff40; border-left-color: var(--gc); }
+.rx-gem:focus-visible { outline: 2px solid var(--accent); }
+.rx-gem.on { background: #2b4a33; border-color: var(--good); border-left-color: var(--gc); color: #e6f6ea; }
+.c-r { --gc: #d9534f; } .c-g { --gc: #5cb85c; } .c-b { --gc: #5b8def; } .c-w { --gc: #d8d8d8; }
+.rx-gc { border-left: 3px solid var(--gc) !important; }
+.rx-gem-w { margin-left: 7px; font-size: 10.5px; color: var(--faint); }
+.rx-gem.on .rx-gem-w { color: #b9dcc2; }
+
+.rx-gemcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; align-items: start; }
+.rx-gemcol { display: grid; gap: 10px; align-content: start; }
+.rx-gemsec { border: 1px solid var(--line-soft); border-radius: var(--r-panel); padding: 8px 10px 4px; background: var(--surface); }
+.rx-gemsec-h { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.rx-gemsec-h button { margin-left: auto; }
+.rx-gemsec .rx-gems { margin-bottom: 4px; }
