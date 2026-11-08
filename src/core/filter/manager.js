@@ -24,6 +24,9 @@ const { applyTierPatch, tierView, HIDDEN_TIER, HIDE } = require('./tiers');
 const { BASES, GROUPS } = require('../base-data');
 const cluster = require('../cluster');
 
+// heist and ritual bases are shown by the filter's own settings, so base ranks leave them alone
+const NOT_RANKED_GROUPS = new Set(['heist', 'ritual', 'flasks']); // flasks and jewels too: their own filter sections show them
+const RANKED_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.filter((g) => !NOT_RANKED_GROUPS.has(g.id)).flatMap((g) => Object.values(g.columns).flat())])];
 const MATRIX_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.flatMap((g) => Object.values(g.columns).flat())])];
 // fractured bases have their own palette: the best bases loud, good ones clear, the rest hidden
 const FRACTURED_TOP_STYLE = { fontSize: 45, text: [255, 255, 255, 255], border: [255, 214, 150, 255], background: [150, 86, 22, 255], customSound: 'poehelper-sounds/sparkle.mp3', beam: { color: 'Orange' }, icon: { size: 0, color: 'Brown', shape: 'Star' } };
@@ -329,8 +332,74 @@ function hiddenBaseRules(baseText, patch, { fractured = false, synthesised = fal
  *               corrupted or 6-socket ones, and never uniques), by default only in maps
  * state: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
  */
+// ---------- base ranks: one rank per base (S best, C lowest and the default), and per kind of drop
+// the lowest rank you still want to see. "Rares: S only, Fractured: B and up" hides a B-rank Vaal
+// Regalia as a plain rare but shows it fractured.
+const RANKS = ['S', 'A', 'B', 'C', 'D']; // D: untiered, the lowest and the default
+const RANK_LOOKS = {
+  S: { fontSize: 45, text: [255, 255, 255, 255], border: [255, 255, 255, 255], background: [30, 110, 200, 255], customSound: 'poehelper-sounds/chime.mp3', beam: { color: 'Blue' }, icon: { size: 0, color: 'Blue', shape: 'Star' } },
+  A: { fontSize: 42, text: [20, 30, 10, 255], border: [20, 30, 10, 255], background: [140, 200, 40, 255], customSound: 'poehelper-sounds/sparkle.mp3', beam: { color: 'Green', temp: true }, icon: { size: 1, color: 'Green', shape: 'Diamond' } },
+  B: { fontSize: 38, text: [40, 30, 0, 255], border: [40, 30, 0, 255], background: [250, 200, 60, 240], icon: { size: 2, color: 'Yellow', shape: 'Circle' } },
+  C: { fontSize: 36, text: [30, 15, 0, 255], border: [30, 15, 0, 255], background: [230, 130, 40, 230], icon: { size: 2, color: 'Orange', shape: 'Triangle' } },
+  D: { fontSize: 32, text: [255, 220, 210, 255], border: [180, 40, 40, 255], background: [120, 25, 25, 220] },
+};
+const NO_FLAGS = [{ keyword: 'Mirrored', values: ['False'] }, { keyword: 'Corrupted', values: ['False'] }];
+const RANK_KINDS = [ // in the order the page lists them; synthesised items are left to the filter
+  { id: 'rares', name: 'Rares', about: 'Plain rares (not fractured, synthesised or influenced)', conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
+  { id: 'crafting', name: 'High ilvl bases', about: 'Normal and magic items of a high item level', ilvl: true, conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
+  { id: 'fractured', name: 'Fractured', about: 'Any fractured item of the base', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'FracturedItem', values: ['True'] }] },
+  { id: 'influenced', name: 'Influenced', about: 'Shaper, Elder and Conqueror bases', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'HasInfluence', values: ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }] },
+];
+const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : 'D');
+
+/**
+ * ranks: { base: 'S' | 'A' | 'B' | 'C' | 'D' } (missing = D); kinds: { fractured: 'B', rares: 'S', ... } where the
+ * value is the lowest rank still shown, 'none' hides them all, and 'off' (or missing) leaves the kind to
+ * your filter. bases: every base the ranking covers.
+ */
+function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {} } = {}) {
+  const out = [];
+  const area = mapsOnly ? [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }] : [];
+  const sockets = [{ keyword: 'Sockets', op: '<', values: ['6'] }];
+  for (const k of RANK_KINDS) {
+    const min = kinds?.[k.id];
+    if (!min || min === 'off') continue;
+    // the item level a kind starts at (crafting bases: 82 unless you change it; others: any)
+    const lv = Math.round(Number(ilvls?.[k.id] ?? (k.ilvl ? craftIlvl || 82 : 1)));
+    const conds = [...k.conditions, ...(lv > 1 ? [{ keyword: 'ItemLevel', op: '>=', values: [String(Math.min(100, lv))] }] : [])];
+    const keep = min === 'none' ? [] : RANKS.slice(0, RANKS.indexOf(min) + 1);
+    for (const r of keep) {
+      const list = bases.filter((b) => rankOf(ranks, b) === r).sort();
+      if (list.length) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...conds, { keyword: 'BaseType', op: '==', values: list }], style: RANK_LOOKS[r] });
+    }
+    const drop = bases.filter((b) => !keep.includes(rankOf(ranks, b))).sort();
+    if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
+  }
+  return out;
+}
+
+/**
+ * Item types you don't want while levelling: their normal and magic drops (and rares, if you say so)
+ * are hidden in the campaign (area level up to `untilLevel`, 67 by default). Linked items can stay.
+ * o: { classes: ['Claws', ...], rares: false, untilLevel: 67, keepLinks: 4 }
+ */
+const CAMPAIGN_CLASSES = ['Claws', 'Daggers', 'Rune Daggers', 'Wands', 'One Hand Swords', 'Thrusting One Hand Swords', 'One Hand Axes', 'One Hand Maces', 'Sceptres',
+  'Bows', 'Staves', 'Warstaves', 'Two Hand Swords', 'Two Hand Axes', 'Two Hand Maces', 'Quivers', 'Shields', 'Body Armours', 'Helmets', 'Gloves', 'Boots', 'Rings', 'Amulets', 'Belts'];
+function campaignHideRules(o = {}) {
+  const classes = (o.classes || []).filter((c) => CAMPAIGN_CLASSES.includes(c));
+  if (!classes.length) return [];
+  const until = Math.max(1, Math.min(83, Math.round(Number(o.untilLevel) || 67)));
+  const links = Math.round(Number(o.keepLinks));
+  const conds = [{ keyword: 'Rarity', values: o.rares ? ['Normal', 'Magic', 'Rare'] : ['Normal', 'Magic'] },
+    { keyword: 'AreaLevel', op: '<=', values: [String(until)] },
+    ...(links >= 2 && links <= 6 ? [{ keyword: 'LinkedSockets', op: '<', values: [String(links)] }] : []),
+    { keyword: 'Class', op: '==', values: classes }];
+  return [{ id: 'campaign-hide', enabled: true, action: 'Hide', group: 'campaign', label: 'Campaign: item types you hid', conditions: conds, style: { disableDropSound: true } }];
+}
+
 function matrixRules(state = {}, { mapsOnly = true, keepIlvl = null } = {}) {
-  const pick = (f) => Object.entries(state || {}).filter(([n, v]) => n && v && f(v)).map(([n]) => n).sort();
+  const ranked = new Set(RANKED_NAMES); // heist and ritual bases: left to the filter
+  const pick = (f) => Object.entries(state || {}).filter(([n, v]) => n && v && ranked.has(n) && f(v)).map(([n]) => n).sort();
   const fracTop = pick((v) => v.frac === 'top');
   const fracShow = pick((v) => v.frac === 'show');
   const fracHide = pick((v) => v.frac === 'hide');
@@ -544,6 +613,7 @@ class FilterManager {
     const hidden = hiddenBaseRules(baseText, patch, { fractured: !!this.store.get('hideFractured'), synthesised: !!this.store.get('hideSynthesised') });
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
+    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {} });
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
     if (Object.keys(clusterState).length) {
@@ -552,7 +622,9 @@ class FilterManager {
       clusterBlocks = cluster.clusterRules(clusterState, looks);
     }
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
-    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...hidden, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
+    // base ranks come before base visibility: they're the finer choice (per kind of drop)
+    const campaign = campaignHideRules(this.store.get('campaignHide') || {});
+    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...ranked, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
     const out = finalCheck(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), fix, this.log);
@@ -632,4 +704,4 @@ class FilterManager {
   }
 }
 
-module.exports = { matrixRules, MATRIX_NAMES, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

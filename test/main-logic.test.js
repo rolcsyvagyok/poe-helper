@@ -402,7 +402,7 @@ test('cluster jewel rules use base, item level and passives, and can hide', () =
 test('"Also when fractured" writes a Hide block for hidden bases above the filter', () => {
   const { svc, filterDir } = setup();
   fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
-  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', hideFractured: true });
+  svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter', hideFractured: true, rankKinds: {} });
   const { target } = svc.moveBases('divination', ['Rain of Chaos'], '__hide__');
   const out = fs.readFileSync(target, 'utf8');
   const at = out.indexOf('FracturedItem True');
@@ -544,18 +544,129 @@ test('fractured tiering: the best bases per column top, the next good, the rest 
   assert.ok(rules[0].conditions.some((c) => c.keyword === 'FracturedItem' && c.values[0] === 'True'));
 });
 
+test('base ranks: a B rank base hides as a plain rare (rares S only) but shows fractured (B and up)', () => {
+  const { svc, filterDir } = setup();
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });
+  svc.setBaseRanks({ bases: ['Vaal Regalia'], rank: 'B' });
+  svc.setBaseRanks({ bases: ['Vaal Regalia', 'Simple Robe'], dir: +1 }); // B -> A, D -> C
+  assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'A');
+  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], 'C');
+  svc.setBaseRanks({ bases: ['Vaal Regalia'], dir: -1 });
+  svc.setBaseRanks({ bases: ['Simple Robe'], dir: -1 });
+  svc.setBaseRanks({ bases: ['Simple Robe'], dir: -1 }); // already D: stays, the floor
+  assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'B');
+  assert.equal(svc.settings.get('baseRanks')['Simple Robe'], undefined, 'D (untiered) is the default');
+  svc.setRankKind({ kind: 'rares', min: 'S' });
+  svc.setRankKind({ kind: 'fractured', min: 'B' });
+  const { rankRules } = require('../src/core/filter/manager');
+  const rules = rankRules(svc.settings.get('baseRanks'), svc.settings.get('rankKinds'), ['Vaal Regalia', 'Simple Robe']);
+  const has = (id, base) => rules.find((r) => r.id === id)?.conditions.find((c) => c.keyword === 'BaseType').values.includes(base);
+  assert.ok(has('rank-fractured-B', 'Vaal Regalia'), 'fractured Vaal Regalia shows');
+  assert.ok(has('rank-rares-hide', 'Vaal Regalia'), 'plain rare Vaal Regalia hides');
+  assert.ok(has('rank-fractured-hide', 'Simple Robe'));
+  const hide = rules.find((r) => r.id === 'rank-rares-hide');
+  assert.ok(hide.conditions.some((c) => c.keyword === 'Sockets'), 'six sockets still show');
+  assert.ok(!rules.some((r) => r.conditions.some((c) => c.keyword === 'Rarity' && c.values.includes('Unique'))), 'uniques untouched');
+  const text = require('fs').readFileSync(svc.filters.write(), 'utf8');
+  assert.match(text, /Base ranks: fractured, rank B/);
+});
+
+test('base ranks: a lowest item level per kind of drop', () => {
+  const { svc } = setup();
+  svc.setRankKind({ kind: 'fractured', min: 'S' });
+  svc.setRankKind({ kind: 'fractured', ilvl: 68 });
+  svc.setRankKind({ kind: 'crafting', min: 'A' });
+  svc.setRankKind({ kind: 'crafting', ilvl: 84 });
+  assert.equal(svc.settings.get('rankKinds').fractured, 'S', 'setting the item level keeps the rank');
+  const { rankRules } = require('../src/core/filter/manager');
+  const rules = rankRules(svc.settings.get('baseRanks'), svc.settings.get('rankKinds'), ['Royal Plate', 'Simple Robe'], { craftIlvl: svc.settings.get('rankCraftIlvl'), ilvls: svc.settings.get('rankIlvl') });
+  const il = (id) => rules.find((r) => r.id === id).conditions.find((c) => c.keyword === 'ItemLevel')?.values[0];
+  assert.equal(il('rank-fractured-S'), '68');
+  assert.equal(il('rank-fractured-hide'), '68');
+  assert.equal(il('rank-crafting-hide'), '84');
+  svc.setRankKind({ kind: 'fractured', ilvl: 1 });
+  const any = rankRules(svc.settings.get('baseRanks'), svc.settings.get('rankKinds'), ['Royal Plate'], { ilvls: svc.settings.get('rankIlvl') });
+  assert.ok(!any.find((r) => r.id === 'rank-fractured-S').conditions.some((c) => c.keyword === 'ItemLevel'), '1 = any item level');
+});
+
+test('base ranks: the usual ranking to start from, the old fractured choices move over, and ranks by base order', () => {
+  const { svc } = setup();
+  let v = svc.baseMatrixView();
+  assert.equal(v.ranks['Royal Plate'], 'S');
+  assert.equal(v.ranks['Legion Plate'], 'A');
+  assert.equal(v.ranks['Vaal Regalia'], 'B');
+  assert.equal(v.ranks['Gladiator Plate'], 'C');
+  assert.equal(v.ranks['Simple Robe'], undefined, 'untiered (D)');
+  assert.deepEqual(v.rankList, ['S', 'A', 'B', 'C', 'D']);
+  // an older install: fractured looks and "all ranks" = C
+  svc.settings.patch({ ranksV1: false, ranksV2: false, rankKinds: { rares: 'C' }, baseMatrix: { 'Vaal Regalia': { frac: 'top' }, 'Simple Robe': { frac: 'show', vis: 'hide' } } });
+  v = svc.baseMatrixView();
+  assert.equal(v.kinds.fractured, 'B', 'fractured copies keep showing');
+  assert.equal(v.kinds.rares, 'D', 'all ranks is D now');
+  assert.deepEqual(svc.settings.get('baseMatrix'), { 'Simple Robe': { vis: 'hide' } });
+  assert.equal(v.ranks['Royal Plate'], 'S');
+  const r = svc.autoRanks({ s: 1, a: 2, b: 2, c: 2 });
+  const col = svc.baseMatrixView().bases['Body Armours'].ar.map((b) => b.name);
+  assert.deepEqual(col.slice(0, 8).map((n) => r.ranks[n] || 'D'), ['S', 'A', 'A', 'B', 'B', 'C', 'C', 'D'].slice(0, Math.min(8, col.length)));
+  svc.defaultRanks();
+  assert.equal(svc.settings.get('baseRanks')['Vaal Regalia'], 'B');
+});
+
 test('reset everything: your changes go, account and filter choice stay, and it can be undone once', () => {
   const { svc, filterDir } = setup();
-  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter', accountName: 'me#1234', hotkeyPrice: 'Ctrl+Q', mapRules: [] });
+  svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter', accountName: 'me#1234', hotkeyPrice: 'Ctrl+Q' });
   svc.setBaseMatrix({ bases: ['Royal Plate'], frac: 'top' });
   svc.resetAll();
   assert.equal(svc.settings.get('accountName'), 'me#1234');
   assert.equal(svc.settings.get('baseFilter'), 'NeverSink.filter');
   assert.notEqual(svc.settings.get('hotkeyPrice'), 'Ctrl+Q');
-  assert.ok(svc.settings.get('mapRules').length > 0, 'the usual map warnings are back');
   assert.deepEqual(svc.settings.get('baseMatrix'), {});
   assert.ok(svc.canUndoReset());
   svc.undoResetAll();
   assert.equal(svc.settings.get('hotkeyPrice'), 'Ctrl+Q');
   assert.equal(svc.canUndoReset(), false);
+});
+
+test('base ranks leave heist and ritual bases to the filter', () => {
+  const M = require('../src/core/filter/manager');
+  const D = require('../src/core/base-data');
+  const heist = Object.values(D.GROUPS.find((g) => g.id === 'heist').columns).flat();
+  const ritual = Object.values(D.GROUPS.find((g) => g.id === 'ritual').columns).flat();
+  const ranked = new Set(M.RANKED_NAMES);
+  assert.ok(heist.length && ritual.length);
+  assert.ok(![...heist, ...ritual].some((b) => ranked.has(b)));
+  const { svc } = setup();
+  const v = svc.baseMatrixView();
+  assert.ok(!v.groups.some((g) => g.id === 'heist' || g.id === 'ritual'));
+  svc.setBaseRanks({ bases: [heist[0]], rank: 'S' });
+  assert.equal(svc.settings.get('baseRanks')[heist[0]], undefined);
+});
+
+test('loot filter settings: export from one app, import in another, undo', () => {
+  const a = setup().svc;
+  a.setBaseRanks({ bases: ['Simple Robe'], rank: 'S' });
+  a.setRankKind({ kind: 'rares', min: 'A' });
+  a.settings.set('myBases', [{ id: 'x1', base: 'Vaal Regalia', enabled: true }]);
+  a.settings.set('tierPatch', { moves: {}, styles: { 'currency|t1': { customSound: 'poehelper-sounds/my-boom.mp3' } } });
+  require('fs').mkdirSync(require('path').join(a.settings.file ? require('path').dirname(a.settings.file) : '.', 'sounds'), { recursive: true });
+  const text = a.exportFilterSettings();
+  const data = JSON.parse(text);
+  assert.equal(data.kind, 'poe-helper-loot-filter-settings');
+  assert.ok(!('accountName' in data.settings) && !('sessionEnc' in data.settings), 'no account or login in it');
+
+  const b = setup().svc;
+  b.settings.set('accountName', 'Friend');
+  b.setBaseRanks({ bases: ['Simple Robe'], rank: 'C' });
+  b.settings.set('myBases', [{ id: 'y', base: 'Titan Plate', enabled: true }]);
+  b.importFilterSettings(text);
+  assert.equal(b.settings.get('baseRanks')['Simple Robe'], 'S');
+  assert.equal(b.settings.get('rankKinds').rares, 'A');
+  assert.deepEqual(b.settings.get('myBases').map((x) => x.base), ['Vaal Regalia']);
+  assert.equal(b.settings.get('accountName'), 'Friend', 'their account stays');
+  assert.ok(b.canUndoImport());
+  b.undoImportFilterSettings();
+  assert.equal(b.settings.get('baseRanks')['Simple Robe'], 'C');
+  assert.deepEqual(b.settings.get('myBases').map((x) => x.base), ['Titan Plate']);
+  assert.ok(!b.canUndoImport());
+  assert.throws(() => b.importFilterSettings('{"kind":"other"}'), /isn't a PoE Helper/);
 });

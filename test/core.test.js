@@ -12,7 +12,6 @@ const { parseExchange, parseCurrency, NinjaClient } = require('../src/core/ninja
 const { DiskCache, JsonStore } = require('../src/core/cache');
 const { Pricer, categoriesFor } = require('../src/core/pricer');
 const { matchItemMods, buildQuery } = require('../src/core/trade');
-const { checkMap } = require('../src/core/map-mods');
 const { valueTabs, buildIndex, diffItems } = require('../src/core/networth');
 const { parse, serialize, renderBlock } = require('../src/core/filter/parser');
 const { explain } = require('../src/core/filter/matcher');
@@ -165,15 +164,6 @@ test('matches rare mods to trade stats, including reduced->negative', () => {
   const lf = q.query.stats[0].filters.find((f) => f.id === 'explicit.stat_life');
   assert.deepEqual(lf.value, { min: 40 });
   assert.equal(q.query.filters.misc_filters.filters.corrupted.option, 'true');
-});
-
-// ---------- map mods ----------
-test('flags dangerous map mods', () => {
-  const r = checkMap(parseItem(F.map));
-  assert.equal(r.verdict, 'skip');
-  assert.ok(r.hits.find((h) => h.id === 'reflect-ele'));
-  assert.ok(r.hits.find((h) => h.id === 'less-recovery'));
-  assert.equal(r.stats.quantity, 78);
 });
 
 // ---------- net worth ----------
@@ -526,4 +516,19 @@ test('game sounds: names, setup table and a synthetic FSB5 bank', () => {
     const page = Buffer.from(ogg.subarray(o, o + len)); const crc = page.readUInt32LE(22); page.writeUInt32LE(0, 22);
     assert.equal(G.oggCrc(page), crc); o += len;
   }
+});
+
+test('campaign: hidden item types become one Hide block for the campaign only', () => {
+  const { campaignHideRules } = require('../src/core/filter/manager');
+  assert.deepStrictEqual(campaignHideRules({ classes: [] }), []);
+  const [r] = campaignHideRules({ classes: ['Claws', 'Wands', 'Nonsense'], keepLinks: 4 });
+  assert.strictEqual(r.action, 'Hide');
+  const by = Object.fromEntries(r.conditions.map((c) => [c.keyword, c]));
+  assert.deepStrictEqual(by.Class.values, ['Claws', 'Wands']);
+  assert.deepStrictEqual(by.Rarity.values, ['Normal', 'Magic']);
+  assert.deepStrictEqual([by.AreaLevel.op, by.AreaLevel.values[0]], ['<=', '67']);
+  assert.deepStrictEqual([by.LinkedSockets.op, by.LinkedSockets.values[0]], ['<', '4']);
+  const [r2] = campaignHideRules({ classes: ['Bows'], rares: true, keepLinks: 0, untilLevel: 45 });
+  assert.ok(!r2.conditions.some((c) => c.keyword === 'LinkedSockets'));
+  assert.ok(r2.conditions.find((c) => c.keyword === 'Rarity').values.includes('Rare'));
 });

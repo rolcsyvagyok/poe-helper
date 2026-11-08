@@ -49,19 +49,41 @@ function findPages(html) {
 }
 
 class LabClient {
-  constructor({ dir, fetchImpl, userAgent = 'PoE-Helper', log = () => {}, store = null }) {
+  constructor({ dir, fetchImpl, userAgent = 'PoE-Helper', log = () => {}, store = null, browser = null }) {
     this.dir = dir;
     // the app may pass no fetch (it then uses Electron's), and a bare fetch must not be called as a method
     this.fetch = (url, opts) => (fetchImpl || globalThis.fetch)(url, opts);
     this.userAgent = userAgent;
     this.log = log;
     this.store = store; // settings: labPages (your page addresses), labIndex (what is on disk)
+    // poelab sits behind Cloudflare, which sometimes turns away plain requests (403) depending on the
+    // network. browser: { text(url), buffer(url, referer) } loads it like a normal browser instead.
+    this.browser = browser;
   }
 
   async getText(url) {
-    const r = await this.fetch(url, { headers: { 'User-Agent': this.userAgent, Accept: 'text/html' } });
-    if (!r.ok) throw new Error(`poelab answered ${r.status}`);
-    return r.text();
+    let status = null;
+    try {
+      const r = await this.fetch(url, { headers: { 'User-Agent': this.userAgent, Accept: 'text/html' } });
+      if (r.ok) return await r.text();
+      status = r.status;
+    } catch (e) { if (!this.browser) throw e; }
+    if (this.browser && (status == null || status === 403 || status === 429 || status === 503)) {
+      this.log(`poelab: plain request ${status ? `answered ${status}` : 'failed'}, loading it as a browser`);
+      return this.browser.text(url);
+    }
+    throw new Error(`poelab answered ${status}`);
+  }
+
+  async getPicture(url, referer) {
+    let status = null;
+    try {
+      const r = await this.fetch(url, { headers: { 'User-Agent': this.userAgent, Referer: referer } });
+      if (r.ok) return Buffer.from(await r.arrayBuffer());
+      status = r.status;
+    } catch (e) { if (!this.browser) throw e; }
+    if (this.browser && (status == null || status === 403 || status === 429 || status === 503)) return this.browser.buffer(url, referer);
+    throw new Error(`poelab's picture answered ${status}`);
   }
 
   async pageFor(diff) {
@@ -98,9 +120,7 @@ class LabClient {
     const ext = img.url.split('.').pop().toLowerCase().replace('jpeg', 'jpg');
     const file = path.join(this.dir, `${img.date}_${diff}.${ext}`);
     if (!fs.existsSync(file)) {
-      const r = await this.fetch(img.url, { headers: { 'User-Agent': this.userAgent, Referer: page } });
-      if (!r.ok) throw new Error(`poelab's picture answered ${r.status}`);
-      const buf = Buffer.from(await r.arrayBuffer());
+      const buf = await this.getPicture(img.url, page);
       if (buf.length < 1000) throw new Error("poelab's picture came back empty.");
       fs.writeFileSync(file, buf);
       this.cleanup();

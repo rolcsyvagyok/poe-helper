@@ -11,7 +11,6 @@ const { GggClient } = require('../core/ggg');
 const { RateLimiter } = require('../core/rate-limiter');
 const { Pricer } = require('../core/pricer');
 const { parseItem, classify } = require('../core/item-parser');
-const { checkMap, DEFAULT_RULES } = require('../core/map-mods');
 const { matchItemMods, buildQuery, summarizeListings, defaultProps } = require('../core/trade');
 const { NetWorthTracker } = require('../core/networth');
 const { FilterManager, economyRules, quickRule, SOUNDS, DEFAULT_TIER_SOUNDS, MY_BASES_STYLE } = require('../core/filter/manager');
@@ -24,6 +23,7 @@ const VERSION = require('../../package.json').version;
 
 const DEFAULT_SETTINGS = {
   leagueOverride: '',
+  uiTheme: 'atlas', // the app's look: 'atlas' (default), 'hideout' or 'dark'
   accountName: '',
   sessionEnc: null, // encrypted POESESSID
   contact: '', // optional contact for User-Agent, e.g. a GitHub URL
@@ -54,10 +54,23 @@ const DEFAULT_SETTINGS = {
   versionSeen: null, // {version, at, from}: when this copy first ran its current version
   notesShownFor: null, // version whose patch notes you already saw
   gigaDone: false, // the default Giga tier in currency was set up once
+  fbSideMini: false, // the category list folded down to its icons
   fbSideWidth: 300, // width of the loot filter's category list
   clusterGrid: {}, // cluster jewels: { "Large|Fire Damage|12|84": 'top' | 'good' | 'hide' }
   baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
   baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
+  regexMaps: { kind: 'regular', avoid: [], want: [], mapTypes: { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' } }, // the Regex page's map choices
+  campaignHide: { classes: [], rares: false, untilLevel: 67, keepLinks: 4 }, // Campaign → Hide item types
+  hiddenGroups: {}, // Base ranks → Hide whole groups: { label: { before: { base: rank } } }
+  regexItems: { base: '', ilvl: null, influences: [], mode: 'any', picks: {}, custom: '' }, // the Regex page's item mod choices
+  regexBeasts: { red: true, yellow: false, harvest: true, minChaos: 10 }, // the Regex page's beast choices
+  regexFavMods: [], // map mods kept at the top of the list
+  regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
+  regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]
+  baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
+  rankKinds: { rares: 'D', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks)
+  rankCraftIlvl: 82,
+  rankIlvl: {}, // lowest item level per kind of drop: { fractured: 68 } (crafting bases: rankCraftIlvl)
   hideFractured: false, // also hide fractured copies of bases you hid
   hideSynthesised: false, // and synthesised ones
   bigBeltsDone: false,
@@ -68,6 +81,7 @@ const DEFAULT_SETTINGS = {
   bigBeltsDeleted: false,
   gigaRestoreV1: false,
   tinkToGame6: false, // Tier 1 got FilterBlade's sound back once
+  t1BorderText: false, // Tier 1's white-label border took its text colour once
 
   bigBeltsOwnLook: false, // the default "Big belts" tier in uniques was set up once
   myBases: [], // [{id, base, ilvlMin, ilvlMax, rarities, enabled}]
@@ -83,7 +97,6 @@ const DEFAULT_SETTINGS = {
   autoSnapshotMin: 0,
   selectedTabs: [],
   minItemChaos: 0,
-  mapRules: DEFAULT_RULES,
   tradeTolerance: 0.1,
   tradeStatus: 'securable', // Instant Buyout only
   tradeFetchListings: true,
@@ -94,7 +107,7 @@ const DEFAULT_SETTINGS = {
   autoWatchFilter: true,
   tierPatch: { moves: {}, styles: {}, actions: {} },
   labelFontPath: '',
-  filterPins: ['currency', 'divination', 'fragments->scarabs', 'uniques'],
+  filterPins: [], // categories pinned to the top of the Loot filter list: none until you pin one
   // Price review / auto-tiering. categories[type] = { enabled, thresholds: { tier: chaos } }
   priceReview: { minListings: 5, margin: 1.5, auto: false, includeNew: false, categories: {} },
   priceReviewLog: [],
@@ -106,8 +119,10 @@ const DEFAULT_SETTINGS = {
   history: [],
 };
 
-function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
+function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBrowser = null }) {
   const settings = new JsonStore(path.join(dataDir, 'settings.json'), DEFAULT_SETTINGS);
+  // 1.0.15: map warnings are gone; drop their saved list
+  if ('mapRules' in settings.data) { delete settings.data.mapRules; settings.save(); }
   const snapshots = new JsonStore(path.join(dataDir, 'networth.json'), { snapshots: [] });
   const usage = new JsonStore(path.join(dataDir, 'usage.json'), {});
   const cache = new DiskCache(path.join(dataDir, 'cache'));
@@ -120,7 +135,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
   const ninja = new NinjaClient({ cache, fetchImpl, userAgent: userAgent(), baseUrl: settings.get('ninjaBaseUrl'), ttlMs: settings.get('ninjaTtlMin') * 60000, log });
   const limiter = new RateLimiter({ safety: settings.get('rateSafety') });
   const { LabClient, DIFFS: LAB_DIFFS } = require('../core/lab');
-  const lab = new LabClient({ dir: path.join(dataDir, 'lab'), fetchImpl, userAgent: userAgent(), log, store: settings });
+  const lab = new LabClient({ dir: path.join(dataDir, 'lab'), fetchImpl, userAgent: userAgent(), log, store: settings, browser: labBrowser });
   /** Today's layout as a picture the windows can show (they only load pictures from the app). */
   async function labLayout({ diff, refresh = false } = {}) {
     const d = diff || settings.get('labLast') || 'uber';
@@ -200,7 +215,6 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     if (!item) return { error: 'Clipboard does not contain a Path of Exile item.' };
     const kind = classify(item);
     const price = await pricer.price(item).catch((e) => ({ error: e.message }));
-    const map = kind === 'map' || kind === 'unique-map' ? checkMap(item, settings.get('mapRules')) : null;
     let filterHit = null;
     try {
       const doc = filters.parsedActive();
@@ -211,7 +225,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     const hist = [entry, ...(settings.get('history') || [])].slice(0, 100);
     settings.set('history', hist);
     const tierInfo = tierInfoFor(item, filterHit);
-    return { item: slimItem(item), kind, price, map, filterHit, tierInfo, tradeable };
+    return { item: slimItem(item), kind, price, filterHit, tierInfo, tradeable };
   }
 
   async function tradePrepare(text) {
@@ -420,7 +434,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -447,6 +461,60 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return true;
   }
   const canUndoReset = () => require('fs').existsSync(path.join(dataDir, 'settings-before-reset.json'));
+
+  // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
+  // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
+  const FILTER_KEYS = ['tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'rankKinds', 'rankCraftIlvl', 'rankIlvl',
+    'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
+    'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
+  const SHARE_KIND = 'poe-helper-loot-filter-settings';
+  function exportFilterSettings() {
+    const fs = require('fs');
+    const values = Object.fromEntries(FILTER_KEYS.filter((k) => settings.get(k) !== undefined).map((k) => [k, settings.get(k)]));
+    // your own drop sounds go along, so the looks sound the same on the other PC
+    const used = [...new Set(JSON.stringify(values).match(/my-[a-z0-9-]+\.(?:mp3|wav|ogg)/gi) || [])];
+    const sounds = {};
+    for (const f of used) { try { sounds[f] = fs.readFileSync(path.join(userSoundsDir, path.basename(f))).toString('base64'); } catch { /* gone */ } }
+    return JSON.stringify({ kind: SHARE_KIND, version: 1, app: VERSION, exportedAt: new Date().toISOString(), settings: values, sounds }, null, 1);
+  }
+  /** Someone else's loot filter settings replace yours (yours are kept for Undo). */
+  function importFilterSettings(text) {
+    const fs = require('fs');
+    let data;
+    try { data = JSON.parse(String(text)); } catch { throw new Error('That isn\'t a PoE Helper loot filter settings file.'); }
+    if (data?.kind !== SHARE_KIND || typeof data.settings !== 'object' || !data.settings) throw new Error('That isn\'t a PoE Helper loot filter settings file.');
+    fs.writeFileSync(path.join(dataDir, 'settings-before-import.json'), JSON.stringify(Object.fromEntries(FILTER_KEYS.map((k) => [k, settings.data[k] ?? null]))));
+    fs.mkdirSync(userSoundsDir, { recursive: true });
+    for (const [f, b64] of Object.entries(data.sounds || {})) {
+      if (!/^my-[a-z0-9-]+\.(mp3|wav|ogg)$/i.test(f)) continue;
+      const buf = Buffer.from(String(b64), 'base64');
+      if (buf.length && buf.length <= 5 * 1024 * 1024) fs.writeFileSync(path.join(userSoundsDir, f), buf);
+    }
+    // keys the file doesn't have go back to how a fresh install has them, so it's really their setup
+    for (const k of FILTER_KEYS) {
+      if (k in data.settings) settings.data[k] = data.settings[k];
+      else if (k in DEFAULT_SETTINGS) settings.data[k] = structuredClone(DEFAULT_SETTINGS[k]);
+      else delete settings.data[k];
+    }
+    settings.save();
+    viewCache = null;
+    let target = null;
+    try { if (filters.basePath()) target = filters.write(); } catch (e) { log('import write', e.message); }
+    return { count: Object.keys(data.settings).length, from: data.app || null, at: data.exportedAt || null, target };
+  }
+  function undoImportFilterSettings() {
+    const fs = require('fs');
+    const f = path.join(dataDir, 'settings-before-import.json');
+    if (!fs.existsSync(f)) throw new Error('There is no import to undo.');
+    const before = JSON.parse(fs.readFileSync(f, 'utf8'));
+    for (const [k, v] of Object.entries(before)) { if (v === null) delete settings.data[k]; else settings.data[k] = v; }
+    settings.save();
+    fs.unlinkSync(f);
+    viewCache = null;
+    try { if (filters.basePath()) filters.write(); } catch (e) { log('undo import write', e.message); }
+    return true;
+  }
+  const canUndoImport = () => require('fs').existsSync(path.join(dataDir, 'settings-before-import.json'));
 
   // ---------- the game's own alert sounds, for previews ----------
   // Made from the game install on this PC (FMOD/Desktop/ItemFilter.bank) into the app's data folder;
@@ -586,6 +654,19 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       const fixLevels = (lv) => (lv && lv[1] ? { ...lv, 1: fix(lv[1]) } : lv);
       const d = settings.get('designer');
       if (d?.levels) settings.set('designer', { ...d, levels: fixLevels(d.levels) });
+      settings.set('designerThemes', (settings.get('designerThemes') || []).map((t) => ({ ...t, levels: fixLevels(t.levels) })));
+      const p = settings.get('tierPatch') || {};
+      const styles = Object.fromEntries(Object.entries(p.styles || {}).map(([k, v]) => [k, fix(v)]));
+      if (JSON.stringify(styles) !== JSON.stringify(p.styles || {})) { gigaBusy = true; try { const r = savePatch({ ...p, styles }); if (r?.view) return r.view; } finally { gigaBusy = false; } }
+    }
+    // 1.0.15: the white Tier 1 look gets a border in its text colour instead of white
+    if (!settings.get('t1BorderText') && !gigaBusy) {
+      settings.set('t1BorderText', true);
+      const isWhite = (a) => Array.isArray(a) && a[0] === 255 && a[1] === 255 && a[2] === 255;
+      const fix = (st) => (st && isWhite(st.background) && isWhite(st.border) && Array.isArray(st.text) && !isWhite(st.text) ? { ...st, border: [...st.text.slice(0, 3), 255] } : st);
+      const fixLevels = (lv) => (lv && lv[1] ? { ...lv, 1: fix(lv[1]) } : lv);
+      const d = settings.get('designer');
+      if (d?.levels) settings.set('designer', { ...d, levels: fixLevels(d.levels), lockTier1: true });
       settings.set('designerThemes', (settings.get('designerThemes') || []).map((t) => ({ ...t, levels: fixLevels(t.levels) })));
       const p = settings.get('tierPatch') || {};
       const styles = Object.fromEntries(Object.entries(p.styles || {}).map(([k, v]) => [k, fix(v)]));
@@ -732,6 +813,12 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return savePatch(p);
   }
 
+  /** Item level / area level / quality ({ op, value } or 'any'), rarity [..] or switched-off bases (exclude: [..]) of one tier; null = the filter's own. */
+  function setTierCondition(key, field, value) {
+    const ok = ['GemLevel', 'ItemLevel', 'AreaLevel', 'Quality', 'Rarity', 'exclude'];
+    if (!ok.includes(field)) throw new Error('That condition can\'t be changed here.');
+    return savePatch(tiers.withCondition(settings.get('tierPatch') || {}, key, field, value));
+  }
   function setStackSize(key, n) {
     return savePatch(tiers.withStackSize(settings.get('tierPatch') || {}, key, n));
   }
@@ -909,8 +996,205 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       for (const d of DEFENCES) bases[c][d.id] = (BASES[c][d.id] || []).map((name) => ({ name, inFilter: known ? known.has(name) : null }));
     }
     const mark = (name) => ({ name, inFilter: known ? known.has(name) : null });
-    const groups = GROUPS.map((g) => ({ id: g.id, name: g.name, columns: Object.entries(g.columns).map(([title, list]) => ({ title, list: list.map(mark) })) }));
-    return { defences: DEFENCES, classes: CLASSES, bases, groups, state: settings.get('baseMatrix') || {}, opts: { mapsOnly: true, keepIlvl: null, ...(settings.get('baseMatrixOpts') || {}) } };
+    const { NOT_RANKED_GROUPS } = require('../core/filter/manager');
+    const groups = GROUPS.filter((g) => !NOT_RANKED_GROUPS.has(g.id)).map((g) => ({ id: g.id, name: g.name, columns: Object.entries(g.columns).map(([title, list]) => ({ title, list: list.map(mark) })) }));
+    migrateRanks();
+    const { RANKS, RANK_LOOKS, RANK_KINDS } = require('../core/filter/manager');
+    return {
+      defences: DEFENCES, classes: CLASSES, bases, groups,
+      state: settings.get('baseMatrix') || {},
+      opts: { mapsOnly: true, keepIlvl: null, ...(settings.get('baseMatrixOpts') || {}) },
+      ranks: settings.get('baseRanks') || {},
+      kinds: settings.get('rankKinds') || {},
+      craftIlvl: settings.get('rankCraftIlvl') || 82,
+      ilvls: settings.get('rankIlvl') || {},
+      rankList: RANKS,
+      rankLooks: RANK_LOOKS,
+      rankKinds: RANK_KINDS.map((k) => ({ id: k.id, name: k.name, about: k.about, ilvl: !!k.ilvl })),
+      minionBases: require('../core/base-ranks').MINION_BASES,
+    };
+  }
+  /** The usual ranking back (Reset all on the Base ranks page). */
+  function defaultRanks() {
+    const ranks = { ...require('../core/base-ranks').DEFAULT_RANKS };
+    settings.set('baseRanks', ranks);
+    if (filters.basePath()) filters.write();
+    return { ranks };
+  }
+  /** Once: the old fractured looks become ranks (best look = S, good look = B, hidden = C). */
+  function migrateRanks() {
+    migrateRanksV1();
+    // 1.0.16: five ranks (D = untiered) and the usual ranking to start from; "all ranks" is now D
+    if (!settings.get('ranksV2')) {
+      settings.set('ranksV2', true);
+      settings.set('baseRanks', { ...require('../core/base-ranks').DEFAULT_RANKS });
+      const kinds = { ...(settings.get('rankKinds') || {}) };
+      for (const k of Object.keys(kinds)) if (kinds[k] === 'C') kinds[k] = 'D';
+      settings.set('rankKinds', kinds);
+      settings.set('ranksV3', true);
+      settings.set('ranksV4', true);
+      return true;
+    }
+    // 1.0.19: jewellery gets its usual ranking (the 1.0.18 one was off by a rank); every ring, amulet
+    // and belt is set from it, the rest of jewellery is D
+    if (!settings.get('ranksV4')) {
+      settings.set('ranksV3', true);
+      settings.set('ranksV4', true);
+      const { JEWELLERY_RANKS } = require('../core/base-ranks');
+      const jewels = Object.values(require('../core/base-data').GROUPS.find((g) => g.id === 'jewellery')?.columns || {}).flat();
+      const ranks = { ...(settings.get('baseRanks') || {}) };
+      for (const b of jewels) { if (JEWELLERY_RANKS[b]) ranks[b] = JEWELLERY_RANKS[b]; else delete ranks[b]; }
+      settings.set('baseRanks', ranks);
+      return true;
+    }
+    return false;
+  }
+  function migrateRanksV1() {
+    if (settings.get('ranksV1')) return;
+    const state = { ...(settings.get('baseMatrix') || {}) };
+    const ranks = { ...(settings.get('baseRanks') || {}) };
+    let had = false;
+    for (const [b, e] of Object.entries(state)) {
+      if (!e.frac) continue;
+      had = true;
+      if (e.frac === 'top') ranks[b] = 'S';
+      else if (e.frac === 'show') ranks[b] = 'B';
+      const n = { ...e }; delete n.frac;
+      if (Object.keys(n).length) state[b] = n; else delete state[b];
+    }
+    if (had) {
+      settings.set('baseRanks', ranks);
+      settings.set('baseMatrix', state);
+      settings.set('rankKinds', { ...(settings.get('rankKinds') || {}), fractured: 'B' });
+    }
+    settings.set('ranksV1', true);
+  }
+  // ---------- Regex page: stash search strings ----------
+  const mapRegex = require('../core/regex/maps');
+  function regexMapView(o = {}) { return mapRegex.mapRegexView(o); }
+  // beasts: poe.ninja's beast prices (kept for building), the list, and the search strings
+  let beastPrices = [];
+  async function regexBeastView() {
+    const beasts = require('../core/regex/beasts');
+    let note = null;
+    try {
+      const league = await getLeague();
+      beastPrices = await ninja.category(league, 'Beast');
+    } catch (e) { note = `No beast prices from poe.ninja right now (${e.message}).`; }
+    return { ...beasts.beastView(beastPrices), note };
+  }
+  function regexItemBases() { return require('../core/regex/items').itemBases(); }
+  function regexItemView(o = {}) { return require('../core/regex/items').modsView(o); }
+  function regexItemBuild(choices = {}) {
+    settings.set('regexItems', choices);
+    return require('../core/regex/items').buildItemRegex(choices);
+  }
+  function regexBeastBuild(choices = {}) {
+    settings.set('regexBeasts', choices);
+    return require('../core/regex/beasts').buildBeastRegex(choices, beastPrices);
+  }
+  function regexMapBuild(choices = {}) {
+    settings.set('regexMaps', choices);
+    return mapRegex.buildMapRegex(choices);
+  }
+  /** The same choices as a trade site search for maps: { url, total, notes } */
+  async function regexMapTrade({ choices, tier16 = true, eightMods = false } = {}) {
+    const { buildMapTradeQuery } = require('../core/regex/map-trade');
+    const league = await getLeague();
+    const c = choices || settings.get('regexMaps') || {};
+    settings.set('regexTrade', { tier16: !!tier16, eightMods: !!eightMods });
+    const tierMin = tier16 ? 16 : null;
+    const tierMax = tier16 ? 16 : null;
+    const modsMin = eightMods ? 8 : null;
+    const stats = await ggg.tradeStats().catch(() => null); // once a week at most
+    const { query, notes } = buildMapTradeQuery(c, { tierMin, tierMax, modsMin, status: settings.get('tradeStatus') || 'securable' }, stats);
+    const res = await ggg.tradeSearch(league, query);
+    return { url: ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, notes };
+  }
+  function regexSavePreset({ name, kind = 'maps', choices } = {}) {
+    const n = String(name || '').trim().slice(0, 60);
+    if (!n) throw new Error('Give the search a name.');
+    const list = (settings.get('regexPresets') || []).filter((p) => !(p.name === n && p.kind === kind));
+    list.push({ name: n, kind, choices: structuredClone(choices || {}), at: Date.now() });
+    settings.set('regexPresets', list);
+    return list;
+  }
+  function regexDeletePreset({ name, kind = 'maps' } = {}) {
+    const list = (settings.get('regexPresets') || []).filter((p) => !(p.name === name && p.kind === kind));
+    settings.set('regexPresets', list);
+    return list;
+  }
+
+  const RANK_ORDER = ['S', 'A', 'B', 'C', 'D'];
+  /** Give bases a rank: rank 'S'..'C', or dir +1 (a rank up) / -1 (a rank down) from where each is. */
+  function setBaseRanks({ bases = [], rank, dir } = {}) {
+    const { RANKED_NAMES } = require('../core/filter/manager');
+    const valid = new Set(RANKED_NAMES);
+    const ranks = { ...(settings.get('baseRanks') || {}) };
+    for (const b of bases) {
+      if (!valid.has(b)) continue;
+      let r = rank;
+      if (dir) {
+        const i = RANK_ORDER.indexOf(ranks[b] || 'D');
+        r = RANK_ORDER[Math.max(0, Math.min(RANK_ORDER.length - 1, i - Math.sign(dir)))];
+      }
+      if (!RANK_ORDER.includes(r)) continue;
+      if (r === 'D') delete ranks[b]; else ranks[b] = r; // D (untiered) is the lowest and the default
+    }
+    settings.set('baseRanks', ranks);
+    const target = filters.basePath() ? filters.write() : null;
+    return { ranks, target, leftOut: filters.lastDropped };
+  }
+  /** The lowest rank shown for one kind of drop: 'S' | 'A' | 'B' | 'C' (all) | 'none' | 'off' (filter decides). */
+  function setRankKind({ kind, min, craftIlvl, ilvl } = {}) {
+    const { RANK_KINDS } = require('../core/filter/manager');
+    const kinds = { ...(settings.get('rankKinds') || {}) };
+    const known = kind && RANK_KINDS.some((k) => k.id === kind);
+    if (known && min !== undefined) {
+      if ([...RANK_ORDER, 'none'].includes(min)) kinds[kind] = min; else delete kinds[kind];
+    }
+    settings.set('rankKinds', kinds);
+    // the lowest item level for one kind (1 = any)
+    if (known && ilvl !== undefined) {
+      const n = Math.round(Number(ilvl));
+      const lv = Number.isFinite(n) ? Math.max(1, Math.min(100, n)) : 1;
+      if (kind === 'crafting') settings.set('rankCraftIlvl', lv);
+      else {
+        const all = { ...(settings.get('rankIlvl') || {}) };
+        if (lv > 1) all[kind] = lv; else delete all[kind];
+        settings.set('rankIlvl', all);
+      }
+    }
+    if (craftIlvl !== undefined) {
+      const n = Math.round(Number(craftIlvl));
+      settings.set('rankCraftIlvl', n >= 1 && n <= 100 ? n : 82);
+    }
+    const target = filters.basePath() ? filters.write() : null;
+    return { kinds, craftIlvl: settings.get('rankCraftIlvl') || 82, ilvls: settings.get('rankIlvl') || {}, target };
+  }
+  /**
+   * Ranks in one go from the base order: in every column (item class and defence, or weapon type) the
+   * best bases (listed first) get S, then A, then B, the rest C.
+   */
+  function autoRanks({ s = 1, a = 2, b = 2, c = 2 } = {}) {
+    const v = baseMatrixView();
+    const cols = [];
+    for (const c of v.classes) for (const d of v.defences) cols.push(v.bases[c][d.id] || []);
+    for (const g of v.groups) for (const col of g.columns) cols.push(col.list);
+    const ranks = {};
+    const done = new Set();
+    for (const list of cols) {
+      list.filter((x) => x.inFilter !== false).forEach((x, i) => {
+        if (done.has(x.name)) return; // a base in several columns keeps its first (best) place
+        done.add(x.name);
+        const r = i < s ? 'S' : i < s + a ? 'A' : i < s + a + b ? 'B' : i < s + a + b + c ? 'C' : 'D';
+        if (r !== 'D') ranks[x.name] = r;
+      });
+    }
+    settings.set('baseRanks', ranks);
+    if (filters.basePath()) filters.write();
+    const vals = Object.values(ranks);
+    return { ranks, S: vals.filter((r) => r === 'S').length, A: vals.filter((r) => r === 'A').length, B: vals.filter((r) => r === 'B').length, C: vals.filter((r) => r === 'C').length, D: done.size - vals.length };
   }
   /** Paint bases: vis 'hide' | null (filter decides), frac 'show' | 'hide' | null; undefined leaves it as it is. */
   function setBaseMatrix({ bases = [], vis, frac } = {}) {
@@ -953,6 +1237,17 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     if (filters.basePath()) filters.write();
     const vals = Object.values(state);
     return { state, top: vals.filter((e) => e.frac === 'top').length, good: vals.filter((e) => e.frac === 'show').length, hidden: vals.filter((e) => e.frac === 'hide').length };
+  }
+  function setCampaignHide(o = {}) {
+    const { CAMPAIGN_CLASSES } = require('../core/filter/manager');
+    const cur = { classes: [], rares: false, untilLevel: 67, keepLinks: 4, ...(settings.get('campaignHide') || {}) };
+    if (Array.isArray(o.classes)) cur.classes = o.classes.filter((c) => CAMPAIGN_CLASSES.includes(c));
+    if ('rares' in o) cur.rares = !!o.rares;
+    if ('untilLevel' in o) cur.untilLevel = Math.max(1, Math.min(83, Math.round(Number(o.untilLevel) || 67)));
+    if ('keepLinks' in o) { const n = Math.round(Number(o.keepLinks)); cur.keepLinks = n >= 2 && n <= 6 ? n : 0; }
+    settings.set('campaignHide', cur);
+    if (filters.basePath()) filters.write();
+    return cur;
   }
   function setBaseMatrixOpts(o = {}) {
     const cur = { mapsOnly: true, keepIlvl: null, ...(settings.get('baseMatrixOpts') || {}) };
@@ -1170,7 +1465,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
       missing: filters.missing(),
       presets: designer.PRESETS,
       themes: settings.get('designerThemes') || [],
-      draft: { levels: d.lockTier1 === false ? levels : designer.lockTier1(levels), presetId: d.presetId || null, lockTier1: d.lockTier1 !== false, groups: d.groups || null },
+      draft: { levels: designer.lockTier1(levels), presetId: d.presetId || null, lockTier1: true, groups: d.groups || null },
       groups,
       canUndo: !!settings.get('designerUndo'),
       hasFilter: !!view,
@@ -1183,10 +1478,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return designerState();
   }
 
-  function designerApply({ levels, groups = null, lockTier1 = true }) {
+  function designerApply({ levels, groups = null }) {
     const view = tierViewNow();
     if (!view) throw new Error('Choose your filter on the Loot filter page first.');
-    const lv = lockTier1 ? designer.lockTier1(levels) : levels;
+    const lv = designer.lockTier1(levels); // Tier 1 always keeps the white look
     const patch = settings.get('tierPatch') || {};
     settings.set('designerUndo', { styles: patch.styles || {}, at: Date.now() });
     const r = designer.applyDesign(view, patch, lv, { groups });
@@ -1337,7 +1632,37 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log }) {
     return list.length ? { base, notListed: true, candidates: list } : null;
   }
 
-  return { resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  // 1.0.20: the kinds start at "All ranks"; synthesised items are left to the filter
+  let kindsChanged = false;
+  if (!settings.get('rankKindsV2')) {
+    const k = { ...(settings.get('rankKinds') || {}) };
+    delete k.synthesised;
+    for (const id of ['rares', 'crafting', 'fractured', 'influenced']) if (!k[id] || k[id] === 'off') k[id] = 'D';
+    settings.set('rankKinds', k);
+    settings.set('rankKindsV2', true);
+    kindsChanged = true;
+  }
+  // 1.0.18: influenced and blighted maps are skipped by default on the Regex page
+  if (!settings.get('regexTypesV1')) {
+    const rm = settings.get('regexMaps') || {};
+    if (!rm.mapTypes || !Object.keys(rm.mapTypes).length) settings.set('regexMaps', { ...rm, mapTypes: { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' } });
+    settings.set('regexTypesV1', true);
+  }
+  // 1.0.18: nothing is pinned by default any more; drop the old default pins (your own pins stay)
+  if (!settings.get('pinsDefaultV2')) {
+    const was = settings.get('filterPins');
+    if (Array.isArray(was) && JSON.stringify(was) === JSON.stringify(['currency', 'divination', 'fragments->scarabs', 'uniques'])) settings.set('filterPins', []);
+    settings.set('pinsDefaultV2', true);
+  }
+  // 1.0.22: Atlas is the default look; 1.0.21 saved Dark for everyone, so move them over once (Hideout stays)
+  if (!settings.get('atlasDefaultV1')) {
+    if (settings.get('uiTheme') !== 'hideout') settings.set('uiTheme', 'atlas');
+    settings.set('atlasDefaultV1', true);
+  }
+  // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
+  try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
+
+  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, setCampaignHide, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

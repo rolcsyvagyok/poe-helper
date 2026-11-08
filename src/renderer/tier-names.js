@@ -36,7 +36,7 @@
     // gems
     highexceptionalbadcorrupt: 'Exceptional, corrupted at low level', anyexceptionallvl: 'Exceptional, level 2+', anyexceptionalqual: 'Exceptional, with quality', altany: 'Transfigured',
     '2020z': 'Level 20, quality 20%', xx20z: 'Quality 19%+', '2120': 'Level 21, quality 20%', '2023': 'Level 20, quality 23%', '2123any': 'Level 21, quality 23%', xx23: 'Quality 23%', '21xx': 'Level 21',
-    vaal20: 'Vaal gems, quality 20%', qt4lvl: 'Quality tier 4 (levelling)', ex6lvlgems: 'Level 6+', decogemsvaalbgdrop: 'Vaal gems', firstzone: 'First zone', levelingvaal: 'Vaal gems while levelling', corruptedvaalany: 'Corrupted Vaal gems',
+    vaal20: 'Vaal gems, quality 20%', qt4lvl: 'Quality 1%+ (levelling)', ex6lvlgems: 'Level 6+', decogemsvaalbgdrop: 'Vaal gems', firstzone: 'First zone', levelingvaal: 'Vaal gems while levelling', corruptedvaalany: 'Corrupted Vaal gems',
     // maps
     decor_implicit: 'With implicit mods', deco_corruptedmod: 'With corrupted mods', zanacorrupthider: 'Corrupted memories (hidden)', zanamap: 'Memories, tier 14+', zanamaplow: 'Memories',
     infelder: 'Elder influenced', infconquerors: 'Conqueror influenced', valdomaps: 'Valdo\'s maps', nightmaremaps: 'Nightmare maps', shaperguardianmaps: 'Shaper guardian maps', mod8: '8 or more mods',
@@ -114,6 +114,8 @@
   /** Patterns NeverSink uses for families of tiers. */
   function fromPattern(tier, type = '') {
     let m;
+    // exceptional gems are a tier list, like FilterBlade shows it
+    if (type === 'gems->exceptional' && (m = /^t([1-4])$/.exec(tier))) return `${'SABC'[m[1] - 1]} tier`;
     if ((m = /^t(\d+)[a-z]*$/i.exec(tier))) return `Tier ${m[1]}`; // "t2divine": Tier 2 (the word is NeverSink's price hint)
     if ((m = /^n(\d+)_i(\d+)_t([12])$/.exec(tier))) return `${m[1]} passives, item level ${BANDS[m[2]] || `${m[2]}+`}: ${m[3] === '1' ? 'top' : 'good'}`;
     if ((m = /^t(\d)_(\d\d)$/.exec(tier))) return `Tier ${m[1]}, item level ${m[2]}+`;
@@ -124,8 +126,8 @@
     if ((m = /^maps_[a-d]_t(\d+)$/.exec(tier))) return `Tier ${m[1]}`;
     if ((m = /^deco_mapup_t(\d+)$/.exec(tier))) return `Highlight: tier ${m[1]}+ maps`;
     if ((m = /^deco_zone(\d)general$/.exec(tier))) return `Highlight: map group ${m[1]}`;
-    if ((m = /^lt(\d)$/.exec(tier))) return `Level tier ${m[1]}`;
-    if ((m = /^qt(\d)$/.exec(tier))) return `Quality tier ${m[1]}`;
+    if ((m = /^lt(\d)$/.exec(tier))) return ['Level 21+', 'Level 20', 'Level 18-19', 'Level 2-17'][m[1] - 1] || `Level tier ${m[1]}`;
+    if ((m = /^qt(\d)$/.exec(tier))) return ['Quality 23%+', 'Quality 17%+', 'Quality 13%+', 'Quality 1%+'][m[1] - 1] || `Quality tier ${m[1]}`;
     if ((m = /^plusonegem(\w+)$/.exec(tier))) return `+1 ${ELEMENTS[m[1]] || m[1]} gems`;
     if ((m = /^l(\d)$/.exec(tier))) return `Stage ${m[1]}`;
     if ((m = /^r(\d\d)(?:bas)?$/.exec(tier))) return `Step ${Number(m[1])}`;

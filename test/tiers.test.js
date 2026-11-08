@@ -266,6 +266,7 @@ test('designer: tier levels, presets keep Tier 1 white with FilterBlade Divine s
   const locked = D.lockTier1({ 1: { text: [10, 20, 30, 255], background: [0, 0, 0, 255], sound: { id: 3 } }, 2: { fontSize: 40 } });
   assert.deepEqual(locked[1].background, [255, 255, 255, 255]);
   assert.deepEqual(locked[1].text, [10, 20, 30, 255], 'text colour kept');
+  assert.deepEqual(locked[1].border, [10, 20, 30, 255], 'the border follows the text colour');
   assert.deepEqual(locked[1].sound, D.TIER1_SOUND);
   assert.equal(locked[2].fontSize, 40);
 
@@ -455,4 +456,72 @@ test('hidden bases get Hide blocks for their fractured and synthesised copies wh
   assert.deepEqual(kw(rules[1], 'SynthesisedItem').values, ['True']);
   assert.deepEqual(kw(rules[0], 'BaseType').values, ['Iron Ring']);
   assert.ok(!kw(rules[0], 'Rarity').values.includes('Unique'));
+});
+
+test('a tier FilterBlade emptied can take items again, and stays out of the game while empty', () => {
+  const T = require('../src/core/filter/tiers');
+  const src = [
+    '#Show # $type->currency->essence $tier->t1',
+    '#\tClass == "Stackable Currency"',
+    '#\tSetFontSize 45',
+    '',
+    'Show # $type->currency->essence $tier->t2',
+    '\tClass == "Stackable Currency"',
+    '\tBaseType == "Essence of Delirium" "Essence of Horror"',
+    '\tSetFontSize 40',
+    '',
+  ].join('\n');
+  const view = T.tierView(src, {});
+  const t1 = view.types[0].tiers.find((x) => x.tier === 't1');
+  assert.equal(t1.hasBaseList, true, 'Tier 1 takes items');
+  assert.equal(t1.off, true, 'still Off in FilterBlade');
+  assert.deepEqual(t1.bases, []);
+  const out = T.applyTierPatch(src, { moves: { 'currency->essence\tEssence of Horror': 't1' }, actions: { 'currency->essence|t1': 'Show' } });
+  assert.match(out, /Show # \$type->currency->essence \$tier->t1[^\n]*\n\tClass == "Stackable Currency"\n\tBaseType == "Essence of Horror"/);
+  const empty = T.applyTierPatch(src, { actions: { 'currency->essence|t1': 'Show' } });
+  assert.match(empty, /#Show # \$type->currency->essence \$tier->t1/, 'switched on but empty: still commented out, never catches everything');
+});
+
+test('a tier\'s item level, quality, rarity and bases can be changed, FilterBlade style', () => {
+  const T = require('../src/core/filter/tiers');
+  const src = [
+    'Show # $type->endgametinctures $tier->t1',
+    '\tClass == "Tinctures"',
+    '\tQuality >= 26',
+    '\tItemLevel >= 82',
+    '\tRarity Normal Magic',
+    '\tSetFontSize 45',
+    '',
+  ].join('\n');
+  const t = T.tierView(src, {}).types[0].tiers[0];
+  assert.equal(t.implied.length, 10, 'stands for every tincture');
+  assert.deepEqual(t.numbers.ItemLevel, { op: '>=', value: 82 });
+  assert.equal(t.numbers.AreaLevel, null);
+  let p = T.withCondition({}, 'endgametinctures|t1', 'ItemLevel', { op: '>=', value: 84 });
+  p = T.withCondition(p, 'endgametinctures|t1', 'Quality', 'any');
+  p = T.withCondition(p, 'endgametinctures|t1', 'AreaLevel', { op: '>=', value: 68 });
+  p = T.withCondition(p, 'endgametinctures|t1', 'Rarity', ['Magic']);
+  p = T.withCondition(p, 'endgametinctures|t1', 'exclude', ['Oakbranch Tincture']);
+  const out = T.applyTierPatch(src, p);
+  assert.match(out, /ItemLevel >= 84/);
+  assert.match(out, /AreaLevel >= 68/);
+  assert.doesNotMatch(out, /Quality/);
+  assert.match(out, /Rarity Magic\n/);
+  assert.match(out, /BaseType == "Rosethorn Tincture"[^\n]*"Blood Sap Tincture" "Sporebloom Tincture"\n/);
+  assert.doesNotMatch(out, /Oakbranch/);
+  const back = T.tierView(src, p).types[0].tiers[0];
+  assert.equal(back.bases.length, 9);
+});
+
+test('area level: campaign tiers change their upper bound, the lower one stays', () => {
+  const T = require('../src/core/filter/tiers');
+  const src = ['Show # $type->leveling->flasks->life $tier->t1', '\tAreaLevel >= 2', '\tAreaLevel <= 67', '\tClass == "Life Flasks"', '\tBaseType == "Small Life Flask"', '\tSetFontSize 40', ''].join('\n');
+  const t = T.tierView(src, {}).types[0].tiers[0];
+  assert.equal(t.campaign, true);
+  assert.deepEqual(t.numbers.AreaLevel, { op: '<=', value: 67 });
+  const out = T.applyTierPatch(src, T.withCondition({}, 'leveling->flasks->life|t1', 'AreaLevel', { op: '<=', value: 40 }));
+  assert.match(out, /AreaLevel >= 2\n/);
+  assert.match(out, /AreaLevel <= 40\n/);
+  const end = T.tierView(['Show # $type->endgameflasks $tier->utility85', '\tAreaLevel >= 68', '\tItemLevel >= 85', '\tClass == "Utility Flasks"', '\tSetFontSize 40', ''].join('\n'), {}).types[0].tiers[0];
+  assert.equal(end.campaign, false, 'an endgame tier has no area level slider');
 });

@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, price: renderPrice, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), regex: () => window.RegexView.renderRegexPage(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -49,11 +49,13 @@ async function refreshState() {
   Object.assign(S, await call('state:get'));
   if (!S.sounds.length) S.sounds = await call('sounds:list').catch(() => []);
   window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
+  window.UI.applyTheme(S.settings.uiTheme);
   if (!S.iconsLoaded) { S.userIcons = await call('icons:list').catch(() => []); UI.setUserIcons(S.userIcons); S.iconsLoaded = true; }
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
     h('div', {}, h('span', { class: 'league-chip' }, S.league), S.settings.leagueOverride ? '' : h('span', { class: 'faint' }, ' (auto)')),
     h('div', {}, `${u?.total ?? 0} of ${S.usage?.ggg?.dailyBudget ?? '–'} GGG requests today`),
+    themeDots(),
     versionLine());
   if (!S.ver) {
     S.ver = await call('app:version').catch(() => null);
@@ -63,6 +65,27 @@ async function refreshState() {
       if (S.ver.justUpdated && !S.ver.notesShown) whatsNewBanner();
     }
   }
+}
+
+// ---------------- the app's look ----------------
+async function setUiTheme(id) {
+  S.settings.uiTheme = window.UI.applyTheme(id);
+  await call('settings:set', { uiTheme: S.settings.uiTheme }).catch(() => {});
+  document.querySelectorAll('[data-theme-id]').forEach((b) => b.classList.toggle('on', b.dataset.themeId === S.settings.uiTheme));
+}
+function themeDots() {
+  const cur = S.settings.uiTheme || 'atlas';
+  return h('div', { class: 'theme-dots', role: 'group', 'aria-label': 'Look' }, window.UI.UI_THEMES.map((t) => h('button', {
+    class: t.id === cur ? 'on' : '', 'data-theme-id': t.id, title: `${t.name} look`, 'aria-label': `${t.name} look`,
+    style: { background: `linear-gradient(135deg, ${t.sw[1]} 50%, ${t.sw[2]} 50%)` }, onclick: () => setUiTheme(t.id),
+  })));
+}
+function themePicker() {
+  const cur = S.settings.uiTheme || 'atlas';
+  return h('div', { class: 'theme-pick' }, window.UI.UI_THEMES.map((t) => h('button', { class: 'tp' + (t.id === cur ? ' on' : ''), 'data-theme-id': t.id, onclick: () => setUiTheme(t.id) },
+    h('div', { class: 'tp-sw', style: { boxShadow: `inset 0 0 0 1px ${t.sw[3]}` } }, h('i', { style: { background: t.sw[0] } }),
+      h('b', { style: { background: t.sw[1], color: t.sw[2] } }, 'Aa', h('span', { style: { background: t.sw[3] } }))),
+    h('span', { class: 'tp-name' }, t.name), h('span', { class: 'help' }, t.note))));
 }
 
 // ---------------- version and patch notes ----------------
@@ -263,52 +286,6 @@ function historyList(rows) {
 }
 
 // ---------------- price check (manual) ----------------
-function renderPrice() { return window.UI.keepScroll(() => renderPriceNow()); }
-async function renderPriceNow() {
-  await refreshState();
-  const el = $('page-price');
-  const ta = h('textarea', { placeholder: 'Paste an item you copied in game with Ctrl+C', 'aria-label': 'Item text' });
-  const out = h('div');
-  const run = async () => {
-    mount(out, h('div', { class: 'panel', style: { marginTop: '16px' } }, h('span', { class: 'spin' }), ' Pricing'));
-    try {
-      const r = await call('price:text', ta.value);
-      if (r.error) return mount(out, h('div', { class: 'panel muted', style: { marginTop: '16px' } }, r.error));
-      r.text = ta.value;
-      mount(out, priceResult(r));
-      refreshState();
-    } catch { mount(out); }
-  };
-  mount(el,
-    pageHead('Price check history', 'Your recent price checks. In game the overlay does this for you; paste an item here to test or look something up later.'),
-    h('div', { class: 'panel stack' }, ta, h('div', { class: 'row' }, h('button', { class: 'primary', onclick: run }, 'Check price'), h('span', { class: 'small faint' }, 'Uses cached poe.ninja prices.'))),
-    out,
-    section('History', null, historyList(S.history)));
-}
-
-function priceResult(r) {
-  const { item, price, map, filterHit } = r;
-  const hidden = filterHit?.action === 'Hide';
-  const tradeBox = h('div', { class: 'panel', style: { marginTop: '12px', display: 'none' } });
-  const tradeBtn = r.tradeable ? h('button', { class: 'primary', onclick: () => { tradeBox.style.display = ''; tradeBtn.remove(); window.TradePanel.mount(tradeBox, { text: r.text, divine: price?.divine }); } }, 'Search trade') : null;
-  return h('div', { style: { marginTop: '16px' } },
-    h('div', { class: 'ground stage' },
-      dropLabel(item.typeLine !== item.name && item.rarity === 'Unique' ? item.name : item.name || item.typeLine, filterHit?.style, { rarity: item.rarity, hidden }),
-      filterHit ? h('div', { class: 'row', style: { gap: '8px' } }, soundButton(window.UI.normalizeStyle(filterHit.style).sound), h('span', { class: 'small', style: { color: '#a9ad9c' } }, hidden ? 'Your filter hides this item' : 'How your filter shows it')) : h('span', { class: 'small', style: { color: '#a9ad9c' } }, 'Pick a filter on the Loot filter page to see how it looks')),
-    h('div', { class: 'panel', style: { marginTop: '12px' } },
-      h('div', { class: 'figures' },
-        figure(price?.found ? chaosDiv(price.chaos, price.divine) : r.kind === 'rare' ? 'Use trade search' : 'Not listed', price?.found ? `Each, ${({ high: 'plenty of listings', medium: 'some listings', low: 'few listings, be careful', range: 'variants differ' })[price.confidence] || ''}` : 'poe.ninja has no price for this'),
-        price?.stackSize > 1 ? figure(chaosDiv(price.totalChaos, price.divine), `For your stack of ${price.stackSize}`) : null,
-        filterHit?.line ? figure(`Line ${filterHit.line}`, 'Filter rule that applies') : null),
-      map ? h('div', { style: { marginTop: '14px' } }, h('h2', {}, map.verdict === 'skip' ? 'Map: skip or reroll' : map.verdict === 'careful' ? 'Map: be careful' : 'Map: looks fine'),
-        map.hits.map((x) => h('div', { class: `small sev-${x.severity}` }, `${x.label}: `, h('span', { class: 'muted' }, x.mod)))) : null,
-      tradeBtn ? h('div', { class: 'row', style: { marginTop: '14px' } }, tradeBtn, h('span', { class: 'small faint' }, 'Pick mods and min/max values, then search instant buyout listings.')) : null,
-      price?.matches?.length > 1 ? h('table', { style: { marginTop: '16px' } },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Close matches on poe.ninja'), h('th', { class: 'r' }, 'Listings'), h('th', { class: 'r' }, 'Price'))),
-        h('tbody', {}, price.matches.map((m) => h('tr', {}, h('td', {}, [m.name, m.variant, m.links && `${m.links}-link`, m.gemLevel && `level ${m.gemLevel}/${m.gemQuality || 0}%`, m.corrupted && 'corrupted', m.levelRequired && `ilvl ${m.levelRequired}+`].filter(Boolean).join(', ')), h('td', { class: 'r muted' }, m.listingCount ?? ''), h('td', { class: 'r' }, chaosDiv(m.chaos, price.divine)))))) : null),
-    tradeBox);
-}
-
 // ---------------- net worth ----------------
 let nwWindow = 24 * 3600 * 1000;
 let nwTabs = null;
@@ -445,6 +422,33 @@ async function renderNetworthNow() {
 let ecoRules = null;
 
 /** The original filter sections, now shown inside tabs of the FilterBlade-style page (filters.js). */
+// The loot filter file: which FilterBlade filter, writing it, the folder (in Settings).
+function filterFileBox(info, st, redraw) {
+  const writeNow = async () => {
+    try {
+      const p = await call('filter:write');
+      toast(`Written to ${p.split(/[\\/]/).pop()}. Zone or reload the filter in game.`);
+      redraw();
+    } catch { /* toast */ }
+  };
+  const helperName = info.base ? info.base.replace(/\.filter$/i, ' (helper).filter') : null;
+  return h('div', { class: 'panel stack' },
+    h('div', { class: 'row' },
+      h('select', { 'aria-label': 'Base filter', onchange: async (e) => { await call('settings:set', { baseFilter: e.target.value }); redraw(); } },
+        h('option', { value: '' }, 'Choose your filter'),
+        info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.display || f.name.replace(/\.filter$/i, '')))),
+      h('span', { class: 'small muted' }, !info.files.length ? 'No .filter files found in the folder below.' : info.base ? (info.lastWrite ? `Written to "${helperName}" ${ago(Date.now() - info.lastWrite.at)}.` : `Will be written to "${helperName}".`) : 'Pick the filter you normally use.'),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'primary', onclick: writeNow, disabled: !info.base }, 'Write filter')),
+    h('div', { class: 'row' },
+      toggle(st.autoWatchFilter, (v) => call('settings:set', { autoWatchFilter: v }), 'Rewrite automatically when you download a new version of the filter')),
+    (() => {
+      const dirInput = h('input', { value: st.filterDir || info.dir || '', style: { flex: 1, minWidth: '300px' }, 'aria-label': 'Filter folder' });
+      return h('details', {}, h('summary', {}, `Filter folder: ${info.dir || 'not found'}`),
+        h('div', { class: 'row', style: { marginTop: '8px' } }, dirInput, h('button', { onclick: async () => { await call('settings:set', { filterDir: dirInput.value.trim() }); redraw(); } }, 'Use this folder')));
+    })());
+}
+
 async function renderFilterExtras(el, which) {
   const info = await call('filter:list');
   const overrides = await call('filter:overrides');
@@ -458,31 +462,6 @@ async function renderFilterExtras(el, which) {
     if (info.base) await call('filter:write').catch(() => {});
   };
   let editing = null;
-  const writeNow = async () => {
-    try {
-      const p = await call('filter:write');
-      toast(`Written to ${p.split(/[\\/]/).pop()}. Zone or reload the filter in game.`);
-      renderFilters();
-    } catch { /* toast */ }
-  };
-
-  // --- filter file ---
-  const helperName = info.base ? info.base.replace(/\.filter$/i, ' (helper).filter') : null;
-  const fileBox = h('div', { class: 'panel stack' },
-    h('div', { class: 'row' },
-      h('select', { 'aria-label': 'Base filter', onchange: async (e) => { await call('settings:set', { baseFilter: e.target.value }); renderFilters(); } },
-        h('option', { value: '' }, 'Choose your filter'),
-        info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.name.replace(/\.filter$/i, '')))),
-      h('span', { class: 'small muted' }, !info.files.length ? 'No .filter files found in the folder below.' : info.base ? (info.lastWrite ? `Written to "${helperName}" ${ago(Date.now() - info.lastWrite.at)}.` : `Will be written to "${helperName}".`) : 'Pick the filter you normally use.'),
-      h('span', { class: 'spacer' }),
-      h('button', { class: 'primary', onclick: writeNow, disabled: !info.base }, 'Write filter')),
-    h('div', { class: 'row' },
-      toggle(st.autoWatchFilter, (v) => call('settings:set', { autoWatchFilter: v }), 'Rewrite automatically when you download a new version of the filter')),
-    (() => {
-      const dirInput = h('input', { value: st.filterDir || info.dir || '', style: { flex: 1, minWidth: '300px' }, 'aria-label': 'Filter folder' });
-      return h('details', {}, h('summary', {}, `Filter folder: ${info.dir || 'not found'}`),
-        h('div', { class: 'row', style: { marginTop: '8px' } }, dirInput, h('button', { onclick: async () => { await call('settings:set', { filterDir: dirInput.value.trim() }); renderFilters(); } }, 'Use this folder')));
-    })());
 
   // --- rules on the ground ---
   const rulesBox = h('div', { class: 'ground rules' });
@@ -570,7 +549,6 @@ async function renderFilterExtras(el, which) {
   const exOut = h('div');
 
   const parts = {
-    file: [fileBox],
     rules: [section('Your rules', 'Extra rules placed above everything else. The first rule that matches an item wins.', rulesBox), section('New rule', null, newRule)],
     price: [sectionWith('Value tiers', 'Highlights valuable drops using current poe.ninja prices.',
       toggle(!!eco.enabled, async (v) => { await saveEco(v); if (v) ecoRules = await call('filter:economyRules'); renderFilters(); }, 'Use in my filter'),
@@ -817,17 +795,17 @@ function updateBox() {
 }
 
 const SH_SOUNDS = ['ShDivine', 'ShMirror', 'ShExalted', 'ShChaos', 'ShVaal', 'ShRegal', 'ShFusing', 'ShAlchemy', 'ShBlessed', 'ShGeneral'];
-function gameSoundRows(st) {
+function gameSoundRows(st, redraw = () => window.renderDesigner?.()) {
   const own = st.gameSoundFiles || {};
   const got = st.gameSounds?.files || {};
-  const save = async (next) => { await call('settings:set', { gameSoundFiles: next }); S.settings.gameSoundFiles = next; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); renderSettings(); };
+  const save = async (next) => { await call('settings:set', { gameSoundFiles: next }); S.settings.gameSoundFiles = next; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); redraw(); };
   const take = async (opts) => {
     try {
       const r = await call('gameSounds:extract', opts);
       S.settings.gameSounds = r;
       window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
       toast(r.count ? `${r.count} sounds taken from your game` : 'No folder picked');
-      renderSettings();
+      redraw();
     } catch { /* toast shown */ }
   };
   const status = Object.keys(got).length
@@ -865,6 +843,8 @@ function gameSoundRows(st) {
     Object.keys(got).some((k) => /^Sh/.test(k)) ? [h('div', { class: 'small muted' }, 'The named sounds (PlayAlertSound ShDivine and so on):'), h('div', { class: 'gs-grid' }, SH_SOUNDS.filter((k) => got[k] || own[k]).map((k) => row(k, k)))] : null);
 }
 
+window.gameSoundRows = gameSoundRows;
+
 function appIconBox(st) {
   const img = h('img', { alt: 'Current icon', width: 48, height: 48, style: { borderRadius: '8px', background: '#0003', objectFit: 'contain' } });
   call('appIcon:get').then((u) => { img.src = u; }).catch(() => {});
@@ -877,6 +857,8 @@ function appIconBox(st) {
 }
 
 async function renderSettingsNow() {
+  const filterInfo = await call('filter:list').catch(() => ({ files: [], base: null }));
+  const shareUndo = await call('filterShare:canUndo').catch(() => false);
   await refreshState();
   const st = S.settings;
   const el = $('page-settings');
@@ -885,8 +867,6 @@ async function renderSettingsNow() {
   const field = (label, input, help) => h('label', { class: 'field' }, label, input, help ? h('span', { class: 'help' }, help) : null);
   const set = (key, transform = (v) => v) => (e) => call('settings:set', { [key]: transform(e.target.type === 'checkbox' ? e.target.checked : e.target.value) }).then(() => toast('Saved'));
   const sid = h('input', { type: 'password', placeholder: st.sessionSet ? 'Saved and encrypted' : '32 characters', autocomplete: 'off', style: { flex: 1 } });
-  const rules = (st.mapRules || []).map((r) => ({ ...r }));
-  const saveRules = () => call('settings:set', { mapRules: rules }).then(() => toast('Saved'));
 
   mount(el,
     pageHead('Settings'),
@@ -914,8 +894,12 @@ async function renderSettingsNow() {
             field('Keep prices for (minutes)', h('input', { type: 'number', min: 5, value: st.ninjaTtlMin, onchange: set('ninjaTtlMin', Number) }), 'poe.ninja updates about every 15 minutes, so lower values only add downloads.'),
             field('Your name or link for request headers', h('input', { value: st.contact || '', placeholder: 'Optional, for example github.com/you', onchange: set('contact', (v) => v.trim()) })),
             h('details', {}, h('summary', {}, 'Price server address'),
-              h('div', { class: 'stack', style: { marginTop: '8px' } }, h('input', { value: st.ninjaBaseUrl, onchange: set('ninjaBaseUrl', (v) => v.trim()), 'aria-label': 'Price server address' }), h('span', { class: 'help' }, 'Change only if you run your own caching proxy for poe.ninja.')))))),
+              h('div', { class: 'stack', style: { marginTop: '8px' } }, h('input', { value: st.ninjaBaseUrl, onchange: set('ninjaBaseUrl', (v) => v.trim()), 'aria-label': 'Price server address' }), h('span', { class: 'help' }, 'Change only if you run your own caching proxy for poe.ninja.'))))),
+        section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
+          h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox()))),
       h('div', {},
+        section('Appearance', 'How PoE Helper looks. Items keep the colours your filter gives them. You can also switch with the dots at the bottom of the menu.',
+          h('div', { class: 'panel' }, themePicker())),
         section('Price check', null,
           h('div', { class: 'panel stack' },
             field('League', h('select', { onchange: set('leagueOverride') }, h('option', { value: '' }, `Follow the current league (${leagues[0]?.name || 'automatic'})`), leagues.map((l) => h('option', { value: l.id, selected: st.leagueOverride === l.id }, l.name || l.id)))),
@@ -945,11 +929,16 @@ async function renderSettingsNow() {
         toggle(!!st.minimizeToTray, (v) => call('settings:set', { minimizeToTray: v }).then(() => toast(v ? 'Minimizing now hides PoE Helper in the tray' : 'Minimizing keeps PoE Helper in the taskbar')), 'Minimize to the tray instead of the taskbar'),
         h('div', { class: 'row' }, h('button', { onclick: () => call('tray:hide') }, 'Hide to tray now'),
           h('span', { class: 'small muted' }, 'Closing the window also keeps PoE Helper running in the tray, so Alt+E keeps working. Click the tray icon to open it again; right-click it and choose Quit to close it for good.')))),
-    section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
-      h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox())),
+    section('Loot filter file', 'The FilterBlade filter PoE Helper builds on, and where your version of it is written.', filterFileBox(filterInfo, st, renderSettings)),
+    section('Share your loot filter settings', 'Everything you set up for the filter in PoE Helper (tiers and looks, base ranks, my bases, clusters, your rules, category prices, the tier designer, your own sounds) in one file. Someone else imports it and gets your setup; their account, league and filter file stay theirs.',
+      h('div', { class: 'panel row', style: { gap: '10px' } },
+        h('button', { class: 'primary', onclick: async () => { const p = await call('filterShare:export'); if (p) toast(`Saved to ${p.split(/[\\/]/).pop()}`); } }, 'Export…'),
+        h('button', { onclick: async () => {
+          if (!confirm('Importing replaces your loot filter settings with the ones in the file. You can undo it afterwards. Go on?')) return;
+          try { const r = await call('filterShare:import'); if (r) { toast(`Imported${r.from ? ` (made with PoE Helper ${r.from})` : ''}. Your filter is rewritten; zone or reload it in game.`); renderSettings(); } } catch { /* toast */ }
+        } }, 'Import…'),
+        shareUndo ? h('button', { class: 'quiet', onclick: async () => { await call('filterShare:undo'); toast('Your own settings are back'); renderSettings(); } }, 'Undo import') : null)),
     notesSection(await call('app:changelog').catch(() => [])),
-    section('Game sound previews', 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.',
-      h('div', { class: 'panel' }, gameSoundRows(st))),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',
       h('div', { class: 'panel row', style: { gap: '16px' } }, appIconBox(st))),
     section('Start over', 'Puts every look, tier, base, cluster, sound, hotkey and setting you changed in PoE Helper back to how a fresh install has them, and rewrites your filter to match. It keeps your account and login, the league, the filter you picked, your price check history and net worth, your saved themes and the game sound copies.',
@@ -959,31 +948,14 @@ async function renderSettingsNow() {
           try { await call('app:resetAll'); toast('Everything is back to how a fresh install has it. Zone or reload the filter in game.'); renderSettings(); } catch { /* toast */ }
         } }, 'Reset everything'),
         (await call('app:canUndoReset').catch(() => false)) ? h('button', { onclick: async () => { try { await call('app:undoReset'); toast('Your changes are back'); renderSettings(); } catch { /* toast */ } } }, 'Undo the reset') : null,
-        h('span', { class: 'small muted' }, 'Only for what PoE Helper changed: your FilterBlade filter itself is never touched.'))),
-    section('Map warnings', 'Turn on the mods your build can\'t run. A # stands for any number.',
-      h('div', { class: 'panel' },
-        rules.length ? h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Mod'), h('th', {}, 'Matches text'), h('th', {}, 'Warning'), h('th', {}, ''))),
-          h('tbody', {}, rules.map((r) => h('tr', {},
-            h('td', { style: { width: '44px' } }, toggle(r.enabled, (v) => { r.enabled = v; saveRules(); })),
-            h('td', {}, r.label),
-            h('td', { class: 'muted small' }, r.pattern),
-            h('td', {}, h('select', { onchange: (e) => { r.severity = e.target.value; saveRules(); } }, [['deadly', 'Skip the map'], ['danger', 'Dangerous'], ['warn', 'Annoying'], ['info', 'Just so you know']].map(([v, l]) => h('option', { value: v, selected: r.severity === v }, l)))),
-            h('td', { style: { width: '40px' } }, h('button', { class: 'quiet sm', title: `Delete "${r.label}"`, 'aria-label': `Delete ${r.label}`, onclick: () => { rules.splice(rules.indexOf(r), 1); saveRules().then(renderSettings); } }, '✕')))))) : h('p', { class: 'small muted' }, 'No map warnings. Add one below, or bring back the usual list.'),
-        h('div', { class: 'row', style: { marginTop: '10px', gap: '8px' } },
-          rules.length ? h('button', { class: 'quiet sm', onclick: () => { if (!confirm(`Delete all ${rules.length} map warnings?`)) return; rules.length = 0; saveRules().then(renderSettings); } }, 'Delete all') : null,
-          h('button', { class: 'quiet sm', onclick: async () => { await call('settings:reset', ['mapRules']); renderSettings(); } }, 'Bring back the usual warnings')),
-        (() => {
-          const label = h('input', { placeholder: 'Name' });
-          const pat = h('input', { placeholder: 'Monsters have #% increased Area of Effect', style: { flex: 1 } });
-          return h('div', { class: 'row', style: { marginTop: '12px' } }, label, pat, h('button', { onclick: () => { if (!pat.value.trim()) return; rules.push({ id: `c_${Date.now()}`, label: label.value || pat.value, pattern: pat.value, severity: 'danger', enabled: true }); saveRules().then(renderSettings); } }, 'Add warning'));
-        })())));
+        h('span', { class: 'small muted' }, 'Only for what PoE Helper changed: your FilterBlade filter itself is never touched.'))));
 }
 
 // ---------------- events ----------------
 window.poe.on('toast', (m) => toast(m));
 window.poe.on('networth:updated', () => { if (currentPage === 'networth' || currentPage === 'dashboard') go(currentPage); });
 window.poe.on('filter:rebuilt', () => { if (currentPage === 'filters') go('filters'); });
-window.poe.on('history:updated', () => { if (currentPage === 'dashboard' || currentPage === 'price') refreshState(); });
-window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'settings') go('settings'); });
+window.poe.on('history:updated', () => { if (currentPage === 'dashboard') refreshState(); });
+window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'designer') go('designer'); });
 
 go('dashboard');

@@ -4,7 +4,7 @@
  * (or Ctrl+Alt+C for the "advanced" description with mod tiers).
  *
  * Sections are separated by "--------". We extract what pricing, trade search,
- * map warnings and the filter explainer need. Unknown lines are kept in
+ * price check and the filter explainer need. Unknown lines are kept in
  * `mods.explicit` so nothing is lost.
  */
 

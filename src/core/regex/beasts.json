@@ -1,0 +1,1765 @@
+{
+"note": "Beasts you can capture (Bestiary): name, family, group, whether it is a red (recipe) beast or a Harvest beast, and its Bestiary recipes. Game data; the search pieces are worked out by core/regex/beasts.js.",
+"beasts": [
+{
+"name": "Acid Slitherer",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Adolescent Rhex",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Alpine Devil",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Alpine Shaman",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Arakaali's Daughter",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Arctic Wolf",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Armour Cruncher",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Avalanche Rider",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Avian Retch",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Barb Serpent",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Barrow Ape",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Bearded Devil",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Bearded Shaman",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Bearded Skycaller",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Black Mórrigan",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": true,
+"harvest": false,
+"recipe": "Craft an Aspect Skill onto an Item - Level 30 Aspect of the Cat skill; Craft an Aspect Skill onto an Item - Level 30 Aspect of the Avian skill; Craft an Aspect Skill onto an Item - Level 30 Aspect of the Spider skill; Craft an Aspect Skill onto an Item - Level 30 Aspect of the Crab skill; Apply a Hinekora's Lock - To a Magic Item; Fracture two Modifers - On a Rare Talisman with at least 6 modifiers; Modify an Item - to Have Maximum Possible Links; Modify an Item - to Have Maximum Possible Number of Sockets; Create a Unique - Talisman"
+},
+{
+"name": "Black Scorpion",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Bleached Crawler",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Blood Ape",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Blood Chieftain",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Bone Cruncher",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Bone Rhoa",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Bramble Cobra",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Brine Vassal",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Brooding Tarantula",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Carnage Ape",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Carnage Chieftain",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Carrion Burrower",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Carrion Queen",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Carrion Swarmer",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Cave Beast",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Cave Skitterer",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Cavern Drifter",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Chimeric Croaker",
+"family": "The Deep",
+"group": "Amphibians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Chrome-infused Chimeral",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Chrome-infused Croaker",
+"family": "The Deep",
+"group": "Amphibians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Chrome-infused Goliath",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Chrome-touched Chimeral",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Chrome-touched Croaker",
+"family": "The Deep",
+"group": "Amphibians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Chrome-touched Goliath",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Colossus Crusher",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Corrupted Arach",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Corrupted Beast",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Corrupted Rhoa",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Corrupted Spitter",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Craiceann, First of the Deep",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": true,
+"harvest": false,
+"recipe": "Craft an Aspect Skill onto an Item - Aspect of the Crab skill; Craft an Aspect Skill onto an Item - Level 30 Aspect of the Crab skill"
+},
+{
+"name": "Craicic Croaker",
+"family": "The Deep",
+"group": "Amphibians",
+"red": true,
+"harvest": false,
+"recipe": "Create an Imprint - Of a Magic Item; Apply a Hinekora's Lock - To a Magic Item"
+},
+{
+"name": "Craicic Maw",
+"family": "The Deep",
+"group": "Amphibians",
+"red": true,
+"harvest": false,
+"recipe": "Modify Mods on an Item - Add a Mod to a Shaper Item; Modify Mods on an Item - Add a Mod to an Elder Item; Modify Mods on an Item - Add a Mod to a Redeemer Item; Modify Mods on an Item - Add a Mod to a Hunter Item; Modify Mods on an Item - Add a Mod to a Crusader Item; Modify Mods on an Item - Add a Mod to a Warlord Item"
+},
+{
+"name": "Craicic Sand Spitter",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": true,
+"harvest": false,
+"recipe": "Create Currency Items - Orb of Fusing; Create Currency Items - A Stack of 2 Orbs of Binding; Modify an Item - to Have Maximum Possible Links"
+},
+{
+"name": "Craicic Savage Crab",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Item; Modify Mods on an Item - Add a Mod to a Rare Map"
+},
+{
+"name": "Craicic Shield Crab",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": true,
+"harvest": false,
+"recipe": "Create Currency Items - A Stack of 4 Jeweller's Orbs; Create Currency Items - A Stack of 2 Orbs of Binding; Modify an Item - to Have Maximum Possible Number of Sockets"
+},
+{
+"name": "Craicic Spider Crab",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": true,
+"harvest": false,
+"recipe": "Open a Portal - to Craiceann's Cove"
+},
+{
+"name": "Craicic Squid",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": true,
+"harvest": false,
+"recipe": "Transform an Item - Reroll a Talisman Base Type"
+},
+{
+"name": "Craicic Vassal",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": true,
+"harvest": false,
+"recipe": "Corrupt a Map - To have an Implicit Modifier; Corrupt a Map - Twice"
+},
+{
+"name": "Craicic Watcher",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Claw or Dagger; Modify Mods on an Item - Add a Mod to a Hunter Item"
+},
+{
+"name": "Crustacean Sniper",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Crypt Ambusher",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Crypt Weaver",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Cursed Spawn",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Deep Crustacean",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Devourer",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Dirt Scrabbler",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Dread Primate",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Dune Hellion",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Dust Scrabbler",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Enraptured Arachnid",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Enraptured Beast",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Enraptured Crab",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Enslaved Hellion",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Escaped Rhex",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Farric Ape",
+"family": "The Wilds",
+"group": "Primates",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Belt"
+},
+{
+"name": "Farric Chieftain",
+"family": "The Wilds",
+"group": "Primates",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Amulet"
+},
+{
+"name": "Farric Flame Hellion Alpha",
+"family": "The Wilds",
+"group": "Felines",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Ring"
+},
+{
+"name": "Farric Frost Hellion Alpha",
+"family": "The Wilds",
+"group": "Felines",
+"red": true,
+"harvest": false,
+"recipe": "Fracture a Modifer - On a Rare Talisman with at least 4 modifiers; Create Currency Items - A Stack of 3 Orbs of Unmaking"
+},
+{
+"name": "Farric Gargantuan",
+"family": "The Wilds",
+"group": "Ursae",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Helmet; Create Currency Items - A Stack of 3 Orbs of Unmaking"
+},
+{
+"name": "Farric Goatman",
+"family": "The Wilds",
+"group": "Primates",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Flask"
+},
+{
+"name": "Farric Goliath",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Bow; Modify Mods on an Item - Add a Mod to a Crusader Item"
+},
+{
+"name": "Farric Lynx Alpha",
+"family": "The Wilds",
+"group": "Felines",
+"red": true,
+"harvest": false,
+"recipe": "Modify Mods on an Item - Add a Suffix, Remove a Random Prefix"
+},
+{
+"name": "Farric Magma Hound",
+"family": "The Wilds",
+"group": "Canines",
+"red": true,
+"harvest": false,
+"recipe": "Create an Item - 23% Quality Corrupted Gem"
+},
+{
+"name": "Farric Pit Hound",
+"family": "The Wilds",
+"group": "Canines",
+"red": true,
+"harvest": false,
+"recipe": "Create an Item - Level 21 Corrupted Gem"
+},
+{
+"name": "Farric Taurus",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Map"
+},
+{
+"name": "Farric Tiger Alpha",
+"family": "The Wilds",
+"group": "Felines",
+"red": true,
+"harvest": false,
+"recipe": "Open a Portal - to Farrul's Den"
+},
+{
+"name": "Farric Ursa",
+"family": "The Wilds",
+"group": "Ursae",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Body Armour"
+},
+{
+"name": "Farric Wolf Alpha",
+"family": "The Wilds",
+"group": "Canines",
+"red": true,
+"harvest": false,
+"recipe": "Modify Mods on an Item - Add a Prefix, Remove a Random Suffix"
+},
+{
+"name": "Farrul, First of the Plains",
+"family": "The Wilds",
+"group": "Felines",
+"red": true,
+"harvest": false,
+"recipe": "Craft an Aspect Skill onto an Item - Aspect of the Cat skill; Craft an Aspect Skill onto an Item - Level 30 Aspect of the Cat skill"
+},
+{
+"name": "Fenumal Devourer",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Shield or Quiver; Modify Mods on an Item - Add a Mod to a Shaper Item"
+},
+{
+"name": "Fenumal Hybrid Arachnid",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": true,
+"harvest": false,
+"recipe": "Open a Portal - to Fenumus' Lair"
+},
+{
+"name": "Fenumal Plagued Arachnid",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": true,
+"harvest": false,
+"recipe": "Create an Imprint - Of a Rare Talisman; Fracture two Modifers - On a Rare Talisman with at least 6 modifiers"
+},
+{
+"name": "Fenumal Queen",
+"family": "The Caverns",
+"group": "Insects",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Staff; Modify Mods on an Item - Add a Mod to a Redeemer Item"
+},
+{
+"name": "Fenumal Scorpion",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": true,
+"harvest": false,
+"recipe": "Convert this Unique Item - Into Another Random Unique Item; Corrupt a Map - Twice"
+},
+{
+"name": "Fenumal Scrabbler",
+"family": "The Caverns",
+"group": "Insects",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Wand; Modify Mods on an Item - Add a Mod to a Warlord Item"
+},
+{
+"name": "Fenumal Widow",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Gloves"
+},
+{
+"name": "Fenumus, First of the Night",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": true,
+"harvest": false,
+"recipe": "Craft an Aspect Skill onto an Item - Aspect of the Spider skill; Craft an Aspect Skill onto an Item - Level 30 Aspect of the Spider skill"
+},
+{
+"name": "Feral Chimeral",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Feral Fowl",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Fetid Maw",
+"family": "The Deep",
+"group": "Amphibians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Fighting Bull",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Filth Maw",
+"family": "The Deep",
+"group": "Amphibians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Flame Hellion",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Forest Beast",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Freezing Wolf",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Fury Hound",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Glade Mamba",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Gluttonous Gull",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Goatman",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Goatman Fire-raiser",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Goatman Shaman",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Goatman Stomper",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Granite Eater",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Gravel Eater",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Grazing Taurus",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Hairy Bonecruncher",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Hatchling",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Hill Devil",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Host Adder",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Host Chieftain",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Host Cobra",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Hybrid Arachnid",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Ape",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Crab",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Crawler",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Maw",
+"family": "The Deep",
+"group": "Amphibians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Rhoa",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Serpent",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Skitterer",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Tunnelfiend",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Ursa",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Infested Vulture",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Ink Spinner",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Leaping Spider",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Lowlands Hopper",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Lurking Venom",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Maternal Rhex",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Merveil's Attendant",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Merveil's Blessed",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Merveil's Chosen",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Merveil's Daughter",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Merveil's Favoured",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Merveil's Retainer",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Mindless Scavenger",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Mountain Hellion",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Mountain Hellion Alpha",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Mountain Lynx",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Murk Runner",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Mutant Arach",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Night Adder",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Noxious Tarantula",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Obsidian Eater",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Parasite",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Pitbull Demon",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Plagued Arachnid",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Plated Parasite",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Plumed Chimeral",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Plummeting Ursa",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Porcupine Goliath",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Predatory Scorpion",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Primal Crushclaw",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": true,
+"harvest": true,
+"recipe": "Create an Item - A valuable Scarab"
+},
+{
+"name": "Primal Cystcaller",
+"family": "The Wilds",
+"group": "Primates",
+"red": true,
+"harvest": true,
+"recipe": "Create an Item - Nightmare Map"
+},
+{
+"name": "Primal Rhex Matriarch",
+"family": "The Wilds",
+"group": "Canines",
+"red": true,
+"harvest": true,
+"recipe": "Create an Item - Synthesis Unique Map"
+},
+{
+"name": "Purge Hound",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Ravenous Parasite",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Rhoa Mare",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Rock Spitter",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Rooster Fiend",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Rotting Vulture",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Ruins Hellion",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sand Leaper",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sand Scorpion",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sand Serpent",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sand Skitterer",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Saqawal, First of the Sky",
+"family": "The Sands",
+"group": "Avians",
+"red": true,
+"harvest": false,
+"recipe": "Craft an Aspect Skill onto an Item - Aspect of the Avian skill; Craft an Aspect Skill onto an Item - Level 30 Aspect of the Avian skill"
+},
+{
+"name": "Saqawine Blood Viper",
+"family": "The Sands",
+"group": "Reptiles",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Sword or Axe; Modify Mods on an Item - Add a Mod to an Elder Item"
+},
+{
+"name": "Saqawine Chimeral",
+"family": "The Sands",
+"group": "Reptiles",
+"red": true,
+"harvest": false,
+"recipe": "Create Currency Items - A Stack of 10 Random Currency"
+},
+{
+"name": "Saqawine Cobra",
+"family": "The Sands",
+"group": "Reptiles",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Mace or Sceptre; Modify Mods on an Item - Add a Mod to a Rare Map"
+},
+{
+"name": "Saqawine Retch",
+"family": "The Sands",
+"group": "Avians",
+"red": true,
+"harvest": false,
+"recipe": "Create a Unique - Boots"
+},
+{
+"name": "Saqawine Rhex",
+"family": "The Sands",
+"group": "Avians",
+"red": true,
+"harvest": false,
+"recipe": "Open a Portal - to Saqawal's Roost"
+},
+{
+"name": "Saqawine Rhoa",
+"family": "The Sands",
+"group": "Avians",
+"red": true,
+"harvest": false,
+"recipe": "Create a Rare - Four-Linked Helmet"
+},
+{
+"name": "Saqawine Vulture",
+"family": "The Sands",
+"group": "Avians",
+"red": true,
+"harvest": false,
+"recipe": "Create an Item - Fully-linked Six-socket Rare"
+},
+{
+"name": "Savage Crab",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Scalding Arachnid",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Scavenging Vulture",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Scum Crawler",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sewage Crawler",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sewer Drifter",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Shackled Hellion",
+"family": "The Wilds",
+"group": "Felines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Shaggy Monstrosity",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Singing Siren",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Skeletal Beast",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Slimy Nemesis",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Snow Wolf",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Soulless Watcher",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Spindle Spider",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Spine Serpent",
+"family": "The Sands",
+"group": "Reptiles",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Spitting Parasite",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Stygian Ape",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Stygian Silverback",
+"family": "The Wilds",
+"group": "Primates",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sulphuric Scorpion",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Sulphurspawn",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Swarthy Mollusc",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Talon Archer",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Tercel Rhoa",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Thicket Hulk",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Toxic Crawler",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Tunnelfiend",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Vaal Recluse",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Vaulting Croaker",
+"family": "The Deep",
+"group": "Amphibians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Venomous Spawn",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Vicious Hound",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Vicious Parasite",
+"family": "The Caverns",
+"group": "Insects",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Virulent Spider",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Vivid Abberarach",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": true,
+"harvest": true,
+"recipe": "Create an Item - Shaper Guardian, Elder Guardian or Conqueror Map"
+},
+{
+"name": "Vivid Vulture",
+"family": "The Sands",
+"group": "Avians",
+"red": true,
+"harvest": true,
+"recipe": "Transform an Item - Reroll a Synthesis Implicit Modifier on a Unique Item"
+},
+{
+"name": "Vivid Watcher",
+"family": "The Deep",
+"group": "Cephalopods",
+"red": true,
+"harvest": true,
+"recipe": "Sacrifice an Exceptional Support Gem - for 3 high Level, high Quality Support Gems"
+},
+{
+"name": "War Hound",
+"family": "The Wilds",
+"group": "Canines",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Waste Lurcher",
+"family": "The Deep",
+"group": "Crustaceans",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Webbed Spider",
+"family": "The Caverns",
+"group": "Arachnids",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Wild Brambleback",
+"family": "The Wilds",
+"group": "Unnaturals",
+"red": true,
+"harvest": true,
+"recipe": "Transform an Item - Adds 500m Experience to an Exceptional Support Gem"
+},
+{
+"name": "Wild Bristle Matron",
+"family": "The Wilds",
+"group": "Ursae",
+"red": true,
+"harvest": true,
+"recipe": "Modify Mods on an Item - Add a crafted Meta-modifier to a non-Unique Item"
+},
+{
+"name": "Wild Hellion Alpha",
+"family": "The Wilds",
+"group": "Felines",
+"red": true,
+"harvest": true,
+"recipe": "Modify Mods on an Item - Reroll a Watcher's Eye Modifier"
+},
+{
+"name": "Wild Rhex",
+"family": "The Sands",
+"group": "Avians",
+"red": false,
+"harvest": false,
+"recipe": ""
+},
+{
+"name": "Woods Ursa",
+"family": "The Wilds",
+"group": "Ursae",
+"red": false,
+"harvest": false,
+"recipe": ""
+}
+]
+}

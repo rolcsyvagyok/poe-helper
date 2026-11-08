@@ -3,6 +3,91 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.22 - 2026-11-06
+
+- **Campaign → Hide item types** (new, in the Loot filter list): click the item types your build doesn't use (claws, wands, shields, body armours…) and their normal and magic drops are hidden while you level. Greyed out = hidden, click again to show. Choose up to which area level (67 = the whole campaign), keep linked items (4-links and more by default), and hide rares of those types too if you like.
+- **Base ranks → Hide whole groups is a switch now.** A hidden group is greyed out; click it again and every base gets back the rank it had (bases that are also in another hidden group stay hidden with it). This replaces the Undo button and is remembered.
+- **Regex: Item mods.** Pick an item class, a base and its item level (and up to two influences) to see every prefix and suffix it can roll with their tiers. Click the mods you want, pick "T3 or better" and the like, and choose Any one of them, All of them, or A prefix and a suffix. The string lights up the item in your stash search while you roll it. All mods of gear, flasks and jewels come with the app (from the game data).
+- **Regex: Beasts.** Search strings for the beasts you want in the Bestiary or among itemised beasts in your stash: red (recipe), yellow and Harvest beasts, a price range from poe.ninja, family and group, and a click on any beast adds it or leaves it out. Each beast gets the shortest piece of its name no other beast has; when they don't fit in one search (250 characters) you get several to copy one after another.
+- **Regex sits right below WealthyExile** in the menu.
+- **Atlas is the default look now.** You're switched to it once with this update (if you picked Hideout, you keep it). Dark is still in Settings → Appearance.
+- **Fold the Loot filter's category list down to its icons** with the « button next to the search box (» brings the names back). Hover an icon to see its name; a click opens that category (the subcategory you were on, or its first one). The app remembers your choice.
+
+## 1.0.21 - 2026-11-06
+
+- **Two new looks, Hideout and Atlas** (Settings → Appearance, or the three dots at the bottom of the menu). Hideout is dark stone with bronze trim and gold headings; Atlas is night blue with silver-blue trim. Both use the game font for headings and buttons. Dark stays the default, and items keep the colours your filter gives them.
+- **Cards & gems sit right below Fragments** in the Loot filter list.
+- **Abyss jewels in parts like normal jewels:** Normal, Special (corrupted) and Levelling, with the four abyss jewels as tick boxes. Jewel tiers only show the item level slider (no area level or quality).
+- **The area level slider is only on campaign tiers** (levelling flasks, rares, currency, gems…), where it sets the area level they stop at; endgame tiers (flasks, tinctures, RGB, maps…) don't show it.
+- **Settings: Updates sit right below Requests**, so Check now is in view straight away.
+- **Rares, Crafting bases and Special bases moved to Miscellaneous** at the bottom of the list (Base ranks does most of that work now).
+- **Gems, FilterBlade style:** Generic first, then Special, then Exceptional. Each page is in FilterBlade's sections (gems with gem levels, with quality, +1 gems, the campaign; top gems; the exceptional tier list S/A/B/C; transfigured and special cases), the tiers have FilterBlade's names (Level 21+, Level 20, Level 18-19, Level 2-17, Quality 23%+…), and gem level, area level and quality have sliders. Tiers without a list show a gem (Blight) instead of the category name.
+
+## 1.0.20 - 2026-11-06
+
+- **Base ranks: the kinds of drop are Rares, High ilvl bases, Fractured and Influenced**, in that order, and all start at "All ranks". Synthesised items are left to your filter. ("Crafting bases" is now called High ilvl bases.)
+- **Base ranks: more views**: Caster weapons (wands, sceptres, staves), Melee weapons (axes, swords, claws, rapiers, maces, daggers), Bows (bows and quivers) and Minion (Convoking Wand, Bone Helmet, the spirit shields…). They're for looking only: every base keeps its one rank.
+- **Share your loot filter settings** (Settings): Export saves everything you set up for the filter (tiers and looks, base ranks, my bases, clusters, your rules, category prices, the tier designer and your own drop sounds) to one file. A friend presses Import and gets your setup; their account, league and filter file stay theirs, and Undo import brings their own back.
+- **Divination cards: Stacked cards are their own subcategory** instead of sitting above Tier 1.
+- **Set category prices**, on every priced category's page: the Price review table (a price per tier, Include, the moves it suggests) for that category only, right above its tiers. ("Auto-tier…" used to take you to the Price review tab.)
+- **Tiers show the price you set** ("39 bases, 20d+") instead of the typical price, once you've typed one.
+- **Special bases: the Fractured part is gone from the list**; Base ranks decides fractured items.
+
+## 1.0.19 - 2026-11-06
+
+- **Jewellery ranks fixed.** They were one rank off: Vermillion, Amethyst, Prismatic, Two-Stone Ring, Onyx, Agate, Citrine, Turquoise Amulet and Stygian Vise are S; Cerulean, Steel, Diamond Ring, Heavy Belt, Bone Ring and the rest of that list A; Seaglass Amulet, Gold Ring, Chain Belt, Rustic Sash… B; nothing in C; the rest D.
+- **Stygian Vise is a belt** on the Base ranks page (it was listed with the amulets).
+- **Base ranks: always sorted by rank.** Every column shows S first and D last.
+- **Regex: map types are left out of the stash search.** Shaper, Elder, Conqueror, Originator and blighted maps have their own sections in the map stash, so the search is shorter; they still go into the trade search.
+- **Flasks and tinctures, FilterBlade style.** Their tiers show item level, area level and quality (at least / at most / exactly / any, with a slider), rarity, and their bases as boxes you can untick. Tincture and flask labels show a real item instead of the category name.
+- **Tiers FilterBlade left empty take items again** (Tier 1 of essences, say): drag or add items into them; an empty one never catches everything.
+- **Flasks & jewels are no longer in Base ranks** either.
+- **Heist and Ritual bases are no longer in Base ranks**: your filter's own Heist and Ritual settings show them.
+- **No separate Minion tab**: minion bases are in Armours and Weapons or Jewellery; "All minion bases" in Hide whole groups still hides them all.
+
+## 1.0.18 - 2026-11-06
+
+- **WealthyExile works again.** The page stayed empty since 1.0.15 (a part it needs went missing when the Price check history page was removed).
+- **Base ranks: Armours and Weapons, Jewellery and Minion.** Three tabs on the page. Jewellery starts from the usual ranking (Vermillion, Amethyst, Two-Stone… S; Cerulean, Steel, Vanguard Belt… A; Gold Ring, Chain Belt, Rustic Sash… C); rings, amulets and belts you ranked yourself keep their rank. Minion shows the minion bases (Convoking Wand, Bone Helmet, Bone Ring, the spirit shields…) with their rank.
+- **Hide whole groups, rearranged:** Off-hand (Shields, Quivers), one-handed and two-handed weapons, All minion bases, and armour bases by defence.
+- **Base ranks: an item level for every kind of drop.** Fractured, Synthesised, Influenced, Crafting bases and Rares each have an "Item level ≥" slider (and a box to type it); 1 means any.
+- **The loot filter file options moved to Settings** (Loot filter file): the filter you build on, Write filter, rewriting on a new download and the filter folder.
+- **Loot filter: nothing is pinned by default.** Currency, Divination cards, Scarabs and Uniques are no longer pinned for you; pin what you like.
+- **Regex: the search is always your whole setup.** Every wanted mod and every number you fill in must be on the map, together with the mods you skip; the "Any one / All" switches are gone.
+- **Regex: Shaper, Elder, Conqueror, Originator, Blighted and Blight-ravaged maps are skipped by default**, with a line between them and the map's rarity.
+- **Regex: favourite mods.** Click the star of a mod to keep it at the top of the list in every search (it isn't skipped or wanted by that).
+- **Updates install without the installer window.** After you press Restart to update, the new version installs quietly in the same folder and the app opens again by itself. (This update itself still shows the window one last time.)
+
+## 1.0.17 - 2026-11-06
+
+- **Regex: "Reach all / Any one"** replaces the "Any one is enough" switch in Numbers, so it's clear the map must reach every minimum unless you pick Any one.
+- **Regex: "Skip all shown" and "Unpick shown" are gone.**
+- **Base ranks: hide whole groups.** Move all shields, a weapon type (all staves, all bows…) or the armour bases of one defence (all pure Armour, all Armour / ES…) to D in one click, with Undo.
+- **Regex: saved searches can be changed.** Load one, change what you like and press Update; Save as new keeps it under another name. Delete works on the loaded one (it didn't before).
+
+## 1.0.16 - 2026-11-06
+
+- **Base ranks have five ranks and start from the usual ranking.** S, A, B, C and D (untiered, the lowest and the default). Every base starts where FilterBlade's ranking puts it (Royal Plate S, Vaal Regalia B…); Reset all brings that ranking back. "All ranks" is now D and up, and "C and up" is new.
+- **Regex: Nightmare maps.** Tier 17 maps are called Nightmare maps now. They're always rare and never influenced, so those choices are left out for them; corrupted and identified still apply.
+- **Regex: the quality box is gone**, and the Nightmare mods of regular maps are called Originator mods, so they aren't mixed up with Nightmare maps.
+- **Regex: saving a search works.** Type a name next to the Save button.
+- **Regex: quick buttons for the trade search**: Tier 16 and 8 mods, instead of typing them.
+
+## 1.0.15 - 2026-11-06
+
+- **New Regex page, starting with Map mods.** Click the mods you can't run to skip maps with them (right click the ones you want), set the quantity, rarity, pack size, more maps / currency / scarabs / divination cards and quality you want, pick the map type, rarity, corrupted and identified, and copy the search for the stash or map device box. One short piece covers several mods where it can (every curse in one), and it warns you past the game's 250 characters. Regular and Tier 17 maps each have their own list; Nightmare mods can be shown too. Save your searches by name.
+- **Buy maps like these:** the same choices as a trade site search (instant buyout, cheapest first, the tier you pick), opened in your browser, including more maps / currency / scarabs / divination cards, and "at least 8 mods" for fully rolled maps.
+- **Map warnings are gone**, from the overlay and from Settings, with their saved list.
+- **Base ranks** replace the base visibility table. Every base has a rank, S (best) to C (the lowest and the default). Left click a base for a rank up, right click for a rank down, or drag to paint with the S/A/B/C brush, just like the cluster jewel grid.
+- **Lowest rank shown, per kind of drop**: Fractured, Synthesised, Influenced, Crafting bases (normal and magic at item level 82+, adjustable) and Rares each pick S only, A and up, B and up, all ranks, hide all, or leave it to your filter. "Rares: S only" with "Fractured: B and up" hides a B rank Vaal Regalia as a plain rare but shows it fractured. Uniques and 6-socket items are never hidden by this.
+- **Show by rank**: one column per rank for the bases you're looking at, or "All bases" to see every base by rank, so you can see what's in and what's out.
+- **Rank by base order** ranks every column in one go (best base S, next two A, next two B, the rest C).
+- Your old fractured choices move over: the top look becomes S, the fractured look B, and Fractured is set to "B and up".
+- **Tier 1's border is the colour of its text** instead of white, on the white Tier 1 label (your themes and filter are updated once). The "Keep white with the Divine sound" switch is gone: Tier 1 always keeps the white look and FilterBlade's sound; you still pick its text colour and size.
+- **Game sound previews moved to the Tier designer**, below the design, where you pick the sounds.
+- **The Price check history page is gone from the menu.** Your recent checks are on the Overview.
+- **Daily lab works when poelab turns the app away.** poelab is behind Cloudflare, which sometimes answers plain requests with "poelab answered 403" (a new PC or network, say). The app now opens poelab like a normal browser instead, in a hidden window. If Cloudflare wants you to tick "Verify you are human", that window shows itself for you to click, then closes. The pass is kept, so it's needed only now and then.
+
 ## 1.0.14 - 2026-11-05
 
 - **The category list really stays put now.** Opening Cluster jewels, Base visibility or Your bases showed an empty page for a moment while their data loaded, which threw you back to the top. The new page is now built first and swapped in at once, so the list on the left stays exactly where it was.

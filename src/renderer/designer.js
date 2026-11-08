@@ -26,10 +26,10 @@ function soundOf(st) {
   return 'none';
 }
 
-/** Tier 1 lock: white label, white beam, white star, FilterBlade's Divine sound (text colour and size stay yours). */
+/** Tier 1 is always white: white label, white beam, white star, FilterBlade's Divine sound; the border follows the text colour. */
 function lockT1() {
   const t1 = D.levels[1] || {};
-  D.levels[1] = { ...t1, background: [255, 255, 255, 255], border: [255, 255, 255, 255], sound: { id: 6, volume: 300 }, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
+  D.levels[1] = { ...t1, background: [255, 255, 255, 255], border: [...(t1.text || [220, 0, 0]).slice(0, 3), 255], sound: { id: 6, volume: 300 }, beam: { color: 'White' }, icon: { size: 0, color: 'White', shape: 'Star' } };
   delete D.levels[1].customSound;
 }
 
@@ -40,7 +40,7 @@ async function renderDesignerNow() {
   if (!D.levels) {
     D.levels = clone(D.state.draft.levels);
     D.presetId = D.state.draft.presetId;
-    D.lock = D.state.draft.lockTier1;
+    D.lock = true; // Tier 1 always keeps the white look (that's how FilterBlade marks the top drops)
     D.groups = D.state.draft.groups;
   }
   draw();
@@ -86,6 +86,9 @@ function drawNow() {
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', {}, 'Design'), h('p', {}, 'Click a drop in the preview or a tier below to edit it.')),
       h('div', { class: 'dz' }, pile(), editor())),
+    h('section', { class: 'section' },
+      h('div', { class: 'section-head' }, h('h2', {}, 'Game sound previews'), h('p', {}, 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.')),
+      h('div', { class: 'panel' }, window.gameSoundRows ? window.gameSoundRows(S.settings, () => renderDesigner()) : null)),
     applyBar());
 }
 
@@ -210,7 +213,7 @@ function editor() {
     h('div', { class: 'row' },
       h('h2', { style: { margin: 0 } }, `Tier ${lv}`), h('span', { class: 'small muted' }, LEVEL_NOTE[lv]),
       h('span', { class: 'spacer' }),
-      lv === 1 ? toggle(D.lock, (v) => { D.lock = v; persist(); draw(); applySoon(); }, 'Keep white with the Divine sound') : null),
+      null),
     locked ? h('p', { class: 'small muted' }, 'Tier 1 stays a white label with a white beam, a white star and FilterBlade\'s Divine sound (game sound 6). You can still change its text colour and size, or switch the lock off.') : null,
     h('div', { class: 'ground stage', style: { minHeight: '110px', padding: '22px' } },
       h('div', { class: 'row', style: { gap: '10px' } }, dropLabel(SAMPLE[lv], st, { rarity: 'Currency' }), soundButton(soundOf(st)))),

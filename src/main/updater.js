@@ -64,7 +64,9 @@ function createUpdater({ app, log = () => {}, onStatus = () => {} }) {
   /** Restart now into the downloaded version. */
   function install() {
     if (!updater || status.state !== 'ready') return false;
-    setImmediate(() => updater.quitAndInstall(false, true));
+    // silent: no installer window for an update (the folder and shortcuts from the first install are kept),
+    // and the app starts again by itself afterwards
+    setImmediate(() => updater.quitAndInstall(true, true));
     return true;
   }
 
