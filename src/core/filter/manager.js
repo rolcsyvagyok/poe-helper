@@ -29,7 +29,7 @@ const NOT_RANKED_GROUPS = new Set(['heist', 'ritual', 'flasks']); // flasks and 
 const RANKED_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.filter((g) => !NOT_RANKED_GROUPS.has(g.id)).flatMap((g) => Object.values(g.columns).flat())])];
 const MATRIX_NAMES = [...new Set([...Object.values(BASES).flatMap((o) => Object.values(o).flat()), ...GROUPS.flatMap((g) => Object.values(g.columns).flat())])];
 // fractured bases have their own palette: the best bases loud, good ones clear, the rest hidden
-const FRACTURED_TOP_STYLE = { fontSize: 45, text: [255, 255, 255, 255], border: [255, 214, 150, 255], background: [150, 86, 22, 255], customSound: 'poehelper-sounds/sparkle.mp3', beam: { color: 'Orange' }, icon: { size: 0, color: 'Brown', shape: 'Star' } };
+const FRACTURED_TOP_STYLE = { fontSize: 45, text: [255, 255, 255, 255], border: [255, 214, 150, 255], background: [150, 86, 22, 255], sound: { id: 1, volume: 300 }, beam: { color: 'Orange' }, icon: { size: 0, color: 'Brown', shape: 'Star' } };
 const FRACTURED_STYLE = { fontSize: 40, text: [255, 255, 255, 255], border: [210, 178, 135, 255], background: [86, 52, 20, 235], icon: { size: 1, color: 'Brown', shape: 'Diamond' } };
 
 const HELPER_SUFFIX = ' (helper)';
@@ -153,7 +153,8 @@ const TIER_LOOKS = {
   mid: { fontSize: 38, text: [0, 0, 0, 255], border: [0, 0, 0, 255], background: [255, 220, 120, 230], beam: { color: 'Yellow', temp: true }, icon: { size: 2, color: 'Yellow', shape: 'Circle' } },
   multi: { fontSize: 40, text: [175, 96, 37, 255], border: [175, 96, 37, 255], background: [60, 30, 10, 255], beam: { color: 'Brown', temp: true }, icon: { size: 1, color: 'Brown', shape: 'Pentagon' } },
 };
-const DEFAULT_TIER_SOUNDS = { top: 'divine-tink', high: 'chime', mid: 'soft-bell', multi: 'coin' };
+// the game's own alert sounds, as FilterBlade uses them: 6 the Divine sound, 1 and 2 for good drops, 4 a lighter one
+const DEFAULT_TIER_SOUNDS = { top: 'game:6', high: 'game:1', mid: 'game:2', multi: 'game:4' };
 
 function tierStyle(tier, sounds = {}) {
   return { ...TIER_LOOKS[tier], ...soundStyle(sounds[tier] ?? DEFAULT_TIER_SOUNDS[tier]) };
@@ -270,7 +271,7 @@ function buildHelperFilter({ baseText, overrides = [], economy = [], header = {}
 }
 
 // ---- My bases: bases you collect (from the price check or typed in), with item level ranges ----
-const MY_BASES_STYLE = { fontSize: 40, text: [255, 255, 255, 255], border: [90, 220, 255, 255], background: [20, 85, 105, 255], customSound: 'poehelper-sounds/chime.mp3', beam: { color: 'Cyan', temp: true }, icon: { size: 1, color: 'Cyan', shape: 'Diamond' } };
+const MY_BASES_STYLE = { fontSize: 40, text: [255, 255, 255, 255], border: [90, 220, 255, 255], background: [20, 85, 105, 255], sound: { id: 2, volume: 300 }, beam: { color: 'Cyan', temp: true }, icon: { size: 1, color: 'Cyan', shape: 'Diamond' } };
 const RARITY_ORDER = ['Normal', 'Magic', 'Rare'];
 /** One "My bases" entry -> a Show block placed above everything else in the (helper) filter. */
 function myBaseRule(e, style = MY_BASES_STYLE) {
@@ -337,8 +338,8 @@ function hiddenBaseRules(baseText, patch, { fractured = false, synthesised = fal
 // Regalia as a plain rare but shows it fractured.
 const RANKS = ['S', 'A', 'B', 'C', 'D']; // D: untiered, the lowest and the default
 const RANK_LOOKS = {
-  S: { fontSize: 45, text: [255, 255, 255, 255], border: [255, 255, 255, 255], background: [30, 110, 200, 255], customSound: 'poehelper-sounds/chime.mp3', beam: { color: 'Blue' }, icon: { size: 0, color: 'Blue', shape: 'Star' } },
-  A: { fontSize: 42, text: [20, 30, 10, 255], border: [20, 30, 10, 255], background: [140, 200, 40, 255], customSound: 'poehelper-sounds/sparkle.mp3', beam: { color: 'Green', temp: true }, icon: { size: 1, color: 'Green', shape: 'Diamond' } },
+  S: { fontSize: 45, text: [255, 255, 255, 255], border: [255, 255, 255, 255], background: [30, 110, 200, 255], sound: { id: 1, volume: 300 }, beam: { color: 'Blue' }, icon: { size: 0, color: 'Blue', shape: 'Star' } },
+  A: { fontSize: 42, text: [20, 30, 10, 255], border: [20, 30, 10, 255], background: [140, 200, 40, 255], sound: { id: 2, volume: 300 }, beam: { color: 'Green', temp: true }, icon: { size: 1, color: 'Green', shape: 'Diamond' } },
   B: { fontSize: 38, text: [40, 30, 0, 255], border: [40, 30, 0, 255], background: [250, 200, 60, 240], icon: { size: 2, color: 'Yellow', shape: 'Circle' } },
   C: { fontSize: 36, text: [30, 15, 0, 255], border: [30, 15, 0, 255], background: [230, 130, 40, 230], icon: { size: 2, color: 'Orange', shape: 'Triangle' } },
   D: { fontSize: 32, text: [255, 220, 210, 255], border: [180, 40, 40, 255], background: [120, 25, 25, 220] },
@@ -411,6 +412,8 @@ function campaignHideRules(o = {}) {
   const until = Math.max(1, Math.min(83, Math.round(Number(o.untilLevel) || 67)));
   const out = [];
   const classes = (o.classes || []).filter((c) => CAMPAIGN_CLASSES.includes(c));
+  // rapiers (thrusting swords) go with one-hand swords
+  if (classes.includes('One Hand Swords') && !classes.includes('Thrusting One Hand Swords')) classes.push('Thrusting One Hand Swords');
   if (!classes.length) return out;
   const links = Math.round(Number(o.keepLinks));
   const conds = [{ keyword: 'Rarity', values: o.rares ? ['Normal', 'Magic', 'Rare'] : ['Normal', 'Magic'] },

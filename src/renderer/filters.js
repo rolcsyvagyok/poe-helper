@@ -766,15 +766,15 @@ const CJ_BRUSHES = [
 ];
 // ---------------------------------------------------------------- Campaign: hide item types while levelling
 const CAMPAIGN_SETS = [
-  ['One-handed weapons', ['Claws', 'Daggers', 'Rune Daggers', 'Wands', 'One Hand Swords', 'Thrusting One Hand Swords', 'One Hand Axes', 'One Hand Maces', 'Sceptres']],
+  ['One-handed weapons', ['Claws', 'Daggers', 'Rune Daggers', 'Wands', 'One Hand Swords', 'One Hand Axes', 'One Hand Maces', 'Sceptres']],
   ['Two-handed weapons', ['Bows', 'Staves', 'Warstaves', 'Two Hand Swords', 'Two Hand Axes', 'Two Hand Maces']],
   ['Off-hand', ['Shields', 'Quivers']],
   ['Armour', ['Body Armours', 'Helmets', 'Gloves', 'Boots']],
   ['Jewellery', ['Rings', 'Amulets', 'Belts']],
 ];
-const CAMPAIGN_LABELS = { 'Thrusting One Hand Swords': 'Rapiers (thrusting swords)' };
+const CAMPAIGN_LABELS = { 'One Hand Swords': 'One Hand Swords & Rapiers' };
 // what each type looks like in game, so it's clear which button an item is under
-const CAMPAIGN_EXAMPLES = { 'One Hand Swords': 'Rusted Sword, Copper Sword, Cutlass…', 'Thrusting One Hand Swords': 'Rusted Spike, Whalebone Rapier, Estoc…', Claws: 'Nailed Fist, Sharktooth Claw…', Daggers: 'Glass Shank, Skinning Knife…', 'Rune Daggers': 'Carving Knife, Boot Knife…', Staves: 'Gnarled Branch, Quarterstaff…', Warstaves: 'Long Staff, Iron Staff…' };
+const CAMPAIGN_EXAMPLES = { 'One Hand Swords': 'Rusted Sword, Cutlass… and the rapiers: Rusted Spike, Estoc…', Claws: 'Nailed Fist, Sharktooth Claw…', Daggers: 'Glass Shank, Skinning Knife…', 'Rune Daggers': 'Carving Knife, Boot Knife…', Staves: 'Gnarled Branch, Quarterstaff…', Warstaves: 'Long Staff, Iron Staff…' };
 function renderCampaignHide(body, view) {
   const cats = sidebar(view, new Set());
   const o = { classes: [], rares: false, untilLevel: 67, keepLinks: 4, ...(S.settings.campaignHide || {}) };
@@ -995,7 +995,7 @@ async function renderBaseMatrix(body, view) {
   // views across both weapon groups (for looking only: every base keeps its one rank)
   const MIXES = {
     caster: ['Wands', 'Sceptres', 'Staves'],
-    melee: ['Claws', 'Daggers', 'One Hand Swords', 'Rapiers', 'One Hand Axes', 'One Hand Maces', 'Two Hand Swords', 'Two Hand Axes', 'Two Hand Maces'],
+    melee: ['Claws', 'Daggers', 'One Hand Swords', 'One Hand Axes', 'One Hand Maces', 'Two Hand Swords', 'Two Hand Axes', 'Two Hand Maces'],
     bows: ['Bows', 'Quivers'],
   };
   // three parts: armours and weapons, jewellery, and the minion bases (a view: they keep their one rank)
@@ -1181,6 +1181,10 @@ async function renderBaseMatrix(body, view) {
     ] },
     ...(data.groups || []).filter((g) => ['weapons1', 'weapons2'].includes(g.id)).map((g) => ({ title: g.name, items: g.columns.filter((col) => col.title !== 'Quivers').map((col) => ({ label: col.title, names: () => namesOf(col.list) })) })),
     { title: 'Minion', items: [{ label: 'All minion bases', names: () => [...(data.minionBases || [])] }] },
+    // a group hidden under a name that's gone (Rapiers are One Hand Swords now) can still be brought back
+    ...(() => { const known = new Set(['Shields', 'Quivers', 'All minion bases', ...(data.groups || []).flatMap((g) => g.columns.map((c) => c.title)), ...data.defences.map((d) => d.name)]);
+      const left = Object.keys(S.settings.hiddenGroups || {}).filter((l) => !known.has(l));
+      return left.length ? [{ title: 'Hidden earlier', items: left.map((l) => ({ label: l, names: () => Object.keys(S.settings.hiddenGroups[l]?.before || {}) })) }] : []; })(),
     { title: 'Armour bases', items: data.defences.map((d) => ({ label: d.name, names: () => namesOf(data.classes.flatMap((c) => data.bases[c][d.id] || [])) })) },
   ].filter((set) => set.items.length);
   // only ever down to D (untiered): a whole group is pushed out of the ranks, never all made S.
@@ -1863,8 +1867,9 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
   const current = d.customSound ? (window.UI.soundIdFromPath(d.customSound) || 'own') : d.sound?.id ? `game:${d.sound.id}` : 'none';
   const soundSel = h('select', { 'aria-label': 'Drop sound', onchange: (e) => {
     const v = e.target.value;
-    delete d.customSound; delete d.customVolume; delete d.sound;
-    if (v === 'own' && ownCustom) d.customSound = ownCustom;
+    delete d.customSound; delete d.customVolume; delete d.sound; delete d.keepSound;
+    if (v === 'keep') d.keepSound = true;
+    else if (v === 'own' && ownCustom) d.customSound = ownCustom;
     else if (v.startsWith('game:')) d.sound = { id: Number(v.slice(5)), volume: Number(vol.value) || 300 };
     else if (v !== 'none') d.customSound = window.UI.soundPath(v);
     playSound(v);
@@ -1872,7 +1877,8 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
     redraw();
   } },
   ownCustom ? h('option', { value: 'own', selected: current === 'own' }, `Filter's sound (${ownCustom})`) : null,
-  h('option', { value: 'none', selected: current === 'none' }, 'No sound'),
+  h('option', { value: 'keep', selected: current === 'none' && !!d.keepSound }, 'The filter\'s own sound (FilterBlade)'),
+  h('option', { value: 'none', selected: current === 'none' && !d.keepSound }, 'No sound'),
   h('optgroup', { label: 'PoE Helper tinks' }, S.sounds.filter((s) => !s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, `${s.name}, ${s.note}`))),
   S.sounds.some((s) => s.user) ? h('optgroup', { label: 'Your sounds' }, S.sounds.filter((s) => s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, s.name))) : null,
   h('optgroup', { label: 'Game sounds (heard in game only)' }, Array.from({ length: 16 }, (_, i) => h('option', { value: `game:${i + 1}`, selected: current === `game:${i + 1}` }, `Game sound ${i + 1}`))));

@@ -3,6 +3,16 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.24 - 2026-11-08
+
+- **Regex: Campaign items** (new): for levelling, pick an item type and the mods you want (movement speed, life, resistances…); the search finds them on any item, normal, magic or rare, by the mods' own text, at every tier or from a tier you pick ("T3 or better"). Any one of them or all of them, and searches can be saved.
+- **Regex: Magic item mods shows the amounts** (T1 +91–100, T2 +77–90…) instead of the mod names (they're in the tooltip), and **ticking T2 ticks T1 too** (unticking a tier unticks the worse ones).
+- **Item types come in parts** (Armour, Jewellery, One-handed and Two-handed weapons, Flasks, Jewels) in both lists.
+- **Rapiers count as One Hand Swords everywhere:** Regex, Base ranks (one column and one Hide whole groups button) and Campaign → Hide item types. A group you hid as "Rapiers" before can still be brought back under "Hidden earlier".
+- **The app's own sounds are gone from your filter:** the chime, sparkle and tinks the app put on tiers (Tier designer looks, Base ranks S and A, My bases, fractured bases, economy rules) are replaced by FilterBlade's own sound for each tier, or the game's alert sounds for the app's own rules. Sounds you added yourself stay. The look editor has "The filter's own sound (FilterBlade)" to pick.
+- **WealthyExile: essences nobody trades right now have their picture too** (poe.ninja doesn't list them, so GGG's own picture of the essence is used).
+- **WealthyExile: divination cards have their picture** (poe.ninja has none for cards, so the stash's card picture is used).
+
 ## 1.0.23 - 2026-11-08
 
 - **Price check: "Show in app"** (was App) opens the Loot filter at the item's tier, with the item picked and the tier lit up, so you can move or restyle it right there.

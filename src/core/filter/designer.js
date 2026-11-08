@@ -10,7 +10,8 @@
 
 const LEVELS = [1, 2, 3, 4, 5, 6];
 const TINK = 'poehelper-sounds/divine-tink.mp3';
-const sound = (id) => ({ customSound: `poehelper-sounds/${id}.mp3` });
+// the designs keep each tier's own FilterBlade sound (the game's alert sounds); the app adds none of its own
+const sound = () => ({ keepSound: true });
 const game = (id, volume = 300) => ({ sound: { id, volume } });
 
 // Tier 1 keeps FilterBlade's own top-currency sound: the game's alert sound 6 (the Divine drop sound).

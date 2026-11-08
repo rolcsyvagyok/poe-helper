@@ -604,7 +604,7 @@ function condValue(rule, keyword, ops) {
 }
 
 function ruleForm(initial, { onSave, onCancel, saveLabel = 'Save' }) {
-  const r0 = initial || { action: 'Show', label: '', conditions: [], style: { fontSize: 42, text: [255, 42, 42, 255], border: [255, 42, 42, 255], background: [255, 255, 255, 255], customSound: 'poehelper-sounds/divine-tink.mp3', beam: { color: 'Red' }, icon: { size: 0, color: 'Red', shape: 'Star' } } };
+  const r0 = initial || { action: 'Show', label: '', conditions: [], style: { fontSize: 42, text: [255, 42, 42, 255], border: [255, 42, 42, 255], background: [255, 255, 255, 255], sound: { id: 6, volume: 300 }, beam: { color: 'Red' }, icon: { size: 0, color: 'Red', shape: 'Star' } } };
   const st0 = r0.style || {};
   const hexOf = (a, d) => (a ? '#' + a.slice(0, 3).map((n) => (+n).toString(16).padStart(2, '0')).join('') : d);
   const cls0 = (r0.conditions || []).find((c) => c.keyword === 'Class');

@@ -200,7 +200,7 @@ const gameSoundFile = (id) => (String(id).startsWith('game:') ? gameSoundFiles[S
 
 function playSound(id) {
   if (gameSoundFile(id)) id = gameSoundFile(id);
-  if (!id || id === 'none' || id.startsWith('game:') || id === 'custom') return false;
+  if (!id || id === 'none' || id === 'keep' || id.startsWith('game:') || id === 'custom') return false;
   try {
     playing?.pause();
     soundUrl(id).then((url) => {

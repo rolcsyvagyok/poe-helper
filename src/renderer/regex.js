@@ -9,6 +9,7 @@
   const CATS = [
     { id: 'maps', name: 'Map mods', art: '*Map16', icon: 'map' }, // a tier 16 map's picture
     { id: 'items', name: 'Magic item mods', art: 'Orb of Alteration', icon: 'drop' },
+    { id: 'campaign', name: 'Campaign items', art: 'Scroll of Wisdom', icon: 'leaf' },
     { id: 'beasts', name: 'Beasts', art: 'Bestiary Orb', icon: 'leaf' },
   ];
   // the category pictures come from poe.ninja's item art (web.poecdn.com), loaded once
@@ -264,10 +265,18 @@
     mount(io.parts, r.parts.map((p) => h('span', { class: 'rx-part', title: p.names.join(', ') }, h('b', {}, p.label), ' ', h('code', {}, p.text))));
     mount(io.notes, r.notes.map((n) => h('div', { class: 'small warn' }, n)));
   }
+  // "+(91-100) to maximum Energy Shield / …" -> "+91–100"
+  const amountOf = (text) => { const m = /[+-]?\(?-?[\d.]+(?:-[\d.]+)?\)?%?/.exec(String(text).split(' / ')[0]); return m ? m[0].replace(/[()]/g, '').replace(/(\d)-(\d)/, '$1–$2') : text; };
+  // the item type list in parts: armour, jewellery, weapons…
+  const typeOptions = (types, cur) => {
+    const groups = [];
+    for (const t of types) { let g = groups.find((x) => x.name === t.group); if (!g) groups.push(g = { name: t.group, list: [] }); g.list.push(t); }
+    return groups.map((g) => h('optgroup', { label: g.name }, g.list.map((t) => h('option', { value: t.id, selected: t.id === cur }, t.name))));
+  };
   async function renderItems(main) {
     if (!R.itemTypes) R.itemTypes = await call('regex:itemBases');
     const c = itemChoices();
-    const type = R.itemTypes.find((t) => t.id === c.type) || null;
+    const type = R.itemTypes.find((t) => t.id === (c.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : c.type)) || null;
     const variant = type?.variants ? (type.variants.find((v) => v.id === c.variant) || type.variants[0]) : null;
     const viewKey = JSON.stringify([c.type, variant?.id || null]);
     if (type && R.itemViewKey !== viewKey) { R.itemView = await call('regex:itemView', { type: c.type, variant: variant?.id || null }); R.itemViewKey = viewKey; R.itemOut = null; }
@@ -276,7 +285,7 @@
     const presets = (S.settings.regexPresets || []).filter((p) => p.kind === 'items');
 
     const typeSel = h('select', { 'aria-label': 'Item type', onchange: (e) => setItems({ type: e.target.value, variant: null, picks: {} }) },
-      h('option', { value: '' }, 'Pick an item type…'), R.itemTypes.map((t) => h('option', { value: t.id, selected: t.id === c.type }, t.name)));
+      h('option', { value: '' }, 'Pick an item type…'), typeOptions(R.itemTypes, c.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : c.type));
     const varSel = type?.variants ? h('select', { 'aria-label': type.variants[0].id.endsWith('_armour') ? 'Defence' : 'Base', onchange: (e) => setItems({ variant: e.target.value, picks: {} }) },
       type.variants.map((x) => h('option', { value: x.id, selected: x.id === variant.id }, x.name))) : null;
 
@@ -315,11 +324,12 @@
 
     const picks = c.picks || {};
     const q = (R.itemFilter || '').trim().toLowerCase();
+    // ticking a tier ticks the better ones too (T2 means "T2 or better"); unticking it unticks the worse ones
     const flipTier = (f, tier) => {
       const cur = new Set(picks[f.key] || []);
-      if (cur.has(tier)) cur.delete(tier); else cur.add(tier);
+      const next = cur.has(tier) ? [...cur].filter((t) => t < tier) : f.tiers.map((t) => t.tier).filter((t) => t <= tier);
       const np = { ...picks };
-      if (cur.size) np[f.key] = [...cur].sort(); else delete np[f.key];
+      if (next.length) np[f.key] = next.sort(); else delete np[f.key];
       setItems({ picks: np });
     };
     const famRow = (f) => {
@@ -328,7 +338,7 @@
         h('span', { class: 'rx-mod-t' }, f.text.map((l) => h('span', {}, l))),
         h('span', { class: 'rx-tiers' }, f.tiers.map((t) => h('label', { class: 'rx-tick' + (on.has(t.tier) ? ' on' : ''), title: `${t.name}: ${t.text} · level ${t.lvl}` },
           h('input', { type: 'checkbox', checked: on.has(t.tier), onchange: () => flipTier(f, t.tier) }),
-          h('b', {}, `T${t.tier}`), h('span', { class: 'rx-tick-n' }, t.name)))));
+          h('b', {}, `T${t.tier}`), h('span', { class: 'rx-tick-n' }, amountOf(t.text))))));
     };
     const shown = (v?.families || []).filter((f) => !q || f.text.join(' ').toLowerCase().includes(q) || f.tiers.some((t) => (t.name || '').toLowerCase().includes(q)));
     const col = (aff, title) => { const l = shown.filter((f) => f.aff === aff); return h('div', { class: 'rx-col' }, h('div', { class: 'rx-col-h' }, `${title} (${l.length})`), l.map(famRow)); };
@@ -357,6 +367,82 @@
         h('span', { class: 'spacer' }), search) : h('div', { class: 'panel small muted', style: { marginTop: '14px' } }, 'Pick an item type to see its mods.'),
       v ? h('div', { class: 'rx-cols' }, col('prefix', 'Prefixes'), col('suffix', 'Suffixes')) : null);
     drawItemOut();
+  }
+
+  // ---------- campaign items: any rarity, every tier, by the mods' own text (vendors and drops while levelling) ----------
+  const campDefaults = { type: '', variant: null, picks: {}, mode: 'any' };
+  const campChoices = () => { const c = { ...campDefaults, ...(S.settings?.regexCampaign || {}) }; if (Object.values(c.picks || {}).some((v) => Array.isArray(v))) c.picks = {}; return c; };
+  async function setCamp(patch) {
+    S.settings.regexCampaign = { ...campChoices(), ...patch };
+    R.campOut = await call('regex:campaignBuild', S.settings.regexCampaign);
+    renderRegexPage();
+  }
+  async function renderCampaign(main) {
+    if (!R.itemTypes) R.itemTypes = await call('regex:itemBases');
+    const c = campChoices();
+    const type = R.itemTypes.find((t) => t.id === c.type) || null;
+    const variant = type?.variants ? (type.variants.find((v) => v.id === c.variant) || type.variants[0]) : null;
+    const key = JSON.stringify([c.type, variant?.id || null]);
+    if (type && R.campKey !== key) { R.campView = await call('regex:campaignView', { type: c.type, variant: variant?.id || null }); R.campKey = key; R.campOut = null; }
+    const v = type ? R.campView : null;
+    if (!R.campOut) R.campOut = await call('regex:campaignBuild', c);
+    const o = R.campOut;
+    const presets = (S.settings.regexPresets || []).filter((p) => p.kind === 'campaign');
+    const picks = c.picks || {};
+
+    const typeSel = h('select', { 'aria-label': 'Item type', onchange: (e) => setCamp({ type: e.target.value, variant: null, picks: {} }) },
+      h('option', { value: '' }, 'Pick an item type…'), typeOptions(R.itemTypes, c.type));
+    const varSel = type?.variants ? h('select', { 'aria-label': type.variants[0].id.endsWith('_armour') ? 'Defence' : 'Base', onchange: (e) => setCamp({ variant: e.target.value, picks: {} }) },
+      type.variants.map((x) => h('option', { value: x.id, selected: x.id === variant.id }, x.name))) : null;
+    const copyIt = async () => { if (!o.regex) return toast('Nothing to copy yet.', true); await call('clipboard:write', o.regex); toast('Copied. Paste it in a vendor\'s or the stash search with Ctrl+V'); };
+    const seg = h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'Match' },
+      [['any', 'Any one of them'], ['all', 'All of them']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': c.mode === val ? 'true' : 'false', class: c.mode === val ? 'on' : '', onclick: () => setCamp({ mode: val }) }, l)));
+
+    if (R.campPreset && !presets.some((p) => p.name === R.campPreset)) R.campPreset = null;
+    const presetSel = h('select', { 'aria-label': 'Saved searches', onchange: (e) => { const p = presets.find((x) => x.name === e.target.value); R.campPreset = p ? p.name : null; if (p) { setCamp({ ...campDefaults, ...p.choices }); toast(`"${p.name}" loaded`); } else renderRegexPage(); } },
+      h('option', { value: '' }, presets.length ? 'Saved searches…' : 'No saved searches yet'), presets.map((p) => h('option', { value: p.name, selected: R.campPreset === p.name }, p.name)));
+    const nameIn = h('input', { placeholder: 'New name, e.g. Act 2 boots', style: { width: '190px' }, 'aria-label': 'Name for a new saved search', onkeydown: (e) => { if (e.key === 'Enter') saveNew(); } });
+    const save = async (name) => { S.settings.regexPresets = await call('regex:savePreset', { name, kind: 'campaign', choices: campChoices() }); R.campPreset = name; renderRegexPage(); };
+    const saveNew = async () => { const name = nameIn.value.trim(); if (!name) { nameIn.focus(); return toast('Type a name for the new search first.', true); } if (presets.some((p) => p.name === name) && !confirm(`"${name}" exists. Replace it with these choices?`)) return; await save(name); toast(`Saved as "${name}"`); };
+
+    const q = (R.campFilter || '').trim().toLowerCase();
+    const row = (f) => {
+      const picked = f.key in picks;
+      const t = Number(picks[f.key]) || 0;
+      const sel = h('select', { class: 'rx-tier', 'aria-label': `Tier for ${f.text[0]}`, onclick: (e) => e.stopPropagation(), onchange: (e) => {
+        const np = { ...picks }; if (e.target.value === 'off') delete np[f.key]; else np[f.key] = Number(e.target.value); setCamp({ picks: np });
+      } }, h('option', { value: 'off', selected: !picked }, '–'), h('option', { value: 0, selected: picked && !t }, 'Any tier'),
+      f.tiers.slice(0, -1).map((x) => h('option', { value: x.tier, selected: picked && t === x.tier }, `T${x.tier} or better (${amountOf(x.text)}+)`)));
+      return h('div', { class: 'rx-mod' + (picked ? ' want' : ''), role: 'button', tabindex: 0, title: f.tiers.map((x) => `T${x.tier}  ${x.text}  ·  level ${x.lvl}`).join('\n'),
+        onclick: () => { const np = { ...picks }; if (picked) delete np[f.key]; else np[f.key] = 0; setCamp({ picks: np }); },
+        onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } },
+      h('span', { class: 'rx-mod-t' }, f.text.map((l) => h('span', {}, l))),
+      h('span', { class: 'rx-mod-m' }, h('span', { class: 'small faint' }, `${f.tiers.length} tier${f.tiers.length === 1 ? '' : 's'}`), sel));
+    };
+    const shown = (v?.families || []).filter((f) => !f.influence && (!q || f.text.join(' ').toLowerCase().includes(q)));
+    const col = (aff, title) => { const l = shown.filter((f) => f.aff === aff); return h('div', { class: 'rx-col' }, h('div', { class: 'rx-col-h' }, `${title} (${l.length})`), l.map(row)); };
+    const search = h('input', { type: 'search', placeholder: 'Find a mod, e.g. movement, life, resistance', value: R.campFilter || '', style: { flex: 1, minWidth: '220px' }, 'aria-label': 'Find a mod' });
+    search.addEventListener('input', () => { R.campFilter = search.value; const pos = search.selectionStart; renderRegexPage().then(() => { const s = document.querySelector('#page-regex input[type=search]'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } }); });
+
+    mount(main,
+      h('div', { class: 'panel rx-outbar' },
+        h('div', { class: 'row', style: { gap: '10px', flexWrap: 'nowrap', alignItems: 'stretch' } },
+          h('code', { class: 'rx-out' + (o.regex ? '' : ' empty'), tabindex: 0, title: 'Click to copy', onclick: copyIt }, o.regex || 'Pick the mods you want below.'),
+          h('div', { class: 'stack', style: { gap: '6px', alignItems: 'flex-end' } }, h('button', { class: 'primary', onclick: copyIt }, 'Copy'),
+            h('span', { class: 'rx-count' + (o.length > o.max ? ' over' : '') }, `${o.length} / ${o.max}`))),
+        h('div', { class: 'rx-parts' }, o.parts.map((p) => h('span', { class: 'rx-part', title: p.text }, h('b', {}, p.label), ' ', h('code', {}, p.text)))),
+        o.notes.map((n) => h('div', { class: 'small warn' }, n)),
+        h('div', { class: 'row small', style: { gap: '8px', marginTop: '4px' } }, presetSel,
+          R.campPreset ? h('button', { class: 'sm primary', onclick: async () => { await save(R.campPreset); toast(`"${R.campPreset}" updated`); } }, `Update "${R.campPreset}"`) : null,
+          R.campPreset ? h('button', { class: 'sm quiet', onclick: async () => { if (!confirm(`Delete the saved search "${R.campPreset}"?`)) return; S.settings.regexPresets = await call('regex:deletePreset', { name: R.campPreset, kind: 'campaign' }); R.campPreset = null; renderRegexPage(); } }, 'Delete') : null,
+          h('span', { class: 'faint' }, '·'), nameIn, h('button', { class: 'sm', onclick: saveNew }, 'Save as new'),
+          h('span', { class: 'spacer' }), Object.keys(picks).length ? h('button', { class: 'sm quiet', onclick: () => setCamp({ picks: {} }) }, 'Clear mods') : null)),
+      h('div', { class: 'panel rx-opts' },
+        h('div', { class: 'row', style: { gap: '12px' } }, typeSel, varSel, seg),
+        h('div', { class: 'small faint' }, 'While levelling: find items with the mods you want at vendors or in your stash, any rarity (normal, magic, rare). The search looks for the mods\' text, every tier unless you pick a minimum ("T3 or better" asks for at least T3\'s lowest roll).')),
+      v ? h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } }, h('h2', { style: { margin: 0 } }, 'Mods'), h('span', { class: 'small muted' }, `${Object.keys(picks).length} picked`), h('span', { class: 'spacer' }), search)
+        : h('div', { class: 'panel small muted', style: { marginTop: '14px' } }, 'Pick an item type to see its mods.'),
+      v ? h('div', { class: 'rx-cols' }, col('prefix', 'Prefixes'), col('suffix', 'Suffixes')) : null);
   }
 
   // ---------- beasts: which captured beasts to find in the Bestiary or the stash ----------
@@ -458,6 +544,7 @@
     if (R.cat === 'maps') await renderMaps(main);
     else if (R.cat === 'beasts') await renderBeasts(main);
     else if (R.cat === 'items') await renderItems(main);
+    else if (R.cat === 'campaign') await renderCampaign(main);
     mount(el,
       pageHead('Regex', 'Search strings for the game\'s search boxes (stash, map device, vendors). Pick what you want, copy, and paste it in game with Ctrl+V.'),
       h('div', { class: 'rx' }, nav, main));

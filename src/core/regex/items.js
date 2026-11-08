@@ -57,10 +57,12 @@ function families(o = {}) {
   const tags = new Set(base.tags);
   const infTags = DATA.influence[base.cls] || [];
   for (const inf of o.influences || []) { const t = infTags.find((x) => x.endsWith(`_${inf}`)); if (t) tags.add(t); }
+  // more bases that count as the same kind (rapiers with one-hand swords): a mod either can roll counts
+  const more = (o.also || []).map((n) => baseByName.get(n)).filter(Boolean).map((b) => new Set(b.tags));
   const ilvl = Number(o.ilvl) > 0 ? Number(o.ilvl) : 100;
   const fam = new Map();
   for (const m of DATA.mods) {
-    if (m.dom !== base.dom || !canRoll(m, tags)) continue;
+    if (m.dom !== base.dom || !(canRoll(m, tags) || more.some((t) => canRoll(m, t)))) continue;
     const lines = m.text.split('\n').map((l) => l.trim()).filter(Boolean);
     const t = lines.map(template);
     const key = `${m.aff}|${t.map((x) => x.tpl).join(' / ')}`;
@@ -148,6 +150,8 @@ function termFor(fam, all, minValue, extra) {
     for (let i = 0; i + len <= mine.length; i += 1) {
       const p = mine.slice(i, i + len);
       if (!ok(p)) continue;
+      // a piece across a space starts at a word ("d m" would also hit a rare's name like "Blood March")
+      if (p.includes(' ') && i > 0 && mine[i - 1] !== ' ' && mine[i - 1] !== '#') continue;
       const start = i === 0;
       const end = i + len === mine.length;
       const pat = () => esc(p).replace(/#/g, '\\d+');
@@ -164,7 +168,10 @@ function termFor(fam, all, minValue, extra) {
 const namesByCls = new Map();
 /** the class's base names (they're on the item too) */
 function classNames(cls) {
-  if (!namesByCls.has(cls)) namesByCls.set(cls, DATA.bases.filter((b) => b.cls === cls).map((b) => b.name.toLowerCase()));
+  if (!namesByCls.has(cls)) {
+    const list = cls === 'One Hand Sword' || cls === 'Thrusting One Hand Sword' ? ['One Hand Sword', 'Thrusting One Hand Sword'] : [cls];
+    namesByCls.set(cls, DATA.bases.filter((b) => list.includes(b.cls)).map((b) => b.name.toLowerCase()));
+  }
   return namesByCls.get(cls);
 }
 
@@ -223,10 +230,13 @@ const DEFENCES = [
 ];
 const BY_BASE = new Set(['Jewel', 'AbyssJewel', 'UtilityFlask']); // these differ base by base
 const TYPE_ORDER = ['Body Armour', 'Helmet', 'Gloves', 'Boots', 'Shield', 'Quiver', 'Amulet', 'Ring', 'Belt',
-  'One Hand Sword', 'Thrusting One Hand Sword', 'One Hand Axe', 'One Hand Mace', 'Sceptre', 'Claw', 'Dagger', 'Rune Dagger', 'Wand',
+  'One Hand Sword', 'One Hand Axe', 'One Hand Mace', 'Sceptre', 'Claw', 'Dagger', 'Rune Dagger', 'Wand',
   'Two Hand Sword', 'Two Hand Axe', 'Two Hand Mace', 'Staff', 'Warstaff', 'Bow', 'LifeFlask', 'ManaFlask', 'HybridFlask', 'UtilityFlask', 'Jewel', 'AbyssJewel'];
+const TYPE_GROUP = (c) => (['Body Armour', 'Helmet', 'Gloves', 'Boots', 'Shield'].includes(c) ? 'Armour' : ['Amulet', 'Ring', 'Belt'].includes(c) ? 'Jewellery'
+  : ['Quiver'].includes(c) ? 'Off-hand' : ['Two Hand Sword', 'Two Hand Axe', 'Two Hand Mace', 'Staff', 'Warstaff', 'Bow'].includes(c) ? 'Two-handed weapons'
+    : /Flask$/.test(c) ? 'Flasks' : /Jewel$/.test(c) ? 'Jewels' : 'One-handed weapons');
 const TYPE_NAMES = { 'Body Armour': 'Body Armours', Helmet: 'Helmets', Shield: 'Shields', Quiver: 'Quivers', Amulet: 'Amulets', Ring: 'Rings', Belt: 'Belts',
-  'One Hand Sword': 'One Hand Swords', 'Thrusting One Hand Sword': 'Rapiers (thrusting swords)', 'One Hand Axe': 'One Hand Axes', 'One Hand Mace': 'One Hand Maces',
+  'One Hand Sword': 'One Hand Swords & Rapiers', 'One Hand Axe': 'One Hand Axes', 'One Hand Mace': 'One Hand Maces',
   Sceptre: 'Sceptres', Claw: 'Claws', Dagger: 'Daggers', 'Rune Dagger': 'Rune Daggers', Wand: 'Wands', 'Two Hand Sword': 'Two Hand Swords', 'Two Hand Axe': 'Two Hand Axes',
   'Two Hand Mace': 'Two Hand Maces', Staff: 'Staves', Warstaff: 'Warstaves', Bow: 'Bows', ...CLASS_NAMES };
 
@@ -235,6 +245,7 @@ function itemTypes() {
   const out = [];
   for (const cls of TYPE_ORDER) {
     const bases = DATA.bases.filter((b) => b.cls === cls);
+    const extra = cls === 'One Hand Sword' ? DATA.bases.filter((b) => b.cls === 'Thrusting One Hand Sword') : [];
     if (!bases.length) continue;
     // the usual base of the kind: the highest one with the most common tags (not Convoking Wand and other one-offs)
     const best = (list) => {
@@ -250,22 +261,26 @@ function itemTypes() {
       variants = DEFENCES.map(([t, name]) => { const list = bases.filter((b) => b.tags.includes(t)); return list.length ? { id: t, name, base: best(list).name } : null; }).filter(Boolean);
     }
     const fixed = { Amulet: 'Onyx Amulet', Ring: 'Diamond Ring', Belt: 'Leather Belt' }[cls]; // talismans, unset rings and the like roll differently
-    out.push({ id: cls, name: TYPE_NAMES[cls] || cls, base: variants ? null : (fixed && baseByName.has(fixed) ? fixed : best(bases).name), variants });
+    out.push({ id: cls, name: TYPE_NAMES[cls] || cls, group: TYPE_GROUP(cls), base: variants ? null : (fixed && baseByName.has(fixed) ? fixed : best(bases).name), also: extra.length ? [best(extra).name] : [], variants });
   }
   return out;
 }
+let typesCache = null;
 function baseFor(o = {}) {
-  const t = itemTypes().find((x) => x.id === o.type);
+  if (!typesCache) typesCache = itemTypes();
+  // rapiers were their own type before 1.0.24
+  const t = typesCache.find((x) => x.id === (o.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : o.type));
   if (!t) return null;
   if (!t.variants) return t.base;
   return (t.variants.find((v) => v.id === o.variant) || t.variants[0]).base;
 }
+const alsoFor = (o = {}) => { if (!typesCache) typesCache = itemTypes(); return typesCache.find((x) => x.id === (o.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : o.type))?.also || []; };
 
 const TOP = 4; // the best tiers: T1 to T4
 
 function magicView(o = {}) {
   const base = baseFor(o);
-  const r = base && families({ base });
+  const r = base && families({ base, also: alsoFor(o) });
   if (!r) return null;
   const fams = r.families.filter((f) => !f.influence).map((f) => ({ key: f.key, aff: f.aff, text: f.show, tiers: f.tiers.filter((t) => t.tier <= TOP).map((t) => ({ tier: t.tier, lvl: t.lvl, name: t.name, text: t.text })) }))
     .filter((f) => f.tiers.length)
@@ -294,7 +309,7 @@ function namePiece(name, others) {
  */
 function buildMagicRegex(choices = {}) {
   const base = baseFor(choices);
-  const r = base && families({ base });
+  const r = base && families({ base, also: alsoFor(choices) });
   if (!r) return { regex: '', length: 0, max: MAX, parts: [], notes: ['Pick an item type first.'] };
   const b = baseByName.get(base);
   const picks = choices.picks || {};
@@ -340,4 +355,17 @@ function buildMagicRegex(choices = {}) {
   return { regex, length: regex.length, max: MAX, parts, notes };
 }
 
-module.exports = { itemBases, modsView, buildItemRegex, families, termFor, atLeast, template, itemTypes, magicView, buildMagicRegex, namePiece, MAX };
+/** Campaign: every mod of an item type, all its tiers, searched by its text (any rarity). */
+function campaignView(o = {}) {
+  const base = baseFor(o);
+  if (!base) return null;
+  const v = modsView({ base, also: alsoFor(o) });
+  return v && { ...v, type: o.type, variant: o.variant || null };
+}
+function buildCampaignRegex(choices = {}) {
+  const base = baseFor(choices);
+  if (!base) return { regex: '', length: 0, max: MAX, parts: [], notes: ['Pick an item type first.'] };
+  return buildItemRegex({ base, also: alsoFor(choices), picks: choices.picks || {}, mode: choices.mode || 'any' });
+}
+
+module.exports = { itemBases, modsView, buildItemRegex, families, termFor, atLeast, template, itemTypes, magicView, buildMagicRegex, namePiece, campaignView, buildCampaignRegex, MAX };

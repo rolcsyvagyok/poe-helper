@@ -63,6 +63,7 @@ const DEFAULT_SETTINGS = {
   campaignHide: { classes: [], rares: false, untilLevel: 67, keepLinks: 4 },
   showAllCurrency: false, // league start: every currency tier shows (Loot filter → Currency) // Campaign → Hide item types
   hiddenGroups: {}, // Base ranks → Hide whole groups: { label: { before: { base: rank } } }
+  regexCampaign: { type: '', variant: null, picks: {}, mode: 'any' }, // the Regex page's campaign item choices ({ mod: tier, 0 = any })
   regexItems: { type: '', variant: null, picks: {} }, // the Regex page's magic item mod choices ({ mod: [tiers] })
   regexBeasts: { red: true, yellow: false, harvest: true, minChaos: 10 }, // the Regex page's beast choices
   regexFavMods: [], // map mods kept at the top of the list
@@ -325,6 +326,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   };
   const ART_DEFAULT = ['Currency', 'Fragment', 'Scarab', 'Essence', 'Fossil', 'Oil', 'DeliriumOrb', 'Omen', 'Tattoo', 'DivinationCard', 'UniqueAccessory', 'Map', 'BlightedMap', 'ClusterJewel', 'BaseType'];
   /** names: item names, or "name\tcategory" so the right poe.ninja list is looked in first */
+  const CARD_ICON = 'https://web.poecdn.com/image/Art/2DItems/Divination/InventoryIcon.png';
   async function categoryArt(names = []) {
     const league = await getLeague();
     const hinted = [];
@@ -363,6 +365,16 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       }
     }
     if (want.has('*Map16') && !out['*Map16'] && anyMap) out['*Map16'] = anyMap;
+    // an essence nobody trades this league isn't on poe.ninja at all: GGG's picture follows its name
+    // ("Screaming Essence of Woe" -> Essence/Woe5.png)
+    const ESS = { Whispering: 1, Muttering: 2, Weeping: 3, Wailing: 4, Screaming: 5, Shrieking: 6, Deafening: 7 };
+    for (const n of want) {
+      const m = /^(\w+) Essence of (\w+)$/.exec(n);
+      if (!out[n] && m && ESS[m[1]]) out[n] = `https://web.poecdn.com/image/Art/2DItems/Currency/Essence/${m[2]}${ESS[m[1]]}.png`;
+    }
+    // poe.ninja has no pictures for cards; every card has the same one in your stash
+    for (const raw of names) { const [n, c] = String(raw).split('\t'); if (c === 'DivinationCard' && !out[n]) out[n] = CARD_ICON; }
+    if (want.has('*DivinationCard') && !out['*DivinationCard']) out['*DivinationCard'] = CARD_ICON;
     // items poe.ninja doesn't price: GGG's own picture of the item, loaded when shown (nothing is bundled)
     for (const [n, u] of Object.entries(FIXED_ART)) if (want.has(n) && !out[n]) out[n] = u;
     return out;
@@ -1105,6 +1117,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     settings.set('regexItems', choices);
     return require('../core/regex/items').buildMagicRegex(choices);
   }
+  function regexCampaignView(o = {}) { return require('../core/regex/items').campaignView(o); }
+  function regexCampaignBuild(choices = {}) {
+    settings.set('regexCampaign', choices);
+    return require('../core/regex/items').buildCampaignRegex(choices);
+  }
   function regexBeastBuild(choices = {}) {
     settings.set('regexBeasts', choices);
     return require('../core/regex/beasts').buildBeastRegex(choices, beastPrices);
@@ -1680,10 +1697,40 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (settings.get('uiTheme') !== 'hideout') settings.set('uiTheme', 'atlas');
     settings.set('atlasDefaultV1', true);
   }
+  // 1.0.24: the app's own sounds (chime, sparkle, tink…) are gone from the looks it set up: tiers keep FilterBlade's
+  // sound, the app's own rules use the game's alert sounds. Sounds you added yourself stay.
+  if (!settings.get('gameSoundsV1')) {
+    const BUILTIN = /^poehelper-sounds\/(divine-tink|chime|sparkle|coin|soft-bell|deep-gong)\.mp3$/;
+    const GAME = { 'divine-tink': 6, chime: 1, sparkle: 2, coin: 4, 'soft-bell': 4, 'deep-gong': 3 };
+    const tp = settings.get('tierPatch');
+    if (tp?.styles) {
+      let n = 0;
+      const styles = {};
+      for (const [k, st] of Object.entries(tp.styles)) {
+        if (st && BUILTIN.test(st.customSound || '')) { const { customSound, customVolume, ...rest } = st; styles[k] = { ...rest, keepSound: true }; n += 1; } else styles[k] = st;
+      }
+      if (n) settings.set('tierPatch', { ...tp, styles });
+    }
+    const mb = settings.get('myBasesStyle');
+    if (mb && BUILTIN.test(mb.customSound || '')) { const { customSound, customVolume, ...rest } = mb; settings.set('myBasesStyle', { ...rest, sound: { id: 2, volume: 300 } }); }
+    const eco = settings.get('economy');
+    if (eco?.thresholds?.sounds) {
+      const snd = { ...eco.thresholds.sounds };
+      for (const [k, v] of Object.entries(snd)) if (GAME[v]) snd[k] = `game:${GAME[v]}`;
+      settings.set('economy', { ...eco, thresholds: { ...eco.thresholds, sounds: snd } });
+    }
+    const d = settings.get('designer');
+    if (d?.levels) {
+      const levels = {};
+      for (const [k, st] of Object.entries(d.levels)) levels[k] = st && BUILTIN.test(st.customSound || '') ? (({ customSound, customVolume, ...rest }) => ({ ...rest, keepSound: true }))(st) : st;
+      settings.set('designer', { ...d, levels });
+    }
+    settings.set('gameSoundsV1', true);
+  }
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

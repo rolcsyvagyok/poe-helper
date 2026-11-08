@@ -301,6 +301,7 @@ function applyTierPatch(text, patch = {}) {
   }
 
   // ---- styles ----
+  const FILTER_SOUND = new Set(['PlayAlertSound', 'PlayAlertSoundPositional', 'CustomAlertSound', 'CustomAlertSoundOptional', 'DisableDropSound', 'EnableDropSound', 'DisableDropSoundIfAlertSound', 'EnableDropSoundIfAlertSound']);
   for (const [key, style] of Object.entries(patch.styles || {})) {
     const [type, tier] = key.split('|');
     for (const b of byType.get(type) || []) {
@@ -309,7 +310,9 @@ function applyTierPatch(text, patch = {}) {
       const keep = b.lines.filter((l) => !STYLE_SET.has(l.keyword) && l.keyword !== 'Continue');
       const cont = b.lines.filter((l) => l.keyword === 'Continue');
       const cr = crOf(b.lines.find((l) => l.keyword)?.raw || '');
-      b.lines = [...keep, ...renderStyleLines(style, ind).map((x) => parseLine(x + cr)), ...cont];
+      // keepSound: a new look, but the tier's own (FilterBlade's) sound lines stay
+      const own = style.keepSound && !style.sound && !style.customSound ? b.lines.filter((l) => FILTER_SOUND.has(l.keyword)) : [];
+      b.lines = [...keep, ...renderStyleLines(style, ind).map((x) => parseLine(x + cr)), ...own, ...cont];
     }
   }
 

@@ -706,6 +706,8 @@ function registerIpc() {
   handle('regex:itemBases', () => services.regexItemBases());
   handle('regex:itemView', (a) => services.regexItemView(a || {}));
   handle('regex:itemBuild', (a) => services.regexItemBuild(a || {}));
+  handle('regex:campaignView', (a) => services.regexCampaignView(a || {}));
+  handle('regex:campaignBuild', (a) => services.regexCampaignBuild(a || {}));
   handle('regex:beastBuild', (a) => services.regexBeastBuild(a || {}));
   handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
   handle('regex:savePreset', (a) => services.regexSavePreset(a || {}));
