@@ -9,7 +9,7 @@ const path = require('path');
 
 let call = null;
 
-function start({ pobDir, hostSource }) {
+function start({ pobDir, hostSource, stubSource }) {
   const koffi = require('koffi');
   const lib = koffi.load(path.join(pobDir, 'lua51.dll'));
   const newstate = lib.func('void* luaL_newstate()');
@@ -35,6 +35,7 @@ function start({ pobDir, hostSource }) {
   run(`POEHELPER_EMBEDDED = true
 package.path = '${dir}/lua/?.lua;${dir}/lua/?/init.lua;${dir}/?.lua;' .. package.path
 package.cpath = '${dir}/?.dll;' .. package.cpath`, '=poehelper');
+  if (stubSource) run(stubSource, '@SimpleGraphic.lua'); // PoB's headless stand-ins; installed PoB doesn't ship them
   run(hostSource, '@host.lua');
   getfield(L, GLOBALS, 'POEHELPER_STARTUP_ERROR');
   const startErr = tostr(L, -1, null);

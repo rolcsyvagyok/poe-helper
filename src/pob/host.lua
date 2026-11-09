@@ -41,7 +41,9 @@ table.insert(package.loaders, 2, function(name)
 end)
 
 arg = arg or { } -- the command line; PoB reads it, and there is none inside the app
-dofile("_SimpleGraphic.def.lua")
+-- PoB's stand-ins for its graphics runtime: the app runs its own copy first (src/pob/SimpleGraphic.lua),
+-- because an installed Path of Building doesn't have this file; a source checkout of PoB does
+if not SetCallback then dofile("_SimpleGraphic.def.lua") end
 function GetVirtualScreenSize() return 1920, 1080 end
 __callbackTable__ = { }
 function runCallback(name, ...)

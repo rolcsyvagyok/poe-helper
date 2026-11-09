@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.31 - 2026-11-09
+
+- **Fixed: snapshots failed with "Path of Building didn't start: _SimpleGraphic.def.lua: No such file or directory".** An installed Path of Building doesn't have that file, so PoE Helper now brings its own copy.
+- **Loot filter search shows the category of each base** it finds, under the name: "Regal Orb, Tier 5, Currency: Big stacks" instead of three Regal Orbs you can't tell apart.
+
 ## 1.0.30 - 2026-11-09
 
 - **Path of Building → Snapshot: characters grouped by league.** The current league is first, then your other leagues. Standard and Hardcore characters are hidden until you tick Show Standard and Hardcore, and Only <league> shows just the current league. Your choice is remembered.

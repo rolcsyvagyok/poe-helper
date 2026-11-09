@@ -1066,3 +1066,5 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 /* Path of Building page */
 .pob-sum { font-size: 13px; }
 .fb-lookclip { display: flex; gap: 2px; }
+.fb-gresults button { flex-wrap: wrap; row-gap: 0; }
+.fb-gresults .cat { flex: 0 0 100%; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

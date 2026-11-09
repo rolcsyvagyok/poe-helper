@@ -1647,7 +1647,7 @@ function sidebar(view, changedTypes) {
     return withResizer(h('nav', { class: 'fb-cats', 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, searchBox(),
       catHits.length ? h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, 'Categories'), catHits.slice(0, 15).map((t) => row(t))) : null,
       h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-h' }, `Bases (${baseHits.length})`),
-        h('div', { class: 'fb-gresults' }, baseHits.slice(0, 40).map(({ b, t, tier }) => h('button', { onclick: () => { FB.type = t.key; FB.search = b; FB.catQuery = ''; FB.selected.clear(); renderFilters(); } }, h('span', { class: 'b', title: `${t.label}, ${tierName(tier)}` }, b), h('span', { class: 'w' }, tierName(tier).replace(/ \(.*\)$/, ''))))),
+        h('div', { class: 'fb-gresults' }, baseHits.slice(0, 40).map(({ b, t, tier }) => h('button', { onclick: () => { FB.type = t.key; FB.search = b; FB.catQuery = ''; FB.selected.clear(); renderFilters(); } }, h('span', { class: 'b', title: `${t.label}, ${tierName(tier)}` }, b), h('span', { class: 'w' }, tierName(tier).replace(/ \(.*\)$/, '')), h('span', { class: 'cat' }, t.label)))),
         !baseHits.length ? h('div', { class: 'small faint', style: { padding: '4px 8px' } }, 'Not in this filter. Uniques are listed by base type, for example Heavy Belt instead of Mageblood.') : null)));
   }
 

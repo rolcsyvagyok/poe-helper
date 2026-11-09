@@ -116,7 +116,8 @@ class PobEngine {
         this.proc = null;
       });
       const hostSource = fs.readFileSync(this.hostFile, 'utf8');
-      const r = await this.send({ op: 'start', pobDir: dir, hostSource }, 180000);
+      const stubSource = fs.readFileSync(path.join(path.dirname(this.hostFile), 'SimpleGraphic.lua'), 'utf8');
+      const r = await this.send({ op: 'start', pobDir: dir, hostSource, stubSource }, 180000);
       this.state = 'ready';
       this.log(`PoB started in ${r.ms} ms`);
     } catch (err) {
