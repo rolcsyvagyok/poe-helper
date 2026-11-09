@@ -689,12 +689,17 @@ class FilterManager {
   }
 
   /** Parsed helper output if it exists, else the base. Used by the explainer. */
-  parsedActive() {
+  /** The text of the filter the game reads (your helper version, else the FilterBlade file). */
+  activeText() {
     const base = this.basePath();
     if (!base) return null;
     const helper = helperPathFor(base);
-    const p = fs.existsSync(helper) ? helper : base;
-    return parse(fs.readFileSync(p, 'utf8'));
+    return fs.readFileSync(fs.existsSync(helper) ? helper : base, 'utf8');
+  }
+
+  parsedActive() {
+    const text = this.activeText();
+    return text == null ? null : parse(text);
   }
 
   /** Rebuild the helper filter whenever the base file changes (e.g. FilterBlade re-download). */

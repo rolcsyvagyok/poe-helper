@@ -3,6 +3,14 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.29 - 2026-11-09
+
+- **Path of Building has its own page** in the menu (under Regex), instead of a section in Settings.
+- **Snapshots of your character** (Path of Building page): like Path of Building's Import tab, it reads your gear, gems, passive tree and jewels from pathofexile.com with your login (private profiles too) and has Path of Building make them into a build, saved as a new file in `PoE Helper snapshots` in your builds folder. Open it in Path of Building like any build; older snapshots stay. Pick a character or leave it on the one you played last, press Save snapshot now, or set a hotkey to save one from in game; it's in the tray menu too. Path of Building only runs while it makes a snapshot.
+- **The price check no longer compares items with your Path of Building build**; that part was getting in the way of the price check.
+- **The price check says where the item is in your filter**: "Shown by line 65 of your filter: Base ranks: rares, rank D", or the category and tier, or the section of the FilterBlade file. Show in app opens that place on the Loot filter page (Base ranks, My bases, Campaign or the tier), also for items whose base isn't in a tier list.
+- **Copy and paste a look** on the Loot filter page: Copy look on any tier (or in the look editor), then Paste look on another tier gives it the same colours, size, sound, beam and icon. In the look editor, Paste puts the copied look in the editor first, so you can adjust it before Save look. Works for My bases too.
+
 ## 1.0.28 - 2026-11-09
 
 - **Path of Building in the price check** (new, Settings → Path of Building): turn it on, pick one of your builds, and checking a piece of gear shows what it does to your build in each slot it fits: DPS (or full DPS) change in %, life, energy shield, effective HP, resistances, attributes and more, instead of what you wear now. It's worked out by your own installed Path of Building (Community), run in the background, the same way its item tooltip does. Save your build in Path of Building and press Reload to compare with the new version.

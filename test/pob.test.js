@@ -4,23 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { summarise, listBuilds, findPobDir } = require('../src/main/pob');
-
-test('PoB comparison: DPS first, only what changes, no weapon swap', () => {
-  const r = summarise({
-    item: 'Doom Edge', full: false,
-    base: { CombinedDPS: 1000, Life: 5000, FireResist: 75, Armour: 100 },
-    slots: [
-      { slot: 'Weapon 1', current: 'Old Sword', stats: { CombinedDPS: 1250, Life: 4900, FireResist: 75, Armour: 100 } },
-      { slot: 'Weapon 1 Swap', current: null, stats: { CombinedDPS: 900, Life: 5000, FireResist: 75, Armour: 100 } },
-    ],
-  });
-  assert.strictEqual(r.slots.length, 1);
-  const [s] = r.slots;
-  assert.deepStrictEqual(s.changes.map((c) => c.key), ['dps', 'Life']);
-  assert.strictEqual(Math.round(s.changes[0].pct), 25);
-  assert.strictEqual(s.changes[1].diff, -100);
-});
+const { listBuilds, snapshotFile, pickCharacter, findPobDir } = require('../src/main/pob');
 
 test('PoB builds: every .xml in the folder, newest first; a folder without PoB is not taken', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pobb-'));
@@ -31,4 +15,28 @@ test('PoB builds: every .xml in the folder, newest first; a folder without PoB i
   const list = listBuilds(dir);
   assert.deepStrictEqual(list.map((b) => b.name), ['League / New', 'Old']);
   assert.strictEqual(findPobDir(dir, {}), null);
+});
+
+test('PoB snapshot: named after the character and the time, in its own folder; the last played character by default', () => {
+  const f = snapshotFile(path.join('B'), 'My:Char', new Date(2026, 10, 9, 22, 5));
+  assert.strictEqual(f, path.join('B', 'PoE Helper snapshots', 'My-Char 2026-11-09 22-05.xml'));
+  const list = [{ name: 'a' }, { name: 'b', lastActive: true }];
+  assert.strictEqual(pickCharacter(list).name, 'b');
+  assert.strictEqual(pickCharacter(list, 'a').name, 'a');
+  assert.strictEqual(pickCharacter(list, 'gone'), null);
+  assert.strictEqual(pickCharacter([]), null);
+});
+
+test('GGG characters: the same pages PoB imports from, with the session and the account name', async () => {
+  const { GggClient } = require('../src/core/ggg');
+  const seen = [];
+  const store = new Map();
+  const cache = { isFresh: () => false, get: (k) => store.get(k), set: (k, v) => store.set(k, { data: v }) };
+  const fetchImpl = async (url, opt) => { seen.push([url, opt.headers.Cookie]); return { status: 200, ok: true, headers: new Map(), json: async () => (/get-characters/.test(url) ? [{ name: 'X', lastActive: true }] : { items: [] }) }; };
+  const g = new GggClient({ cache, fetchImpl, userAgent: 't', getSessionId: () => 'sid', getAccountName: () => 'Me#1234' });
+  assert.deepStrictEqual(await g.characters(), [{ name: 'X', lastActive: true }]);
+  await g.characterItems('X'); await g.characterPassives('X');
+  assert.deepStrictEqual(seen.map(([u]) => u.replace('https://www.pathofexile.com/character-window/', '')), [
+    'get-characters?accountName=Me%231234&realm=pc', 'get-items?accountName=Me%231234&realm=pc&character=X', 'get-passive-skills?accountName=Me%231234&realm=pc&character=X']);
+  assert.ok(seen.every(([, c]) => c === 'POESESSID=sid'));
 });

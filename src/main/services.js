@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
   contact: '', // optional contact for User-Agent, e.g. a GitHub URL
   hotkeyPrice: 'Alt+E',
   hotkeyPriceAdvanced: 'Ctrl+Alt+D',
+  hotkeySnapshot: '', // save a Path of Building snapshot of your character (off until you pick one)
   hotkeyLab: 'Alt+L', // daily lab overlay: pick a difficulty, see today's layout from poelab
   labLast: 'uber',
   labFavorite: null, // the lab the hotkey opens straight away (null: ask every time)
@@ -63,7 +64,7 @@ const DEFAULT_SETTINGS = {
   campaignHide: { classes: [], rares: false, untilLevel: 67, keepLinks: 4 },
   showAllCurrency: false, // league start: every currency tier shows (Loot filter → Currency) // Campaign → Hide item types
   hiddenGroups: {}, // Base ranks → Hide whole groups: { label: { before: { base: rank } } }
-  pob: { enabled: false, dir: null, buildsDir: null, build: null }, // Path of Building: your install, builds folder and the build to compare items with
+  pob: { dir: null, buildsDir: null, character: null, last: null }, // Path of Building: your install, builds folder, the character to snapshot and the last snapshot
   regexGems: { tab: 0, picks: [], acts: {} },
   regexGemClass: '', // Regex → Gems: your class, for which vendor sells a gem first // the Regex page's gems
   regexCampaign: { type: '', variant: null, picks: {}, mode: 'any' }, // the Regex page's campaign item choices ({ mod: tier, 0 = any })
@@ -221,16 +222,25 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const kind = classify(item);
     const price = await pricer.price(item).catch((e) => ({ error: e.message }));
     let filterHit = null;
+    let filterWhere = null;
     try {
-      const doc = filters.parsedActive();
-      if (doc) filterHit = explain(doc, item);
+      const text = filters.activeText();
+      if (text != null) {
+        filterHit = explain(require('../core/filter/parser').parse(text), item);
+        filterWhere = require('../core/filter/where').whereInFilter(text, filterHit, (type, tier) => {
+          const view = (() => { try { return tierViewNow(); } catch { return null; } })();
+          const t = view?.types.find((x) => x.type === type);
+          const here = t?.tiers.find((x) => x.tier === tier);
+          return t && here ? { category: t.label, key: here.key, name: here.customName || null } : null;
+        });
+      }
     } catch { /* no filter configured */ }
     const tradeable = ['rare', 'magic', 'unique', 'normal', 'gem', 'unique-map', 'map'].includes(kind);
     const entry = { at: Date.now(), name: item.name !== item.typeLine && item.name ? `${item.name} ${item.typeLine}` : item.typeLine, kind, chaos: price.chaos ?? null, total: price.totalChaos ?? null };
     const hist = [entry, ...(settings.get('history') || [])].slice(0, 100);
     settings.set('history', hist);
     const tierInfo = tierInfoFor(item, filterHit);
-    return { item: slimItem(item), kind, price, filterHit, tierInfo, tradeable };
+    return { item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable };
   }
 
   async function tradePrepare(text) {

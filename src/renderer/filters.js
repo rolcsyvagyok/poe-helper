@@ -392,6 +392,9 @@ function renderTiers(body, view) {
         t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity|ItemLevel|AreaLevel|Quality|GemLevel)\b/.test(c)).join(', ') || 'the conditions below'}`) : null),
       h('span', { class: 'spacer' }),
       visSwitch,
+      t.generated || isEditing ? null : h('div', { class: 'fb-lookclip', role: 'group', 'aria-label': `Copy or paste the look of ${tierName(t)}` },
+        h('button', { class: 'quiet sm', title: `Copy the look of ${tierName(t)}`, onclick: () => { copyLook(t.style, `${type.label}, ${tierName(t)}`); drawList(); } }, 'Copy look'),
+        copiedLook() ? h('button', { class: 'quiet sm', title: `Give ${tierName(t)} the look of ${copiedLook().from}`, onclick: () => pasteLook(t) }, 'Paste look') : null),
       t.generated ? null : h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) { FB.editing = null; } else { FB.editing = t.key; FB.draft = structuredClone(t.style || {}); } drawList(); } }, isEditing ? 'Close' : 'Edit look'));
     const canAdd = (t.hasBaseList && !t.special) || t.generated;
     const conds = !folded && hasCondEditor(t);
@@ -1324,8 +1327,11 @@ async function renderMyBases(body, view) {
         h('div', { class: 'fb-tier-head ground' }, preview,
           h('div', { class: 'fb-tier-meta' }, h('div', { class: 'fb-tier-name' }, 'Look for all My bases'), h('div', { class: 'small', style: { color: '#9a9f8c' } }, `${list.filter((e) => e.enabled !== false).length} active`)),
           h('span', { class: 'spacer' }),
+          editing ? null : h('div', { class: 'fb-lookclip' },
+            h('button', { class: 'quiet sm', onclick: () => { copyLook(data.style, 'My bases'); renderFilters(); } }, 'Copy look'),
+            copiedLook() ? h('button', { class: 'quiet sm', title: `Give My bases the look of ${copiedLook().from}`, onclick: async () => { await call('bases:style', structuredClone(copiedLook().style)); toast(`My bases now have the look of ${copiedLook().from}`); renderFilters(); } }, 'Paste look') : null),
           h('button', { class: editing ? 'primary sm' : 'sm', onclick: () => { if (editing) FB.editing = null; else { FB.editing = 'mybases'; FB.draft = structuredClone(data.style); } renderFilters(); } }, editing ? 'Close' : 'Edit look')),
-        editing ? lookEditor(look, () => renderFilters(), drawPreview, { onSave: (st) => call('bases:style', st), onReset: () => call('bases:style', null), resetLabel: 'Use the default look' }) : null),
+        editing ? lookEditor(look, () => renderFilters(), drawPreview, { name: 'My bases', onSave: (st) => call('bases:style', st), onReset: () => call('bases:style', null), resetLabel: 'Use the default look' }) : null),
       h('div', { class: 'panel row', style: { margin: '12px 0' } },
         h('b', {}, 'Add a base'), name, h('span', { class: 'small muted' }, 'item level'), min, h('span', { class: 'small muted' }, 'to'), max,
         h('button', { class: 'primary sm', onclick: add }, 'Add'),
@@ -1849,6 +1855,25 @@ function sidebar(view, changedTypes) {
 }
 
 // ---------------------------------------------------------------- look editor
+// ---------------------------------------------------------------- copy and paste a look
+// One look on a clipboard of its own (colours, size, sound, beam, icon), kept between sessions.
+const LOOK_KEY = 'poehelper.copiedLook';
+function copiedLook() {
+  try { return JSON.parse(localStorage.getItem(LOOK_KEY) || 'null') || FB.lookClip || null; } catch { return FB.lookClip || null; }
+}
+function copyLook(style, from) {
+  FB.lookClip = { style: structuredClone(style || {}), from };
+  try { localStorage.setItem(LOOK_KEY, JSON.stringify(FB.lookClip)); } catch { /* the copy still works this session */ }
+  toast(`Copied the look of ${from}. Paste it on any tier with Paste look.`);
+}
+async function pasteLook(t) {
+  const clip = copiedLook();
+  if (!clip) return;
+  await call('tiers:style', { key: t.key, style: structuredClone(clip.style) });
+  toast(`${tierName(t)} now has the look of ${clip.from}`);
+  renderFilters();
+}
+
 function lookEditor(tier, redraw, onPreview, opts = {}) {
   const d = FB.draft;
   const hex = (a) => '#' + (a || [0, 0, 0]).slice(0, 3).map((n) => Math.max(0, Math.min(255, +n || 0)).toString(16).padStart(2, '0')).join('');
@@ -1937,6 +1962,12 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
       h('button', { class: 'primary', onclick: async () => { if (!d.text) d.text = [200, 200, 200, 255]; if (opts.onSave) await opts.onSave(d); else await call('tiers:style', { key: tier.key, style: d }); FB.editing = null; toast(`Saved the look of ${tierName(tier)}`); renderFilters(); } }, 'Save look'),
       h('button', { class: 'quiet', onclick: () => { FB.editing = null; redraw(); } }, 'Cancel'),
       h('span', { class: 'spacer' }),
+      h('button', { class: 'quiet', title: 'Copy this look (as it is in the editor now) to paste on another tier', onclick: () => copyLook(d, opts.name || tierName(tier)) }, 'Copy look'),
+      copiedLook() ? h('button', { class: 'quiet', title: `Put the look of ${copiedLook().from} in the editor; Save look keeps it`, onclick: () => {
+        for (const k of Object.keys(d)) delete d[k];
+        Object.assign(d, structuredClone(copiedLook().style));
+        redraw(); toast(`The look of ${copiedLook().from} is in the editor. Press Save look to keep it.`);
+      } }, `Paste look of ${copiedLook().from}`) : null,
       h('button', { class: 'quiet', onclick: async () => { if (opts.onReset) await opts.onReset(); else await call('tiers:style', { key: tier.key, style: null }); FB.editing = null; toast(opts.onReset ? 'Back to the default look' : 'Back to the FilterBlade look'); renderFilters(); } }, opts.resetLabel || 'Use the FilterBlade look')));
 }
 
@@ -2186,6 +2217,12 @@ async function renderReview(body, { only = null } = {}) {
 
 window.renderFilters = renderFilters;
 // from the price check: open the tier an item is in, with the item picked and the tier in view
-window.showInFilter = (g) => { FB.goto = { type: g.type, key: g.key || `${g.type}|${g.tier}`, base: g.base }; FB.tab = 'tiers'; };
+window.showInFilter = (g) => {
+  FB.tab = 'tiers';
+  // PoE Helper's own pages (My bases, Base ranks, Cluster jewels, Campaign)
+  const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE }[g.special];
+  if (special) { FB.goto = null; FB.type = special; return; }
+  FB.goto = { type: g.type, key: g.key || `${g.type}|${g.tier}`, base: g.base };
+};
 })();
 

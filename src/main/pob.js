@@ -1,8 +1,8 @@
 'use strict';
 /**
- * Path of Building inside the app: finds your PoB (Community) install and your builds, runs PoB headless
- * in a worker (pob-worker.js), loads a build and tells what an item does to it (DPS, life, defences),
- * the way PoB's item tooltip does. Path of Building is MIT licensed; the app uses your installed copy.
+ * Path of Building inside the app: finds your PoB (Community) install and your builds folder, and runs PoB
+ * headless in a worker (pob-worker.js) to make snapshots of your character the way its Import tab does.
+ * Path of Building is MIT licensed; the app uses your installed copy.
  */
 const fs = require('fs');
 const path = require('path');
@@ -56,6 +56,20 @@ function listBuilds(dir, max = 500) {
   return out.sort((a, b) => b.mtime - a.mtime);
 }
 
+/** Where a snapshot goes: <builds>/PoE Helper snapshots/<character> <date time>.xml */
+function snapshotFile(buildsDir, charName, now = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  const safe = String(charName || 'Character').replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').trim() || 'Character';
+  return path.join(buildsDir, 'PoE Helper snapshots', `${safe} ${stamp}.xml`);
+}
+/** The character a snapshot is of: the one you picked, else the one you played last. */
+function pickCharacter(list, wanted) {
+  if (!Array.isArray(list) || !list.length) return null;
+  if (wanted) return list.find((c) => c.name === wanted) || null;
+  return list.find((c) => c.lastActive) || list[0];
+}
+
 class PobEngine {
   constructor({ utilityProcess, hostFile, workerFile, log = () => {} }) {
     this.up = utilityProcess;
@@ -68,7 +82,6 @@ class PobEngine {
     this.dir = null;
     this.state = 'off'; // off | starting | ready | failed
     this.error = null;
-    this.build = null;   // { file, summary }
   }
 
   send(msg, timeoutMs = 120000) {
@@ -94,7 +107,7 @@ class PobEngine {
         if (!p) return;
         this.pending.delete(m.id);
         clearTimeout(p.timer);
-        if (m.error && !m.stats && !m.slots) p.reject(new Error(m.error)); else p.resolve(m);
+        if (m.error && !m.stats) p.reject(new Error(m.error)); else p.resolve(m);
       });
       this.proc.on('exit', (code) => {
         for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error(`Path of Building stopped (${code}).`)); }
@@ -117,50 +130,13 @@ class PobEngine {
   stop(keepState) {
     if (this.proc) { try { this.proc.kill(); } catch { /* gone */ } }
     this.proc = null;
-    if (!keepState) { this.state = 'off'; this.build = null; }
+    if (!keepState) this.state = 'off';
   }
 
-  async load(file) {
-    const xml = fs.readFileSync(file, 'utf8');
-    const r = await this.send({ op: 'load', xml, name: path.basename(file).replace(/\.xml$/i, '') });
-    this.build = { file, summary: r };
-    return r;
-  }
-
-  async compare(itemText) {
-    if (!this.build) throw new Error('No build loaded.');
-    return this.send({ op: 'compare', item: itemText }, 60000);
+  /** A new build from your character, made by PoB's Import code. Returns the summary and the build file's text. */
+  async importCharacter({ character, items, passives, name }) {
+    return this.send({ op: 'import', character, items, passives, name }, 120000);
   }
 }
 
-/** What an item does, slot by slot: the changes worth showing (DPS first). */
-const SHOW = [
-  ['dps', 'DPS'], ['Life', 'Life'], ['EnergyShield', 'Energy shield'], ['Mana', 'Mana'], ['TotalEHP', 'Effective HP'],
-  ['Armour', 'Armour'], ['Evasion', 'Evasion'], ['SpellSuppressionChance', 'Suppression', '%'], ['BlockChance', 'Block', '%'],
-  ['FireResist', 'Fire res', '%'], ['ColdResist', 'Cold res', '%'], ['LightningResist', 'Lightning res', '%'], ['ChaosResist', 'Chaos res', '%'],
-  ['MovementSpeedMod', 'Movement speed', 'x'], ['Str', 'Str'], ['Dex', 'Dex'], ['Int', 'Int'],
-];
-function dpsOf(stats, full) { return full ? (stats.FullDPS || 0) : (stats.CombinedDPS || stats.TotalDPS || 0); }
-function summarise(r) {
-  if (!r || !r.base) return null;
-  const baseDps = dpsOf(r.base, r.full);
-  return {
-    item: r.item,
-    full: r.full,
-    // the weapon swap set isn't what the build uses, so it's left out
-    slots: (r.slots || []).filter((s) => !/Swap/.test(s.slot)).map((s) => {
-      const changes = [];
-      for (const [k, label, unit] of SHOW) {
-        const before = k === 'dps' ? baseDps : r.base[k];
-        const after = k === 'dps' ? dpsOf(s.stats, r.full) : s.stats[k];
-        if (typeof before !== 'number' || typeof after !== 'number') continue;
-        const diff = after - before;
-        if (Math.abs(diff) < (unit === 'x' ? 0.001 : 0.5)) continue;
-        changes.push({ key: k, label, before, after, diff, pct: before ? (diff / Math.abs(before)) * 100 : null, unit: unit || '' });
-      }
-      return { slot: s.slot, current: s.current || null, changes };
-    }),
-  };
-}
-
-module.exports = { PobEngine, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds, summarise, dpsOf };
+module.exports = { PobEngine, snapshotFile, pickCharacter, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds };

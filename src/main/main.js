@@ -324,6 +324,7 @@ function registerHotkeys({ quiet = false } = {}) {
   tryReg('hotkeyPrice', (acc) => priceCheck({ advanced: false, accelerator: acc }));
   tryReg('hotkeyPriceAdvanced', (acc) => priceCheck({ advanced: true, accelerator: acc }));
   tryReg('hotkeyLab', () => toggleLab());
+  tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
   return hotkeyStatus;
 }
@@ -403,6 +404,7 @@ function rebuildTrayMenu() {
     { label: 'Open PoE Helper', click: () => mainWin.show() },
     { label: 'Price check clipboard', click: () => runPriceCheck(clipboard.readText()) },
     { label: 'Take net worth snapshot', click: () => snapshotNow('tray') },
+    ...(pobDirNow() ? [{ label: 'Save Path of Building snapshot', click: () => pobSnapshotNotify('tray') }] : []),
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } },
   ]);
@@ -619,7 +621,7 @@ function registerIpc() {
     const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.includes(k)));
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
@@ -711,29 +713,36 @@ function registerIpc() {
   handle('regex:gemView', () => services.regexGemView());
   handle('regex:gemBuild', (a) => services.regexGemBuild(a || {}));
   handle('pob:state', () => pobState());
-  handle('pob:set', async (a = {}) => {
+  handle('pob:set', (a = {}) => {
     const cur = services.settings.get('pob') || {};
     const next = { ...cur };
-    for (const k of ['enabled', 'dir', 'buildsDir', 'build']) if (k in a) next[k] = a[k];
+    for (const k of ['dir', 'buildsDir', 'character']) if (k in a) next[k] = a[k];
     services.settings.set('pob', next);
-    if ('build' in a && pob) pob.build = null;
-    return pobApply();
+    if ('dir' in a) pob?.stop();
+    rebuildTrayMenu();
+    return pobState();
   });
-  handle('pob:reload', async () => { if (pob) pob.build = null; return pobApply(); });
   handle('pob:pickDir', async (which) => {
     const r = await dialog.showOpenDialog(mainWin, { properties: ['openDirectory'], title: which === 'builds' ? 'Your Path of Building builds folder' : 'Your Path of Building folder' });
     if (r.canceled || !r.filePaths?.[0]) return pobState();
     const cur = services.settings.get('pob') || {};
     services.settings.set('pob', { ...cur, [which === 'builds' ? 'buildsDir' : 'dir']: r.filePaths[0] });
-    return pobApply();
+    if (which !== 'builds') pob?.stop();
+    rebuildTrayMenu();
+    return pobState();
   });
-  // what an item does to your build, slot by slot (the price check shows it)
-  handle('pob:compare', async (text) => {
-    if (!pob || pob.state !== 'ready' || !pob.build) return null;
-    const r = await pob.compare(String(text || ''));
-    if (r.error) return { error: r.error };
-    return { build: pob.build.summary?.name, skill: pob.build.summary?.skill, ...require('./pob').summarise(r) };
+  handle('pob:openFolder', () => {
+    const st = pobState();
+    const dir = path.join(st.buildsDir, 'PoE Helper snapshots');
+    shell.openPath(fs.existsSync(dir) ? dir : st.buildsDir);
+    return true;
   });
+  // your characters on pathofexile.com, for the snapshot picker (1 request, kept 10 minutes)
+  handle('pob:characters', async (force) => {
+    const list = await services.ggg.characters({ maxAgeMs: force ? 0 : 10 * 60 * 1000 });
+    return list.map((c) => ({ name: c.name, league: c.league, class: c.class, level: c.level, lastActive: !!c.lastActive }));
+  });
+  handle('pob:snapshot', () => pobSnapshot());
   handle('regex:campaignBuild', (a) => services.regexCampaignBuild(a || {}));
   handle('regex:beastBuild', (a) => services.regexBeastBuild(a || {}));
   handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
@@ -893,7 +902,13 @@ app.on('second-instance', () => mainWin?.show());
 if (process.platform === 'win32') app.setAppUserModelId('dev.poehelper.app');
 
 // ---------------- Path of Building (your installed copy, run headless) ----------------
+// It only runs to save a snapshot of your character, and stops again after a few idle minutes.
 let pob = null;
+let pobIdle = null;
+function pobDirNow() {
+  if (!services) return null;
+  return require('./pob').findPobDir((services.settings.get('pob') || {}).dir);
+}
 function pobState() {
   const P = require('./pob');
   const st = services.settings.get('pob') || {};
@@ -901,22 +916,74 @@ function pobState() {
   const dirs = P.buildsDirs(app.getPath('documents'));
   const buildsDir = st.buildsDir && fs.existsSync(st.buildsDir) ? st.buildsDir : dirs.find((d) => fs.existsSync(d)) || dirs[dirs.length - 1];
   return {
-    enabled: !!st.enabled, dir, dirFound: !!dir, buildsDir, build: st.build || null,
-    builds: fs.existsSync(buildsDir) ? P.listBuilds(buildsDir).map(({ file, name }) => ({ file, name })) : [],
-    state: pob?.state || 'off', error: pob?.error || null, summary: pob?.build?.summary || null, platform: process.platform,
+    dir, dirFound: !!dir, buildsDir, character: st.character || null, last: st.last || null,
+    state: pob?.state || 'off', error: pob?.error || null, platform: process.platform,
   };
 }
-async function pobApply() {
-  const st = pobState();
-  if (!st.enabled) { pob?.stop(); return pobState(); }
-  if (!st.dir) return pobState();
+async function pobReady(dir) {
   if (!pob) pob = new (require('./pob').PobEngine)({ utilityProcess, hostFile: path.join(__dirname, '..', 'pob', 'host.lua'), workerFile: path.join(__dirname, 'pob-worker.js'), log });
+  clearTimeout(pobIdle);
   try {
-    await pob.start(st.dir);
-    if (st.build && fs.existsSync(st.build) && pob.build?.file !== st.build) await pob.load(st.build);
-  } catch (e) { log('pob', e.message); pob.error = e.message; }
-  mainWin?.webContents.send('pob:changed');
-  return pobState();
+    await pob.start(dir);
+  } catch (e) {
+    log('pob', e.message);
+    throw new Error(`Path of Building didn't start: ${e.message}`);
+  }
+}
+
+// A snapshot of your character, like PoB's Import tab: your gear, gems, tree and jewels from pathofexile.com
+// (2-3 requests with your POESESSID), made into a build by PoB itself and saved in your builds folder.
+let pobSnapshotBusy = false;
+async function pobSnapshot() {
+  if (pobSnapshotBusy) throw new Error('A snapshot is already being saved.');
+  pobSnapshotBusy = true;
+  const P = require('./pob');
+  try {
+    const st = pobState();
+    if (!st.dir) throw new Error('Path of Building (Community) wasn\'t found. Install it, or choose its folder on the Path of Building page.');
+    const cfg = services.settings.get('pob') || {};
+    const ggg = services.ggg;
+    // ask pathofexile.com while PoB starts
+    const started = pobReady(st.dir);
+    started.catch(() => {});
+    let character;
+    let items;
+    if (cfg.character) {
+      items = await ggg.characterItems(cfg.character);
+      character = { name: cfg.character, ...(items?.character || {}) };
+    } else {
+      const c = P.pickCharacter(await ggg.characters({ maxAgeMs: 60 * 1000 }));
+      if (!c) throw new Error('No characters found on your account.');
+      items = await ggg.characterItems(c.name);
+      character = { ...c, ...(items?.character || {}) };
+    }
+    character.league = character.league || '';
+    const passives = await ggg.characterPassives(character.name);
+    await started;
+    const file = P.snapshotFile(st.buildsDir, character.name);
+    const r = await pob.importCharacter({ character, items, passives, name: path.basename(file, '.xml') });
+    if (!r.xml) throw new Error(r.error || 'Path of Building made no build.');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, r.xml, 'utf8');
+    delete r.xml;
+    delete r.id;
+    services.settings.set('pob', { ...(services.settings.get('pob') || {}), last: { file, at: Date.now(), character: character.name, summary: r } });
+    log('pob snapshot', file);
+    mainWin?.webContents.send('pob:changed');
+    return { file, character: character.name, summary: r };
+  } finally {
+    pobSnapshotBusy = false;
+    clearTimeout(pobIdle);
+    pobIdle = setTimeout(() => { pob?.stop(); mainWin?.webContents.send('pob:changed'); }, 5 * 60 * 1000);
+  }
+}
+async function pobSnapshotNotify() {
+  try {
+    const r = await pobSnapshot();
+    notify(`Saved a Path of Building snapshot of ${r.character}.`);
+  } catch (e) {
+    notify(`Path of Building snapshot failed: ${e.message}`);
+  }
 }
 
 app.whenReady().then(async () => {
@@ -953,7 +1020,6 @@ app.whenReady().then(async () => {
   // Warm only what every price check needs (league + currency): 2 small poe.ninja requests, cached.
   services.getLeague().then((l) => services.ninja.category(l, 'Currency')).catch((e) => log('warmup', e.message));
   // your Path of Building build, loaded in the background so item checks can compare against it
-  if (services.settings.get('pob')?.enabled) setTimeout(() => pobApply().catch(() => {}), 2500);
   // Rewrite the "(helper)" filter at start, so a fix in a new version (or a FilterBlade update)
   // reaches the game without you having to change anything first.
   if (services.settings.get('economy')?.enabled) services.regenerateEconomy().catch(() => {});

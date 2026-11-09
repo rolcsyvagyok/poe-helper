@@ -3,6 +3,8 @@
  * Grinding Gear Games API client. Deliberately small surface:
  *
  *   stash      GET /character-window/get-stash-items   (POESESSID, net worth only, user-triggered or scheduled)
+ *   character  GET /character-window/get-characters, get-items, get-passive-skills
+ *                                                     (POESESSID, only when you save a Path of Building snapshot)
  *   tradeStats GET /api/trade/data/stats               (cached 7 days, only when you build a rare search)
  *   search     POST /api/trade/search/{league}         (only when you click "Search" in the overlay)
  *   fetch      GET /api/trade/fetch/{ids}?query={id}   (only if you ask for listings; max 10 per call)
@@ -105,6 +107,35 @@ class GggClient {
     const items = json.items || [];
     this.cache.set(key, items);
     return items;
+  }
+
+  // ---------- Characters (Path of Building snapshots, on demand) ----------
+
+  _charUrl(what, extra = {}) {
+    const acct = this.getAccountName();
+    if (!acct) throw new AuthError('Account name (Name#1234) is not set in Settings.');
+    const q = new URLSearchParams({ accountName: acct, realm: 'pc', ...extra });
+    return `${WEB}/character-window/${what}?${q}`;
+  }
+
+  /** Your characters: name, league, class (the ascendancy once you have one), level; lastActive marks the one you played last. */
+  async characters({ maxAgeMs = 0 } = {}) {
+    const key = `ggg_chars_${this.getAccountName()}`;
+    if (maxAgeMs > 0 && this.cache.isFresh(key, maxAgeMs)) return this.cache.get(key).data;
+    const json = await this._request('character', this._charUrl('get-characters'), { withSession: true });
+    const list = Array.isArray(json) ? json : json?.characters || [];
+    this.cache.set(key, list);
+    return list;
+  }
+
+  /** What the character wears, with its gems ({ items, character }). */
+  async characterItems(name) {
+    return this._request('character', this._charUrl('get-items', { character: name }), { withSession: true });
+  }
+
+  /** The character's passive tree and jewels ({ hashes, hashes_ex, mastery_effects, items, jewel_data, ... }). */
+  async characterPassives(name) {
+    return this._request('character', this._charUrl('get-passive-skills', { character: name }), { withSession: true });
   }
 
   // ---------- Trade (rares, on demand) ----------

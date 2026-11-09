@@ -3,6 +3,7 @@
 -- HeadlessWrapper.lua. It loads your installed PoB, then answers requests from the app:
 --   load(xml)           a build from your PoB builds folder
 --   compare(itemText)   what equipping that item does to the build's DPS, life and defences
+--   import(character)   a new build from your character on pathofexile.com, the way PoB's Import tab makes it
 -- PoB's files start with a "#@" line its own launcher reads; plain Lua can't, so it's skipped here.
 
 local l_loadfile = loadfile
@@ -119,6 +120,35 @@ local function compare(text)
 	return { item = item.name, full = full, base = pick(base), slots = slots }
 end
 
+-- A snapshot of a character: PoB's own Import tab code, fed the same answers pathofexile.com gives it
+-- (character-window/get-passive-skills and get-items), into a new build. Returns the build file's text.
+local function importCharacter(req)
+	if not loadBuild(nil, req.name) then return { error = "PoB couldn't make a new build." } end
+	local tab = build.importTab
+	local passives = req.passives or { }
+	-- like ImportTab:DownloadPassiveTree: quest choices the site leaves out keep the build's values
+	passives.bandit_choice = passives.bandit_choice or build.configTab.input.bandit
+	passives.pantheon_major = passives.pantheon_major or build.configTab.input.pantheonMajorGod
+	passives.pantheon_minor = passives.pantheon_minor or build.configTab.input.pantheonMinorGod
+	local tree = copyTable(req.character)
+	tree.passives = passives
+	tree.jewels = passives.items
+	tab:ImportPassiveTreeAndJewels(tree, true)
+	-- like ImportTab:DownloadItems, with "delete equipment" and "delete skills" ticked
+	local gear = copyTable(req.character)
+	gear.equipment = (req.items and req.items.items) or { }
+	gear.guardian = req.items and req.items.guardian
+	tab:ImportItemsAndSkills(gear, true, true, false)
+	tab.lastCharacterHash = common.sha1(req.character.name or "")
+	build.buildFlag = true
+	runCallback("OnFrame")
+	local xml = build:SaveDB(req.name or "snapshot")
+	if not xml then return { error = "PoB couldn't write the build." } end
+	local s = summary()
+	s.xml = xml
+	return s
+end
+
 -- one request (a JSON line) -> one answer (a JSON line)
 function handle(line)
 	local ok, req = pcall(dkjson.decode, line)
@@ -130,6 +160,9 @@ function handle(line)
 			elseif req.op == "compare" then
 				if not build then return { error = "No build loaded." } end
 				return compare(req.item)
+			elseif req.op == "import" then
+				if type(req.character) ~= "table" then return { error = "No character." } end
+				return importCharacter(req)
 			elseif req.op == "ping" then return { ok = true }
 			end
 			return { error = "unknown request" }

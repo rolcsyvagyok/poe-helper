@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), regex: () => window.RegexView.renderRegexPage(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), regex: () => window.RegexView.renderRegexPage(), pob: renderPobPage, filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -70,33 +70,72 @@ async function refreshState() {
 // ---------------- Path of Building ----------------
 const fmtNum = (n) => (Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e4 ? `${(n / 1e3).toFixed(1)}k` : Math.round(n).toLocaleString());
 async function pobBox(box) {
-  const field = (label, input, help) => h('label', { class: 'field' }, label, input, help ? h('span', { class: 'help' }, help) : null);
   const st = await call('pob:state');
-  const set = async (patch, msg) => { if (msg) toast(msg); mount(box, h('span', { class: 'small muted' }, patch.enabled === false ? 'Stopping…' : 'Starting Path of Building…')); await call('pob:set', patch).catch((e) => toast(e.message, true)); pobBox(box); };
-  const s = st.summary;
-  const stateLine = !st.enabled ? null
-    : !st.dirFound ? h('div', { class: 'small warn' }, 'Path of Building (Community) wasn\'t found. Install it, or point to its folder below.')
-      : st.state === 'starting' ? h('div', { class: 'small muted' }, 'Starting Path of Building…')
-        : st.state === 'failed' || st.error ? h('div', { class: 'small warn' }, `Path of Building didn't start: ${st.error}`)
-          : st.state === 'ready' && s ? h('div', { class: 'pob-sum' },
-            h('b', {}, s.name), ` · ${[s.ascendancy || s.class, s.level ? `level ${s.level}` : null, s.skill].filter(Boolean).join(' · ')}`,
-            h('div', { class: 'small muted' }, [s.stats.FullDPS ? `${fmtNum(s.stats.FullDPS)} full DPS` : s.stats.CombinedDPS ? `${fmtNum(s.stats.CombinedDPS)} DPS` : null, s.stats.Life ? `${fmtNum(s.stats.Life)} life` : null, s.stats.EnergyShield > 50 ? `${fmtNum(s.stats.EnergyShield)} ES` : null, s.stats.TotalEHP ? `${fmtNum(s.stats.TotalEHP)} effective HP` : null].filter(Boolean).join(' · ')))
-            : st.state === 'ready' ? h('div', { class: 'small muted' }, 'Path of Building is running. Pick a build.') : null;
+  const last = st.last;
+  const ls = last?.summary;
+  const stats = ls?.stats || {};
   mount(box,
-    toggle(st.enabled, (v) => set({ enabled: v }, v ? 'Starting Path of Building in the background' : 'Path of Building stopped'), 'Compare items with my Path of Building build'),
-    st.enabled ? [
-      h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Path of Building:'), h('code', {}, st.dir || 'not found'),
-        h('button', { class: 'sm quiet', onclick: async () => { await call('pob:pickDir', 'pob'); pobBox(box); } }, 'Choose folder')),
-      field('Build', h('div', { class: 'row', style: { gap: '8px' } },
-        h('select', { style: { flex: 1 }, 'aria-label': 'Build', onchange: (e) => set({ build: e.target.value || null }, 'Loading the build') },
-          h('option', { value: '' }, st.builds.length ? 'Pick a build…' : 'No builds found'), st.builds.map((b) => h('option', { value: b.file, selected: st.build === b.file }, b.name))),
-        h('button', { class: 'sm', title: 'Load the build again, after you changed it in Path of Building', onclick: async () => { mount(box, h('span', { class: 'small muted' }, 'Reloading…')); await call('pob:reload'); pobBox(box); } }, 'Reload')),
-      h('span', { class: 'help' }, `From ${st.buildsDir}. `, h('a', { href: '#', onclick: async (e) => { e.preventDefault(); await call('pob:pickDir', 'builds'); pobBox(box); } }, 'Other folder'))),
-      stateLine,
-      h('span', { class: 'help' }, 'Path of Building runs inside PoE Helper in the background with your build loaded (a few seconds to start). Save your build in Path of Building, then Reload here to compare with the new version. Path of Building is open source (MIT licence); PoE Helper uses your installed copy.'),
-    ] : null);
+    section('Path of Building', 'PoE Helper uses your installed Path of Building (Community) to make the snapshots. It starts when you save one and stops again after a few minutes.',
+      h('div', { class: 'panel stack' },
+        h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Path of Building:'), h('code', {}, st.dir || 'not found'),
+          h('button', { class: 'sm quiet', onclick: async () => { await call('pob:pickDir', 'pob'); pobBox(box); } }, 'Choose folder')),
+        !st.dirFound ? h('div', { class: 'small warn' }, 'Path of Building (Community) wasn\'t found. Install it, or choose its folder.') : null,
+        h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Builds folder:'), h('code', {}, st.buildsDir),
+          h('button', { class: 'sm quiet', onclick: async () => { await call('pob:pickDir', 'builds'); pobBox(box); } }, 'Choose folder')),
+        st.state === 'failed' && st.error ? h('div', { class: 'small warn' }, `Path of Building didn't start: ${st.error}`) : null,
+        h('span', { class: 'help' }, 'Path of Building is open source (MIT licence); PoE Helper uses your installed copy.'))),
+    section('Snapshot of my character', 'Like Path of Building\'s Import tab: your gear, gems, passive tree and jewels from pathofexile.com, made into a build by Path of Building and saved as a new file.',
+      pobSnapshotBox(st, () => pobBox(box))),
+    last ? section('Last snapshot', null,
+      h('div', { class: 'panel stack' },
+        h('div', { class: 'pob-sum' }, h('b', {}, last.character), ` · ${[ls?.ascendancy || ls?.class, ls?.level ? `level ${ls.level}` : null, ls?.skill].filter(Boolean).join(' · ')}`,
+          h('div', { class: 'small muted' }, [stats.FullDPS ? `${fmtNum(stats.FullDPS)} full DPS` : stats.CombinedDPS ? `${fmtNum(stats.CombinedDPS)} DPS` : null, stats.Life ? `${fmtNum(stats.Life)} life` : null, stats.EnergyShield > 50 ? `${fmtNum(stats.EnergyShield)} ES` : null, stats.TotalEHP ? `${fmtNum(stats.TotalEHP)} effective HP` : null].filter(Boolean).join(' · ')),
+          h('div', { class: 'small faint' }, `${last.file.split(/[\\/]/).pop()}, saved ${new Date(last.at).toLocaleString()}`)),
+        h('div', { class: 'row' }, h('button', { class: 'sm', onclick: () => call('pob:openFolder') }, 'Open snapshots folder')))) : null);
 }
-window.poe.on('pob:changed', () => { const b = document.querySelector('#page-settings .pob-box'); if (b) pobBox(b); });
+async function renderPobPage() {
+  await refreshState();
+  const el = $('page-pob');
+  let box = el.querySelector('.pob-box');
+  if (!box) {
+    box = h('div', { class: 'pob-box' }, h('span', { class: 'small muted' }, 'Looking for Path of Building…'));
+    mount(el, pageHead('Path of Building', 'Save snapshots of your character as Path of Building builds, any time.'), box);
+  }
+  await pobBox(box);
+}
+// Snapshot: your character from pathofexile.com made into a PoB build by PoB's own Import code, saved in your builds folder.
+let pobChars = null; // characters loaded this session
+function pobSnapshotBox(st, refresh) {
+  const S0 = S.settings;
+  const hasLogin = !!(S0.accountName && S0.sessionSet);
+  const status = h('span', { class: 'small muted' });
+  const charSel = h('select', { style: { flex: 1 }, 'aria-label': 'Character', onchange: async (e) => { await call('pob:set', { character: e.target.value || null }); toast('Saved'); } },
+    h('option', { value: '' }, 'The character I played last'),
+    (pobChars || (st.character ? [{ name: st.character }] : [])).map((c) => h('option', { value: c.name, selected: st.character === c.name },
+      [c.name, c.level ? `level ${c.level}` : null, c.class, c.league].filter(Boolean).join(' · '))));
+  const loadChars = async (btn) => {
+    btn.disabled = true; mount(status, 'Loading your characters…');
+    try { pobChars = await call('pob:characters', true); refresh(); } catch (e) { mount(status, h('span', { class: 'warn' }, cleanErr(e))); btn.disabled = false; }
+  };
+  const save = async (btn) => {
+    btn.disabled = true; mount(status, 'Reading your character and building it in Path of Building…');
+    try {
+      const r = await call('pob:snapshot');
+      toast(`Saved a snapshot of ${r.character}`);
+      refresh();
+    } catch (e) { mount(status, h('span', { class: 'warn' }, cleanErr(e))); btn.disabled = false; }
+  };
+  return h('div', { class: 'panel stack' },
+    h('span', { class: 'help' }, 'Saved in ', h('code', {}, 'PoE Helper snapshots'), ' in your builds folder, named after the character and the time. Open it in Path of Building like any build. Each snapshot is a new file, so older ones stay.'),
+    !hasLogin ? h('div', { class: 'small warn' }, 'Add your account name and POESESSID in Settings first; the snapshot reads your character with them, private profiles too.') : null,
+    h('label', { class: 'field' }, 'Character', h('div', { class: 'row', style: { gap: '8px' } }, charSel,
+      h('button', { class: 'sm quiet', title: 'Get your character list from pathofexile.com (1 request)', onclick: (e) => loadChars(e.currentTarget) }, pobChars ? 'Refresh list' : 'Load characters'))),
+    h('div', { class: 'row', style: { gap: '10px' } },
+      h('button', { class: 'primary sm', disabled: !st.dirFound || !hasLogin, onclick: (e) => save(e.currentTarget) }, 'Save snapshot now'), status),
+    hotkeyField('hotkeySnapshot', 'Snapshot hotkey', S0, 'Saves a snapshot from anywhere, in game too (2-3 requests to pathofexile.com each time). Also in the tray menu.', ''));
+}
+const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+window.poe.on('pob:changed', () => { const b = document.querySelector('#page-pob .pob-box'); if (b) pobBox(b); });
 
 // ---------------- the app's look ----------------
 async function setUiTheme(id) {
@@ -758,8 +797,8 @@ function hotkeyField(name, label, st, help, fallback) {
       const fresh = (await call('state:get')).settings;
       const r = fresh.hotkeyStatus?.[name];
       if (r === 'taken') toast(`${H.label(save)} is already used by another app. Try another combination.`, true);
-      else toast(save ? `Price check is now ${H.label(save)}` : 'Hotkey switched off');
-      renderSettings();
+      else toast(save ? `${label}: ${H.label(save)}` : 'Hotkey switched off');
+      pages[currentPage]().catch(() => {});
     } else {
       await call('hotkeys:resume');
       btn.textContent = H.label(st[name]);
@@ -952,8 +991,6 @@ async function renderSettingsNow() {
               h('button', { class: 'sm', onclick: async () => { const n = await call('font:pick'); if (n) { await window.UI.loadUserFont(); toast(`Item labels now use ${n}`); renderSettings(); } } }, 'Choose font file'),
               st.labelFontPath ? h('button', { class: 'quiet sm', onclick: async () => { await call('font:clear'); toast('Back to the bundled font. Restart the app to see it everywhere.'); renderSettings(); } }, 'Reset') : null),
               'The game uses Fontin SmallCaps. It is free from exljbris.com but can\'t be shipped with this app; download it and pick the .otf file here for an exact match.'))),
-        section('Path of Building', 'Compare items with your build: the price check shows what an item does to your DPS, life and defences in each slot it fits, worked out by your own Path of Building (Community) the way its item tooltip does.',
-          (() => { const box = h('div', { class: 'panel stack pob-box' }, h('span', { class: 'small muted' }, 'Looking for Path of Building…')); pobBox(box); return box; })()),
         section('Net worth', null,
           h('div', { class: 'panel stack' },
             field('Client.txt', h('input', { value: st.clientLogPath || '', placeholder: '…\\Path of Exile\\logs\\Client.txt', onchange: set('clientLogPath', (v) => v.trim()) }), 'Automatic snapshots pause when this file goes quiet for 15 minutes, which means you stopped playing.'),

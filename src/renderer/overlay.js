@@ -57,7 +57,7 @@ function render(p) {
     mount(root, header(null), h('div', { class: 'ov-body' }, h('div', { class: 'muted' }, p.error)));
     return fit();
   }
-  const { item, price, filterHit } = p;
+  const { item, price, filterHit, filterWhere } = p;
   const divine = price?.divine;
   const facts = [];
   if (item.typeLine && item.name && item.name !== item.typeLine) facts.push(item.typeLine);
@@ -94,15 +94,10 @@ function render(p) {
   if (price?.ageMs != null) body.append(h('div', { class: 'small faint' }, `${p.league} prices from ${ago(price.ageMs)}`));
 
   // --- filter ---
+  // which rule decides it, and where that rule is in your filter (the tier block below says it when it can move the base)
+  const whereText = filterWhere ? (filterWhere.tier ? `${filterWhere.text}, ${window.TierNames.tierName({ tier: filterWhere.tier.tier, type: filterWhere.tier.type, customName: filterWhere.tier.name })}` : filterWhere.text) : null;
   if (filterHit?.line) {
-    body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter.`));
-  }
-
-  // --- your Path of Building build: what the item does in each slot it fits ---
-  if (['unique', 'rare', 'magic', 'normal'].includes(p.kind) && p.text) {
-    const pobBox = h('div', { class: 'ov-block ov-pob' });
-    body.append(pobBox);
-    showPob(pobBox, p);
+    body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter${whereText ? `: ${whereText}` : ''}.`));
   }
 
   // --- actions ---
@@ -157,13 +152,15 @@ function render(p) {
     tierControls = tierControls ? h('div', { class: 'stack', style: { gap: '10px' } }, tierControls, add) : add;
   }
   const inTier = ti && !ti.notListed;
+  // "Show in app": the tier the base is in, else the part of the Loot filter page whose rule decides the item
+  const goto = inTier ? { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } : filterWhere?.goto ? { ...filterWhere.goto, base: item.baseType || item.typeLine } : null;
   const gear = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !!(item.baseType || item.typeLine) && !['currency', 'divination', 'gem', 'map', 'fragment'].includes(p.kind);
   const actions = h('div', { class: 'ov-actions' },
     gear ? h('button', { title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases…') : null,
     inTier ? null : h('button', { title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
     h('span', { class: 'spacer' }),
-    h('button', { class: 'quiet', title: inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : 'Open the app',
-      onclick: () => call('app:show', inTier ? { goto: { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } } : null) }, inTier ? 'Show in app' : 'App'));
+    h('button', { class: 'quiet', title: inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
+      onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in app' : 'App'));
   if (tierControls) body.append(tierControls);
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });
   body.append(actions, quickBox, tradeBox);
@@ -315,33 +312,6 @@ async function quick(kind) {
 async function openTrade(box) {
   box.style.display = '';
   await window.TradePanel.mount(box, { text: current.text, divine: current.price?.divine, onFit: fit });
-}
-
-// ---------------- Path of Building ----------------
-const pobNum = (n, unit) => {
-  if (unit === 'x') return `${(n * 100).toFixed(1)}%`;
-  const a = Math.abs(n);
-  const s = a >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : a >= 1e4 ? `${(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`;
-  return unit === '%' ? `${s}%` : s;
-};
-async function showPob(box, p) {
-  let r;
-  try { r = await window.poe.call('pob:compare', p.text); } catch (e) { r = { error: e.message }; }
-  if (current !== p) return;
-  if (!r) { box.remove(); return fit(); } // Path of Building isn't set up
-  if (r.error) { mount(box, h('div', { class: 't' }, 'With your build'), h('div', { class: 'small muted' }, r.error)); return fit(); }
-  const slots = r.slots || [];
-  mount(box,
-    h('div', { class: 't' }, `With your build${r.build ? `: ${r.build}` : ''}`),
-    slots.length ? slots.map((s) => {
-      const dps = s.changes.find((c) => c.key === 'dps');
-      const rest = s.changes.filter((c) => c.key !== 'dps').slice(0, 6);
-      return h('div', { class: 'ov-pob-slot' },
-        h('div', { class: 'row', style: { gap: '6px' } }, h('b', {}, s.slot), s.current ? h('span', { class: 'small faint' }, `instead of ${s.current}`) : h('span', { class: 'small faint' }, 'empty slot'), h('span', { class: 'spacer' }),
-          dps ? h('span', { class: `pob-chg ${dps.diff > 0 ? 'up' : 'down'}` }, `${dps.diff > 0 ? '+' : ''}${dps.pct != null ? `${dps.pct.toFixed(1)}%` : pobNum(dps.diff)} ${r.full ? 'full DPS' : 'DPS'}`) : h('span', { class: 'small faint' }, 'same DPS')),
-        rest.length ? h('div', { class: 'ov-pob-chg' }, rest.map((c) => h('span', { class: `pob-chg ${c.diff > 0 ? 'up' : 'down'}` }, `${c.diff > 0 ? '+' : '−'}${pobNum(Math.abs(c.diff), c.unit)} ${c.label}`))) : null);
-    }) : h('div', { class: 'small muted' }, 'This item doesn\'t fit any slot of your build.'));
-  fit();
 }
 
 // your recordings of the game's drop sounds, so ▶ works for "Game sound N" here too
