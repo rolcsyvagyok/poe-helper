@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), regex: () => window.RegexView.renderRegexPage(), pob: renderPobPage, filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -93,16 +93,6 @@ async function pobBox(box) {
           h('div', { class: 'small faint' }, `${last.file.split(/[\\/]/).pop()}, saved ${new Date(last.at).toLocaleString()}`)),
         h('div', { class: 'row' }, h('button', { class: 'sm', onclick: () => call('pob:openFolder') }, 'Open snapshots folder')))) : null);
 }
-async function renderPobPage() {
-  await refreshState();
-  const el = $('page-pob');
-  let box = el.querySelector('.pob-box');
-  if (!box) {
-    box = h('div', { class: 'pob-box' }, h('span', { class: 'small muted' }, 'Looking for Path of Building…'));
-    mount(el, pageHead('Path of Building', 'Save snapshots of your character as Path of Building builds, any time.'), box);
-  }
-  await pobBox(box);
-}
 // Snapshot: your character from pathofexile.com made into a PoB build by PoB's own Import code, saved in your builds folder.
 let pobChars = null; // characters loaded this session
 function pobSnapshotBox(st, refresh) {
@@ -150,7 +140,6 @@ function pobSnapshotBox(st, refresh) {
 /** Leagues that never end: Standard, Hardcore and their SSF and Ruthless versions. */
 const isPermanentLeague = (l) => /^(SSF |HC SSF |Hardcore SSF |SSF Hardcore |Hardcore |HC )?(Standard|Hardcore|Ruthless)( SSF)?$/i.test(String(l || '').trim()) || /^(SSF )?(Hardcore )?Ruthless$|^Hardcore SSF$|^SSF Standard$|^SSF Hardcore$/i.test(String(l || '').trim());
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-window.poe.on('pob:changed', () => { const b = document.querySelector('#page-pob .pob-box'); if (b) pobBox(b); });
 
 // ---------------- the app's look ----------------
 async function setUiTheme(id) {

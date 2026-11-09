@@ -29,7 +29,8 @@ const DEFAULT_SETTINGS = {
   contact: '', // optional contact for User-Agent, e.g. a GitHub URL
   hotkeyPrice: 'Alt+E',
   hotkeyPriceAdvanced: 'Ctrl+Alt+D',
-  hotkeySnapshot: '', // save a Path of Building snapshot of your character (off until you pick one)
+  hotkeySnapshot: '',
+  hotkeyPobTest: '', // copy the item under the mouse and test it against your build on the Path of Building page (off until you pick one) // save a Path of Building snapshot of your character (off until you pick one)
   hotkeyLab: 'Alt+L', // daily lab overlay: pick a difficulty, see today's layout from poelab
   labLast: 'uber',
   labFavorite: null, // the lab the hotkey opens straight away (null: ask every time)

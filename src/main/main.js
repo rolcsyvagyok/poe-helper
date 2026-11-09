@@ -237,12 +237,8 @@ function watchMouseForOverlay() {
 
 // ---------------- price check ----------------
 
-async function priceCheck({ advanced = false, accelerator = '' } = {}) {
-  // If you clicked into the popup, hide it so the copy goes to the game, not to the popup.
-  if (overlay?.isVisible() && overlay.isFocused()) {
-    overlay.hide();
-    await new Promise((r) => setTimeout(r, 80));
-  }
+/** Copies the item under the mouse in game (Ctrl+C, or Ctrl+Alt+C for mod tiers); falls back to what you copied yourself. */
+async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
   const before = clipboard.readText();
   let text = null;
   if (hasKeySender()) {
@@ -260,11 +256,30 @@ async function priceCheck({ advanced = false, accelerator = '' } = {}) {
     lastClipboard = clipboard.readText();
   }
   if (!text && isPoeItemText(before)) text = before; // you pressed Ctrl+C yourself
+  return text;
+}
+
+async function priceCheck({ advanced = false, accelerator = '' } = {}) {
+  // If you clicked into the popup, hide it so the copy goes to the game, not to the popup.
+  if (overlay?.isVisible() && overlay.isFocused()) {
+    overlay.hide();
+    await new Promise((r) => setTimeout(r, 80));
+  }
+  const text = await copyItemFromGame({ advanced, accelerator });
   if (!text) {
     showOverlayAtCursor({ error: hasKeySender() ? 'Hover an item in game and press the hotkey again.' : 'Press Ctrl+C on an item first (automatic copy needs uiohook-napi).' });
     return;
   }
   await runPriceCheck(text);
+}
+
+/** The PoB item tester hotkey: copies the item in game and opens it on the Path of Building page. */
+async function pobTestHotkey(accelerator) {
+  const text = await copyItemFromGame({ accelerator });
+  if (!text) { notify(hasKeySender() ? 'Hover an item in game and press the item tester hotkey again.' : 'Press Ctrl+C on an item first.'); return; }
+  mainWin?.show();
+  mainWin?.focus();
+  mainWin?.webContents.send('app:goto', { page: 'pob', tab: 'test', text });
 }
 
 async function runPriceCheck(text) {
@@ -289,6 +304,23 @@ function startClipboardWatcher() {
     lastClipboard = t;
     if (Date.now() < suppressClipboardUntil) return;
     if (isPoeItemText(t)) runPriceCheck(t);
+  }, 300);
+}
+
+// The PoB item tester takes every item you Ctrl+C in game (its own setting, apart from the price check's).
+let pobClipTimer = null;
+let pobClipLast = null;
+function applyPobClipboard() {
+  if (pobClipTimer) clearInterval(pobClipTimer);
+  pobClipTimer = null;
+  if ((services.settings.get('pob') || {}).watchClipboard === false) return;
+  pobClipLast = clipboard.readText();
+  pobClipTimer = setInterval(() => {
+    const t = clipboard.readText();
+    if (t === pobClipLast) return;
+    pobClipLast = t;
+    if (Date.now() < suppressClipboardUntil) return; // the price check hotkey's own copy
+    if (isPoeItemText(t)) mainWin?.webContents.send('pob:copied', t);
   }, 300);
 }
 
@@ -325,6 +357,7 @@ function registerHotkeys({ quiet = false } = {}) {
   tryReg('hotkeyPriceAdvanced', (acc) => priceCheck({ advanced: true, accelerator: acc }));
   tryReg('hotkeyLab', () => toggleLab());
   tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
+  tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
   return hotkeyStatus;
 }
@@ -621,7 +654,7 @@ function registerIpc() {
     const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.includes(k)));
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
@@ -716,8 +749,9 @@ function registerIpc() {
   handle('pob:set', (a = {}) => {
     const cur = services.settings.get('pob') || {};
     const next = { ...cur };
-    for (const k of ['dir', 'buildsDir', 'character', 'charView']) if (k in a) next[k] = a[k];
+    for (const k of ['dir', 'buildsDir', 'character', 'charView', 'watchClipboard', 'find']) if (k in a) next[k] = a[k];
     services.settings.set('pob', next);
+    if ('watchClipboard' in a) applyPobClipboard();
     if ('dir' in a) pob?.stop();
     rebuildTrayMenu();
     return pobState();
@@ -743,6 +777,23 @@ function registerIpc() {
     return list.map((c) => ({ name: c.name, league: c.league, class: c.class, level: c.level, lastActive: !!c.lastActive }));
   });
   handle('pob:snapshot', () => pobSnapshot());
+  handle('clipboard:item', () => { const t = clipboard.readText(); return t && isPoeItemText(t) ? t : null; });
+  // calculations on a build file (a snapshot or any PoB build): one at a time, PoB holds one build
+  handle('pob:builds', () => {
+    const st = pobState();
+    if (!fs.existsSync(st.buildsDir)) return [];
+    return require('./pob').listBuilds(st.buildsDir).map(({ file, name, mtime }) => ({ file, name, mtime, snapshot: /^PoE Helper snapshots \/ /.test(name) }));
+  });
+  handle('pob:stats', (file) => pobWith(file, () => pob.stats()));
+  handle('pob:test', ({ file, text } = {}) => pobWith(file, async () => {
+    const r = await pob.compare(String(text || ''));
+    if (r.error) return { error: r.error };
+    return require('./pob').summarise(r);
+  }));
+  handle('pob:upgrades', (file) => pobWith(file, () => pob.upgrades()));
+  // "find the best item for me": a weighted-sum trade search made from what PoB says each stat is worth
+  // (2 trade requests: the search and the top 10 listings, which PoB then tests in that slot)
+  handle('pob:findItem', (a = {}) => pobWith(a.file, () => pobFindItem(a)));
   handle('regex:campaignBuild', (a) => services.regexCampaignBuild(a || {}));
   handle('regex:beastBuild', (a) => services.regexBeastBuild(a || {}));
   handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
@@ -916,7 +967,7 @@ function pobState() {
   const dirs = P.buildsDirs(app.getPath('documents'));
   const buildsDir = st.buildsDir && fs.existsSync(st.buildsDir) ? st.buildsDir : dirs.find((d) => fs.existsSync(d)) || dirs[dirs.length - 1];
   return {
-    dir, dirFound: !!dir, buildsDir, character: st.character || null, charView: st.charView || {}, last: st.last || null,
+    dir, dirFound: !!dir, buildsDir, character: st.character || null, charView: st.charView || {}, watchClipboard: st.watchClipboard !== false, find: st.find || null, last: st.last || null,
     state: pob?.state || 'off', error: pob?.error || null, platform: process.platform,
   };
 }
@@ -931,10 +982,88 @@ async function pobReady(dir) {
   }
 }
 
+async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice = null, unit = 'chaos', betterOnly = true }) {
+  const T = require('../core/pob-trade');
+  const P = require('./pob');
+  const all = T.CANDIDATES;
+  const w = await pob.weights(slot, all.map((c) => c.line));
+  if (w.error) throw new Error(w.error);
+  const cands = T.candidatesFor(w.type);
+  if (!cands.length) throw new Error(`Searching for ${w.type || 'this kind of item'} isn't supported yet.`);
+  const results = cands.map((c) => w.results[all.indexOf(c)]);
+  const stats = await services.ggg.tradeStats();
+  const { weights, missing, scale } = T.weightsFrom(results, cands, stats, { focus });
+  if (!weights.length) throw new Error('None of the mods Path of Building tried make this build stronger in that slot, so there is nothing to search for.');
+  const league = await services.getLeague();
+  const divine = await services.ninja.divinePrice(league).catch(() => null);
+  let maxPriceChaos = Number(maxPrice) || null;
+  if (maxPriceChaos && unit === 'divine') {
+    if (!divine) throw new Error('poe.ninja has no Divine Orb price right now; give the price in chaos.');
+    maxPriceChaos *= divine;
+  }
+  // at least as good as your item: what it is worth in the same units, a little under to allow for rounding
+  const f = T.FOCUS[focus] || T.FOCUS.balanced;
+  const curWorth = (f.dps * (w.current.dpsPct || 0) + f.ehp * (w.current.ehpPct || 0)) * scale;
+  const minSum = betterOnly && curWorth > 0 ? curWorth * 0.9 : 0;
+  const body = T.buildWeightedQuery({ weights, category: T.CATEGORY[w.type], maxLevel, maxPriceChaos, minSum, status: services.settings.get('tradeStatus') || 'securable' });
+  const res = await services.ggg.tradeSearch(league, body);
+  const out = { slot, type: w.type, base: w.base, current: w.currentName, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, weights: weights.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum, listings: [] };
+  if (!res.result?.length) return out;
+  const fetched = await services.ggg.tradeFetch(res.id, res.result.slice(0, 10));
+  for (const r of fetched.result || []) {
+    if (!r?.item) continue;
+    const text = T.itemTextFromTrade(r.item);
+    const p = r.listing?.price;
+    const chaos = p ? (p.currency === 'divine' && divine ? p.amount * divine : p.currency === 'chaos' ? p.amount : null) : null;
+    let test = null;
+    try {
+      const c = await pob.compare(text);
+      const s = P.summarise(c)?.slots.find((x) => x.slot === slot) || null;
+      test = s ? { dps: s.changes.find((x) => x.key === 'dps') || null, changes: s.changes.filter((x) => x.key !== 'dps') } : null;
+    } catch { /* PoB couldn't read it: still listed */ }
+    out.listings.push({
+      id: r.id, name: [r.item.name, r.item.typeLine].filter(Boolean).join(', ').replace(/<<[^>]*>>/g, ''), ilvl: r.item.ilvl, level: (r.item.requirements || []).find((q) => q.name === 'Level')?.values?.[0]?.[0] || null,
+      price: p ? { amount: p.amount, currency: p.currency, chaos } : null, seller: r.listing?.account?.name || null, whisper: r.listing?.whisper || null,
+      mods: [...(r.item.implicitMods || []).map((m) => `${m} (implicit)`), ...(r.item.explicitMods || []), ...(r.item.craftedMods || []).map((m) => `${m} (crafted)`)],
+      text, test, full: !!w.full,
+    });
+  }
+  // best first by what PoB says each one does to your build (the trade sum is an estimate)
+  const score = (l) => (l.test ? f.dps * (l.test.dps?.pct || 0) + f.ehp * ((l.test.changes.find((c) => c.key === 'TotalEHP')?.pct) || 0) : -Infinity);
+  out.listings.sort((a, b) => score(b) - score(a));
+  return out;
+}
+
+let pobQueue = Promise.resolve();
+function pobIdleLater() {
+  clearTimeout(pobIdle);
+  pobIdle = setTimeout(() => { pob?.stop(); mainWin?.webContents.send('pob:changed'); }, 5 * 60 * 1000);
+}
+/** Runs fn with that build loaded in PoB; calls wait their turn. */
+function pobWith(file, fn) {
+  const job = pobQueue.then(async () => {
+    const st = pobState();
+    if (!st.dir) throw new Error('Path of Building (Community) wasn\'t found. Choose its folder on the Path of Building page.');
+    if (!file || !fs.existsSync(file)) throw new Error('That build file is gone. Pick another one.');
+    try {
+      await pobReady(st.dir);
+      await pob.load(file);
+      return await fn();
+    } finally { pobIdleLater(); }
+  });
+  pobQueue = job.catch(() => {});
+  return job;
+}
+
 // A snapshot of your character, like PoB's Import tab: your gear, gems, tree and jewels from pathofexile.com
 // (2-3 requests with your POESESSID), made into a build by PoB itself and saved in your builds folder.
 let pobSnapshotBusy = false;
-async function pobSnapshot() {
+function pobSnapshot() {
+  const job = pobQueue.then(() => pobSnapshotNow());
+  pobQueue = job.catch(() => {});
+  return job;
+}
+async function pobSnapshotNow() {
   if (pobSnapshotBusy) throw new Error('A snapshot is already being saved.');
   pobSnapshotBusy = true;
   const P = require('./pob');
@@ -973,8 +1102,8 @@ async function pobSnapshot() {
     return { file, character: character.name, summary: r };
   } finally {
     pobSnapshotBusy = false;
-    clearTimeout(pobIdle);
-    pobIdle = setTimeout(() => { pob?.stop(); mainWin?.webContents.send('pob:changed'); }, 5 * 60 * 1000);
+    if (pob) pob.loaded = null; // the import replaced the build PoB had open
+    pobIdleLater();
   }
 }
 async function pobSnapshotNotify() {
@@ -1014,6 +1143,7 @@ app.whenReady().then(async () => {
   applyLoginItem();
   watchMouseForOverlay();
   startClipboardWatcher();
+  applyPobClipboard();
   applyAutoSnapshot();
   applyFilterWatch();
   applyAutoTier();

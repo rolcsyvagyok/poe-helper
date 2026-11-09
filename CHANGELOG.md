@@ -3,6 +3,17 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.32 - 2026-11-09
+
+The Path of Building page now does Path of Building's maths, not only snapshots. It has tabs, and every tab works on a snapshot or on any build in your PoB builds folder:
+
+- **Item tester**: copy an item in game (hover it, Ctrl+C) and the Item tester shows what it does in each slot it fits: DPS change in %, life, energy shield, effective HP, resistances, attributes. No price check hotkey needed; the last items you copied stay as buttons to flip back to. You can also paste an item, or set the item tester hotkey to copy and open it in one press.
+- **Stats**: everything Path of Building's side panel shows: DPS (and each skill in full DPS), average hit, speed, crit, life, ES, mana and regen, effective HP and the biggest hit you can take of each type, armour, evasion, block, suppression, resistances with how far over the cap, attributes and charges. Plus your gear and your gem links.
+- **Compare**: two builds side by side, like yesterday's snapshot and today's: every stat with the change, the gear that changed and the gems that were added, removed or levelled.
+- **Upgrades: find a better item on the trade site**, like Path of Building's trade search. Pick a slot, what matters (damage, defence or both), the highest level requirement and the most you want to pay. Path of Building puts a blank item of the same base in that slot and tries each stat on it, so every stat gets a weight for what it adds to your build (a resistance you need counts a lot, one over the cap nothing). The trade site lists items by the weighted sum of their stats, and Path of Building tests the 10 best in your build: DPS and effective HP change, the rest of the changes, the price, a Copy whisper button and Open in the item tester. 2 trade requests per search. Below it, Best mods for your items shows which single mod would help each of your rare items most.
+
+A third ring slot and abyssal sockets only show when your build has them.
+
 ## 1.0.31 - 2026-11-09
 
 - **Fixed: snapshots failed with "Path of Building didn't start: _SimpleGraphic.def.lua: No such file or directory".** An installed Path of Building doesn't have that file, so PoE Helper now brings its own copy.

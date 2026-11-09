@@ -1068,3 +1068,19 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .fb-lookclip { display: flex; gap: 2px; }
 .fb-gresults button { flex-wrap: wrap; row-gap: 0; }
 .fb-gresults .cat { flex: 0 0 100%; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pob-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.pob-stat h3 { margin: 0 0 8px; font-size: 14px; }
+.pob-stat table td { padding: 3px 0; }
+.pob-slot { display: grid; gap: 6px; }
+.pob-big { font-size: 16px; font-weight: 600; }
+.pob-big.up, .pob-chg.up { color: var(--good); } .pob-big.down, .pob-chg.down { color: var(--bad); }
+.pob-chgs { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+.pob-gems { padding: 5px 0; border-top: 1px solid var(--line-soft); font-size: 13px; }
+.pob-gems:first-of-type { border-top: 0; }
+.pob-gems .sup { color: var(--muted); } .pob-gems .off { text-decoration: line-through; opacity: .6; } .pob-gems.off { opacity: .55; }
+.pob-gems.main .act { color: var(--accent, var(--text)); font-weight: 600; }
+.pob-up { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 13px; } .pob-up > span:first-child { flex: 1; }
+.pob-cmp table td, .pob-cmp table th { padding: 3px 8px; } .pob-cmp tr.grp td { padding-top: 12px; font-weight: 600; color: var(--muted); border-top: 0; }
+.pob-cmp tr.same td { color: var(--faint); }
+.rar-unique { color: #c8823c; } .rar-rare { color: #d9c95f; } .rar-magic { color: #8888ff; } .rar-relic { color: #82ad6a; }

@@ -40,3 +40,21 @@ test('GGG characters: the same pages PoB imports from, with the session and the 
     'get-characters?accountName=Me%231234&realm=pc', 'get-items?accountName=Me%231234&realm=pc&character=X', 'get-passive-skills?accountName=Me%231234&realm=pc&character=X']);
   assert.ok(seen.every(([, c]) => c === 'POESESSID=sid'));
 });
+
+test('PoB item tester: DPS first, only what changes, weapon swap marked', () => {
+  const { summarise } = require('../src/main/pob');
+  const r = summarise({
+    item: 'Doom Loop, Steel Ring', full: false,
+    base: { CombinedDPS: 1000, Life: 3000, Str: 100 },
+    slots: [
+      { slot: 'Ring 1', current: 'Old', stats: { CombinedDPS: 1250, Life: 2900, Str: 100 } },
+      { slot: 'Weapon 1 Swap', current: null, stats: { CombinedDPS: 1000, Life: 3000, Str: 100 } },
+    ],
+  });
+  const ring = r.slots[0];
+  assert.deepStrictEqual(ring.changes.map((c) => c.key), ['dps', 'Life']);
+  assert.strictEqual(Math.round(ring.changes[0].pct), 25);
+  assert.strictEqual(ring.changes[1].diff, -100);
+  assert.strictEqual(r.slots[1].swap, true);
+  assert.strictEqual(r.slots[1].changes.length, 0);
+});

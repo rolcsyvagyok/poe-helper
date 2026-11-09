@@ -107,7 +107,7 @@ class PobEngine {
         if (!p) return;
         this.pending.delete(m.id);
         clearTimeout(p.timer);
-        if (m.error && !m.stats) p.reject(new Error(m.error)); else p.resolve(m);
+        if (m.error && !m.stats && !m.slots && !m.detail && !m.results) p.reject(new Error(m.error)); else p.resolve(m);
       });
       this.proc.on('exit', (code) => {
         for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error(`Path of Building stopped (${code}).`)); }
@@ -131,8 +131,32 @@ class PobEngine {
   stop(keepState) {
     if (this.proc) { try { this.proc.kill(); } catch { /* gone */ } }
     this.proc = null;
+    this.loaded = null;
     if (!keepState) this.state = 'off';
   }
+
+  /** Opens a build file in PoB (skipped when it is already open and unchanged). */
+  async load(file) {
+    let mtime = 0;
+    try { mtime = fs.statSync(file).mtimeMs; } catch { /* checked by the caller */ }
+    if (this.loaded && this.loaded.file === file && this.loaded.mtime === mtime) return this.loaded.summary;
+    const xml = fs.readFileSync(file, 'utf8');
+    const r = await this.send({ op: 'load', xml, name: path.basename(file).replace(/\.xml$/i, '') });
+    this.loaded = { file, mtime, summary: r };
+    return r;
+  }
+
+  /** The open build's numbers, skills, gear and gems. */
+  stats() { return this.send({ op: 'stats' }, 60000); }
+
+  /** What equipping an item does in each slot it fits. */
+  compare(itemText) { return this.send({ op: 'compare', item: itemText }, 60000); }
+
+  /** What each mod is worth on a blank item in that slot (for trade weights). */
+  weights(slot, lines) { return this.send({ op: 'weights', slot, lines }, 120000); }
+
+  /** For each gear slot: what one more good mod would do. */
+  upgrades() { return this.send({ op: 'upgrades' }, 180000); }
 
   /** A new build from your character, made by PoB's Import code. Returns the summary and the build file's text. */
   async importCharacter({ character, items, passives, name }) {
@@ -140,4 +164,33 @@ class PobEngine {
   }
 }
 
-module.exports = { PobEngine, snapshotFile, pickCharacter, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds };
+/** What an item does, slot by slot: the changes worth showing (DPS first). */
+const SHOW = [
+  ['dps', 'DPS'], ['Life', 'Life'], ['EnergyShield', 'Energy shield'], ['Mana', 'Mana'], ['TotalEHP', 'Effective HP'],
+  ['Armour', 'Armour'], ['Evasion', 'Evasion'], ['SpellSuppressionChance', 'Suppression', '%'], ['BlockChance', 'Block', '%'],
+  ['FireResist', 'Fire res', '%'], ['ColdResist', 'Cold res', '%'], ['LightningResist', 'Lightning res', '%'], ['ChaosResist', 'Chaos res', '%'],
+  ['MovementSpeedMod', 'Movement speed', 'x'], ['Str', 'Str'], ['Dex', 'Dex'], ['Int', 'Int'],
+];
+function dpsOf(stats, full) { return full ? (stats.FullDPS || 0) : (stats.CombinedDPS || stats.TotalDPS || 0); }
+function summarise(r) {
+  if (!r || !r.base) return null;
+  const baseDps = dpsOf(r.base, r.full);
+  return {
+    item: r.item,
+    full: r.full,
+    slots: (r.slots || []).map((s) => {
+      const changes = [];
+      for (const [k, label, unit] of SHOW) {
+        const before = k === 'dps' ? baseDps : r.base[k];
+        const after = k === 'dps' ? dpsOf(s.stats, r.full) : s.stats[k];
+        if (typeof before !== 'number' || typeof after !== 'number') continue;
+        const diff = after - before;
+        if (Math.abs(diff) < (unit === 'x' ? 0.001 : 0.5)) continue;
+        changes.push({ key: k, label, before, after, diff, pct: before ? (diff / Math.abs(before)) * 100 : null, unit: unit || '' });
+      }
+      return { slot: s.slot, current: s.current || null, swap: /Swap/.test(s.slot), changes };
+    }),
+  };
+}
+
+module.exports = { summarise, dpsOf, SHOW, PobEngine, snapshotFile, pickCharacter, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds };
