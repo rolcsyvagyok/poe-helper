@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.30 - 2026-11-09
+
+- **Path of Building → Snapshot: characters grouped by league.** The current league is first, then your other leagues. Standard and Hardcore characters are hidden until you tick Show Standard and Hardcore, and Only <league> shows just the current league. Your choice is remembered.
+
 ## 1.0.29 - 2026-11-09
 
 - **Path of Building has its own page** in the menu (under Regex), instead of a section in Settings.

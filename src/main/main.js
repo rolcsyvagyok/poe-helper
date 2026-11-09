@@ -716,7 +716,7 @@ function registerIpc() {
   handle('pob:set', (a = {}) => {
     const cur = services.settings.get('pob') || {};
     const next = { ...cur };
-    for (const k of ['dir', 'buildsDir', 'character']) if (k in a) next[k] = a[k];
+    for (const k of ['dir', 'buildsDir', 'character', 'charView']) if (k in a) next[k] = a[k];
     services.settings.set('pob', next);
     if ('dir' in a) pob?.stop();
     rebuildTrayMenu();
@@ -916,7 +916,7 @@ function pobState() {
   const dirs = P.buildsDirs(app.getPath('documents'));
   const buildsDir = st.buildsDir && fs.existsSync(st.buildsDir) ? st.buildsDir : dirs.find((d) => fs.existsSync(d)) || dirs[dirs.length - 1];
   return {
-    dir, dirFound: !!dir, buildsDir, character: st.character || null, last: st.last || null,
+    dir, dirFound: !!dir, buildsDir, character: st.character || null, charView: st.charView || {}, last: st.last || null,
     state: pob?.state || 'off', error: pob?.error || null, platform: process.platform,
   };
 }

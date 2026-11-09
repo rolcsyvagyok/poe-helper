@@ -109,10 +109,19 @@ function pobSnapshotBox(st, refresh) {
   const S0 = S.settings;
   const hasLogin = !!(S0.accountName && S0.sessionSet);
   const status = h('span', { class: 'small muted' });
+  // grouped by league: the current league first, other leagues, then Standard and Hardcore only if you want them
+  const current = S.league;
+  const opts = st.charView || {};
+  const all = pobChars || (st.character ? [{ name: st.character, league: '' }] : []);
+  const shown = all.filter((c) => c.name === st.character || (opts.currentOnly ? c.league === current : (opts.showStandard || !isPermanentLeague(c.league))));
+  const leagues = [...new Set(shown.map((c) => c.league || ''))].sort((a, b) => (a === current ? -1 : b === current ? 1 : 0) || (isPermanentLeague(a) - isPermanentLeague(b)) || a.localeCompare(b));
+  const optOf = (c) => h('option', { value: c.name, selected: st.character === c.name }, [c.name, c.level ? `level ${c.level}` : null, c.class].filter(Boolean).join(' · '));
   const charSel = h('select', { style: { flex: 1 }, 'aria-label': 'Character', onchange: async (e) => { await call('pob:set', { character: e.target.value || null }); toast('Saved'); } },
     h('option', { value: '' }, 'The character I played last'),
-    (pobChars || (st.character ? [{ name: st.character }] : [])).map((c) => h('option', { value: c.name, selected: st.character === c.name },
-      [c.name, c.level ? `level ${c.level}` : null, c.class, c.league].filter(Boolean).join(' · '))));
+    leagues.map((l) => h('optgroup', { label: l ? (l === current ? `${l} (current league)` : l) : 'Picked before' },
+      shown.filter((c) => (c.league || '') === l).sort((a, b) => (b.level || 0) - (a.level || 0) || a.name.localeCompare(b.name)).map(optOf))));
+  const setView = async (patch) => { await call('pob:set', { charView: { ...opts, ...patch } }); refresh(); };
+  const hiddenCount = all.length - shown.length;
   const loadChars = async (btn) => {
     btn.disabled = true; mount(status, 'Loading your characters…');
     try { pobChars = await call('pob:characters', true); refresh(); } catch (e) { mount(status, h('span', { class: 'warn' }, cleanErr(e))); btn.disabled = false; }
@@ -130,10 +139,16 @@ function pobSnapshotBox(st, refresh) {
     !hasLogin ? h('div', { class: 'small warn' }, 'Add your account name and POESESSID in Settings first; the snapshot reads your character with them, private profiles too.') : null,
     h('label', { class: 'field' }, 'Character', h('div', { class: 'row', style: { gap: '8px' } }, charSel,
       h('button', { class: 'sm quiet', title: 'Get your character list from pathofexile.com (1 request)', onclick: (e) => loadChars(e.currentTarget) }, pobChars ? 'Refresh list' : 'Load characters'))),
+    pobChars ? h('div', { class: 'row small', style: { gap: '16px' } },
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!opts.currentOnly, onchange: (e) => setView({ currentOnly: e.target.checked }) }), `Only ${current || 'the current league'}`),
+      opts.currentOnly ? null : h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!opts.showStandard, onchange: (e) => setView({ showStandard: e.target.checked }) }), 'Show Standard and Hardcore'),
+      hiddenCount ? h('span', { class: 'faint' }, `${hiddenCount} ${hiddenCount === 1 ? 'character' : 'characters'} not shown`) : null) : null,
     h('div', { class: 'row', style: { gap: '10px' } },
       h('button', { class: 'primary sm', disabled: !st.dirFound || !hasLogin, onclick: (e) => save(e.currentTarget) }, 'Save snapshot now'), status),
     hotkeyField('hotkeySnapshot', 'Snapshot hotkey', S0, 'Saves a snapshot from anywhere, in game too (2-3 requests to pathofexile.com each time). Also in the tray menu.', ''));
 }
+/** Leagues that never end: Standard, Hardcore and their SSF and Ruthless versions. */
+const isPermanentLeague = (l) => /^(SSF |HC SSF |Hardcore SSF |SSF Hardcore |Hardcore |HC )?(Standard|Hardcore|Ruthless)( SSF)?$/i.test(String(l || '').trim()) || /^(SSF )?(Hardcore )?Ruthless$|^Hardcore SSF$|^SSF Standard$|^SSF Hardcore$/i.test(String(l || '').trim());
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 window.poe.on('pob:changed', () => { const b = document.querySelector('#page-pob .pob-box'); if (b) pobBox(b); });
 
