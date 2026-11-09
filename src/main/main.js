@@ -785,6 +785,14 @@ function registerIpc() {
     return require('./pob').listBuilds(st.buildsDir).map(({ file, name, mtime }) => ({ file, name, mtime, snapshot: /^PoE Helper snapshots \/ /.test(name) }));
   });
   handle('pob:stats', (file) => pobWith(file, () => pob.stats()));
+  // the main skill of a build, kept per build file (PoB's own choice when you never picked one)
+  handle('pob:setMain', ({ file, group } = {}) => {
+    const cur = services.settings.get('pob') || {};
+    const mainGroups = { ...(cur.mainGroups || {}) };
+    if (group) mainGroups[file] = group; else delete mainGroups[file];
+    services.settings.set('pob', { ...cur, mainGroups });
+    return pobWith(file, () => pob.stats());
+  });
   handle('pob:test', ({ file, text } = {}) => pobWith(file, async () => {
     const r = await pob.compare(String(text || ''));
     if (r.error) return { error: r.error };
@@ -1047,7 +1055,7 @@ function pobWith(file, fn) {
     if (!file || !fs.existsSync(file)) throw new Error('That build file is gone. Pick another one.');
     try {
       await pobReady(st.dir);
-      await pob.load(file);
+      await pob.load(file, (services.settings.get('pob') || {}).mainGroups?.[file] || null);
       return await fn();
     } finally { pobIdleLater(); }
   });

@@ -5,7 +5,7 @@
    Uses helpers defined in app.js (S, call, h, mount, section, toast, pageHead, refreshState, hotkeyField, fmtNum, pobBox, cleanErr). */
 (() => {
   const PB = { recent: [], tab: 'snapshot', file: null, a: null, b: null, text: '', builds: null, results: {}, busy: {} };
-  const TABS = [['snapshot', 'Snapshot'], ['test', 'Item tester'], ['stats', 'Stats'], ['compare', 'Compare'], ['upgrades', 'Upgrades']];
+  const TABS = [['snapshot', 'Snapshot'], ['test', 'Item tester'], ['stats', 'Stats'], ['upgrades', 'Upgrades'], ['compare', 'Compare snapshots']];
 
   const num = (n, unit = '') => {
     if (n == null || !Number.isFinite(n)) return '–';
@@ -132,7 +132,24 @@
   }
   function statsView(r) {
     const d = r.detail || {};
-    const head = h('div', { class: 'panel pob-sum' }, h('b', {}, r.name), ` · ${[r.ascendancy || r.class, r.level ? `level ${r.level}` : null, r.skill].filter(Boolean).join(' · ')}`);
+    const file = PB.file;
+    const pickMain = async (group) => {
+      try {
+        const st = await call('pob:setMain', { file, group: Number(group) || null });
+        // everything worked out for this build depends on the main skill
+        for (const k of Object.keys(PB.results)) if (k.endsWith(`|${file}`)) delete PB.results[k];
+        PB.results.test = null; PB.results.find = null;
+        PB.results[`stats|${file}`] = st;
+        toast(`Main skill: ${st.skill || 'none'}`);
+        render();
+      } catch (e) { toast(errText(e), true); }
+    };
+    const head = h('div', { class: 'panel pob-sum row', style: { gap: '10px' } },
+      h('span', {}, h('b', {}, r.name), ` · ${[r.ascendancy || r.class, r.level ? `level ${r.level}` : null].filter(Boolean).join(' · ')}`),
+      h('span', { class: 'spacer' }),
+      r.skillGroups?.length ? h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, 'Main skill'),
+        h('select', { 'aria-label': 'Main skill', onchange: (e) => pickMain(e.target.value) },
+          r.skillGroups.map((g) => h('option', { value: g.index, selected: g.index === r.mainGroup }, `${g.name}${g.slot ? ` (${g.slot})` : ''}`)))) : null);
     const groups = STAT_GROUPS.map(([title, rows]) => {
       const list = rows.filter(([k]) => shownStat(d, k));
       if (!list.length) return null;

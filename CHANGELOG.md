@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.33 - 2026-11-10
+
+- **Fixed: the item tester, Upgrades and Search the trade site stopped with "attempt to call method 'Item'".** The released Path of Building makes items differently from its newest code; PoE Helper now works with both.
+- **Snapshots take the skill that does the most damage as the main skill.** Path of Building's import picks the socket group with the most gems, which is often your aura link (Grace instead of Flicker Strike).
+- **Stats: pick the main skill** at the top. It is remembered for that build, and the item tester and Upgrades use it too.
+- **Compare is now Compare snapshots**, the last tab.
+
 ## 1.0.32 - 2026-11-09
 
 The Path of Building page now does Path of Building's maths, not only snapshots. It has tabs, and every tab works on a snapshot or on any build in your PoB builds folder:

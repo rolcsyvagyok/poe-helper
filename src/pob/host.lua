@@ -71,6 +71,13 @@ if __mainObject__.promptMsg then
 end
 
 local dkjson = require("dkjson")
+-- An item from its text. PoB's released versions build it with new("Item", raw); its newer code with
+-- newItem(raw). Works with both.
+local function newItem(raw)
+	local o = new("Item")
+	if type(o.Item) == "function" then return o:Item(raw) end
+	return new("Item", raw)
+end
 -- a slot the build has: PoB hides some (a third ring, abyssal sockets) unless something grants them
 local function usable(slot)
 	if not slot or slot.inactive then return false end
@@ -114,7 +121,7 @@ end
 
 -- every slot the item could go in, with what it does there (like PoB's item tooltip)
 local function compare(text)
-	local item = new("Item"):Item(text)
+	local item = newItem(text)
 	if not item.base then return { error = "PoB doesn't know this item's base." } end
 	local calcFunc, base = build.calcsTab:GetMiscCalculator()
 	-- builds that count every skill ("Full DPS") are compared on that, the rest on the main skill
@@ -129,6 +136,46 @@ local function compare(text)
 	end
 	table.sort(slots, function(a, b) return a.slot < b.slot end)
 	return { item = item.name, full = full, base = pick(base), slots = slots }
+end
+
+-- The socket group whose skill does the most damage becomes the main skill.
+local function groupDps()
+	local o = build.calcsTab.mainOutput or { }
+	return math.max(o.CombinedDPS or 0, o.TotalDPS or 0, o.TotalDotDPS or 0)
+end
+local function setMainGroup(i)
+	build.mainSocketGroup = i
+	build.buildFlag = true
+	runCallback("OnFrame")
+end
+local function pickMainSkill()
+	local groups = build.skillsTab.socketGroupList
+	local best, bestDps = build.mainSocketGroup, -1
+	for i, g in ipairs(groups) do
+		local active = false
+		for _, gem in ipairs(g.gemList or { }) do
+			local ge = gem.gemData and gem.gemData.grantedEffect or gem.grantedEffect
+			if ge and not ge.support and gem.enabled ~= false then active = true end
+		end
+		if active and g.enabled ~= false then
+			setMainGroup(i)
+			local d = groupDps()
+			if d > bestDps then best, bestDps = i, d end
+		end
+	end
+	setMainGroup(best)
+end
+local function skillGroups()
+	local list = { }
+	for i, g in ipairs(build.skillsTab.socketGroupList) do
+		local names = { }
+		for _, gem in ipairs(g.gemList or { }) do
+			local ge = gem.gemData and gem.gemData.grantedEffect or gem.grantedEffect
+			if ge and not ge.support then names[#names + 1] = gem.nameSpec end
+		end
+		if #names > 0 and g.enabled ~= false then list[#list + 1] = { index = i, name = table.concat(names, ", "), slot = g.slot, main = i == build.mainSocketGroup } end
+	end
+	return list
 end
 
 -- A snapshot of a character: PoB's own Import tab code, fed the same answers pathofexile.com gives it
@@ -153,6 +200,9 @@ local function importCharacter(req)
 	tab.lastCharacterHash = common.sha1(req.character.name or "")
 	build.buildFlag = true
 	runCallback("OnFrame")
+	-- PoB's import makes the group with the most gems the main skill (often an aura link); take the one
+	-- that does the most damage instead
+	pickMainSkill()
 	local xml = build:SaveDB(req.name or "snapshot")
 	if not xml then return { error = "PoB couldn't write the build." } end
 	local s = summary()
@@ -205,7 +255,8 @@ local function gems()
 	end
 	return list
 end
-local function stats()
+local function stats(mainGroup)
+	if mainGroup and build.skillsTab.socketGroupList[mainGroup] and mainGroup ~= build.mainSocketGroup then setMainGroup(mainGroup) end
 	local out = build.calcsTab.mainOutput
 	local s = summary()
 	s.detail = detail(out)
@@ -220,6 +271,8 @@ local function stats()
 	s.skills = skills
 	s.gear = gear()
 	s.gems = gems()
+	s.skillGroups = skillGroups()
+	s.mainGroup = build.mainSocketGroup
 	return s
 end
 
@@ -288,7 +341,7 @@ local function upgrades()
 			local res = { slot = name, item = item.name, mods = { } }
 			for _, c in ipairs(CANDIDATES) do
 				if c[2][kind] then
-					local test = new("Item"):Item(item:BuildRaw())
+					local test = newItem(item:BuildRaw())
 					test.explicitModLines[#test.explicitModLines + 1] = { line = c[1], custom = true }
 					test:BuildAndParseRaw()
 					local o = calcFunc({ repSlotName = name, repItem = test }, full)
@@ -315,7 +368,7 @@ local function weights(req)
 	if not baseName then return { error = "Nothing in " .. req.slot .. " to search for; put an item there in the build first." } end
 	local function make(lines)
 		local raw = "Rarity: Rare\nNew Item\n" .. baseName .. "\nItem Level: 86\n--------\n" .. table.concat(lines, "\n")
-		local it = new("Item"):Item(raw)
+		local it = newItem(raw)
 		return it
 	end
 	local blank = make({ })
@@ -352,10 +405,14 @@ function handle(line)
 				return importCharacter(req)
 			elseif req.op == "stats" then
 				if not build then return { error = "No build loaded." } end
-				return stats()
+				return stats(req.mainGroup)
 			elseif req.op == "upgrades" then
 				if not build then return { error = "No build loaded." } end
 				return upgrades()
+			elseif req.op == "main" then
+				if not build then return { error = "No build loaded." } end
+				if build.skillsTab.socketGroupList[req.group] then setMainGroup(req.group) end
+				return summary()
 			elseif req.op == "weights" then
 				if not build then return { error = "No build loaded." } end
 				return weights(req)

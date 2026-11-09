@@ -136,13 +136,16 @@ class PobEngine {
   }
 
   /** Opens a build file in PoB (skipped when it is already open and unchanged). */
-  async load(file) {
+  async load(file, mainGroup = null) {
     let mtime = 0;
     try { mtime = fs.statSync(file).mtimeMs; } catch { /* checked by the caller */ }
-    if (this.loaded && this.loaded.file === file && this.loaded.mtime === mtime) return this.loaded.summary;
-    const xml = fs.readFileSync(file, 'utf8');
-    const r = await this.send({ op: 'load', xml, name: path.basename(file).replace(/\.xml$/i, '') });
-    this.loaded = { file, mtime, summary: r };
+    if (this.loaded && this.loaded.file === file && this.loaded.mtime === mtime && this.loaded.mainGroup === mainGroup) return this.loaded.summary;
+    let r;
+    if (this.loaded && this.loaded.file === file && this.loaded.mtime === mtime) r = this.loaded.summary;
+    else r = await this.send({ op: 'load', xml: fs.readFileSync(file, 'utf8'), name: path.basename(file).replace(/\.xml$/i, '') });
+    // the main skill you picked for this build
+    if (mainGroup) r = await this.send({ op: 'main', group: mainGroup });
+    this.loaded = { file, mtime, mainGroup, summary: r };
     return r;
   }
 
