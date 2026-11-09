@@ -67,6 +67,37 @@ async function refreshState() {
   }
 }
 
+// ---------------- Path of Building ----------------
+const fmtNum = (n) => (Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e4 ? `${(n / 1e3).toFixed(1)}k` : Math.round(n).toLocaleString());
+async function pobBox(box) {
+  const field = (label, input, help) => h('label', { class: 'field' }, label, input, help ? h('span', { class: 'help' }, help) : null);
+  const st = await call('pob:state');
+  const set = async (patch, msg) => { if (msg) toast(msg); mount(box, h('span', { class: 'small muted' }, patch.enabled === false ? 'Stopping…' : 'Starting Path of Building…')); await call('pob:set', patch).catch((e) => toast(e.message, true)); pobBox(box); };
+  const s = st.summary;
+  const stateLine = !st.enabled ? null
+    : !st.dirFound ? h('div', { class: 'small warn' }, 'Path of Building (Community) wasn\'t found. Install it, or point to its folder below.')
+      : st.state === 'starting' ? h('div', { class: 'small muted' }, 'Starting Path of Building…')
+        : st.state === 'failed' || st.error ? h('div', { class: 'small warn' }, `Path of Building didn't start: ${st.error}`)
+          : st.state === 'ready' && s ? h('div', { class: 'pob-sum' },
+            h('b', {}, s.name), ` · ${[s.ascendancy || s.class, s.level ? `level ${s.level}` : null, s.skill].filter(Boolean).join(' · ')}`,
+            h('div', { class: 'small muted' }, [s.stats.FullDPS ? `${fmtNum(s.stats.FullDPS)} full DPS` : s.stats.CombinedDPS ? `${fmtNum(s.stats.CombinedDPS)} DPS` : null, s.stats.Life ? `${fmtNum(s.stats.Life)} life` : null, s.stats.EnergyShield > 50 ? `${fmtNum(s.stats.EnergyShield)} ES` : null, s.stats.TotalEHP ? `${fmtNum(s.stats.TotalEHP)} effective HP` : null].filter(Boolean).join(' · ')))
+            : st.state === 'ready' ? h('div', { class: 'small muted' }, 'Path of Building is running. Pick a build.') : null;
+  mount(box,
+    toggle(st.enabled, (v) => set({ enabled: v }, v ? 'Starting Path of Building in the background' : 'Path of Building stopped'), 'Compare items with my Path of Building build'),
+    st.enabled ? [
+      h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Path of Building:'), h('code', {}, st.dir || 'not found'),
+        h('button', { class: 'sm quiet', onclick: async () => { await call('pob:pickDir', 'pob'); pobBox(box); } }, 'Choose folder')),
+      field('Build', h('div', { class: 'row', style: { gap: '8px' } },
+        h('select', { style: { flex: 1 }, 'aria-label': 'Build', onchange: (e) => set({ build: e.target.value || null }, 'Loading the build') },
+          h('option', { value: '' }, st.builds.length ? 'Pick a build…' : 'No builds found'), st.builds.map((b) => h('option', { value: b.file, selected: st.build === b.file }, b.name))),
+        h('button', { class: 'sm', title: 'Load the build again, after you changed it in Path of Building', onclick: async () => { mount(box, h('span', { class: 'small muted' }, 'Reloading…')); await call('pob:reload'); pobBox(box); } }, 'Reload')),
+      h('span', { class: 'help' }, `From ${st.buildsDir}. `, h('a', { href: '#', onclick: async (e) => { e.preventDefault(); await call('pob:pickDir', 'builds'); pobBox(box); } }, 'Other folder'))),
+      stateLine,
+      h('span', { class: 'help' }, 'Path of Building runs inside PoE Helper in the background with your build loaded (a few seconds to start). Save your build in Path of Building, then Reload here to compare with the new version. Path of Building is open source (MIT licence); PoE Helper uses your installed copy.'),
+    ] : null);
+}
+window.poe.on('pob:changed', () => { const b = document.querySelector('#page-settings .pob-box'); if (b) pobBox(b); });
+
 // ---------------- the app's look ----------------
 async function setUiTheme(id) {
   S.settings.uiTheme = window.UI.applyTheme(id);
@@ -921,6 +952,8 @@ async function renderSettingsNow() {
               h('button', { class: 'sm', onclick: async () => { const n = await call('font:pick'); if (n) { await window.UI.loadUserFont(); toast(`Item labels now use ${n}`); renderSettings(); } } }, 'Choose font file'),
               st.labelFontPath ? h('button', { class: 'quiet sm', onclick: async () => { await call('font:clear'); toast('Back to the bundled font. Restart the app to see it everywhere.'); renderSettings(); } }, 'Reset') : null),
               'The game uses Fontin SmallCaps. It is free from exljbris.com but can\'t be shipped with this app; download it and pick the .otf file here for an exact match.'))),
+        section('Path of Building', 'Compare items with your build: the price check shows what an item does to your DPS, life and defences in each slot it fits, worked out by your own Path of Building (Community) the way its item tooltip does.',
+          (() => { const box = h('div', { class: 'panel stack pob-box' }, h('span', { class: 'small muted' }, 'Looking for Path of Building…')); pobBox(box); return box; })()),
         section('Net worth', null,
           h('div', { class: 'panel stack' },
             field('Client.txt', h('input', { value: st.clientLogPath || '', placeholder: '…\\Path of Exile\\logs\\Client.txt', onchange: set('clientLogPath', (v) => v.trim()) }), 'Automatic snapshots pause when this file goes quiet for 15 minutes, which means you stopped playing.'),

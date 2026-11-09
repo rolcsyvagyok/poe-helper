@@ -98,6 +98,13 @@ function render(p) {
     body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter.`));
   }
 
+  // --- your Path of Building build: what the item does in each slot it fits ---
+  if (['unique', 'rare', 'magic', 'normal'].includes(p.kind) && p.text) {
+    const pobBox = h('div', { class: 'ov-block ov-pob' });
+    body.append(pobBox);
+    showPob(pobBox, p);
+  }
+
   // --- actions ---
   const tradeBox = h('div', { class: 'ov-block', style: { display: 'none' } });
   const ti = p.tierInfo;
@@ -308,6 +315,33 @@ async function quick(kind) {
 async function openTrade(box) {
   box.style.display = '';
   await window.TradePanel.mount(box, { text: current.text, divine: current.price?.divine, onFit: fit });
+}
+
+// ---------------- Path of Building ----------------
+const pobNum = (n, unit) => {
+  if (unit === 'x') return `${(n * 100).toFixed(1)}%`;
+  const a = Math.abs(n);
+  const s = a >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : a >= 1e4 ? `${(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`;
+  return unit === '%' ? `${s}%` : s;
+};
+async function showPob(box, p) {
+  let r;
+  try { r = await window.poe.call('pob:compare', p.text); } catch (e) { r = { error: e.message }; }
+  if (current !== p) return;
+  if (!r) { box.remove(); return fit(); } // Path of Building isn't set up
+  if (r.error) { mount(box, h('div', { class: 't' }, 'With your build'), h('div', { class: 'small muted' }, r.error)); return fit(); }
+  const slots = r.slots || [];
+  mount(box,
+    h('div', { class: 't' }, `With your build${r.build ? `: ${r.build}` : ''}`),
+    slots.length ? slots.map((s) => {
+      const dps = s.changes.find((c) => c.key === 'dps');
+      const rest = s.changes.filter((c) => c.key !== 'dps').slice(0, 6);
+      return h('div', { class: 'ov-pob-slot' },
+        h('div', { class: 'row', style: { gap: '6px' } }, h('b', {}, s.slot), s.current ? h('span', { class: 'small faint' }, `instead of ${s.current}`) : h('span', { class: 'small faint' }, 'empty slot'), h('span', { class: 'spacer' }),
+          dps ? h('span', { class: `pob-chg ${dps.diff > 0 ? 'up' : 'down'}` }, `${dps.diff > 0 ? '+' : ''}${dps.pct != null ? `${dps.pct.toFixed(1)}%` : pobNum(dps.diff)} ${r.full ? 'full DPS' : 'DPS'}`) : h('span', { class: 'small faint' }, 'same DPS')),
+        rest.length ? h('div', { class: 'ov-pob-chg' }, rest.map((c) => h('span', { class: `pob-chg ${c.diff > 0 ? 'up' : 'down'}` }, `${c.diff > 0 ? '+' : '−'}${pobNum(Math.abs(c.diff), c.unit)} ${c.label}`))) : null);
+    }) : h('div', { class: 'small muted' }, 'This item doesn\'t fit any slot of your build.'));
+  fit();
 }
 
 // your recordings of the game's drop sounds, so ▶ works for "Game sound N" here too

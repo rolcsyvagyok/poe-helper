@@ -1,13 +1,13 @@
 {
   "name": "poe-helper",
   "productName": "PoE Helper",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "Path of Exile helper: price check overlay, net worth tracking, local loot filter overrides. Built to make as few API calls as possible.",
   "main": "src/main/main.js",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/core.test.js test/main-logic.test.js test/tiers.test.js test/hotkeys.test.js test/lab.test.js test/regex.test.js test/beasts.test.js test/items.test.js test/gems.test.js",
+    "test": "node --test test/core.test.js test/main-logic.test.js test/tiers.test.js test/hotkeys.test.js test/lab.test.js test/regex.test.js test/beasts.test.js test/items.test.js test/gems.test.js test/pob.test.js",
     "dist": "node scripts/release-notes.js && electron-builder --win --publish never",
     "dist:dir": "node scripts/release-notes.js && electron-builder --win --dir",
     "dist:linux": "electron-builder --linux AppImage",
@@ -33,7 +33,8 @@
       "CHANGELOG.md"
     ],
     "asarUnpack": [
-      "node_modules/uiohook-napi/**"
+      "node_modules/uiohook-napi/**",
+      "node_modules/koffi/**"
     ],
     "win": {
       "target": [
@@ -80,7 +81,8 @@
     "url": "https://github.com/rolcsyvagyok/poe-helper.git"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "koffi": "^2.9.0"
   },
   "author": "rolcsyvagyok"
 }

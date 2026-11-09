@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.28 - 2026-11-09
+
+- **Path of Building in the price check** (new, Settings → Path of Building): turn it on, pick one of your builds, and checking a piece of gear shows what it does to your build in each slot it fits: DPS (or full DPS) change in %, life, energy shield, effective HP, resistances, attributes and more, instead of what you wear now. It's worked out by your own installed Path of Building (Community), run in the background, the same way its item tooltip does. Save your build in Path of Building and press Reload to compare with the new version.
+- **Regex → Gems: Copy search on every part** (Act 1 · Nessa, Act 2 · Yeena…): copies a search for just the gems you picked in that part, so you can search one vendor at a time; your picks and the full search stay as they are.
+
 ## 1.0.27 - 2026-11-09
 
 - **Regex → Gems: a Picked view** (next to the act tabs): only the gems you picked on that tab, whatever the colour, kind or search filters say, still in parts by vendor. Click one to drop it.

@@ -1062,3 +1062,10 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .rx-gemsec-h { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .rx-gemsec-h button { margin-left: auto; }
 .rx-gemsec .rx-gems { margin-bottom: 4px; }
+
+/* Path of Building: what an item does to your build */
+.ov-pob-slot { display: grid; gap: 3px; padding: 5px 0; border-top: 1px solid var(--line-soft); }
+.ov-pob-slot:first-of-type { border-top: 0; }
+.ov-pob-chg { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
+.pob-chg.up { color: var(--good); } .pob-chg.down { color: var(--bad); }
+.pob-sum { font-size: 13px; }

@@ -63,6 +63,7 @@ const DEFAULT_SETTINGS = {
   campaignHide: { classes: [], rares: false, untilLevel: 67, keepLinks: 4 },
   showAllCurrency: false, // league start: every currency tier shows (Loot filter → Currency) // Campaign → Hide item types
   hiddenGroups: {}, // Base ranks → Hide whole groups: { label: { before: { base: rank } } }
+  pob: { enabled: false, dir: null, buildsDir: null, build: null }, // Path of Building: your install, builds folder and the build to compare items with
   regexGems: { tab: 0, picks: [], acts: {} },
   regexGemClass: '', // Regex → Gems: your class, for which vendor sells a gem first // the Regex page's gems
   regexCampaign: { type: '', variant: null, picks: {}, mode: 'any' }, // the Regex page's campaign item choices ({ mod: tier, 0 = any })

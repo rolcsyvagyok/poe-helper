@@ -554,9 +554,23 @@
       for (const g of list) { const k = whereKey(g); if (!m.has(k.label)) m.set(k.label, { ...k, list: [] }); m.get(k.label).list.push(g); }
       return [...m.values()].sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
     };
+    // a search for one part only (e.g. the supports Yeena sells), from the gems picked in it; nothing is changed
+    const copyPart = async (sec) => {
+      const now = gemPicks();
+      const mine = sec.list.filter((g) => now.has(g.name));
+      if (!mine.length) return toast(`Nothing picked in ${sec.label} yet.`, true);
+      const parts = [];
+      let cur = [];
+      for (const g of mine) { if (cur.length && [...cur, g.piece].join('|').length + 2 > 250) { parts.push(cur); cur = []; } cur.push(g.piece); }
+      parts.push(cur);
+      const text = `"${parts[0].join('|')}"`;
+      await call('clipboard:write', text);
+      toast(parts.length > 1 ? `Copied the first ${parts[0].length} of ${mine.length} (they don't fit in one search); untick some to copy the rest` : `Copied ${mine.length} gem${mine.length === 1 ? '' : 's'} from ${sec.label}`);
+    };
     const column = (title, list) => h('div', { class: 'rx-gemcol' }, h('div', { class: 'rx-col-h' }, `${title} (${list.length})`),
       list.length ? sectionsOf(list).map((sec) => h('div', { class: 'rx-gemsec' },
         h('div', { class: 'rx-gemsec-h' }, h('span', {}, sec.label), h('span', { class: 'faint' }, String(sec.list.length)),
+          h('button', { class: 'sm', title: `Copy a search for just the gems you picked in ${sec.label} (your picks stay as they are)`, onclick: () => copyPart(sec) }, 'Copy search'),
           h('button', { class: 'sm quiet', title: `Pick every gem in ${sec.label}`, onclick: () => { const s = gemPicks(); sec.list.forEach((g) => s.add(g.name)); setGems(s); re(); } }, 'Pick all')),
         h('div', { class: 'rx-gems' }, sec.list.map(chip)))) : h('div', { class: 'small muted' }, 'None match.'));
     const groups = shown.length ? [1] : [];

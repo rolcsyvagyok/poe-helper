@@ -1,6 +1,7 @@
 'use strict';
-const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog, session } = require('electron');
+const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog, session, utilityProcess } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { createServices } = require('./services');
 
 // ---------- poelab through Chromium ----------
@@ -709,6 +710,30 @@ function registerIpc() {
   handle('regex:campaignView', (a) => services.regexCampaignView(a || {}));
   handle('regex:gemView', () => services.regexGemView());
   handle('regex:gemBuild', (a) => services.regexGemBuild(a || {}));
+  handle('pob:state', () => pobState());
+  handle('pob:set', async (a = {}) => {
+    const cur = services.settings.get('pob') || {};
+    const next = { ...cur };
+    for (const k of ['enabled', 'dir', 'buildsDir', 'build']) if (k in a) next[k] = a[k];
+    services.settings.set('pob', next);
+    if ('build' in a && pob) pob.build = null;
+    return pobApply();
+  });
+  handle('pob:reload', async () => { if (pob) pob.build = null; return pobApply(); });
+  handle('pob:pickDir', async (which) => {
+    const r = await dialog.showOpenDialog(mainWin, { properties: ['openDirectory'], title: which === 'builds' ? 'Your Path of Building builds folder' : 'Your Path of Building folder' });
+    if (r.canceled || !r.filePaths?.[0]) return pobState();
+    const cur = services.settings.get('pob') || {};
+    services.settings.set('pob', { ...cur, [which === 'builds' ? 'buildsDir' : 'dir']: r.filePaths[0] });
+    return pobApply();
+  });
+  // what an item does to your build, slot by slot (the price check shows it)
+  handle('pob:compare', async (text) => {
+    if (!pob || pob.state !== 'ready' || !pob.build) return null;
+    const r = await pob.compare(String(text || ''));
+    if (r.error) return { error: r.error };
+    return { build: pob.build.summary?.name, skill: pob.build.summary?.skill, ...require('./pob').summarise(r) };
+  });
   handle('regex:campaignBuild', (a) => services.regexCampaignBuild(a || {}));
   handle('regex:beastBuild', (a) => services.regexBeastBuild(a || {}));
   handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
@@ -867,6 +892,33 @@ app.on('second-instance', () => mainWin?.show());
 
 if (process.platform === 'win32') app.setAppUserModelId('dev.poehelper.app');
 
+// ---------------- Path of Building (your installed copy, run headless) ----------------
+let pob = null;
+function pobState() {
+  const P = require('./pob');
+  const st = services.settings.get('pob') || {};
+  const dir = P.findPobDir(st.dir);
+  const dirs = P.buildsDirs(app.getPath('documents'));
+  const buildsDir = st.buildsDir && fs.existsSync(st.buildsDir) ? st.buildsDir : dirs.find((d) => fs.existsSync(d)) || dirs[dirs.length - 1];
+  return {
+    enabled: !!st.enabled, dir, dirFound: !!dir, buildsDir, build: st.build || null,
+    builds: fs.existsSync(buildsDir) ? P.listBuilds(buildsDir).map(({ file, name }) => ({ file, name })) : [],
+    state: pob?.state || 'off', error: pob?.error || null, summary: pob?.build?.summary || null, platform: process.platform,
+  };
+}
+async function pobApply() {
+  const st = pobState();
+  if (!st.enabled) { pob?.stop(); return pobState(); }
+  if (!st.dir) return pobState();
+  if (!pob) pob = new (require('./pob').PobEngine)({ utilityProcess, hostFile: path.join(__dirname, '..', 'pob', 'host.lua'), workerFile: path.join(__dirname, 'pob-worker.js'), log });
+  try {
+    await pob.start(st.dir);
+    if (st.build && fs.existsSync(st.build) && pob.build?.file !== st.build) await pob.load(st.build);
+  } catch (e) { log('pob', e.message); pob.error = e.message; }
+  mainWin?.webContents.send('pob:changed');
+  return pobState();
+}
+
 app.whenReady().then(async () => {
   services = createServices({ dataDir: app.getPath('userData'), secrets, log, labBrowser });
   registerIpc();
@@ -900,6 +952,8 @@ app.whenReady().then(async () => {
   applyAutoTier();
   // Warm only what every price check needs (league + currency): 2 small poe.ninja requests, cached.
   services.getLeague().then((l) => services.ninja.category(l, 'Currency')).catch((e) => log('warmup', e.message));
+  // your Path of Building build, loaded in the background so item checks can compare against it
+  if (services.settings.get('pob')?.enabled) setTimeout(() => pobApply().catch(() => {}), 2500);
   // Rewrite the "(helper)" filter at start, so a fix in a new version (or a FilterBlade update)
   // reaches the game without you having to change anything first.
   if (services.settings.get('economy')?.enabled) services.regenerateEconomy().catch(() => {});
@@ -912,6 +966,7 @@ app.on('will-quit', () => {
   stopClipboardWatcher();
   services?.networth.stopAuto();
   services?.filters.unwatch();
+  pob?.stop();
 });
 
 app.on('before-quit', () => { quitting = true; });
