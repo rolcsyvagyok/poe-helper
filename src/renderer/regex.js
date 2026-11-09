@@ -522,15 +522,16 @@
     const f = R.gemFilter = R.gemFilter || { q: '', colours: [], kind: 'all', trans: true, vaal: true, awakened: true, picked: false, cls: S.settings?.regexGemClass || '', byAct: Number(S.settings?.regexGems?.tab) || 0 };
     if (!R.gemOut) R.gemOut = await call('regex:gemBuild', { picks: [...gemPicks()], store: gemStore() });
     const picks = gemPicks();
-    const shownOf = () => R.gemView.gems.filter((g) => (!f.q || g.name.toLowerCase().includes(f.q.toLowerCase()) || g.tags.some((t) => t === f.q.toLowerCase()))
+    // "Picked" view: every gem you picked on this tab, whatever the other filters say
+    const shownOf = () => (f.picked ? R.gemView.gems.filter((g) => picks.has(g.name)) : R.gemView.gems.filter((g) => (!f.q || g.name.toLowerCase().includes(f.q.toLowerCase()) || g.tags.some((t) => t === f.q.toLowerCase()))
       && (!f.colours.length || f.colours.includes(g.c)) && (f.kind === 'all' || (f.kind === 'support') === g.support)
-      && (f.trans || !g.trans) && (f.vaal || !g.vaal) && (f.awakened || !g.awakened) && (!f.picked || picks.has(g.name))
-      && (!f.byAct || [firstBuy(g, f.cls), firstReward(g, f.cls)].some((e) => e && e.act <= f.byAct)));
+      && (f.trans || !g.trans) && (f.vaal || !g.vaal) && (f.awakened || !g.awakened)
+      && (!f.byAct || [firstBuy(g, f.cls), firstReward(g, f.cls)].some((e) => e && e.act <= f.byAct))));
     const shown = shownOf();
     const chip = (g) => {
       const el = h('button', { type: 'button', class: `rx-gem c-${g.c}` + (picks.has(g.name) ? ' on' : ''), 'aria-pressed': picks.has(g.name) ? 'true' : 'false',
         title: `${g.name}${g.trans ? ` (transfigured ${g.trans})` : ''}\n${whereText(g, f.cls)}${g.tags.length ? `\n${g.tags.join(', ')}` : ''}\nSearch piece: ${g.piece}`,
-        onclick: () => { const s = gemPicks(); if (s.has(g.name)) s.delete(g.name); else s.add(g.name); el.classList.toggle('on', s.has(g.name)); el.setAttribute('aria-pressed', s.has(g.name) ? 'true' : 'false'); setGems(s); } },
+        onclick: async () => { const s = gemPicks(); if (s.has(g.name)) s.delete(g.name); else s.add(g.name); el.classList.toggle('on', s.has(g.name)); el.setAttribute('aria-pressed', s.has(g.name) ? 'true' : 'false'); await setGems(s); if (f.picked) re(); } },
       g.name);
       return el;
     };
@@ -597,12 +598,25 @@
               title: v ? `The gems your class can have by act ${v}${v === 6 ? ' (Lilly Roth sells nearly all of them)' : ''}, with their own picks` : 'Every gem, with its own picks',
               onclick: async () => { f.byAct = v; const st = gemStore(); S.settings.regexGems = { ...st, tab: v }; R.gemOut = await call('regex:gemBuild', { picks: [...gemPicks()], store: S.settings.regexGems }); re(); } }, n ? `${l} (${n})` : l);
           })),
+          h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'Show' },
+            h('button', { type: 'button', role: 'radio', 'aria-checked': f.picked ? 'false' : 'true', class: f.picked ? '' : 'on', onclick: () => { f.picked = false; re(); } }, 'Every gem'),
+            h('button', { type: 'button', role: 'radio', 'aria-checked': f.picked ? 'true' : 'false', class: f.picked ? 'on' : '', title: 'Only the gems you picked on this tab', onclick: () => { f.picked = true; re(); } }, `Picked (${picks.size})`)),
+          // the act before this one (Act 6+ -> Act 4): its picks can be added here
+          (() => {
+            const i = GEM_TABS.findIndex(([v]) => v === f.byAct);
+            const prev = i > 1 ? GEM_TABS[i - 1] : null;
+            if (!prev) return null;
+            const from = gemStore().acts?.[prev[0]] || [];
+            return h('button', { class: 'sm', disabled: !from.length, title: from.length ? `Add the ${from.length} gems picked in ${prev[1]} to this act (the ones you picked here stay)` : `Nothing picked in ${prev[1]} yet`,
+              onclick: async () => { const s = gemPicks(); const before = s.size; from.forEach((n) => s.add(n)); await setGems(s); toast(`${s.size - before} gems copied from ${prev[1]}`); re(); } },
+            `Copy picks from ${prev[1]}${from.length ? ` (${from.length})` : ''}`);
+          })(),
           h('span', { class: 'small faint' }, 'Each act keeps its own picks: one search for Nessa, one for Yeena…')),
         h('div', { class: 'row', style: { gap: '8px' } },
           GEM_COLOURS.map(([c, l]) => h('button', { type: 'button', class: `rx-flag rx-gc c-${c}` + (f.colours.includes(c) ? ' on' : ''), title: l, onclick: () => { f.colours = f.colours.includes(c) ? f.colours.filter((x) => x !== c) : [...f.colours, c]; re(); } }, l.split(' ')[0])),
           h('span', { class: 'faint' }, '·'),
           h('div', { class: 'rx-seg' }, [['all', 'All'], ['skill', 'Skill gems'], ['support', 'Supports']].map(([k, l]) => h('button', { type: 'button', class: f.kind === k ? 'on' : '', onclick: () => { f.kind = k; re(); } }, l))),
-          flag('trans', 'Transfigured'), flag('vaal', 'Vaal'), flag('awakened', 'Awakened'), flag('picked', 'Only picked')),
+          flag('trans', 'Transfigured'), flag('vaal', 'Vaal'), flag('awakened', 'Awakened')),
         h('div', { class: 'row', style: { gap: '10px' } },
           h('label', { class: 'row small', style: { gap: '6px' } }, 'Your class', h('select', { 'aria-label': 'Your class', onchange: (e) => { f.cls = e.target.value; S.settings.regexGemClass = f.cls; call('settings:set', { regexGemClass: f.cls }).catch(() => {}); re(); } },
             h('option', { value: '' }, 'Any class'), CLASSES.map((c) => h('option', { value: c, selected: f.cls === c }, c)))),
@@ -617,7 +631,7 @@
   }
 
   // ---------- beasts: which captured beasts to find in the Bestiary or the stash ----------
-  const beastDefaults = { harvest: true, minChaos: 10, maxChaos: null, family: '', group: '', skip: [], pick: [] };
+  const beastDefaults = { minChaos: 10, maxChaos: null, family: '', group: '', skip: [], pick: [] };
   const beastChoices = () => ({ ...beastDefaults, ...(S.settings?.regexBeasts || {}) });
   async function setBeasts(patch) {
     S.settings.regexBeasts = { ...beastChoices(), ...patch };
@@ -674,7 +688,7 @@
       title: `${inSearch.has(b.name) ? 'In the search. Click to leave it out.' : skip.has(b.name) ? 'Left out by you. Click to let your choices decide again.' : 'Click to add it to the search.'}\nSearch piece: ${b.piece}${b.recipe ? `\n\n${b.recipe.split('; ').join('\n')}` : ''}`,
       onclick: () => flip(b),
     },
-    h('span', { class: 'rx-beast-n red' }, b.name, b.harvest ? h('span', { class: 'rx-badge', title: 'Harvest beast' }, 'Harvest') : null),
+    h('span', { class: 'rx-beast-n red' }, b.name),
     h('span', { class: 'small faint rx-beast-f' }, `${b.family} · ${b.group}`),
     h('code', { class: 'rx-beast-p' }, b.piece),
     h('span', { class: 'rx-beast-c' }, b.chaos != null ? `${b.chaos}c` : '–'),
@@ -688,8 +702,6 @@
         h('div', { class: 'small muted' }, `${o.count} beasts, most valuable first.${o.strings.length > 1 ? ' They don\'t fit in one search, so copy them one after another.' : ''} Works in the Bestiary's captured beasts and on itemised beasts in your stash.`),
         v.note ? h('div', { class: 'small warn' }, v.note) : null),
       h('div', { class: 'panel rx-opts' },
-        h('div', { class: 'row', style: { gap: '16px' } },
-          toggle(!!c.harvest, (val) => setBeasts({ harvest: val }), 'Harvest beasts')),
         h('div', { class: 'row', style: { gap: '16px' } },
           num('Worth at least', 'minChaos'), num('at most', 'maxChaos'),
           sel('Family', 'family', v.families), sel('Group', 'group', v.groups),

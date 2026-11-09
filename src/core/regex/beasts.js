@@ -78,19 +78,19 @@ function joinPieces(list, max = MAX) {
 }
 
 /**
- * choices: { minChaos, maxChaos, red, yellow, harvest, family, group, minListed, skip: [names], pick: [names] }
+ * choices: { minChaos, maxChaos, family, group, minListed, skip: [names], pick: [names] }
  * pick: beasts you add by hand (they're in whatever the filters say); skip: ones you leave out.
  */
 function buildBeastRegex(choices = {}, prices = []) {
   const all = beastList(prices);
-  const c = { harvest: true, minListed: 5, ...choices };
+  const c = { minListed: 5, ...choices };
   const skip = new Set(c.skip || []);
   const pick = new Set(c.pick || []);
   const min = Number(c.minChaos) > 0 ? Number(c.minChaos) : null;
   const max = Number(c.maxChaos) > 0 ? Number(c.maxChaos) : null;
   // every beast you can capture is a red beast now (the yellow ones left the game), so there's no colour choice
-  const matches = (b) => (c.harvest || !b.harvest)
-    && (!c.family || b.family === c.family)
+  // every beast is a red beast and a Harvest beast now, so there's no kind to choose
+  const matches = (b) => (!c.family || b.family === c.family)
     && (!c.group || b.group === c.group)
     && (min == null || (b.chaos != null && b.chaos >= min && b.listed >= c.minListed))
     && (max == null || (b.chaos != null && b.chaos <= max));

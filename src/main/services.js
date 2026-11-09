@@ -67,7 +67,7 @@ const DEFAULT_SETTINGS = {
   regexGemClass: '', // Regex → Gems: your class, for which vendor sells a gem first // the Regex page's gems
   regexCampaign: { type: '', variant: null, picks: {}, mode: 'any' }, // the Regex page's campaign item choices ({ mod: tier, 0 = any })
   regexItems: { type: '', variant: null, picks: {} }, // the Regex page's magic item mod choices ({ mod: [tiers] })
-  regexBeasts: { red: true, yellow: false, harvest: true, minChaos: 10 }, // the Regex page's beast choices
+  regexBeasts: { minChaos: 10 }, // the Regex page's beast choices
   regexFavMods: [], // map mods kept at the top of the list
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
   regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]

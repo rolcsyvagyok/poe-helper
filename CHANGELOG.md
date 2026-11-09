@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.27 - 2026-11-09
+
+- **Regex → Gems: a Picked view** (next to the act tabs): only the gems you picked on that tab, whatever the colour, kind or search filters say, still in parts by vendor. Click one to drop it.
+- **Regex → Gems: "Copy picks from Act 1"** (on the Act 2 tab, and so on): adds the gems you picked in the act before to this act's picks.
+- **Regex: Beasts has no Harvest beasts switch any more**: every beast is a Harvest beast now.
+
 ## 1.0.26 - 2026-11-08
 
 - **Regex: saved gem searches, per act.** On the Gems page, Save as new keeps the gems you picked (and your class) under the act you're on; each act tab has its own list to load, update or delete.
