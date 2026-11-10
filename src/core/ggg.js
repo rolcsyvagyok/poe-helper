@@ -58,7 +58,11 @@ class GggClient {
     }
     const headers = { 'User-Agent': this.userAgent, Accept: 'application/json' };
     if (body) headers['Content-Type'] = 'application/json';
-    if (withSession) {
+    if (withSession === 'optional') {
+      // sent when you set one: the trade site allows bigger searches when you're logged in
+      const sid = this.getSessionId();
+      if (sid) headers.Cookie = `POESESSID=${sid}`;
+    } else if (withSession) {
       const sid = this.getSessionId();
       if (!sid) throw new AuthError('POESESSID is not set. Add it in Settings to track stash value.');
       headers.Cookie = `POESESSID=${sid}`;
@@ -159,9 +163,12 @@ class GggClient {
     }
   }
 
-  async tradeSearch(league, query) {
-    return this._request('trade-search', `${WEB}/api/trade/search/${encodeURIComponent(league)}`, { method: 'POST', body: query });
+  async tradeSearch(league, query, { login = false } = {}) {
+    return this._request('trade-search', `${WEB}/api/trade/search/${encodeURIComponent(league)}`, { method: 'POST', body: query, withSession: login ? 'optional' : false });
   }
+
+  /** Whether a POESESSID is set (searches made logged in may use more filters). */
+  hasSession() { return !!this.getSessionId(); }
 
   async tradeFetch(queryId, ids) {
     const slice = ids.slice(0, 10);

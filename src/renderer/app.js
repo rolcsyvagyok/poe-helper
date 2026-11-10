@@ -23,6 +23,15 @@ window.poe.call('art:icons', [...document.querySelectorAll('#nav button[data-art
   window.UI.setArt(map);
   document.querySelectorAll('#nav button[data-art]').forEach((b) => b.querySelector('.nav-ic')?.replaceChildren(navIcon(b)));
 }).catch(() => {});
+// Path of Building's own icon, from the Path of Building.exe on this PC (nothing of PoB's ships with the app)
+function pobNavIcon() {
+  window.poe.call('pob:icon').then((url) => {
+    if (!url) return;
+    const b = document.querySelector('#nav button[data-page="pob"]');
+    b?.querySelector('.nav-ic')?.replaceChildren(h('img', { src: url, alt: '', width: 22, height: 22, style: { objectFit: 'contain' } }));
+  }).catch(() => {});
+}
+setTimeout(pobNavIcon, 300);
 $('nav').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-page]');
   if (b) go(b.dataset.page);
@@ -362,6 +371,7 @@ function historyList(rows) {
 // ---------------- price check (manual) ----------------
 // ---------------- net worth ----------------
 let nwWindow = 24 * 3600 * 1000;
+let nwAt = null; // the snapshot you picked in the list (its time); null = the newest
 let nwTabs = null;
 let nwCat = null; // the category picked on the dashboard
 let nwFind = '';
@@ -444,9 +454,11 @@ async function renderNetworthNow() {
   const st = S.settings;
   const ready = st.accountName && st.sessionSet;
   let report = null;
-  try { report = await call('networth:report', nwWindow); } catch { /* none */ }
+  try { report = await call('networth:report', nwWindow, nwAt); } catch { /* none */ }
+  if (nwAt && !report?.latest) { nwAt = null; try { report = await call('networth:report', nwWindow); } catch { /* none */ } }
   const selected = new Set(st.selectedTabs || []);
   const latest = report?.latest;
+  const viewingOld = !!(latest && report.newest && latest.ts !== report.newest);
 
   const tabsBox = !nwTabs
     ? h('p', { class: 'small muted' }, ready ? 'Load your tab list, then tick the tabs to track. Loading costs 1 request and is remembered for 6 hours.' : 'Add your account name and POESESSID in Settings first.')
@@ -454,44 +466,74 @@ async function renderNetworthNow() {
       h('input', { type: 'checkbox', checked: selected.has(t.index), onchange: (e) => { e.target.checked ? selected.add(t.index) : selected.delete(t.index); } }),
       t.colour ? h('span', { class: 'swatch', style: { background: '#' + t.colour } }) : null, t.name)));
 
-  const snapBtn = h('button', { class: 'primary', disabled: !ready || !selected.size, onclick: async () => {
+  const snapBtn = h('button', { class: 'primary nw-snap', disabled: !ready || !selected.size, onclick: async () => {
     snapBtn.disabled = true;
-    snapBtn.textContent = 'Taking snapshot';
-    try { await call('networth:snapshot'); toast('Snapshot taken'); } catch { /* toast */ }
+    snapBtn.textContent = 'Taking snapshot…';
+    try { await call('networth:snapshot'); nwAt = null; toast('Snapshot taken'); } catch { /* toast */ }
     renderNetworth();
-  } }, `Take snapshot (${selected.size} ${selected.size === 1 ? 'request' : 'requests'})`);
+  } }, 'Take snapshot');
+  const snapNote = !ready ? 'Add your account name and POESESSID in Settings first.' : !selected.size ? 'Pick the tabs to track below first.' : `${selected.size} ${selected.size === 1 ? 'tab' : 'tabs'}, ${selected.size} ${selected.size === 1 ? 'request' : 'requests'}`;
 
   const perHourReq = st.autoSnapshotMin ? Math.round((60 / Math.max(15, st.autoSnapshotMin)) * selected.size * 10) / 10 : 0;
-  const rowsOf = (obj) => h('table', {}, h('tbody', {}, Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).map(([k, v], i) => h('tr', {}, h('td', { style: i ? null : { borderTop: 0 } }, k.replace(/([a-z])([A-Z])/g, '$1 $2')), h('td', { class: 'r', style: i ? null : { borderTop: 0 } }, chaosDiv(v, latest?.divine))))));
 
+  // every snapshot, newest first: pick one to see your stash as it was then
+  const series = (report?.series || []).slice().reverse();
+  const when = (ts) => {
+    const d = new Date(ts);
+    const today = new Date();
+    const y = new Date(Date.now() - 86400000);
+    const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === today.toDateString()) return `Today ${hm}`;
+    if (d.toDateString() === y.toDateString()) return `Yesterday ${hm}`;
+    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
+  };
+  const snapList = h('div', { class: 'panel nw-list', role: 'listbox', 'aria-label': 'Snapshots' },
+    series.length ? series.map((p, i) => {
+      const prev = series[i + 1];
+      const delta = prev ? p.chaos - prev.chaos : null;
+      const on = latest && p.ts === latest.ts;
+      return h('button', { class: 'nw-item' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', onclick: () => { nwAt = i === 0 ? null : p.ts; renderNetworth(); } },
+        h('span', { class: 'nw-when' }, when(p.ts), i === 0 ? h('span', { class: 'pill', style: { marginLeft: '6px' } }, 'newest') : null),
+        h('span', { class: 'nw-val' }, chaosDiv(p.chaos, p.divine)),
+        delta != null ? h('span', { class: 'nw-delta ' + (delta > 0 ? 'good' : delta < 0 ? 'bad' : 'faint') }, `${delta > 0 ? '+' : delta < 0 ? '−' : ''}${fmt(Math.abs(delta))}c`) : h('span', { class: 'nw-delta faint' }, 'first'));
+    }) : h('p', { class: 'small muted' }, 'No snapshots yet.'));
+
+  const setupOpen = !ready || !selected.size;
   mount(el,
     pageHead('WealthyExile', `What your tracked tabs are worth in ${S.league}.`,
       h('select', { 'aria-label': 'Time range', onchange: (e) => { nwWindow = Number(e.target.value); renderNetworth(); } },
         [[6, 'Last 6 hours'], [24, 'Last 24 hours'], [168, 'Last 7 days'], [24 * 365, 'Whole league']].map(([hr, l]) => h('option', { value: hr * 3600000, selected: nwWindow === hr * 3600000 }, l)))),
-    h('div', { class: 'panel' },
-      h('div', { class: 'figures' },
-        figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot yet', latest ? `${fmt(latest.totalChaos)} chaos, ${ago(Date.now() - latest.ts)}` : 'Pick tabs below and take one'),
-        figure(report?.gainChaos != null ? `${report.gainChaos >= 0 ? '+' : ''}${chaosDiv(report.gainChaos, latest?.divine)}` : '–', report?.hours ? `Change over ${fmt(report.hours)} hours` : 'Change', report?.gainChaos > 0 ? 'good' : report?.gainChaos < 0 ? 'bad' : ''),
-        figure(report?.perHourChaos != null ? `${fmt(report.perHourChaos)}c` : '–', 'Per hour')),
-      h('div', { style: { marginTop: '14px' } }, window.lineChart((report?.series || []).filter((p) => p.ts >= (latest?.ts || 0) - nwWindow), { divine: latest?.divine }))),
-    latest ? wealthDashboard(latest) : h('div', { class: 'panel small muted', style: { marginTop: '28px' } }, 'Your categories, items and tabs show up here after your first snapshot.'),
-    h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start' } },
-      h('div', {},
-        h('div', { class: 'section-head' }, h('h2', {}, 'Tracked tabs'), h('span', { class: 'spacer' }),
+    // the snapshot first: take one, and what it says
+    h('div', { class: 'panel nw-hero' },
+      h('div', { class: 'row', style: { gap: '16px', alignItems: 'center', flexWrap: 'wrap' } },
+        h('div', { class: 'stack', style: { gap: '4px' } }, snapBtn, h('span', { class: 'small faint' }, snapNote)),
+        h('div', { class: 'figures', style: { flex: 1 } },
+          figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot yet', latest ? `${fmt(latest.totalChaos)} chaos, ${viewingOld ? when(latest.ts) : ago(Date.now() - latest.ts)}` : 'Take one to start'),
+          figure(report?.gainChaos != null ? `${report.gainChaos >= 0 ? '+' : ''}${chaosDiv(report.gainChaos, latest?.divine)}` : '–', report?.hours ? `Change over ${fmt(report.hours)} hours` : 'Change', report?.gainChaos > 0 ? 'good' : report?.gainChaos < 0 ? 'bad' : ''),
+          figure(report?.perHourChaos != null ? `${fmt(report.perHourChaos)}c` : '–', 'Per hour'))),
+      viewingOld ? h('div', { class: 'row small', style: { marginTop: '10px', gap: '8px' } }, h('span', { class: 'pill warn' }, `Showing ${when(latest.ts)}`), h('button', { class: 'quiet sm', onclick: () => { nwAt = null; renderNetworth(); } }, 'Back to the newest')) : null,
+      h('div', { style: { marginTop: '14px' } }, window.lineChart((report?.series || []).filter((p) => p.ts >= (latest?.ts || 0) - nwWindow && p.ts <= (latest?.ts || Infinity)), { divine: latest?.divine }))),
+    // the snapshots, and the one you picked
+    h('div', { class: 'nw-main' },
+      h('div', {}, h('div', { class: 'section-head' }, h('h2', {}, 'Snapshots'), h('span', { class: 'small faint' }, String(series.length))), snapList),
+      h('div', { style: { minWidth: 0 } },
+        latest ? wealthDashboard(latest) : h('div', { class: 'panel small muted' }, 'Your categories, items and tabs show up here after your first snapshot.'),
+        h('div', { class: 'section-head', style: { marginTop: '28px' } }, h('h2', {}, 'What changed'), h('span', { class: 'small faint' }, report?.first && latest && report.first.ts !== latest.ts ? `${when(report.first.ts)} → ${when(latest.ts)}` : '')),
+        h('div', { class: 'panel' }, report?.diff?.length ? h('table', {}, h('tbody', {}, report.diff.map((d, i) => h('tr', {}, h('td', { style: i ? null : { borderTop: 0 } }, d.name), h('td', { class: 'r muted', style: i ? null : { borderTop: 0 } }, `${d.deltaQty > 0 ? '+' : ''}${d.deltaQty}`), h('td', { class: 'r ' + (d.deltaChaos >= 0 ? 'good' : 'bad'), style: i ? null : { borderTop: 0 } }, `${d.deltaChaos > 0 ? '+' : ''}${fmt(d.deltaChaos)}c`))))) : h('p', { class: 'small muted' }, 'Needs two snapshots in the selected time range.')))),
+    // set up once: which tabs, how often
+    h('details', { class: 'nw-setup', open: setupOpen ? true : null, style: { marginTop: '28px' } },
+      h('summary', {}, h('b', {}, 'Tracked tabs and automatic snapshots'), h('span', { class: 'small faint', style: { marginLeft: '8px' } }, `${selected.size} ${selected.size === 1 ? 'tab' : 'tabs'}${st.autoSnapshotMin ? `, every ${st.autoSnapshotMin} minutes` : ''}`)),
+      h('div', { class: 'panel stack', style: { marginTop: '10px' } },
+        h('div', { class: 'row' }, h('span', { class: 'spacer' }),
           h('button', { class: 'quiet sm', disabled: !ready, onclick: async () => { nwTabs = await call('networth:tabs', !!nwTabs); renderNetworth(); } }, nwTabs ? 'Reload tab list' : 'Load tab list')),
-        h('div', { class: 'panel stack' },
-          tabsBox,
-          h('div', { class: 'row' },
-            nwTabs ? h('button', { onclick: async () => { await call('networth:select', [...selected]); toast(`Tracking ${selected.size} tabs`); renderNetworth(); } }, 'Save selection') : null,
-            h('span', { class: 'spacer' }), snapBtn),
-          h('div', { class: 'row small' }, h('span', { class: 'muted' }, 'Automatic snapshots'),
-            h('select', { onchange: async (e) => { await call('settings:set', { autoSnapshotMin: Number(e.target.value) }); renderNetworth(); } },
-              [0, 15, 30, 60, 120].map((m) => h('option', { value: m, selected: Number(st.autoSnapshotMin) === m }, m ? `Every ${m} minutes` : 'Off'))),
-            st.autoSnapshotMin ? h('span', { class: 'faint' }, `About ${perHourReq} requests an hour while you play`) : null))),
-      h('div', {},
-        h('div', { class: 'section-head' }, h('h2', {}, 'What changed'), h('span', { class: 'spacer' }),
-          h('button', { class: 'danger sm', onclick: async () => { if (confirm(`Delete all snapshots for ${S.league}?`)) { await call('networth:clear'); renderNetworth(); } } }, 'Delete history')),
-        h('div', { class: 'panel' }, report?.diff?.length ? h('table', {}, h('tbody', {}, report.diff.map((d, i) => h('tr', {}, h('td', { style: i ? null : { borderTop: 0 } }, d.name), h('td', { class: 'r muted', style: i ? null : { borderTop: 0 } }, `${d.deltaQty > 0 ? '+' : ''}${d.deltaQty}`), h('td', { class: 'r ' + (d.deltaChaos >= 0 ? 'good' : 'bad'), style: i ? null : { borderTop: 0 } }, `${d.deltaChaos > 0 ? '+' : ''}${fmt(d.deltaChaos)}c`))))) : h('p', { class: 'small muted' }, 'Needs two snapshots in the selected time range.')))));
+        tabsBox,
+        nwTabs ? h('div', { class: 'row' }, h('button', { onclick: async () => { await call('networth:select', [...selected]); toast(`Tracking ${selected.size} tabs`); renderNetworth(); } }, 'Save selection')) : null,
+        h('div', { class: 'row small' }, h('span', { class: 'muted' }, 'Automatic snapshots'),
+          h('select', { onchange: async (e) => { await call('settings:set', { autoSnapshotMin: Number(e.target.value) }); renderNetworth(); } },
+            [0, 15, 30, 60, 120].map((m) => h('option', { value: m, selected: Number(st.autoSnapshotMin) === m }, m ? `Every ${m} minutes` : 'Off'))),
+          st.autoSnapshotMin ? h('span', { class: 'faint' }, `About ${perHourReq} requests an hour while you play`) : null),
+        h('div', { class: 'row' }, h('span', { class: 'spacer' }),
+          h('button', { class: 'danger sm', onclick: async () => { if (confirm(`Delete all snapshots for ${S.league}?`)) { await call('networth:clear'); nwAt = null; renderNetworth(); } } }, 'Delete history')))));
 }
 
 // ---------------- loot filter ----------------

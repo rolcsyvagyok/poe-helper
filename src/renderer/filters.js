@@ -33,7 +33,20 @@ function loadArt() {
 function renderFilters() {
   loadArt();
   const g = FB.goto;
+  const reveal = FB.revealNav;
+  FB.revealNav = false;
   const p = window.UI.keepScroll(() => renderFiltersNow());
+  // opened from elsewhere (Show in app): the category list shows where you are
+  if (reveal) p.then(() => setTimeout(() => {
+    const nav = document.querySelector('#page-filters .fb-cats');
+    const at = nav?.querySelector('.fb-row.active') || nav?.querySelector('.fb-cat.current');
+    if (!at) return;
+    const nr = nav.getBoundingClientRect();
+    const ar = at.getBoundingClientRect();
+    nav.scrollTop += ar.top - nr.top - nr.height / 2 + ar.height / 2;
+    at.classList.add('fb-flash');
+    setTimeout(() => at.classList.remove('fb-flash'), 2600);
+  }, 80));
   if (g) p.then(() => setTimeout(() => {
     FB.goto = null;
     const card = [...document.querySelectorAll('#page-filters .fb-tier')].find((el) => el.dataset.key === g.key);
@@ -218,7 +231,7 @@ function renderTiers(body, view) {
   // "Show in app": the subcategory that holds the item's tier
   if (FB.goto) {
     const t = view.types.find((x) => x.type === FB.goto.type && x.tiers.some((y) => y.key === FB.goto.key)) || view.types.find((x) => x.tiers.some((y) => y.key === FB.goto.key)) || view.types.find((x) => x.type === FB.goto.type);
-    if (t) { FB.type = t.key; FB.selected = new Set([FB.goto.base]); FB.collapsed.delete(FB.goto.key); }
+    if (t) { FB.type = t.key; FB.selected = new Set([FB.goto.base]); FB.collapsed.delete(FB.goto.key); FB.closedGroups?.delete(categoryOf(t.key)?.id); }
   }
   if (FB.type === MY_BASES) return renderMyBases(body, view);
   if (FB.type === BASE_MATRIX) return renderBaseMatrix(body, view);
@@ -702,13 +715,13 @@ function renderTiers(body, view) {
           title: on ? 'Every currency tier shows, hidden ones too. Click to go back to your filter\'s choices' : 'League start: show every currency, also the tiers your filter hides or switched off',
           onclick: async () => { S.settings.showAllCurrency = await call('currency:showAll', !on); toast(!on ? 'All currency shows now (hidden tiers too). Select the filter in game again' : 'Currency follows your filter again'); renderFilters(); } }, on ? 'All currency shown ✓' : 'Show all currency'); })() : null,
         type.key === CLUSTER_SIZE_TYPE ? h('button', { class: 'sm', onclick: () => { FB.type = CLUSTER_GRID; renderFilters(); } }, '← Back to the enchantments') : null,
-        type.scrollsView ? null : h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
+        type.scrollsView || !pricedGroup(type.type) ? null : h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
           FB.priceColors = !FB.priceColors;
           // a fresh analysis when turning colours on (prices come from the 20-minute cache, so this is cheap)
           if (FB.priceColors) delete FB.prices[type.type];
           renderFilters();
         } }, FB.priceColors ? 'Hide price colours' : 'Check prices'),
-        type.scrollsView ? null : h('button', { class: FB.catPrices === type.type ? 'primary sm' : 'sm', title: 'Set the price of each tier and move items to the tier their price fits, for this category only (like Price review)', onclick: async () => {
+        type.scrollsView || !pricedGroup(type.type) ? null : h('button', { class: FB.catPrices === type.type ? 'primary sm' : 'sm', title: 'Set the price of each tier and move items to the tier their price fits, for this category only (like Price review)', onclick: async () => {
           if (FB.catPrices === type.type) { FB.catPrices = null; return renderFilters(); }
           FB.catPrices = type.type;
           renderFilters();
@@ -1369,6 +1382,15 @@ async function renderMyBases(body, view) {
       list.length ? h('div', { class: 'panel', style: { padding: '6px 14px' } },
         h('table', { class: 'rv-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'On'), h('th', {}, 'Base'), h('th', {}, 'Item level'), h('th', {}, 'Rarity'), h('th', {}))), h('tbody', {}, list.map(rowOf))))
         : h('div', { class: 'panel empty' }, 'No bases yet. Add one above, or from the price check popup.'))));
+}
+
+// The price buttons (Check prices, Set category prices) only where items have a market price of their own:
+// the Currency, Fragments and League mechanics groups, not gear bases.
+const PRICED_GROUPS = new Set(['Currency', 'Fragments', 'League mechanics']);
+function pricedGroup(type) {
+  const cat = categoryOf(type);
+  const group = CATEGORIES.find(([, cats]) => cats.some((c) => c.id === cat?.id))?.[0];
+  return PRICED_GROUPS.has(group);
 }
 
 // ---------------------------------------------------------------- sidebar
@@ -2248,6 +2270,7 @@ window.renderFilters = renderFilters;
 // from the price check: open the tier an item is in, with the item picked and the tier in view
 window.showInFilter = (g) => {
   FB.tab = 'tiers';
+  FB.revealNav = true;
   // PoE Helper's own pages (My bases, Base ranks, Cluster jewels, Campaign)
   const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE }[g.special];
   if (special) { FB.goto = null; FB.type = special; return; }

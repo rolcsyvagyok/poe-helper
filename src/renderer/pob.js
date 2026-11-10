@@ -5,7 +5,7 @@
    Uses helpers defined in app.js (S, call, h, mount, section, toast, pageHead, refreshState, hotkeyField, fmtNum, pobBox, cleanErr). */
 (() => {
   const PB = { recent: [], tab: 'snapshot', file: null, a: null, b: null, text: '', builds: null, results: {}, busy: {} };
-  const TABS = [['snapshot', 'Snapshot'], ['test', 'Item tester'], ['stats', 'Stats'], ['upgrades', 'Upgrades'], ['compare', 'Compare snapshots']];
+  const TABS = [['snapshot', 'Snapshot'], ['test', 'Item tester'], ['stats', 'Stats'], ['config', 'Configuration'], ['upgrades', 'Upgrades'], ['compare', 'Compare snapshots']];
 
   const num = (n, unit = '') => {
     if (n == null || !Number.isFinite(n)) return '–';
@@ -157,11 +157,125 @@
     });
     const skills = r.skills?.length ? h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Skills in full DPS'),
       h('table', {}, h('tbody', {}, r.skills.slice().sort((a, b) => b.dps - a.dps).map((s) => h('tr', {}, h('td', {}, s.name, s.count > 1 ? ` ×${s.count}` : '', s.part ? h('span', { class: 'faint' }, ` (${s.part})`) : null), h('td', { class: 'r' }, num(s.dps * (s.count || 1)))))))) : null;
-    const gear = h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Gear'), h('table', {}, h('tbody', {}, (r.gear || []).map((g) => h('tr', {}, h('td', { class: 'muted' }, g.slot), h('td', { class: `rar-${String(g.rarity || '').toLowerCase()}` }, g.title || g.name, g.title && g.base ? h('span', { class: 'faint' }, ` ${g.base}`) : null))))));
+    const gear = h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Gear'), h('table', {}, h('tbody', {}, (r.gear || []).map((g) => h('tr', { class: g.text ? 'pob-gearrow' : '', tabindex: g.text ? 0 : null, onmouseenter: (e) => showItemTip(e.currentTarget, g), onmouseleave: hideItemTip, onfocus: (e) => showItemTip(e.currentTarget, g), onblur: hideItemTip },
+      h('td', { class: 'muted' }, g.slot), h('td', { class: `rar-${String(g.rarity || '').toLowerCase()}` }, g.title || g.name, g.title && g.base ? h('span', { class: 'faint' }, ` ${g.base}`) : null))))));
     const gems = h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Gems'), (r.gems || []).map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') + (g.main ? ' main' : '') },
       h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.main ? ' · main skill' : '', g.enabled ? '' : ' · off'),
       h('div', {}, g.gems.map((x, i) => h('span', { class: (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, i ? ' · ' : '', `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`))))));
     return [head, h('div', { class: 'pob-grid' }, groups, skills), h('div', { class: 'pob-grid' }, gear, gems)];
+  }
+
+  // the exact item, like the game's tooltip, when you point at a gear row
+  let tipEl = null;
+  function hideItemTip() { tipEl?.remove(); tipEl = null; }
+  function showItemTip(row, g) {
+    hideItemTip();
+    if (!g.text) return;
+    const lines = g.text.split('\n');
+    let i = 0;
+    const rarity = /^Rarity:\s*(\w+)/i.exec(lines[0])?.[1]?.toLowerCase() || String(g.rarity || '').toLowerCase();
+    if (/^Rarity:/i.test(lines[0])) i = 1;
+    const head = [];
+    // name and base: two lines for rares and uniques, one for the rest
+    const nameLines = rarity === 'rare' || rarity === 'unique' || rarity === 'relic' ? 2 : 1;
+    for (let k = 0; k < nameLines && i < lines.length; k++) head.push(lines[i++]);
+    const props = [];
+    while (i < lines.length && /^(Armour|Evasion|Energy ?Shield|Ward|Requires|Quality|Sockets|Item Level|Physical Damage|Elemental Damage|Critical|Attacks per|Weapon Range|Chance to Block)\b.*:/.test(lines[i])) props.push(lines[i++]);
+    let implicitCount = 0;
+    if (/^Implicits:\s*(\d+)/.test(lines[i] || '')) implicitCount = Number(/^Implicits:\s*(\d+)/.exec(lines[i++])[1]);
+    const implicits = lines.slice(i, i + implicitCount);
+    const rest = lines.slice(i + implicitCount);
+    const special = (l) => /^(Corrupted|Mirrored|Split|Unidentified|Fractured Item|Synthesised Item)$/.test(l);
+    const sec = (list, cls) => (list.length ? h('div', { class: `pob-tip-sec ${cls || ''}` }, list.map((l) => h('div', {}, l))) : null);
+    tipEl = h('div', { class: `pob-tip rar-box-${rarity}`, role: 'tooltip' },
+      h('div', { class: `pob-tip-head rar-${rarity}` }, head.map((l) => h('div', {}, l))),
+      sec(props, 'props'), sec(implicits, 'impl'), sec(rest.filter((l) => !special(l)), 'expl'), sec(rest.filter(special), 'corr'));
+    document.body.append(tipEl);
+    const r = row.getBoundingClientRect();
+    const w = tipEl.offsetWidth;
+    const hgt = tipEl.offsetHeight;
+    let x = r.right + 12;
+    if (x + w > window.innerWidth - 8) x = Math.max(8, r.left - w - 12);
+    let y = Math.min(r.top, window.innerHeight - hgt - 8);
+    tipEl.style.left = `${x}px`;
+    tipEl.style.top = `${Math.max(8, y)}px`;
+  }
+
+  // ---------------------------------------------------------------- Configuration (PoB's tab)
+  function configTab() {
+    const out = h('div', { class: 'stack' });
+    const key = `config|${PB.file}`;
+    const draw = (r) => mount(out, configView(r));
+    if (!PB.file) mount(out, h('p', { class: 'small muted' }, 'Pick a build first, or save a snapshot.'));
+    else if (PB.results[key]) draw(PB.results[key]);
+    else {
+      mount(out, h('p', { class: 'small muted' }, h('span', { class: 'spin' }), ' Path of Building is opening the build…'));
+      call('pob:config', PB.file).then((r) => { PB.results[key] = r; if (PB.tab === 'config') draw(r); }).catch((e) => mount(out, h('p', { class: 'small warn' }, errText(e))));
+    }
+    return [buildRow(), out];
+  }
+  function configView(r) {
+    const file = PB.file;
+    const F = PB.cfgView || (PB.cfgView = { all: false, q: '' });
+    const sumBox = h('div', { class: 'small muted' }, PB.cfgSummary?.file === file ? summaryLine(PB.cfgSummary.r) : '');
+    const listBox = h('div', { class: 'pob-grid' });
+    let pending = {};
+    let timer = null;
+    const send = async () => {
+      const values = pending;
+      pending = {};
+      mount(sumBox, h('span', { class: 'spin' }), ' Path of Building is recalculating…');
+      try {
+        const res = await call('pob:setConfig', { file, values });
+        // everything worked out for this build changes with its configuration
+        for (const k of Object.keys(PB.results)) if (k.endsWith(`|${file}`) && !k.startsWith('config|')) delete PB.results[k];
+        PB.results.test = null; PB.results.find = null;
+        PB.cfgSummary = { file, r: res };
+        mount(sumBox, summaryLine(res));
+      } catch (e) { mount(sumBox, h('span', { class: 'warn' }, errText(e))); }
+    };
+    const change = (o, v) => {
+      o.value = v;
+      o.changed = v !== o.default && !(v == null && (o.default === false || o.default === 0 || o.default === ''));
+      pending[o.var] = v;
+      clearTimeout(timer);
+      timer = setTimeout(send, 500);
+    };
+    const control = (o) => {
+      const dis = !r.editable;
+      if (o.type === 'check') return h('input', { type: 'checkbox', checked: !!o.value, disabled: dis, 'aria-label': o.label, onchange: (e) => change(o, e.target.checked) });
+      if (o.type === 'list') return h('select', { disabled: dis, 'aria-label': o.label, onchange: (e) => { const it = o.list[e.target.selectedIndex]; change(o, it ? it.val : null); } },
+        (o.list || []).map((it) => h('option', { selected: it.val === (o.value ?? o.default) }, it.label)));
+      return h('input', { type: 'number', step: o.type === 'float' ? 'any' : 1, style: { width: '90px' }, disabled: dis, 'aria-label': o.label, placeholder: o.default ? String(o.default) : '', value: o.value != null && o.value !== o.default ? o.value : '',
+        onchange: (e) => change(o, e.target.value === '' ? null : Number(e.target.value)) });
+    };
+    const drawList = () => {
+      const q = F.q.trim().toLowerCase();
+      const shown = r.options.filter((o) => (F.all || o.shown || o.changed) && (!q || o.label.toLowerCase().includes(q)));
+      const sections = [...new Set(shown.map((o) => o.section))];
+      mount(listBox, sections.length ? sections.map((sec) => h('div', { class: 'panel pob-stat pob-cfg' }, h('h3', {}, sec),
+        shown.filter((o) => o.section === sec).map((o) => h('label', { class: 'pob-cfg-row' + (o.changed ? ' on' : '') + (o.shown ? '' : ' off'), title: o.tooltip || (o.shown ? '' : 'Path of Building doesn\'t use this for this build right now') },
+          h('span', {}, o.label), control(o))))) : h('p', { class: 'small muted' }, 'Nothing matches.'));
+    };
+    drawList();
+    const changedCount = r.options.filter((o) => o.changed).length;
+    return [
+      h('div', { class: 'panel stack' },
+        r.editable
+          ? h('p', { class: 'small muted', style: { margin: 0 } }, 'Path of Building\'s Configuration tab for this snapshot. Changes are saved into the snapshot, and your next snapshot of this character starts with the same ticks (the ones you set in Path of Building itself carry over too).')
+          : h('p', { class: 'small muted', style: { margin: 0 } }, 'This is one of your own Path of Building builds: shown as it is. Change it in Path of Building; snapshots can be changed here.'),
+        h('div', { class: 'row', style: { gap: '12px', flexWrap: 'wrap' } },
+          h('input', { type: 'search', placeholder: 'Search the options', value: F.q, style: { flex: 1, minWidth: '200px' }, oninput: (e) => { F.q = e.target.value; drawList(); } }),
+          h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: F.all, onchange: (e) => { F.all = e.target.checked; drawList(); } }), 'Show every option (also ones this build doesn\'t use)'),
+          h('span', { class: 'small faint' }, `${changedCount} set`)),
+        sumBox),
+      listBox,
+    ];
+  }
+  function summaryLine(r) {
+    const st = r?.stats || {};
+    const dps = st.FullDPS > 0 ? st.FullDPS : st.CombinedDPS || st.TotalDPS || 0;
+    return [r?.skill ? `${r.skill}: ` : '', `${num(dps)} ${st.FullDPS > 0 ? 'full DPS' : 'DPS'}`, st.Life ? ` · ${num(st.Life)} life` : '', st.TotalEHP ? ` · ${num(st.TotalEHP)} effective HP` : ''].join('');
   }
 
   // ---------------------------------------------------------------- compare two builds
@@ -296,7 +410,8 @@
   function findView(r) {
     const weights = h('details', {}, h('summary', { class: 'small muted' }, `Weights PoB worked out for ${r.slot} (${r.weights.length} stats)`),
       h('div', { class: 'pob-chgs', style: { marginTop: '6px' } }, r.weights.map((w) => h('span', { title: `Tested as: ${w.line}` }, `${w.text}: ${w.weight}`))),
-      r.missing?.length ? h('div', { class: 'small faint' }, `Not on the trade site's list, left out: ${r.missing.join(', ')}`) : null);
+      r.missing?.length ? h('div', { class: 'small faint' }, `Not on the trade site's list, left out: ${r.missing.join(', ')}`) : null,
+      r.leftOut > 0 ? h('div', { class: 'small faint' }, r.loggedIn ? `${r.leftOut} stats worth little were left out.` : `The trade site allows only a few stats when you aren't logged in, so the ${r.weights.length} worth most were used (${r.leftOut} left out). Add your POESESSID in Settings for a fuller search.`) : null);
     const head = h('div', { class: 'row', style: { gap: '10px' } },
       h('span', {}, r.total ? `${r.total >= 10000 ? '10,000+' : r.total.toLocaleString()} ${r.total === 1 ? 'item' : 'items'} found${r.minSum ? ' at least about as good as yours' : ''}` : 'Nothing found. Raise the price or the level limit, or untick "Only items about as good as mine".'),
       h('span', { class: 'spacer' }), h('button', { class: 'sm', onclick: () => call('shell:open', r.url) }, 'Open on the trade site'));
@@ -368,6 +483,7 @@
     } else if (PB.tab === 'test') mount(body, testTab());
     else if (PB.tab === 'stats') mount(body, statsTab());
     else if (PB.tab === 'compare') mount(body, compareTab());
+    else if (PB.tab === 'config') mount(body, configTab());
     else mount(body, upgradesTab());
   }
 

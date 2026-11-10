@@ -71,6 +71,7 @@ if __mainObject__.promptMsg then
 end
 
 local dkjson = require("dkjson")
+local applyConfig -- set further down (PoB's Configuration tab)
 -- An item from its text. PoB's released versions build it with new("Item", raw); its newer code with
 -- newItem(raw). Works with both.
 local function newItem(raw)
@@ -198,6 +199,8 @@ local function importCharacter(req)
 	gear.guardian = req.items and req.items.guardian
 	tab:ImportItemsAndSkills(gear, true, true, false)
 	tab.lastCharacterHash = common.sha1(req.character.name or "")
+	-- your Configuration ticks for this character, so a new snapshot doesn't need them again
+	if req.config then applyConfig(req.config) end
 	build.buildFlag = true
 	runCallback("OnFrame")
 	-- PoB's import makes the group with the most gems the main skill (often an aura link); take the one
@@ -227,6 +230,19 @@ local function detail(out)
 	end
 	return r
 end
+-- an item's text for the gear tooltip: PoB's own item text, without its bookkeeping lines
+local HIDE_LINES = { "BasePercentile:", "^Unique ID:", "^Item Level:", "^LevelReq:", "^Prefix:", "^Suffix:", "^Selected Variant:", "^Has Alt Variant", "^Selected Alt Variant", "^League:", "^Catalyst", "^Radius:", "^Limited to:", "^Variant:", "^Crafted:", "^Quality:", "^Sockets:", "^Influence" }
+local function itemText(item)
+	local ok, raw = pcall(item.BuildRaw, item)
+	if not ok or type(raw) ~= "string" then return nil end
+	local out = { }
+	for line in raw:gmatch("[^\n]+") do
+		local keep = true
+		for _, p in ipairs(HIDE_LINES) do if line:match(p) then keep = false break end end
+		if keep then out[#out + 1] = (line:gsub("{[^}]*}", "")) end
+	end
+	return table.concat(out, "\n")
+end
 local GEAR = { "Weapon 1", "Weapon 2", "Helmet", "Body Armour", "Gloves", "Boots", "Amulet", "Ring 1", "Ring 2", "Ring 3", "Belt",
 	"Flask 1", "Flask 2", "Flask 3", "Flask 4", "Flask 5" }
 local function gear()
@@ -234,12 +250,12 @@ local function gear()
 	for _, name in ipairs(GEAR) do
 		local slot = build.itemsTab.slots[name]
 		local item = usable(slot) and build.itemsTab.items[slot.selItemId]
-		if item then list[#list + 1] = { slot = name, name = item.name, title = item.title, base = item.baseName, rarity = item.rarity } end
+		if item then list[#list + 1] = { slot = name, name = item.name, title = item.title, base = item.baseName, rarity = item.rarity, text = itemText(item) } end
 	end
 	-- jewels in the tree
 	for _, slot in pairs(build.itemsTab.slots) do
 		local item = slot.nodeId and build.itemsTab.items[slot.selItemId]
-		if item and build.spec.allocNodes[slot.nodeId] then list[#list + 1] = { slot = "Jewel", name = item.name, title = item.title, base = item.baseName, rarity = item.rarity } end
+		if item and build.spec.allocNodes[slot.nodeId] then list[#list + 1] = { slot = "Jewel", name = item.name, title = item.title, base = item.baseName, rarity = item.rarity, text = itemText(item) } end
 	end
 	return list
 end
@@ -389,6 +405,59 @@ local function weights(req)
 	return out
 end
 
+-- PoB's Configuration tab: its options for the loaded build (the ones PoB shows for this build, plus any you
+-- set that it hides), and setting them. Values: true/false for ticks, numbers, list values, text.
+local configVars
+local function cleanLabel(l)
+	if type(l) ~= "string" then return nil end
+	return (l:gsub("%^x%x%x%x%x%x%x", ""):gsub("%^%d", ""):gsub(":%s*$", ""))
+end
+local function configInput()
+	local tab = build.configTab
+	return tab.configSets and tab.configSets[tab.activeConfigSetId].input or tab.input
+end
+local function configList()
+	configVars = configVars or LoadModule("Modules/ConfigOptions")
+	local tab = build.configTab
+	local input = configInput()
+	local out, section = { }, nil
+	for _, v in ipairs(configVars) do
+		if v.section then
+			section = v.section
+		elseif v.var and v.type and v.type ~= "text" and section ~= "Custom Modifiers" then
+			local ctrl = tab.varControls and tab.varControls[v.var]
+			local shown = true
+			if ctrl and ctrl.shown ~= nil then
+				if type(ctrl.shown) == "function" then
+					local ok, r = pcall(ctrl.shown, ctrl)
+					shown = not ok or not not r
+				else shown = not not ctrl.shown end
+			end
+			local cur = input[v.var]
+			local def = tab:GetDefaultState(v.var, type(cur))
+			local list
+			if v.list then
+				list = { }
+				for _, it in ipairs(v.list) do list[#list + 1] = { val = it.val, label = cleanLabel(it.label) or tostring(it.val) } end
+			end
+			out[#out + 1] = { var = v.var, label = cleanLabel(v.label) or v.var, section = section, type = v.type, value = cur, default = def,
+				changed = cur ~= nil and cur ~= def, shown = shown, list = list, tooltip = type(v.tooltip) == "string" and cleanLabel(v.tooltip) or nil }
+		end
+	end
+	return { options = out }
+end
+function applyConfig(values)
+	if type(values) ~= "table" then return end
+	local input = configInput()
+	for k, v in pairs(values) do
+		if v == dkjson.null then v = nil end
+		input[k] = v
+	end
+	build.configTab:BuildModList()
+	build.buildFlag = true
+	runCallback("OnFrame")
+end
+
 -- one request (a JSON line) -> one answer (a JSON line)
 function handle(line)
 	local ok, req = pcall(dkjson.decode, line)
@@ -409,6 +478,15 @@ function handle(line)
 			elseif req.op == "upgrades" then
 				if not build then return { error = "No build loaded." } end
 				return upgrades()
+			elseif req.op == "config" then
+				if not build then return { error = "No build loaded." } end
+				return configList()
+			elseif req.op == "setConfig" then
+				if not build then return { error = "No build loaded." } end
+				applyConfig(req.values)
+				local r = summary()
+				if req.save then r.xml = build:SaveDB(req.name or "build") end
+				return r
 			elseif req.op == "main" then
 				if not build then return { error = "No build loaded." } end
 				if build.skillsTab.socketGroupList[req.group] then setMainGroup(req.group) end

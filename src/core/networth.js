@@ -197,8 +197,11 @@ class NetWorthTracker {
   }
 
   /** Income per hour over a window, plus item-level diff between first and last snapshot. */
-  report(league, { sinceMs = 24 * 3600 * 1000 } = {}) {
-    const snaps = this.snapshots(league);
+  report(league, { sinceMs = 24 * 3600 * 1000, at = null } = {}) {
+    const all = this.snapshots(league);
+    if (!all.length) return { snaps: [], latest: null };
+    // a snapshot you picked (its time): the report as it was then; else the newest
+    const snaps = at ? all.filter((s) => s.ts <= at) : all;
     if (!snaps.length) return { snaps: [], latest: null };
     const latest = snaps[snaps.length - 1];
     const windowSnaps = snaps.filter((s) => s.ts >= latest.ts - sinceMs);
@@ -211,7 +214,8 @@ class NetWorthTracker {
       hours,
       gainChaos: latest.totalChaos - first.totalChaos,
       perHourChaos: hours > 0.05 ? (latest.totalChaos - first.totalChaos) / hours : null,
-      series: snaps.map((s) => ({ ts: s.ts, chaos: s.totalChaos, divine: s.divine })),
+      series: all.map((s) => ({ ts: s.ts, chaos: s.totalChaos, divine: s.divine })),
+      newest: all[all.length - 1].ts,
       diff,
     };
   }

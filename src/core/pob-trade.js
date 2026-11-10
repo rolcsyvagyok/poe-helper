@@ -125,6 +125,16 @@ function weightsFrom(results, cands, statsJson, { focus = 'balanced' } = {}) {
   return { weights: list, missing, scale: 100 / top };
 }
 
+/**
+ * The trade site limits how many filters a search may have: far fewer when you aren't logged in
+ * ("Query is too complex"). Keeps the stats worth most, and drops the ones worth next to nothing.
+ */
+function limitWeights(weights, { loggedIn = false } = {}) {
+  const max = loggedIn ? 30 : 8;
+  const top = weights[0]?.tradeWeight || 0;
+  return weights.filter((w) => w.tradeWeight >= top * 0.02).slice(0, max);
+}
+
 /** The weighted-sum search: best items first, your level and price limits. */
 function buildWeightedQuery({ weights, category, maxLevel, maxPriceChaos, minSum, status = 'securable' }) {
   const query = {
@@ -163,4 +173,4 @@ function itemTextFromTrade(item) {
   return out.join('\n');
 }
 
-module.exports = { CANDIDATES, CATEGORY, candidatesFor, kindOf, weightsFrom, buildWeightedQuery, itemTextFromTrade, FOCUS };
+module.exports = { limitWeights, CANDIDATES, CATEGORY, candidatesFor, kindOf, weightsFrom, buildWeightedQuery, itemTextFromTrade, FOCUS };

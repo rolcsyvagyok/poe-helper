@@ -3,6 +3,15 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.36 - 2026-11-10
+
+- **Path of Building → Configuration**: Path of Building's Configuration tab in the app (charges, Onslaught, Fortify, enemy is Shocked, boss type, map mods, shrines and the rest), only the options that matter for the build unless you ask for all, with search. Changes are saved into the snapshot and recalculated right away. **A new snapshot keeps them**: it starts with the ticks of your last snapshot of that character, whether you set them here or in Path of Building.
+- **Path of Building → Stats: point at a gear row** to see the exact item, like the game's tooltip.
+- **Path of Building uses its own icon** in the menu (from the Path of Building.exe on your PC) and sits right above Settings.
+- **Search the trade site: "Query is too complex" fixed.** The search is sent with your login (POESESSID, to pathofexile.com only) so the trade site allows the bigger search Path of Building makes; without a login it keeps the 8 stats worth most.
+- **WealthyExile: the snapshot comes first.** Take snapshot and what your stash is worth are at the top; below it every snapshot is listed with its change, and clicking one shows your stash as it was then. Tabs and automatic snapshots are folded away once set up.
+- **Loot filter:** Check prices and Set category prices are only on currency, fragments and league mechanics, not on gear bases. Show in app from the price check scrolls the category list to where you are.
+
 ## 1.0.35 - 2026-11-10
 
 - **Currency has six tiers.** FilterBlade's currency Tier 7, 8 and lower go into Tier 6, so the six looks of a tier design cover all of it. This is worked out again from every FilterBlade download, and a move into Tier 7 or lower (yours or price review's) lands in Tier 6.

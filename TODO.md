@@ -2,15 +2,7 @@
 
 ## Next (asked 2026-11-10)
 
-- **PoB configuration (asked 2026-11-10):** Path of Building's Configuration tab (charges, Onslaught, Fortify, Unholy Might, Leeching, enemy is Shocked/Chilled, boss type, map mods, shrines, Champion's Intimidate, Sacrifice Minion on Attack, etc.) has to be ticked by hand after every import. Show these options in the app (Path of Building page) and keep them per character, so a new snapshot gets the same ticks without doing it again. PoB stores them in the build XML (<Config><Input name=... boolean/number/string/>); its option list is Modules/ConfigOptions.lua (varList, with section, label, type, ifSkill/ifFlag... conditions).
-- **Gear tooltips (Stats tab):** hovering a gear row shows the exact item (its mods), like the game's tooltip.
-- **Path of Building icon:** use the icon of %APPDATA%\Path of Building Community\Path of Building.exe for the PoB page in the menu (extract it on the user's PC with app.getFileIcon; don't ship it).
-- **WealthyExile tab:** taking a snapshot should be the main view; switch between snapshots with a list (or something that looks good).
-- **Menu:** put Path of Building right above Settings.
-- **Trade search bug** (Path of Building > Upgrades): "The trade site said: Query is too complex. Please reduce the amount of filters used. Logging in will increase this limit." Fix: send the POESESSID with this search (GggClient.tradeSearch has no session) and cap the weights (about 10 without login, up to 35 with; drop tiny ones). Code: pobFindItem in src/main/main.js, buildWeightedQuery in src/core/pob-trade.js.
-- **Price buttons** ("Check prices", "Set category prices") only on currency, fragments and league mechanics categories, not on base categories (filters.js renderTiers header).
-- **Show in app** (price check): the Loot filter page opens the right category, but the left category list doesn't show where you are. Expand its group and scroll the active row into view.
-- Done, not released yet: 1.0.35 (currency folded to six tiers, Scrolls list).
+- Done in 1.0.36: PoB configuration, gear tooltips, PoB icon, PoB above Settings, trade "query too complex", WealthyExile snapshot-first, price buttons only on currency/fragments/league mechanics, Show in app reveals the category. Check them on the real PC after the release.
 
 ## Next
 

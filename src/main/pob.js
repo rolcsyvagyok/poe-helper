@@ -155,6 +155,15 @@ class PobEngine {
   /** What equipping an item does in each slot it fits. */
   compare(itemText) { return this.send({ op: 'compare', item: itemText }, 60000); }
 
+  /** PoB's Configuration options for the open build (what it shows for this build, and what is set). */
+  config() { return this.send({ op: 'config' }, 60000); }
+
+  /** Sets Configuration options; with save, returns the build file's new text too. */
+  async setConfig(values, { save = false, name } = {}) {
+    const r = await this.send({ op: 'setConfig', values, save, name }, 60000);
+    return r;
+  }
+
   /** What each mod is worth on a blank item in that slot (for trade weights). */
   weights(slot, lines) { return this.send({ op: 'weights', slot, lines }, 120000); }
 
@@ -162,8 +171,8 @@ class PobEngine {
   upgrades() { return this.send({ op: 'upgrades' }, 180000); }
 
   /** A new build from your character, made by PoB's Import code. Returns the summary and the build file's text. */
-  async importCharacter({ character, items, passives, name }) {
-    return this.send({ op: 'import', character, items, passives, name }, 120000);
+  async importCharacter({ character, items, passives, name, config = null }) {
+    return this.send({ op: 'import', character, items, passives, name, config }, 120000);
   }
 }
 
@@ -196,4 +205,48 @@ function summarise(r) {
   };
 }
 
-module.exports = { summarise, dpsOf, SHOW, PobEngine, snapshotFile, pickCharacter, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds };
+/**
+ * The Configuration ticks saved in a PoB build file (only the ones that differ from PoB's defaults; PoB saves
+ * no others). The active config set when there are several.
+ */
+function configFromXml(xml) {
+  const out = {};
+  const cfg = /<Config\b([^>]*)>([\s\S]*?)<\/Config>/.exec(String(xml || ''));
+  if (!cfg) return out;
+  let body = cfg[2];
+  const active = /activeConfigSet="([^"]*)"/.exec(cfg[1])?.[1];
+  const sets = [...body.matchAll(/<ConfigSet\b([^>]*)>([\s\S]*?)<\/ConfigSet>/g)];
+  if (sets.length) body = (sets.find((m) => new RegExp(`\\bid="${active}"`).test(m[1])) || sets[0])[2];
+  const unq = (v) => v.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+  for (const m of body.matchAll(/<Input\b([^>]*?)\/?>/g)) {
+    const a = m[1];
+    const name = /\bname="([^"]*)"/.exec(a)?.[1];
+    if (!name) continue;
+    const b = /\bboolean="([^"]*)"/.exec(a);
+    const n = /\bnumber="([^"]*)"/.exec(a);
+    const st = /\bstring="([^"]*)"/.exec(a);
+    if (b) out[name] = b[1] === 'true';
+    else if (n) out[name] = Number(n[1]);
+    else if (st) out[name] = unq(st[1]);
+  }
+  return out;
+}
+// these come fresh from each import (pathofexile.com has them), so they aren't carried over
+const CONFIG_FROM_IMPORT = new Set(['bandit', 'pantheonMajorGod', 'pantheonMinorGod']);
+/** The newest earlier snapshot of a character in the snapshot folder (files are named "<character> <date time>.xml"). */
+function lastSnapshotOf(dir, charName) {
+  let best = null;
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.toLowerCase().endsWith('.xml')) continue;
+      const m = /^(.*) \d{4}-\d\d-\d\d \d\d-\d\d\.xml$/i.exec(f);
+      if (!m || m[1] !== String(charName).replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').trim()) continue;
+      const file = path.join(dir, f);
+      const mtime = fs.statSync(file).mtimeMs;
+      if (!best || mtime > best.mtime) best = { file, mtime };
+    }
+  } catch { /* no folder yet */ }
+  return best?.file || null;
+}
+
+module.exports = { configFromXml, lastSnapshotOf, CONFIG_FROM_IMPORT, summarise, dpsOf, SHOW, PobEngine, snapshotFile, pickCharacter, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds };

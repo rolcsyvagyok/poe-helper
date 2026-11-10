@@ -685,7 +685,7 @@ function registerIpc() {
   handle('networth:tabs', async (force) => services.ggg.stashTabs(await services.getLeague(), { force: !!force }));
   handle('networth:select', (indices) => { s.set('selectedTabs', (indices || []).map(Number).filter(Number.isInteger)); return s.get('selectedTabs'); });
   handle('networth:snapshot', () => snapshotNow('manual'));
-  handle('networth:report', async (sinceMs) => services.networth.report(await services.getLeague(), { sinceMs }));
+  handle('networth:report', async (sinceMs, at = null) => services.networth.report(await services.getLeague(), { sinceMs, at }));
   handle('networth:clear', async () => {
     const league = await services.getLeague();
     services.snapshots.set('snapshots', (services.snapshots.get('snapshots') || []).filter((x) => x.league !== league));
@@ -746,6 +746,15 @@ function registerIpc() {
   handle('regex:gemView', () => services.regexGemView());
   handle('regex:gemBuild', (a) => services.regexGemBuild(a || {}));
   handle('pob:state', () => pobState());
+  // the icon of Path of Building.exe in your PoB folder, for the menu
+  handle('pob:icon', async () => {
+    const dir = pobState().dir;
+    if (!dir) return null;
+    const exe = ['Path of Building.exe', 'Path of Building-PoE2.exe'].map((n) => path.join(dir, n)).find((f) => fs.existsSync(f));
+    if (!exe) return null;
+    const img = await app.getFileIcon(exe, { size: 'normal' });
+    return img.isEmpty() ? null : img.toDataURL();
+  });
   handle('pob:set', (a = {}) => {
     const cur = services.settings.get('pob') || {};
     const next = { ...cur };
@@ -785,6 +794,20 @@ function registerIpc() {
     return require('./pob').listBuilds(st.buildsDir).map(({ file, name, mtime }) => ({ file, name, mtime, snapshot: /^PoE Helper snapshots \/ /.test(name) }));
   });
   handle('pob:stats', (file) => pobWith(file, () => pob.stats()));
+  // PoB's Configuration tab: read on any build, changed (and saved into the file) only on your snapshots
+  handle('pob:config', (file) => pobWith(file, async () => ({ ...(await pob.config()), editable: pobIsSnapshot(file) })));
+  handle('pob:setConfig', ({ file, values } = {}) => {
+    if (!pobIsSnapshot(file)) throw new Error('Only snapshots are changed here; open your own builds in Path of Building to change them.');
+    return pobWith(file, async () => {
+      const r = await pob.setConfig(values || {}, { save: true, name: path.basename(file, '.xml') });
+      if (!r.xml) throw new Error(r.error || 'Path of Building did not save the build.');
+      fs.writeFileSync(file, r.xml, 'utf8');
+      delete r.xml;
+      // PoB has this build open as it is now in the file
+      pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r };
+      return r;
+    });
+  });
   // the main skill of a build, kept per build file (PoB's own choice when you never picked one)
   handle('pob:setMain', ({ file, group } = {}) => {
     const cur = services.settings.get('pob') || {};
@@ -1000,7 +1023,10 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
   if (!cands.length) throw new Error(`Searching for ${w.type || 'this kind of item'} isn't supported yet.`);
   const results = cands.map((c) => w.results[all.indexOf(c)]);
   const stats = await services.ggg.tradeStats();
-  const { weights, missing, scale } = T.weightsFrom(results, cands, stats, { focus });
+  const loggedIn = services.ggg.hasSession();
+  const found = T.weightsFrom(results, cands, stats, { focus });
+  const { missing, scale } = found;
+  const weights = T.limitWeights(found.weights, { loggedIn });
   if (!weights.length) throw new Error('None of the mods Path of Building tried make this build stronger in that slot, so there is nothing to search for.');
   const league = await services.getLeague();
   const divine = await services.ninja.divinePrice(league).catch(() => null);
@@ -1015,11 +1041,11 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
   const minSum = betterOnly && curWorth > 0 ? curWorth * 0.9 : 0;
   const body = T.buildWeightedQuery({ weights, category: T.CATEGORY[w.type], maxLevel, maxPriceChaos, minSum, status: services.settings.get('tradeStatus') || 'securable' });
   let res;
-  try { res = await services.ggg.tradeSearch(league, body); } catch (e) {
+  try { res = await services.ggg.tradeSearch(league, body, { login: true }); } catch (e) {
     log('pob trade search refused', e.message, JSON.stringify(body));
     throw e;
   }
-  const out = { slot, type: w.type, base: w.base, current: w.currentName, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, weights: weights.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum, listings: [] };
+  const out = { slot, type: w.type, base: w.base, current: w.currentName, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, weights: weights.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum, listings: [], loggedIn, leftOut: found.weights.length - weights.length };
   if (!res.result?.length) return out;
   const fetched = await services.ggg.tradeFetch(res.id, res.result.slice(0, 10));
   for (const r of fetched.result || []) {
@@ -1044,6 +1070,13 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
   const score = (l) => (l.test ? f.dps * (l.test.dps?.pct || 0) + f.ehp * ((l.test.changes.find((c) => c.key === 'TotalEHP')?.pct) || 0) : -Infinity);
   out.listings.sort((a, b) => score(b) - score(a));
   return out;
+}
+
+/** A build file in the PoE Helper snapshots folder. */
+function pobIsSnapshot(file) {
+  if (!file) return false;
+  const dir = path.join(pobState().buildsDir, 'PoE Helper snapshots');
+  return path.resolve(path.dirname(file)).toLowerCase() === path.resolve(dir).toLowerCase();
 }
 
 let pobQueue = Promise.resolve();
@@ -1102,7 +1135,16 @@ async function pobSnapshotNow() {
     const passives = await ggg.characterPassives(character.name);
     await started;
     const file = P.snapshotFile(st.buildsDir, character.name);
-    const r = await pob.importCharacter({ character, items, passives, name: path.basename(file, '.xml') });
+    // your Configuration ticks from this character's last snapshot (set in the app or in PoB), so you don't tick them again
+    let config = null;
+    const prev = P.lastSnapshotOf(path.dirname(file), character.name);
+    if (prev) {
+      try {
+        config = P.configFromXml(fs.readFileSync(prev, 'utf8'));
+        for (const k of P.CONFIG_FROM_IMPORT) delete config[k];
+      } catch { config = null; }
+    }
+    const r = await pob.importCharacter({ character, items, passives, name: path.basename(file, '.xml'), config });
     if (!r.xml) throw new Error(r.error || 'Path of Building made no build.');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, r.xml, 'utf8');
