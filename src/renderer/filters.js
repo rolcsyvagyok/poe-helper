@@ -2170,7 +2170,6 @@ async function renderReview(body, { only = null } = {}) {
       await runReview([c.type]);
       renderFilters();
     };
-    const countOf = (tier) => c.tierCounts?.[tier];
     const tierRows = c.tiers.map((t) => {
       // two boxes, "Over [ ] c" and "[ ] div": the one you typed in last is used, the other shows the same price converted
       const raw = shownRaw(c.raw?.[t.tier]);

@@ -106,6 +106,10 @@ function createMainWindow() {
   mainWin.on('minimize', (e) => {
     if (services?.settings.get('minimizeToTray')) { e.preventDefault(); hideToTray(); }
   });
+  // Windows sometimes drops the taskbar icon after the window was hidden to the tray: set it again
+  mainWin.on('show', () => applyAppIcon());
+  mainWin.on('restore', () => applyAppIcon());
+  taskbarIcon();
   lockNavigation(mainWin);
 }
 
@@ -406,8 +410,45 @@ function trayImage() {
   return appIconImage().resize({ width: 16, height: 16, quality: 'best' });
 }
 
+// A PNG inside an .ico wrapper (Windows reads PNG-compressed icons), so the taskbar can use your own icon
+function pngToIco(png) {
+  const head = Buffer.alloc(22);
+  head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(1, 4);
+  head.writeUInt8(0, 6); head.writeUInt8(0, 7); // 256 x 256
+  head.writeUInt16LE(1, 10); head.writeUInt16LE(32, 12);
+  head.writeUInt32LE(png.length, 14); head.writeUInt32LE(22, 18);
+  return Buffer.concat([head, png]);
+}
+
+/**
+ * The taskbar takes its icon from a real file outside the app archive: the installed PoE Helper.exe (its
+ * icon is built in), your own icon as an .ico, or assets/icon.ico when run from the source folder.
+ * Without this, Windows sometimes shows the blank default icon (after hiding to the tray, or an update).
+ */
+function taskbarIcon() {
+  if (process.platform !== 'win32' || !mainWin || mainWin.isDestroyed()) return;
+  let iconPath = app.isPackaged ? process.execPath : path.join(__dirname, '..', '..', 'assets', 'icon.ico');
+  if (services?.settings.get('customAppIcon')) {
+    try {
+      const img = nativeImage.createFromPath(customIconPath());
+      if (!img.isEmpty()) {
+        const ico = path.join(app.getPath('userData'), 'app-icon.ico');
+        fs.writeFileSync(ico, pngToIco(img.resize({ width: 256, height: 256, quality: 'best' }).toPNG()));
+        iconPath = ico;
+      }
+    } catch { /* keep the app's icon */ }
+  }
+  try {
+    mainWin.setAppDetails({
+      appId: 'dev.poehelper.app', appIconPath: iconPath, appIconIndex: 0,
+      ...(app.isPackaged ? { relaunchCommand: `"${process.execPath}"`, relaunchDisplayName: 'PoE Helper' } : {}),
+    });
+  } catch { /* older Windows */ }
+}
+
 function applyAppIcon() {
   const img = appIconImage();
+  taskbarIcon();
   if (tray) tray.setImage(trayImage());
   if (mainWin && !img.isEmpty() && services?.settings.get('customAppIcon')) mainWin.setIcon(img.resize({ width: 256, height: 256, quality: 'best' }));
   else if (mainWin) mainWin.setIcon(path.join(__dirname, '..', '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
@@ -642,13 +683,6 @@ function registerIpc() {
   handle('app:resetAll', () => { const r = services.resetAll(); afterReset(); return r; });
   handle('app:undoReset', () => { const r = services.undoResetAll(); afterReset(); return r; });
   handle('app:canUndoReset', () => services.canUndoReset());
-  // put some settings back to how a fresh install has them
-  handle('settings:reset', (keys) => {
-    const D = require('./services').DEFAULT_SETTINGS;
-    for (const k of (Array.isArray(keys) ? keys : []).filter((x) => x in D && !['sessionEnc', 'history'].includes(x))) s.set(k, structuredClone(D[k]));
-    services.applySettings();
-    return true;
-  });
   handle('settings:set', (patch) => {
     const allowed = Object.keys(require('./services').DEFAULT_SETTINGS).filter((k) => !['sessionEnc', 'history', 'overrides'].includes(k));
     const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.includes(k)));
@@ -672,13 +706,10 @@ function registerIpc() {
     return { sessionSet: !!v };
   });
   handle('session:login', () => loginForSession());
-  handle('usage:get', () => services.usageSnapshot());
   // While you record a new hotkey in Settings, the current ones are switched off so they don't fire.
   handle('hotkeys:pause', () => { hotkeysPaused = true; registerHotkeys({ quiet: true }); return true; });
   handle('hotkeys:resume', () => { hotkeysPaused = false; return registerHotkeys({ quiet: true }); });
-  handle('history:get', () => s.get('history') || []);
 
-  handle('price:text', (text) => services.priceText(text));
   handle('trade:prepare', (text) => services.tradePrepare(text));
   handle('trade:search', (args) => services.tradeSearch(args));
 
@@ -708,7 +739,6 @@ function registerIpc() {
   handle('filter:economyRules', () => services.regenerateEconomy({ preview: true }));
   handle('sounds:list', () => services.listSounds());
   handle('sounds:import', (a) => services.importSound(a || {}));
-  handle('gameSounds:get', () => services.gameSoundsState());
   // pick: choose the game folder yourself (when it isn't in one of the usual places)
   handle('gameSounds:extract', async (a) => {
     let dir = null;
@@ -734,7 +764,6 @@ function registerIpc() {
   handle('matrix:get', () => services.baseMatrixView());
   handle('cluster:get', () => services.clusterView());
   handle('cluster:set', (a) => services.setCluster(a || {}));
-  handle('matrix:fracAuto', (a) => services.autoFractured(a || {}));
   handle('matrix:set', (a) => services.setBaseMatrix(a || {}));
   handle('regex:mapView', (a) => services.regexMapView(a || {}));
   handle('regex:mapBuild', (a) => services.regexMapBuild(a || {}));
@@ -894,11 +923,6 @@ function registerIpc() {
       return { ...r, editable: true };
     });
   });
-  handle('pob:test', ({ file, text } = {}) => pobWith(file, async () => {
-    const r = await pob.compare(String(text || ''));
-    if (r.error) return { error: r.error };
-    return require('./pob').summarise(r);
-  }));
   // PoB's own item tooltip: the item, and what equipping it in each slot gives (its stat compares)
   handle('pob:itemTooltip', ({ file, text } = {}) => pobWith(file, () => pob.timeless('itemTooltip', { item: String(text || '').slice(0, 20000) })));
   handle('pob:upgrades', (a) => { const { file, asSkill } = typeof a === 'string' ? { file: a } : a || {}; return pobWith(file, () => pob.withSkill(asSkill, () => pob.upgrades())); });

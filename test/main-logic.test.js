@@ -542,19 +542,6 @@ test('resetting another category keeps the Giga tier; resetting currency brings 
   assert.ok(gigaThere(), 'resetting currency restores the default Giga tier');
 });
 
-test('fractured tiering: the best bases per column top, the next good, the rest hidden', () => {
-  const { svc } = setup(); // no filter chosen: every listed base counts
-  const r = svc.autoFractured({ top: 2, good: 3 });
-  const st = r.state;
-  const col = svc.baseMatrixView().bases['Body Armours'].ar.filter((b) => b.inFilter !== false).map((b) => b.name);
-  assert.deepEqual(col.slice(0, 7).map((n) => st[n]?.frac), ['top', 'top', 'show', 'show', 'show', 'hide', 'hide'].slice(0, Math.min(7, col.length)));
-  assert.ok(r.hidden > 0 && r.top > 0);
-  const { matrixRules } = require('../src/core/filter/manager');
-  const rules = matrixRules(st);
-  assert.equal(rules[0].id, 'matrix-frac-top', 'the loud look comes first');
-  assert.ok(rules[0].conditions.some((c) => c.keyword === 'FracturedItem' && c.values[0] === 'True'));
-});
-
 test('base ranks: a B rank base hides as a plain rare (rares S only) but shows fractured (B and up)', () => {
   const { svc, filterDir } = setup();
   svc.settings.patch({ filterDir, baseFilter: 'NeverSink.filter' });

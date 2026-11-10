@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.44 - 2026-11-10
+
+- **Cleaned out leftovers** from removed features: the old item test page, the automatic fractured tiering, a few unused background requests and settings, and about 40 unused styles. Nothing you use changes; the app just carries less.
+
+- **The taskbar icon stays**: Windows sometimes showed a blank icon for PoE Helper (after it was hidden in the tray, or after an update). The taskbar now takes the icon straight from PoE Helper.exe, or from your own icon if you picked one, and it is set again each time the window comes back.
+
 ## 1.0.43 - 2026-11-10
 
 - Notes for developers who work on PoE Helper (how it is built and released). Nothing changes in the app itself.

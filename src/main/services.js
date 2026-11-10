@@ -40,7 +40,6 @@ const DEFAULT_SETTINGS = {
   labOpacity: 1,
   clipboardMode: true, // pop the overlay when you Ctrl+C an item in game
   restoreClipboard: true,
-  overlayAutoHideMs: 0,
   overlayCloseOnMouseAway: true,
   overlayPos: null, // where you last dragged the price check
   minimizeToTray: false,
@@ -1266,32 +1265,6 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const target = filters.basePath() ? filters.write() : null;
     return { state, target, leftOut: filters.lastDropped };
   }
-  /**
-   * Fractured tiering in one go: in every column (item class and defence, or weapon type), the best
-   * bases (highest level, listed first) get the top fractured look, the next ones the good look and the
-   * rest are hidden when they drop fractured. top/good: how many of each per column.
-   */
-  function autoFractured({ top = 2, good = 3 } = {}) {
-    const v = baseMatrixView();
-    const cols = [];
-    for (const c of v.classes) for (const d of v.defences) cols.push(v.bases[c][d.id] || []);
-    for (const g of v.groups) for (const col of g.columns) cols.push(col.list);
-    const state = { ...(settings.get('baseMatrix') || {}) };
-    const done = new Set();
-    for (const list of cols) {
-      const real = list.filter((b) => b.inFilter !== false);
-      real.forEach((b, i) => {
-        if (done.has(b.name)) return; // Two-Toned Boots sit in three columns: the first (best) place wins
-        done.add(b.name);
-        const e = { ...(state[b.name] || {}), frac: i < top ? 'top' : i < top + good ? 'show' : 'hide' };
-        state[b.name] = e;
-      });
-    }
-    settings.set('baseMatrix', state);
-    if (filters.basePath()) filters.write();
-    const vals = Object.values(state);
-    return { state, top: vals.filter((e) => e.frac === 'top').length, good: vals.filter((e) => e.frac === 'show').length, hidden: vals.filter((e) => e.frac === 'hide').length };
-  }
   function setCampaignHide(o = {}) {
     const { CAMPAIGN_CLASSES } = require('../core/filter/manager');
     const cur = { classes: [], rares: false, untilLevel: 67, keepLinks: 4, ...(settings.get('campaignHide') || {}) };
@@ -1751,7 +1724,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, autoFractured, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {
