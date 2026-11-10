@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.40 - 2026-11-10
+
+- **Upgrades and Support gems start with your main skill** in "For the skill", and links default to the most links your build has.
+- **Support gems uses the character level of the build you pick**, and **Gem quality is a choice of 0 (new gems) or 20**.
+- **Upgrades: a search the trade site won't take from the app opens on the trade site by itself** (with every weight filled in), without a message about it.
+- **Configuration: the sections are packed in columns**, so a short section (Skill Options, say) no longer leaves an empty gap next to a long one.
+
 ## 1.0.39 - 2026-11-10
 
 - **Fixed: "No such node"** on the Tree tab: pointing at a node or clicking it asked Path of Building about the wrong node, so the stats of a node and changing the tree didn't work.

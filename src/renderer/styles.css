@@ -1230,3 +1230,8 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-box.full { position: fixed; inset: 0; z-index: 900; height: auto; min-height: 0; border-radius: 0; border: 0; }
 .pob-tree-box.full .pob-cfg-diff { position: absolute; left: 16px; right: 70px; bottom: 16px; margin: 0; }
 body.pob-tree-fullscreen { overflow: hidden; }
+
+/* Configuration: the sections packed in columns (a short section doesn't leave a gap next to a long one) */
+.pob-cfg-cols { columns: 3 380px; column-gap: 14px; }
+.pob-cfg-cols > .panel { break-inside: avoid; display: block; width: 100%; margin: 0 0 14px; }
+.pob-cfg-cols > .pob-cfg.maps { column-span: all; }

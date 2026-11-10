@@ -636,19 +636,26 @@
     if (PB.results[skillsKey]) fill(PB.results[skillsKey]);
     else call('pob:levelPlan', { file, op: 'activeSkills' }).then((x) => { PB.results[skillsKey] = x.skills || []; fill(PB.results[skillsKey]); }).catch(() => {});
     const changed = () => { PB.results.find = null; for (const k of Object.keys(PB.results)) if (/^(upgrades|gems)\|/.test(k)) delete PB.results[k]; onchange?.(); };
+    // the build's own main skill and its most links (from its stats)
+    const st = PB.results[`stats|${file}`];
+    if (!st) call('pob:stats', file).then((x) => { PB.results[`stats|${file}`] = x; if (!A.name) { nameIn.value = x.skill || ''; mount(linkSel, linkOpts()); } }).catch(() => {});
+    const mainName = () => PB.results[`stats|${file}`]?.skill || '';
+    const maxLinks = () => Math.max(1, ...(PB.results[`stats|${file}`]?.gems || []).map((g) => (g.gems || []).filter((x) => x.enabled !== false).length));
+    const isMain = (n) => !n || n.toLowerCase() === mainName().toLowerCase();
+    const linkOpts = () => [['', `as many as your build has (${maxLinks()})`], ...[2, 3, 4, 5, 6].map((n) => [String(n), `${n}-link`])].map(([v, t]) => h('option', { value: v, selected: String(A.links) === v }, t));
+    const nameIn = h('input', { type: 'text', list: id, placeholder: 'Your build\'s main skill', value: A.name || mainName(), style: { width: '320px' },
+      onchange: (e) => { const v = e.target.value.trim(); A.name = isMain(v) ? '' : v; if (!v) e.target.value = mainName(); changed(); } });
+    const linkSel = h('select', { 'aria-label': 'Links', onchange: (e) => { A.links = e.target.value; changed(); } }, linkOpts());
     const el = h('div', { class: 'row', style: { gap: '10px', flexWrap: 'wrap' } },
-      h('label', { class: 'small row', style: { gap: '6px' } }, 'For the skill', list,
-        h('input', { type: 'text', list: id, placeholder: 'Your build\'s main skill (or type one: Sunder, Rolling Magma…)', value: A.name, style: { width: '320px' },
-          onchange: (e) => { A.name = e.target.value.trim(); changed(); } })),
-      h('label', { class: 'small row', style: { gap: '6px' } }, 'Links', h('select', { 'aria-label': 'Links', onchange: (e) => { A.links = e.target.value; changed(); } },
-        [['', 'as you can at your level'], ...[2, 3, 4, 5, 6].map((n) => [String(n), `${n}-link`])].map(([v, t]) => h('option', { value: v, selected: String(A.links) === v }, t)))),
-      h('span', { class: 'small faint' }, 'Another skill than the build\'s is put in with the best supports you can use at your level, just for this (nothing is saved).'));
+      h('label', { class: 'small row', style: { gap: '6px' } }, 'For the skill', list, nameIn),
+      h('label', { class: 'small row', style: { gap: '6px' } }, 'Links', linkSel),
+      h('span', { class: 'small faint' }, 'Your main skill by default; type another (Sunder, Rolling Magma…) and it is put in with the best supports you can use at your level, just for this (nothing is saved).'));
     // the skill to use, or null for the build's own
     const get = (level) => {
-      if (!A.name) return null;
+      if (isMain(A.name)) return null;
       const sk = (PB.results[skillsKey] || []).find((x) => x.name.toLowerCase() === A.name.toLowerCase());
       if (!sk) throw new Error(`"${A.name}" isn't a skill gem Path of Building knows. Pick one from the list.`);
-      return { skill: sk.id, name: sk.name, links: Number(A.links) || LINKS_AT(level || 1), level, req: sk.req };
+      return { skill: sk.id, name: sk.name, links: Number(A.links) || maxLinks() || LINKS_AT(level || 1), level, req: sk.req };
     };
     return { el, get };
   }
@@ -660,6 +667,8 @@
     const file = PB.file;
     const key = `gems|${file}`;
     const G = PB.gemSet || (PB.gemSet = { level: null, quality: 20, awakened: false, exceptional: false, keep: {} });
+    // the character level of this build unless you typed one for it
+    if (G.levelFor !== file) { G.level = PB.results[`stats|${file}`]?.level || null; G.levelFor = file; }
     const resBox = h('div', { class: 'stack' });
     const picker = skillPicker(file, () => render());
     const statsKey = `stats|${file}`;
@@ -702,7 +711,8 @@
       h('p', { class: 'small muted', style: { margin: 0 } }, 'For your main skill: every support gem that can support it, at the highest level you can use at that character level, is tried in place of each of your supports, and Path of Building keeps the best set. Your own gems are counted at their highest level too.'),
       h('div', { class: 'row', style: { gap: '14px', flexWrap: 'wrap' } },
         h('label', { class: 'small row', style: { gap: '6px' } }, 'Character level', lvlIn),
-        h('label', { class: 'small row', style: { gap: '6px' } }, 'Gem quality', h('input', { type: 'number', min: 0, max: 23, value: G.quality, style: { width: '60px' }, onchange: (e) => { G.quality = Number(e.target.value) || 0; } })),
+        h('label', { class: 'small row', style: { gap: '6px' } }, 'Gem quality', h('select', { 'aria-label': 'Gem quality', onchange: (e) => { G.quality = Number(e.target.value); } },
+          [[0, '0 (new gems)'], [20, '20']].map(([v, t]) => h('option', { value: v, selected: G.quality === v }, t)))),
         h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: G.awakened, onchange: (e) => { G.awakened = e.target.checked; } }), 'Awakened gems'),
         h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: G.exceptional, onchange: (e) => { G.exceptional = e.target.checked; } }), 'Empower, Enhance, Enlighten and other exceptional gems'),
         h('span', { class: 'spacer' }),
@@ -1250,7 +1260,7 @@
           : h('span', { class: 'small muted' }, 'No change to the main numbers.'));
     };
     showDiff();
-    const listBox = h('div', { class: 'pob-grid' });
+    const listBox = h('div', { class: 'pob-cfg-cols' });
     let pending = {};
     let timer = null;
     let names = [];
@@ -1510,6 +1520,8 @@
       try {
         PB.results.find = await call('pob:findItem', { file: PB.file, slot: F.slot, focus: F.focus, maxLevel: Number(F.maxLevel) || null, maxPrice: Number(F.maxPrice) || null, unit: F.unit, betterOnly: F.betterOnly, asSkill: PB.findAsSkill?.() || null });
         PB.results.find.forFile = PB.file;
+        // the app's search was refused: the same search opens on the trade site (logged in there, it's taken)
+        if (PB.results.find.refused && PB.results.find.siteUrl) call('shell:open', PB.results.find.siteUrl);
         mount(res, asSkillNote(PB.results.find), findView(PB.results.find));
       } catch (e) { mount(res, h('p', { class: 'small warn' }, errText(e))); }
       btn.disabled = false;
@@ -1539,9 +1551,8 @@
       r.leftOut > 0 ? h('div', { class: 'small faint' }, `The trade site only takes a few stats from the app, so the ${r.weights.length} worth most were used (${r.leftOut} left out). Full search on the trade site opens it with all of them.`) : null);
     if (r.refused) {
       return [h('div', { class: 'panel stack' },
-        h('div', { class: 'small warn' }, `The trade site didn't take the search from the app: ${r.refused.replace(/\s*\(GGG \d+ for [\w-]+\)$/, '')}`),
-        h('div', { class: 'row', style: { gap: '10px' } }, h('span', { class: 'small muted' }, 'It opens on the trade site with every weight filled in; there you are logged in and it allows the bigger search.'), h('span', { class: 'spacer' }),
-          h('button', { class: 'primary sm', onclick: () => call('shell:open', r.siteUrl) }, 'Open on the trade site')),
+        h('div', { class: 'row', style: { gap: '10px' } }, h('span', { class: 'small muted' }, 'Opened on the trade site with every weight filled in.'), h('span', { class: 'spacer' }),
+          h('button', { class: 'sm', onclick: () => call('shell:open', r.siteUrl) }, 'Open it again')),
         weights)];
     }
     const head = h('div', { class: 'row', style: { gap: '10px' } },
