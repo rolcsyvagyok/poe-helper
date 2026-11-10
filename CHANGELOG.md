@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.49 - 2026-11-10
+
+- **Chat macros** (new page in the menu, under Tools): F1 to F5 each press Enter, type your text and press Enter again in game. F1 is **/exit** (log out to character select) and F2 is **/hideout** to start with; F3 to F5 are yours to fill, with ideas like /kingsmarch, /menagerie, /delve or @last as you type. Untick **Send** to only type the text, e.g. "@last " to start a reply. The keys only work while Path of Exile is the active window, so F1 to F5 keep working normally in every other app, and your clipboard is put back after each macro. One key press sends one message, the same as typing it yourself. Turn them all off with "Use chat macros".
+
 ## 1.0.48 - 2026-11-10
 
 - **Compare items with your build in game (Ctrl+E)**: hover an item and press Ctrl+E. The price check pops up as usual, and under it Path of Building shows what the item does to your build, like the item tester: DPS, life, resistances and the rest, per slot it fits. It uses the build you last picked on the Path of Building page. The normal price check (Alt+E) never starts Path of Building, so it stays fast. Settings → Price check → "Compare items with my build" turns it off; then the hotkey does nothing and nothing is calculated. The hotkey can be changed there too.

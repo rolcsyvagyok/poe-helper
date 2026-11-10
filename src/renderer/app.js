@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -248,6 +248,30 @@ function notesSection(all) {
 function pageHead(title, desc, ...right) {
   return h('div', { class: 'page-head' }, h('div', { class: 'stack', style: { gap: '4px' } }, h('h1', {}, title), desc ? h('p', {}, desc) : null), h('span', { class: 'spacer' }), ...right);
 }
+// ---------------------------------------------------------------- chat macros
+const MACRO_IDEAS = [['/exit', 'Log out to character select'], ['/hideout', 'Go to your hideout'], ['/kingsmarch', 'Go to Kingsmarch'], ['/menagerie', 'Go to the Menagerie'], ['/delve', 'Go to the Azurite Mine'], ['/heist', 'Go to the Rogue Harbour'], ['/monastery', 'Go to the Monastery of the Keepers'], ['@last ', 'Reply to the last whisper (not sent: type the rest)'], ['/invite @last', 'Party invite the last whisperer'], ['/kick ', 'Leave your party (add your name)'], ['/remaining', 'Monsters left in the area'], ['/deaths', 'How many times you died'], ['/played', 'Time played on this character'], ['/dnd', 'Do not disturb on or off']];
+async function renderMacros() {
+  const page = document.getElementById('page-macros');
+  const st = (await call('state:get')).settings;
+  const list = (Array.isArray(st.chatMacros) && st.chatMacros.length ? st.chatMacros : [1, 2, 3, 4, 5].map((n) => ({ key: `F${n}`, text: n === 1 ? '/exit' : n === 2 ? '/hideout' : '', send: true }))).map((m) => ({ ...m }));
+  const save = async (msg) => { await call('settings:set', { chatMacros: list }); if (msg) toast(msg); };
+  const ideas = h('datalist', { id: 'macro-ideas' }, MACRO_IDEAS.map(([v, l]) => h('option', { value: v }, l)));
+  const row = (m, i) => h('div', { class: 'macro-row' },
+    h('span', { class: 'macro-key' }, window.Hotkey.label(m.key)),
+    h('input', { value: m.text || '', list: 'macro-ideas', placeholder: 'e.g. /exit (empty: this key does nothing)', maxlength: 250, 'aria-label': `What ${m.key} types in chat`,
+      onchange: (e) => { m.text = e.target.value; save(m.text.trim() ? `${m.key}: ${m.text.trim()}` : `${m.key} does nothing now`); } }),
+    h('label', { class: 'check small', title: 'Off: the text is typed but not sent, so you can finish it (handy for @last replies)' },
+      h('input', { type: 'checkbox', checked: m.send !== false, onchange: (e) => { m.send = e.target.checked; save('Saved'); } }), h('span', {}, 'Send')));
+  mount(page,
+    h('h1', {}, 'Chat macros'),
+    h('p', { class: 'muted' }, 'Press a key in game: PoE Helper presses Enter, types your text and presses Enter again, just like typing it yourself. One key press sends one message. The keys only work while Path of Exile is the active window, so F1 to F5 still do their normal thing in every other app.'),
+    h('div', { class: 'panel stack', style: { maxWidth: '760px' } },
+      toggle(st.chatMacrosOn !== false, async (v) => { await call('settings:set', { chatMacrosOn: v }); toast(v ? 'Chat macros on' : 'Chat macros off'); renderMacros(); }, 'Use chat macros'),
+      st.chatMacrosOn !== false ? [ideas, ...list.map(row)] : h('p', { class: 'small muted' }, 'Off: F1 to F5 are left alone, also in game.'),
+      st.keySender === false ? h('p', { class: 'small warn' }, 'Chat macros need the key sender (uiohook-napi), which isn\'t available in this copy.') : null,
+      h('p', { class: 'small faint' }, 'Tip: start typing in a box for ideas like /exit, /hideout, /kingsmarch or @last. Your clipboard is put back after each macro.')));
+}
+
 function section(title, desc, ...content) {
   return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), desc ? h('p', {}, desc) : null), ...content);
 }

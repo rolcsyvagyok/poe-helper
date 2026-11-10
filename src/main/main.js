@@ -43,7 +43,10 @@ const labBrowser = {
   },
 };
 const { isPoeItemText } = require('../core/item-parser');
-const { sendCopy, hasKeySender, onMouse, stopHook } = require('./keys');
+const keysMod = require('./keys');
+const { sendCopy, hasKeySender, onMouse, stopHook } = keysMod;
+const { createChatMacros } = require('./chat-macros');
+let chatMacros = null;
 const { AuthError } = require('../core/ggg');
 const Hotkey = require('../renderer/hotkey');
 
@@ -383,6 +386,9 @@ function registerHotkeys({ quiet = false } = {}) {
   if (services.settings.get('pobCompareOn') !== false) tryReg('hotkeyPobCompare', (acc) => priceCheck({ accelerator: acc, compare: true }));
   else hotkeyStatus.hotkeyPobCompare = 'off';
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
+  // unregisterAll above dropped the chat macro keys too
+  if (!chatMacros) chatMacros = createChatMacros({ globalShortcut, clipboard, keys: keysMod, foreground: require('./foreground'), settings: s, log });
+  hotkeyStatus.chatMacros = chatMacros.refresh().on ? 'ok' : 'off';
   return hotkeyStatus;
 }
 
@@ -735,9 +741,16 @@ function registerIpc() {
   handle('settings:set', (patch) => {
     const allowed = Object.keys(require('./services').DEFAULT_SETTINGS).filter((k) => !['sessionEnc', 'history', 'overrides'].includes(k));
     const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.includes(k)));
+    // chat macros: a key and up to 250 characters of chat each
+    if ('chatMacros' in clean) {
+      const H = Hotkey;
+      clean.chatMacros = (Array.isArray(clean.chatMacros) ? clean.chatMacros : []).slice(0, 12).map((m) => ({
+        key: H.normalize(String(m?.key || '')) || '', text: String(m?.text || '').replace(/[\r\n]+/g, ' ').slice(0, 250), send: m?.send !== false,
+      })).filter((m) => m.key);
+    }
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyPobCompare' in clean || 'pobCompareOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyPobCompare' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
@@ -1505,6 +1518,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('will-quit', () => {
+  try { chatMacros?.stop(); } catch { /* ignore */ }
   globalShortcut.unregisterAll();
   stopHook();
   stopClipboardWatcher();

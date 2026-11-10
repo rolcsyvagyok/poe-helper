@@ -37,6 +37,26 @@ async function sendCopy({ advanced = false, held = [] } = {}) {
   return true;
 }
 
+/**
+ * A chat message: Enter opens the chat, the text goes in by paste (works with any keyboard layout), Enter
+ * sends it. Your clipboard is put back afterwards. send: false leaves it typed, e.g. "@last " for a reply.
+ */
+async function sendChat(text, { send = true, clipboard } = {}) {
+  if (!hook || !clipboard) return false;
+  const { uIOhook, UiohookKey } = hook;
+  const before = clipboard.readText();
+  for (const k of [UiohookKey.Shift, UiohookKey.Ctrl, UiohookKey.Alt]) { try { uIOhook.keyToggle(k, 'up'); } catch { /* ignore */ } }
+  clipboard.writeText(text);
+  uIOhook.keyTap(UiohookKey.Enter);
+  await wait(60);
+  uIOhook.keyTap(UiohookKey.V, [UiohookKey.Ctrl]);
+  await wait(60);
+  if (send) uIOhook.keyTap(UiohookKey.Enter);
+  await wait(120);
+  clipboard.writeText(before);
+  return true;
+}
+
 let started = false;
 const mouseListeners = new Set();
 
@@ -62,4 +82,4 @@ function stopHook() {
   if (hook && started) { try { hook.uIOhook.stop(); } catch { /* ignore */ } started = false; }
 }
 
-module.exports = { hasKeySender, sendCopy, onMouse, stopHook };
+module.exports = { hasKeySender, sendCopy, sendChat, onMouse, stopHook };
