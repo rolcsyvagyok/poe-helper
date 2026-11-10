@@ -368,7 +368,8 @@ function Paste() end
 ---@return string? compressedData
 ---@return string? errMsg
 function Deflate(data, isGzip)
-	-- TODO: add FFI bindings to `runtime/zlib1.dll` similar to what SimpleGraphic does
+	-- the app gives zlib to PoB (Node's)
+	if POEHELPER_DEFLATE then return POEHELPER_DEFLATE(data) end
 	return ""
 end
 
@@ -376,6 +377,7 @@ end
 ---@return string? data
 ---@return string? errMsg
 function Inflate(data)
+	if POEHELPER_INFLATE then return POEHELPER_INFLATE(data) end
 	return ""
 end
 

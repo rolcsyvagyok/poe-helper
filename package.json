@@ -1,13 +1,13 @@
 {
   "name": "poe-helper",
   "productName": "PoE Helper",
-  "version": "1.0.37",
+  "version": "1.0.38",
   "description": "Path of Exile helper: price check overlay, net worth tracking, local loot filter overrides. Built to make as few API calls as possible.",
   "main": "src/main/main.js",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/core.test.js test/main-logic.test.js test/tiers.test.js test/hotkeys.test.js test/lab.test.js test/regex.test.js test/beasts.test.js test/items.test.js test/gems.test.js test/pob.test.js test/where.test.js test/pob-trade.test.js",
+    "test": "node --test test/core.test.js test/main-logic.test.js test/tiers.test.js test/hotkeys.test.js test/lab.test.js test/regex.test.js test/beasts.test.js test/items.test.js test/gems.test.js test/pob.test.js test/where.test.js test/pob-trade.test.js test/pob-code.test.js",
     "dist": "node scripts/release-notes.js && electron-builder --win --publish never",
     "dist:dir": "node scripts/release-notes.js && electron-builder --win --dir",
     "dist:linux": "electron-builder --linux AppImage",

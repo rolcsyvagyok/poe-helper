@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { listBuilds, snapshotFile, pickCharacter, findPobDir } = require('../src/main/pob');
+const { listBuilds, snapshotFile, pickCharacter, findPobDir, withLastBuild, pobSettingsFiles } = require('../src/main/pob');
 
 test('PoB builds: every .xml in the folder, newest first; a folder without PoB is not taken', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pobb-'));
@@ -57,4 +57,16 @@ test('PoB item tester: DPS first, only what changes, weapon swap marked', () => 
   assert.strictEqual(ring.changes[1].diff, -100);
   assert.strictEqual(r.slots[1].swap, true);
   assert.strictEqual(r.slots[1].changes.length, 0);
+});
+
+test('Open in PoB: the build PoB opens at start is set, the rest of its settings stay', () => {
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<PathOfBuilding>\n\t<Mode mode="LIST">\n\t\t<Arg string=""/>\n\t</Mode>\n\t<Accounts lastAccountName="x"/>\n</PathOfBuilding>\n';
+  const out = withLastBuild(xml, 'C:\\B\\PoE Helper snapshots\\A & B.xml', 'A & B');
+  assert.match(out, /<Mode mode="BUILD">\s*<Arg string="C:\\B\\PoE Helper snapshots\\A &amp; B.xml"\/>\s*<Arg string="A &amp; B"\/>\s*<\/Mode>/);
+  assert.match(out, /<Accounts lastAccountName="x"\/>/);
+  assert.strictEqual((out.match(/<Mode /g) || []).length, 1);
+  assert.match(withLastBuild('<PathOfBuilding><Mode mode="BUILD"/></PathOfBuilding>', 'f.xml', 'f'), /<Arg string="f.xml"\/>/);
+  assert.match(withLastBuild('<PathOfBuilding>\n</PathOfBuilding>', 'f.xml', 'f'), /<PathOfBuilding>\n\t<Mode mode="BUILD">/);
+  assert.match(withLastBuild('', 'f.xml', 'f'), /^<\?xml[\s\S]*<Mode mode="BUILD">/);
+  assert.strictEqual(pobSettingsFiles(path.join('D', 'Path of Building', 'Builds'), 'D', 'P')[0], path.join('D', 'Path of Building', 'Settings.xml'));
 });

@@ -164,6 +164,32 @@ class PobEngine {
     return r;
   }
 
+  /** PoB's Calcs tab: every section and cell; and what PoB shows when you hover one. */
+  calcs() { return this.send({ op: 'calcs' }, 60000); }
+  breakdown(ref) { return this.send({ op: 'breakdown', ref }, 30000); }
+  /** PoB's Tree tab: the passive tree of the build, and what one node (and the path to it) does. */
+  tree() { return this.send({ op: 'tree' }, 60000); }
+  node(id) { return this.send({ op: 'node', id }, 60000); }
+  /** Allocate or remove a node like a click in PoB (a mastery needs its effect); undo the last change. */
+  treeEdit({ id, effect, undo, save = false, name } = {}) { return this.send({ op: 'treeEdit', id, effect, undo, save, name }, 60000); }
+  /** What each node is worth to the build, a piece at a time. */
+  power(from, count) { return this.send({ op: 'power', from, count }, 120000); }
+  /** The tree optimiser: start with the goal and limits, then one swap a step; end keeps the tree (saved) or not. */
+  optStart(o) { return this.send({ op: 'optStart', ...o }, 60000); }
+  optStep() { return this.send({ op: 'optStep' }, 180000); }
+  optEnd({ keep, name }) { return this.send({ op: 'optEnd', keep, name }, 60000); }
+  /** The best support gems for the main skill at a character level (apply keeps them; save returns the file). */
+  supportGems(o) { return this.send({ op: 'supportGems', ...o }, 240000); }
+  /** Timeless jewels: your sockets, then a search over every seed a piece at a time. */
+  timeless(op, o = {}) { return this.send({ op, ...o }, 180000); }
+  /** Run fn with another skill as the main one (with its best supports at that level), then take it out. */
+  async withSkill(asSkill, fn) {
+    if (!asSkill?.skill) return fn();
+    const on = await this.send({ op: 'asSkillOn', skill: asSkill.skill, links: asSkill.links, level: asSkill.level, quality: asSkill.quality }, 120000);
+    if (on.error) throw new Error(on.error);
+    try { const r = await fn(); return r && typeof r === 'object' && !Array.isArray(r) ? { ...r, asSkill: on } : r; } finally { await this.send({ op: 'asSkillOff' }, 60000).catch(() => {}); }
+  }
+
   /** What each mod is worth on a blank item in that slot (for trade weights). */
   weights(slot, lines) { return this.send({ op: 'weights', slot, lines }, 120000); }
 
@@ -249,4 +275,26 @@ function lastSnapshotOf(dir, charName) {
   return best?.file || null;
 }
 
-module.exports = { configFromXml, lastSnapshotOf, CONFIG_FROM_IMPORT, summarise, dpsOf, SHOW, PobEngine, snapshotFile, pickCharacter, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds };
+/**
+ * Path of Building opens the build it had open last (the Mode element of its Settings.xml). Pointing that at a
+ * build and starting PoB opens it there. Everything else in the settings is left as it is.
+ */
+function withLastBuild(settingsXml, file, name) {
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const mode = `<Mode mode="BUILD">\n\t\t<Arg string="${esc(file)}"/>\n\t\t<Arg string="${esc(name)}"/>\n\t</Mode>`;
+  let xml = String(settingsXml || '');
+  if (!/<PathOfBuilding\b/.test(xml)) return `<?xml version="1.0" encoding="UTF-8"?>\n<PathOfBuilding>\n\t${mode}\n</PathOfBuilding>\n`;
+  if (/<Mode\b[^>]*\/>/.test(xml)) return xml.replace(/<Mode\b[^>]*\/>/, mode);
+  if (/<Mode\b[\s\S]*?<\/Mode>/.test(xml)) return xml.replace(/<Mode\b[\s\S]*?<\/Mode>/, mode);
+  return xml.replace(/<PathOfBuilding\b[^>]*>/, (m) => `${m}\n\t${mode}`);
+}
+/** Where PoB keeps its Settings.xml: next to the Builds folder, in Documents, or in PoB's own folder (portable). */
+function pobSettingsFiles(buildsDir, documents, pobDir) {
+  const out = [];
+  if (buildsDir) out.push(path.join(path.dirname(buildsDir), 'Settings.xml'));
+  if (documents) out.push(path.join(documents, 'Path of Building', 'Settings.xml'));
+  if (pobDir) out.push(path.join(pobDir, 'Settings.xml'));
+  return [...new Set(out)];
+}
+
+module.exports = { withLastBuild, pobSettingsFiles, configFromXml, lastSnapshotOf, CONFIG_FROM_IMPORT, summarise, dpsOf, SHOW, PobEngine, snapshotFile, pickCharacter, findPobDir, isPobDir, pobDirs, buildsDirs, listBuilds };

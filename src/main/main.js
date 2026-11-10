@@ -153,7 +153,7 @@ function lockNavigation(win) {
 function openExternal(url) {
   try {
     const u = new URL(url);
-    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com)$/.test(u.hostname);
+    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com|pobb\.in|pob\.codes)$/.test(u.hostname);
     if (ok) shell.openExternal(u.toString());
   } catch { /* ignore */ }
 }
@@ -755,6 +755,70 @@ function registerIpc() {
     const img = await app.getFileIcon(exe, { size: 'normal' });
     return img.isEmpty() ? null : img.toDataURL();
   });
+  // build codes and links, like PoB's Import/Export tab; pobb.in for a link to share
+  const pobBuildFile = (file) => {
+    const st = pobState();
+    const real = path.resolve(String(file || ''));
+    const rel = path.relative(path.resolve(st.buildsDir), real);
+    if (!real.toLowerCase().endsWith('.xml') || !rel || rel.startsWith('..') || !fs.existsSync(real)) throw new Error('That build isn\'t in your Path of Building builds folder.');
+    return real;
+  };
+  const webText = async (url, opts = {}) => {
+    const r = await fetch(url, { ...opts, headers: { 'User-Agent': `PoE Helper/${app.getVersion()}`, ...(opts.headers || {}) }, signal: AbortSignal.timeout(20000) });
+    const t = await r.text();
+    if (!r.ok) throw new Error(`${new URL(url).hostname} said ${r.status}${t && t.length < 200 ? `: ${t.trim()}` : ''}`);
+    return t;
+  };
+  // the code goes straight to the clipboard (codes are long)
+  handle('pob:exportCode', (file) => { const code = require('../core/pob-code').encode(fs.readFileSync(pobBuildFile(file), 'utf8')); clipboard.writeText(code); return { length: code.length }; });
+  handle('pob:sharePobb', async (file) => {
+    const code = require('../core/pob-code').encode(fs.readFileSync(pobBuildFile(file), 'utf8'));
+    const id = (await webText('https://pobb.in/pob/', { method: 'POST', body: code, headers: { 'Content-Type': 'text/plain' } })).trim();
+    if (!/^[\w-]{3,64}$/.test(id)) throw new Error('pobb.in didn\'t send a link back.');
+    return { url: `https://pobb.in/${id}` };
+  });
+  handle('pob:importCode', async ({ text, name } = {}) => {
+    const C = require('../core/pob-code');
+    let code = String(text || '').trim();
+    if (!code) throw new Error('Paste a Path of Building code or link first.');
+    let site = null;
+    if (C.isLink(code)) {
+      const src = C.linkSource(code);
+      if (!src) throw new Error('Path of Building doesn\'t import from that site. Links from pobb.in, pob.codes, poe.ninja, Maxroll, Pastebin, Rentry and poedb work.');
+      site = src.site;
+      code = (await webText(src.raw)).trim();
+    }
+    const xml = C.decode(code);
+    const info = C.infoFromXml(xml);
+    const st = pobState();
+    const dir = path.join(st.buildsDir, 'PoE Helper snapshots');
+    fs.mkdirSync(dir, { recursive: true });
+    const d = new Date();
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}`;
+    const base = String(name || '').trim() || `Imported ${[info.ascendancy || info.className, info.level, info.skill].filter(Boolean).join(' ')}`;
+    const clean = base.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').slice(0, 80).trim() || 'Imported build';
+    let file = path.join(dir, `${clean} ${stamp}.xml`);
+    for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${clean} ${stamp} (${i}).xml`);
+    fs.writeFileSync(file, xml, 'utf8');
+    return { file, info, site };
+  });
+  // open a build in Path of Building itself: PoB starts with the build it had open last, so that is set first
+  handle('pob:openInPob', (file) => {
+    const st = pobState();
+    if (!st.dir) throw new Error('Path of Building wasn\'t found. Choose its folder on the Snapshot tab.');
+    const exe = ['Path of Building.exe', 'Path of Building-PoE2.exe'].map((n) => path.join(st.dir, n)).find((f) => fs.existsSync(f));
+    if (!exe) throw new Error('Path of Building.exe isn\'t in the Path of Building folder.');
+    const real = path.resolve(String(file || ''));
+    if (!real.toLowerCase().endsWith('.xml') || !fs.existsSync(real) || !path.relative(path.resolve(st.buildsDir), real) || path.relative(path.resolve(st.buildsDir), real).startsWith('..')) throw new Error('That build isn\'t in your Path of Building builds folder.');
+    const P = require('./pob');
+    const settings = P.pobSettingsFiles(st.buildsDir, app.getPath('documents'), st.dir).find((f) => fs.existsSync(f)) || P.pobSettingsFiles(st.buildsDir, app.getPath('documents'), st.dir)[0];
+    const before = fs.existsSync(settings) ? fs.readFileSync(settings, 'utf8') : '';
+    if (before) fs.writeFileSync(`${settings}.poehelper-backup`, before, 'utf8');
+    fs.writeFileSync(settings, P.withLastBuild(before, real, path.basename(real, '.xml')), 'utf8');
+    const child = require('child_process').spawn(exe, [], { cwd: st.dir, detached: true, stdio: 'ignore' });
+    child.unref();
+    return { ok: true };
+  });
   handle('pob:set', (a = {}) => {
     const cur = services.settings.get('pob') || {};
     const next = { ...cur };
@@ -821,10 +885,86 @@ function registerIpc() {
     if (r.error) return { error: r.error };
     return require('./pob').summarise(r);
   }));
-  handle('pob:upgrades', (file) => pobWith(file, () => pob.upgrades()));
+  handle('pob:upgrades', (a) => { const { file, asSkill } = typeof a === 'string' ? { file: a } : a || {}; return pobWith(file, () => pob.withSkill(asSkill, () => pob.upgrades())); });
+  handle('pob:calcs', (file) => pobWith(file, () => pob.calcs()));
+  handle('pob:breakdown', ({ file, ref } = {}) => pobWith(file, () => pob.breakdown(String(ref || ''))));
+  handle('pob:tree', (file) => pobWith(file, async () => ({ ...(await pob.tree()), editable: pobIsSnapshot(file) })));
+  handle('pob:node', ({ file, id } = {}) => pobWith(file, () => pob.node(Number(id) || 0)));
+  handle('pob:power', ({ file, from, count } = {}) => pobWith(file, () => pob.power(Number(from) || 0, Number(count) || 150)));
+  // the tree optimiser, on snapshots only; nothing is saved until you keep the result
+  handle('pob:optStart', ({ file, ...o } = {}) => {
+    if (!pobIsSnapshot(file)) throw new Error('Only snapshots are optimised here; take a snapshot of your character first.');
+    return pobWith(file, () => pob.optStart({ goal: ['d', 'l', 'e'].includes(o.goal) ? o.goal : 'd', lifePct: Number(o.lifePct ?? 100), ehpPct: Number(o.ehpPct ?? 95), dpsPct: Number(o.dpsPct ?? 90), keepRes: o.keepRes !== false, keepChaos: !!o.keepChaos, useFree: !!o.useFree, maxIter: Math.min(80, Math.max(1, Number(o.maxIter) || 40)) }));
+  });
+  handle('pob:optStep', ({ file } = {}) => pobWith(file, async () => ({ ...(await pob.optStep()), editable: true })));
+  handle('pob:optEnd', ({ file, keep } = {}) => pobWith(file, async () => {
+    const r = await pob.optEnd({ keep: !!keep, name: path.basename(file, '.xml') });
+    if (keep) {
+      if (!r.xml) throw new Error('Path of Building did not save the build.');
+      fs.writeFileSync(file, r.xml, 'utf8');
+      pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r.summary };
+    } else pob.loaded = null; // opened again from the file: the tree as it was
+    return { kept: !!keep };
+  }));
+  // the trade site with these timeless jewel seeds (cheapest first), in your league
+  handle('pob:timelessTrade', async ({ ids, seeds } = {}) => {
+    const league = await services.getLeague();
+    const filters = (seeds || []).slice(0, 40).flatMap((seed) => (ids || []).filter((id) => /^explicit\.pseudo_timeless_jewel_\w+$/.test(id)).map((id) => ({ id, value: { min: Number(seed), max: Number(seed) } })));
+    const q = { query: { status: { option: services.settings.get('tradeStatus') || 'securable' }, stats: [{ type: 'count', value: { min: 1 }, filters }] }, sort: { price: 'asc' } };
+    openExternal(`https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify(q))}`);
+    return { ok: true };
+  });
+  // the levelling plan: the order to take the tree in (gems per level come from pob:supportGems)
+  handle('pob:levelPlan', ({ file, op, ...o } = {}) => {
+    if (!['levelPlanStart', 'levelPlanStep', 'activeSkills', 'levelSkill'].includes(op)) throw new Error('Unknown levelling plan request.');
+    return pobWith(file, () => pob.timeless(op, o));
+  });
+  // timeless jewels: every seed in one of your sockets, scored by PoB; "keep" puts the chosen one in the snapshot
+  handle('pob:timeless', ({ file, op, ...o } = {}) => {
+    const ops = ['timelessSockets', 'timelessStart', 'timelessStep', 'timelessResults', 'timelessShow', 'timelessEnd'];
+    if (!ops.includes(op)) throw new Error('Unknown timeless jewel request.');
+    if (op === 'timelessEnd' && o.keep && !pobIsSnapshot(file)) throw new Error('Only snapshots are changed here.');
+    return pobWith(file, async () => {
+      const r = await pob.timeless(op, op === 'timelessEnd' ? { keep: !!o.keep, seed: Number(o.seed) || null, save: !!o.keep, name: path.basename(file, '.xml') } : o);
+      if (op === 'timelessEnd' && o.keep) {
+        if (!r.xml) throw new Error('Path of Building did not save the build.');
+        fs.writeFileSync(file, r.xml, 'utf8');
+        delete r.xml;
+        pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r.summary };
+      }
+      return r;
+    });
+  });
+  // the best support gems for the main skill; "apply" puts them in the snapshot
+  handle('pob:supportGems', ({ file, apply, ...o } = {}) => {
+    if (apply && !pobIsSnapshot(file)) throw new Error('Only snapshots are changed here; change your own builds in Path of Building.');
+    return pobWith(file, async () => {
+      const opts = { level: Number(o.level) || null, quality: Number(o.quality ?? 20), awakened: !!o.awakened, exceptional: !!o.exceptional, keep: Array.isArray(o.keep) ? o.keep.map(Number) : [] };
+      const r = await pob.supportGems({ ...opts, apply: !!apply, save: !!apply, name: path.basename(file, '.xml') });
+      if (apply && r.xml) {
+        fs.writeFileSync(file, r.xml, 'utf8');
+        delete r.xml;
+        pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r.summary };
+      }
+      return { ...r, editable: pobIsSnapshot(file) };
+    });
+  });
+  // the tree of a snapshot changed here (your own builds are changed in Path of Building)
+  handle('pob:treeEdit', ({ file, id, effect, undo } = {}) => {
+    if (!pobIsSnapshot(file)) throw new Error('Only snapshots are changed here; open your own builds in Path of Building to change them.');
+    return pobWith(file, async () => {
+      const r = await pob.treeEdit({ id: Number(id) || null, effect: Number(effect) || null, undo: !!undo, save: true, name: path.basename(file, '.xml') });
+      if (r.error || r.needEffect) return r;
+      if (!r.xml) throw new Error('Path of Building did not save the build.');
+      fs.writeFileSync(file, r.xml, 'utf8');
+      delete r.xml;
+      pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r.summary };
+      return { ...r, editable: true };
+    });
+  });
   // "find the best item for me": a weighted-sum trade search made from what PoB says each stat is worth
   // (2 trade requests: the search and the top 10 listings, which PoB then tests in that slot)
-  handle('pob:findItem', (a = {}) => pobWith(a.file, () => pobFindItem(a)));
+  handle('pob:findItem', (a = {}) => pobWith(a.file, () => pob.withSkill(a.asSkill, () => pobFindItem(a))));
   handle('regex:campaignBuild', (a) => services.regexCampaignBuild(a || {}));
   handle('regex:beastBuild', (a) => services.regexBeastBuild(a || {}));
   handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
@@ -1039,13 +1179,28 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
   const f = T.FOCUS[focus] || T.FOCUS.balanced;
   const curWorth = (f.dps * (w.current.dpsPct || 0) + f.ehp * (w.current.ehpPct || 0)) * scale;
   const minSum = betterOnly && curWorth > 0 ? curWorth * 0.9 : 0;
-  const body = T.buildWeightedQuery({ weights, category: T.CATEGORY[w.type], maxLevel, maxPriceChaos, minSum, status: services.settings.get('tradeStatus') || 'securable' });
-  let res;
-  try { res = await services.ggg.tradeSearch(league, body, { login: true }); } catch (e) {
-    log('pob trade search refused', e.message, JSON.stringify(body));
-    throw e;
+  const make = (list, min) => T.buildWeightedQuery({ weights: list, category: T.CATEGORY[w.type], maxLevel, maxPriceChaos, minSum: min, status: services.settings.get('tradeStatus') || 'securable' });
+  // the whole search, opened on the trade site itself (your browser is logged in there, so it allows more filters)
+  const full = make(found.weights.slice(0, 35), minSum);
+  const siteUrl = `https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify({ query: full.query, sort: full.sort }))}`;
+  // "Query is too complex": try again with fewer stats (the ones worth most); with fewer stats the sum of an item
+  // as good as yours isn't known, so those searches only sort by it
+  const sizes = [...new Set([weights.length, 15, 8, 5].filter((n) => n <= weights.length))];
+  let res = null;
+  let used = weights;
+  let refused = null;
+  for (const n of sizes) {
+    used = weights.slice(0, n);
+    const body = make(used, n === weights.length ? minSum : 0);
+    try { res = await services.ggg.tradeSearch(league, body, { login: true }); refused = null; break; } catch (e) {
+      log('pob trade search refused', n, e.message);
+      refused = e;
+      if (!/too complex|reduce the amount of filters/i.test(e.message)) break;
+    }
   }
-  const out = { slot, type: w.type, base: w.base, current: w.currentName, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, weights: weights.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum, listings: [], loggedIn, leftOut: found.weights.length - weights.length };
+  const base = { slot, type: w.type, base: w.base, current: w.currentName, siteUrl, weights: used.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum: used.length === weights.length ? minSum : 0, listings: [], loggedIn, leftOut: found.weights.length - used.length };
+  if (!res) return { ...base, refused: refused?.message || 'The trade site refused the search.', url: siteUrl, total: 0 };
+  const out = { ...base, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0 };
   if (!res.result?.length) return out;
   const fetched = await services.ggg.tradeFetch(res.id, res.result.slice(0, 10));
   for (const r of fetched.result || []) {

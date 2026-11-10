@@ -8,6 +8,7 @@
 const path = require('path');
 
 let call = null;
+const keep = []; // callbacks Lua holds on to
 
 function start({ pobDir, hostSource, stubSource }) {
   const koffi = require('koffi');
@@ -24,6 +25,31 @@ function start({ pobDir, hostSource, stubSource }) {
 
   const L = newstate();
   openlibs(L);
+  // Inflate and Deflate for PoB (its timeless jewel tables are zlib files): SimpleGraphic gives them to PoB,
+  // headless they come from Node's zlib
+  const zlib = require('zlib');
+  const LuaCFunction = koffi.proto('int LuaCFunction(void* L)');
+  const pushcclosure = lib.func('void lua_pushcclosure(void* L, LuaCFunction* fn, int n)');
+  const setfield = lib.func('void lua_setfield(void* L, int idx, const char* k)');
+  const tobytes = lib.func('const void* lua_tolstring(void* L, int idx, _Out_ size_t* len)');
+  const pushbytes = lib.func('void lua_pushlstring(void* L, const uint8_t* s, size_t len)');
+  const pushnil = lib.func('void lua_pushnil(void* L)');
+  const argBytes = (Ls) => {
+    const len = [0];
+    const ptr = tobytes(Ls, 1, len);
+    if (!ptr || !len[0]) return Buffer.alloc(0);
+    return Buffer.from(koffi.view(ptr, len[0]));
+  };
+  const zfn = (fn) => koffi.register((Ls) => {
+    try {
+      const out = fn(argBytes(Ls));
+      pushbytes(Ls, out, out.length);
+    } catch { pushnil(Ls); }
+    return 1;
+  }, koffi.pointer(LuaCFunction));
+  keep.push(zfn((b) => { try { return zlib.inflateSync(b); } catch { return zlib.gunzipSync(b); } }), zfn((b) => zlib.deflateSync(b)));
+  pushcclosure(L, keep[0], 0); setfield(L, GLOBALS, 'POEHELPER_INFLATE');
+  pushcclosure(L, keep[1], 0); setfield(L, GLOBALS, 'POEHELPER_DEFLATE');
   const run = (code, name) => {
     if (loadbuffer(L, code, Buffer.byteLength(code), name) || pcall(L, 0, 0, 0)) {
       const err = tostr(L, -1, null);
