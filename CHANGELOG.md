@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.43 - 2026-11-10
+
+- Notes for developers who work on PoE Helper (how it is built and released). Nothing changes in the app itself.
+
 ## 1.0.42 - 2026-11-10
 
 - **Tree changes stand out**: nodes the optimiser takes get a bright blue ring with a glow, nodes it gives up an orange ring and a cross; a + or − badge says which is which. Both sit on a dark band so they show over the node art. The connections it takes are blue and the ones it gives up dashed orange. Pointing at a swap dims the rest of the tree.
