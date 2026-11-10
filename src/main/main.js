@@ -418,14 +418,34 @@ function trayImage() {
   return appIconImage().resize({ width: 16, height: 16, quality: 'best' });
 }
 
-// A PNG inside an .ico wrapper (Windows reads PNG-compressed icons), so the taskbar can use your own icon
-function pngToIco(png) {
-  const head = Buffer.alloc(22);
-  head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(1, 4);
-  head.writeUInt8(0, 6); head.writeUInt8(0, 7); // 256 x 256
-  head.writeUInt16LE(1, 10); head.writeUInt16LE(32, 12);
-  head.writeUInt32LE(png.length, 14); head.writeUInt32LE(22, 18);
-  return Buffer.concat([head, png]);
+// An .ico from any picture: a PNG entry for 256 px and classic 32-bit bitmaps for the small sizes, because
+// the taskbar and title bar can't always read PNG-compressed small icons (they show a blank square)
+function imageToIco(img) {
+  const sizes = [256, 48, 32, 24, 16];
+  const datas = sizes.map((s) => {
+    const im = img.resize({ width: s, height: s, quality: 'best' });
+    if (s >= 256) return im.toPNG();
+    const bgra = im.toBitmap(); // top-down BGRA rows
+    const row = s * 4;
+    const xor = Buffer.alloc(row * s);
+    for (let y = 0; y < s; y++) bgra.copy(xor, (s - 1 - y) * row, y * row, (y + 1) * row); // bitmaps go bottom-up
+    const and = Buffer.alloc(Math.ceil(s / 32) * 4 * s);
+    const head = Buffer.alloc(40);
+    head.writeUInt32LE(40, 0); head.writeInt32LE(s, 4); head.writeInt32LE(s * 2, 8);
+    head.writeUInt16LE(1, 12); head.writeUInt16LE(32, 14); head.writeUInt32LE(xor.length + and.length, 20);
+    return Buffer.concat([head, xor, and]);
+  });
+  const dir = Buffer.alloc(6 + 16 * sizes.length);
+  dir.writeUInt16LE(1, 2); dir.writeUInt16LE(sizes.length, 4);
+  let off = dir.length;
+  sizes.forEach((s, i) => {
+    const e = 6 + 16 * i;
+    dir.writeUInt8(s % 256, e); dir.writeUInt8(s % 256, e + 1);
+    dir.writeUInt16LE(1, e + 4); dir.writeUInt16LE(32, e + 6);
+    dir.writeUInt32LE(datas[i].length, e + 8); dir.writeUInt32LE(off, e + 12);
+    off += datas[i].length;
+  });
+  return Buffer.concat([dir, ...datas]);
 }
 
 /**
@@ -441,7 +461,7 @@ function taskbarIcon() {
       const img = nativeImage.createFromPath(customIconPath());
       if (!img.isEmpty()) {
         iconPath = path.join(app.getPath('userData'), 'app-icon.ico');
-        fs.writeFileSync(iconPath, pngToIco(img.resize({ width: 256, height: 256, quality: 'best' }).toPNG()));
+        fs.writeFileSync(iconPath, imageToIco(img));
       }
     } else if (iconStyle() === 'classic') {
       iconPath = path.join(app.getPath('userData'), 'app-icon-classic.ico');
