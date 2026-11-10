@@ -1400,7 +1400,7 @@ function pricedGroup(type) {
 const CATEGORIES = [
   ['Currency', [
     { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], order: ['currency', SCROLLS_KEY], art: 'Divine Orb', icon: 'coin' },
-    { id: 'stacked', name: 'Stacked', match: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], order: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom'], art: ['Chaos Orb'], icon: 'coins' },
+    { id: 'stacked', name: 'Stacked', match: ['currency->stackedthree', 'currency->stackedsix', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], order: ['currency->stackedthree', 'currency->stackedsix', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom'], art: ['Chaos Orb'], icon: 'coins' },
   ]],
   ['Fragments', [
     { id: 'fragments', name: 'Other fragments', match: ['fragments', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
@@ -1507,7 +1507,8 @@ async function saveLayout(next) {
 /** Name of a subcategory inside its category: "currency->trial->omen" in Trial is just "Omens". */
 // Shown another way: NeverSink's economy cluster tiers are the Cluster enchantments grid.
 // Cluster jewels opens the enchantment grid; the size tiers ("Large: the rest", ...) are edited from there
-const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster', 'exotic->fractured']); // fractured: Base ranks decides those
+// stackedsupplies high/low (Transmutes, Augmentations): folded into Small stacks when the filter is written
+const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster', 'exotic->fractured', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow']); // fractured: Base ranks decides those
 // scarabs leave the game, so their pages aren't listed (the filter's own scarab rules stay as FilterBlade wrote them)
 const GONE = (key) => /^(fragments->scarabs|scarabs)(->|#|@|$)/.test(String(key));
 const CLUSTER_SIZE_TYPE = 'jewels->cluster';

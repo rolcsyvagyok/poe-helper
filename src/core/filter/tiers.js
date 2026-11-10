@@ -223,11 +223,35 @@ function foldInfo(types) {
   }
   return info;
 }
-/** The patch with Tier 7+ folded into Tier 6 (automatic moves first, then yours, yours into Tier 7+ redirected). */
-function foldedPatch(text, patch = {}) {
-  const info = foldInfo(extractTiers(parse(text)));
-  if (!info.size) return patch;
+// ---- stacked supplies ----
+// FilterBlade's "Supplies: High/Low Stacking" (Orb of Transmutation, Orb of Augmentation in stacks of 3+)
+// are folded into Small stacks: their bases join its lowest shown tier, which already starts at 3, and
+// their own blocks lose those bases, so they are commented out (an empty base list never reaches the game).
+const SUPPLY_TYPES = ['currency->stackedsupplieshigh', 'currency->stackedsupplieslow'];
+const SMALL_STACKS = 'currency->stackedthree';
+const GONE = '__folded__'; // a tier that doesn't exist: the base leaves every tier of that type
+function supplyMoves(types) {
+  const small = types.find((t) => t.type === SMALL_STACKS);
+  if (!small) return {};
+  // the lowest tier of Small stacks that is switched on and has bases (Tier 6 on FilterBlade's filters)
+  const shown = small.tiers.filter((x) => !x.off && x.bases.length && x.action !== 'Hide');
+  const low = shown[shown.length - 1];
+  if (!low) return {};
   const moves = {};
+  for (const type of SUPPLY_TYPES) {
+    const t = types.find((x) => x.type === type);
+    for (const tier of t?.tiers || []) for (const b of tier.bases) { moves[`${type}\t${b}`] = GONE; moves[`${SMALL_STACKS}\t${b}`] = low.tier; }
+  }
+  return moves;
+}
+
+/** The patch with Tier 7+ folded into Tier 6 and the stacked supplies folded into Small stacks (automatic moves first, then yours, yours into Tier 7+ redirected). */
+function foldedPatch(text, patch = {}) {
+  const types = extractTiers(parse(text));
+  const info = foldInfo(types);
+  const supply = supplyMoves(types);
+  if (!info.size && !Object.keys(supply).length) return patch;
+  const moves = { ...supply };
   for (const [type, f] of info) {
     for (const x of f.tiers) if (f.folded.has(x.tier)) for (const b of x.bases) if (!FOLD_KEEP.has(b)) moves[`${type}\t${b}`] = f.six;
   }

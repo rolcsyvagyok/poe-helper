@@ -54,7 +54,7 @@
   // ---------------------------------------------------------------- item tester (on the Build tab), like PoB's Items tab:
   // paste or copy an item, see PoB's own tooltip with what equipping it in each slot gives
   function itemTester() {
-    const ta = h('textarea', { rows: 4, placeholder: 'Paste an item: hover it in game, press Ctrl+C, then paste here (Ctrl+V). With "Test every item I copy" on, just copy it in game.', style: { width: '100%', fontFamily: 'var(--mono, monospace)', fontSize: '12.5px' } }, PB.text);
+    const ta = h('textarea', { rows: 4, placeholder: 'Press Ctrl+V with an item copied (Ctrl+C on it in game): it is tested right away. With "Test every item I copy" on, just copy it in game.', style: { width: '100%', fontFamily: 'var(--mono, monospace)', fontSize: '12.5px' } }, PB.text);
     const out = h('div', { class: 'stack' });
     const run = async () => {
       PB.text = ta.value;
@@ -65,6 +65,19 @@
     };
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) run(); });
     ta.addEventListener('paste', () => setTimeout(run, 0));
+    // Ctrl+V anywhere on the Build tab (not in another box) pastes the item here and tests it
+    if (PB.pasteHandler) document.removeEventListener('paste', PB.pasteHandler);
+    PB.pasteHandler = (e) => {
+      if (!ta.isConnected) { document.removeEventListener('paste', PB.pasteHandler); PB.pasteHandler = null; return; }
+      const t = e.target;
+      if (t === ta || (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) || t?.isContentEditable) return;
+      const text = e.clipboardData?.getData('text') || '';
+      if (!/Rarity:/.test(text)) return;
+      e.preventDefault();
+      ta.value = text;
+      run();
+    };
+    document.addEventListener('paste', PB.pasteHandler);
     if (PB.results.test && PB.results.test.text === PB.text && PB.results.test.file === PB.file) showTip(out);
     else if (PB.text && (PB.autoRun || PB.results.test?.file !== PB.file)) { PB.autoRun = false; setTimeout(run, 0); }
     const watching = PB.st?.watchClipboard !== false;
@@ -75,7 +88,7 @@
           'Test every item I copy in game (Ctrl+C)'),
         h('span', { class: 'spacer' }),
         h('button', { class: 'sm', title: 'Use the item you copied last', onclick: async () => { const t = await call('clipboard:item').catch(() => null); if (!t) return toast('The clipboard has no Path of Exile item. Press Ctrl+C on one in game first.', true); ta.value = t; run(); } }, 'Paste from clipboard'),
-        h('button', { class: 'primary sm', onclick: run }, 'Test')),
+        null),
       PB.recent.length > 1 ? h('div', { class: 'row small', style: { gap: '6px', flexWrap: 'wrap' } }, h('span', { class: 'muted' }, 'Copied before:'),
         PB.recent.slice(1).map((t) => h('button', { class: 'quiet sm', onclick: () => { PB.text = t; PB.results.test = null; PB.autoRun = true; render(); } }, nameOf(t)))) : null,
       ta, out,
@@ -197,7 +210,8 @@
     const gems = h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Gems'), (r.gems || []).map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') + (g.main ? ' main' : '') },
       h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.main ? ' · main skill' : '', g.enabled ? '' : ' · off'),
       h('div', {}, g.gems.map((x, i) => h('span', { class: (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, i ? ' · ' : '', `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`))))));
-    return [head, itemTester(), h('div', { class: 'pob-grid' }, groups, skills), h('div', { class: 'pob-grid' }, gear, gems)];
+    // the item tester sits in its own column on the right, next to the stats
+    return [head, h('div', { class: 'pob-buildcols' }, h('div', { class: 'stack', style: { gap: '12px', minWidth: 0 } }, h('div', { class: 'pob-grid' }, groups, skills), h('div', { class: 'pob-grid' }, gear, gems)), h('div', { class: 'pob-side' }, itemTester()))];
   }
 
   // the exact item, like the game's tooltip, when you point at a gear row
@@ -1156,6 +1170,7 @@
   // ---------------------------------------------------------------- Calcs (PoB's tab): hover a number for its breakdown
   // PoB's colour codes (^0-^9, ^xRRGGBB) as coloured text
   const POB_COLOURS = ['#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#b3b3b3', '#666666'];
+  const CB_SAFE = { '#33ff77': '#6cb4ff', '#dd0022': '#ff8a3d', '#00ff00': '#6cb4ff', '#ff0000': '#ff8a3d' };
   function pobText(str) {
     const out = [];
     let colour = null;
@@ -1167,6 +1182,8 @@
     while ((m = re.exec(text))) {
       push(text.slice(last, m.index));
       colour = m[1] ? `#${m[1]}` : POB_COLOURS[Number(m[2])];
+      // PoB's gain green and loss red: the app's colour-blind safe blue and orange instead
+      colour = CB_SAFE[String(colour).toLowerCase()] || colour;
       last = re.lastIndex;
     }
     push(text.slice(last));

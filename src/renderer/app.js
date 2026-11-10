@@ -54,12 +54,17 @@ function go(page) {
   pages[page]().catch((e) => console.error(e));
 }
 
+// the icon next to the app's name: the bare flask, or your chosen icon
+function setBrandIcon() {
+  call('appIcon:get', 'mark').then((u) => { const el = document.getElementById('brandIcon'); if (el && u) { el.src = u; el.classList.toggle('boxed', !!S.settings?.customAppIcon || S.settings?.appIconStyle === 'classic'); } }).catch(() => {});
+}
+
 async function refreshState() {
   Object.assign(S, await call('state:get'));
   if (!S.sounds.length) S.sounds = await call('sounds:list').catch(() => []);
   window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
   window.UI.applyTheme(S.settings.uiTheme);
-  call('appIcon:get').then((u) => { const el = document.getElementById('brandIcon'); if (el && u) el.src = u; }).catch(() => {});
+  setBrandIcon();
   if (!S.iconsLoaded) { S.userIcons = await call('icons:list').catch(() => []); UI.setUserIcons(S.userIcons); S.iconsLoaded = true; }
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
@@ -225,13 +230,18 @@ function mdBlock(md) {
   }
   return nodes;
 }
-function notesSection(entries) {
+const NOTES_SHOWN = 5;
+const RELEASES_URL = 'https://github.com/rolcsyvagyok/poe-helper/releases';
+function notesSection(all) {
+  // the last few versions; every older one is on GitHub
+  const entries = all.slice(0, NOTES_SHOWN);
   const open = new Set([entries[0]?.version]);
-  return section('Patch notes', 'What changed in each version. The newest is on top.',
+  return section('Patch notes', `What changed in the last ${NOTES_SHOWN} versions. The newest is on top.`,
     h('div', { class: 'panel stack notes', id: 'patch-notes' },
       entries.length ? entries.map((e, i) => h('details', { open: open.has(e.version) || null, class: 'notes-entry' },
         h('summary', {}, h('b', {}, `Version ${e.version}`), e.date ? h('span', { class: 'faint' }, ` · ${fmtDate(e.date)}`) : null, e.version === S.ver?.version ? h('span', { class: 'pill', style: { marginLeft: '8px' } }, 'yours') : null),
-        h('div', { class: 'notes-body' }, mdBlock(e.notes)))) : h('p', { class: 'small muted' }, 'No patch notes in this copy.')));
+        h('div', { class: 'notes-body' }, mdBlock(e.notes)))) : h('p', { class: 'small muted' }, 'No patch notes in this copy.'),
+      all.length > NOTES_SHOWN ? h('p', { class: 'small muted' }, 'Older versions: ', h('a', { href: RELEASES_URL, target: '_blank', rel: 'noopener' }, 'every release on GitHub'), '.') : null));
 }
 
 // ---------------- shared bits ----------------
@@ -979,8 +989,8 @@ function appIconBox(st) {
   return [img,
     h('div', { class: 'stack', style: { gap: '6px', flex: 1 } },
       h('div', { class: 'row' },
-        [['flask', 'Flask'], ['classic', 'Classic']].map(([k, label]) => h('button', { class: !st.customAppIcon && (st.appIconStyle || 'flask') === k ? 'primary' : 'quiet', 'aria-pressed': String(!st.customAppIcon && (st.appIconStyle || 'flask') === k), onclick: async () => { img.src = await call('appIcon:style', k); const b = document.getElementById('brandIcon'); if (b) b.src = img.src; toast(`${label} icon`); renderSettings(); } }, label)),
-        h('button', { class: st.customAppIcon ? 'primary' : 'quiet', onclick: async () => { const u = await call('appIcon:pick'); if (u) { img.src = u; const b = document.getElementById('brandIcon'); if (b) b.src = u; toast('Icon changed'); renderSettings(); } } }, 'Choose an image…'),
+        [['flask', 'Flask'], ['classic', 'Classic']].map(([k, label]) => h('button', { class: !st.customAppIcon && (st.appIconStyle || 'flask') === k ? 'primary' : 'quiet', 'aria-pressed': String(!st.customAppIcon && (st.appIconStyle || 'flask') === k), onclick: async () => { img.src = await call('appIcon:style', k); S.settings.appIconStyle = k; S.settings.customAppIcon = false; setBrandIcon(); toast(`${label} icon`); renderSettings(); } }, label)),
+        h('button', { class: st.customAppIcon ? 'primary' : 'quiet', onclick: async () => { const u = await call('appIcon:pick'); if (u) { img.src = u; S.settings.customAppIcon = true; setBrandIcon(); toast('Icon changed'); renderSettings(); } } }, 'Choose an image…'),
         null),
       h('span', { class: 'small muted' }, 'Any .png, .jpg or .ico. It is cropped to a square; simple shapes read best at tray size (16 px). The desktop shortcut keeps its own icon.'))];
 }

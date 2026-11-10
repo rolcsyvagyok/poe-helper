@@ -3,6 +3,16 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.46 - 2026-11-10
+
+- **Stacked currency is simpler**: Small stacks come first, then Big stacks. Transmutes and Augmentations no longer have categories of their own: Orb of Transmutation and Orb of Augmentation join the lowest tier of Small stacks (3 or more), and FilterBlade's own blocks for them are switched off safely, so the filter still loads in game.
+- **The menu is grouped**: Overview on top, then **Loot** (Loot filter, Tier designer), **Wealth** (WealthyExile, What to farm) and **Tools** (Path of Building, Regex, Daily lab), with Settings at the bottom.
+- **Patch notes** show the last 5 versions, with a link to every release on GitHub.
+- **Item tester** sits in its own column to the right of the stats on the Build tab (under them on a narrow window). There's no Test button any more: press Ctrl+V anywhere on the tab with an item copied and it is tested straight away. Gains and losses in Path of Building's tooltips are blue and orange too.
+
+- **Taskbar icon, second try**: Windows ignored the icon PoE Helper gave the taskbar unless a "relaunch command" came with it, so the taskbar could still show a blank square. Now both are set, the window gets its icon from the real .ico file, and a copy run from the source folder gets its own taskbar identity so it never borrows the installed app's.
+- **Small icons are clearer**: the tray and the small sizes of the app icon use a version drawn for small sizes (closer on the flask, brighter red, no smoky texture), and the menu shows the bare flask with a soft red glow instead of a dark square on the dark menu.
+
 ## 1.0.45 - 2026-11-10
 
 - **Colour-blind friendly everywhere**: gains, losses, on and off are now blue and orange across the whole app (Compare snapshots, net worth per hour, prices, regex picks and more), like the tree. The + and − signs stay.

@@ -12,6 +12,9 @@ const { createServices } = require('./services');
 const LAB_PARTITION = 'persist:poelab';
 const labWait = (ms) => new Promise((r) => setTimeout(r, ms));
 const isChallenge = (html) => /cf-challenge|challenge-platform|Just a moment|Verify you are human|cf-turnstile/i.test(html) && !/wp-content\/labfiles/i.test(html);
+// The installed app and a copy run from the source folder get their own taskbar identity, so Windows
+// never mixes up their icons
+const APP_ID = app.isPackaged ? 'dev.poehelper.app' : 'dev.poehelper.app.source';
 const labBrowser = {
   async text(url) {
     if (!/^https:\/\/www\.poelab\.com\//.test(url)) throw new Error('Only poelab pages are opened this way.');
@@ -445,12 +448,14 @@ function taskbarIcon() {
       fs.writeFileSync(iconPath, fs.readFileSync(path.join(ASSETS, 'icon-classic.ico')));
     }
   } catch { /* keep the app's icon */ }
+  // Windows ignores the icon unless a relaunch command is set too; run from the source folder that is
+  // electron.exe plus the app folder, the same thing the PoE Helper shortcut starts
+  const relaunchCommand = app.isPackaged ? `"${process.execPath}"` : `"${process.execPath}" "${app.getAppPath()}"`;
   try {
-    mainWin.setAppDetails({
-      appId: 'dev.poehelper.app', appIconPath: iconPath, appIconIndex: 0,
-      ...(app.isPackaged ? { relaunchCommand: `"${process.execPath}"`, relaunchDisplayName: 'PoE Helper' } : {}),
-    });
+    mainWin.setAppDetails({ appId: APP_ID, appIconPath: iconPath, appIconIndex: 0, relaunchCommand, relaunchDisplayName: 'PoE Helper' });
   } catch { /* older Windows */ }
+  // and the window's own big and small icons, from the real file
+  try { const img = nativeImage.createFromPath(iconPath === process.execPath ? assetFile('icon', '.ico') : iconPath); if (!img.isEmpty()) mainWin.setIcon(img); } catch { /* keep */ }
 }
 
 function applyAppIcon() {
@@ -1055,7 +1060,13 @@ function registerIpc() {
   handle('tiers:rename', (a) => services.renameTier(a || {}));
   handle('art:icons', (names) => services.categoryArt(Array.isArray(names) ? names.map(String).slice(0, 60) : []));
   handle('tray:hide', () => { hideToTray(); return true; });
-  handle('appIcon:get', () => appIconImage().resize({ width: 64, height: 64, quality: 'best' }).toDataURL());
+  // small pictures (the menu, Settings) use the version drawn for small sizes, so they don't turn muddy
+  // 'mark': the flask alone, without its square, for the menu next to the app's name
+  const smallIcon = (kind) => {
+    if (!s.get('customAppIcon') && iconStyle() === 'flask') { const i = nativeImage.createFromPath(path.join(ASSETS, kind === 'mark' ? 'icon-mark.png' : 'icon-small.png')); if (!i.isEmpty()) return i.toDataURL(); }
+    return appIconImage().resize({ width: 64, height: 64, quality: 'best' }).toDataURL();
+  };
+  handle('appIcon:get', (kind) => smallIcon(kind));
   handle('appIcon:pick', async () => {
     const r = await dialog.showOpenDialog(mainWin, { title: 'Choose an icon for PoE Helper', properties: ['openFile'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'ico', 'bmp', 'gif'] }] });
     if (r.canceled || !r.filePaths[0]) return null;
@@ -1072,7 +1083,7 @@ function registerIpc() {
     s.set('appIconStyle', style === 'classic' ? 'classic' : 'flask');
     s.set('customAppIcon', false);
     applyAppIcon();
-    return appIconImage().resize({ width: 64, height: 64, quality: 'best' }).toDataURL();
+    return smallIcon();
   });
   handle('appIcon:reset', () => {
     s.set('customAppIcon', false);
@@ -1196,7 +1207,7 @@ function registerIpc() {
 
 app.on('second-instance', () => mainWin?.show());
 
-if (process.platform === 'win32') app.setAppUserModelId('dev.poehelper.app');
+if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
 
 // ---------------- Path of Building (your installed copy, run headless) ----------------
 // It only runs to save a snapshot of your character, and stops again after a few idle minutes.

@@ -1229,7 +1229,8 @@ body.pob-tree-fullscreen { overflow: hidden; }
 
 /* app name with its icon */
 .rail .name { display: flex; align-items: center; gap: 10px; }
-.rail .name .brand-icon { width: 30px; height: 30px; border-radius: 7px; flex: none; box-shadow: 0 1px 3px #0008; }
+.rail .name .brand-icon { width: 30px; height: 30px; flex: none; object-fit: contain; filter: drop-shadow(0 0 6px #c0241066); }
+.rail .name .brand-icon.boxed { border-radius: 7px; filter: none; box-shadow: 0 1px 3px #0008; }
 .rail .theme-dots { align-items: center; }
 .rail .theme-dots > span { font-size: 11.5px; margin-right: 2px; }
 /* the game font stays on normal buttons; small and quiet ones (long labels, links) use the plain UI font so they don't shout */
@@ -1242,3 +1243,14 @@ html[data-ui-theme] button.sm, html[data-ui-theme] button.quiet, html[data-ui-th
 .ov-card:focus-visible { outline: 2px solid var(--accent); }
 .ov-card b { font-size: 14px; color: var(--text); }
 html[data-ui-theme] .ov-card b { font: 400 15px var(--item); letter-spacing: .02em; color: var(--head); }
+
+/* Build tab: stats on the left, the item tester in a column on the right (under the stats on narrow windows) */
+.pob-buildcols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); gap: 12px; align-items: start; }
+.pob-buildcols .pob-side { position: sticky; top: 8px; max-height: calc(100vh - 24px); overflow: auto; }
+@media (max-width: 1250px) { .pob-buildcols { grid-template-columns: minmax(0, 1fr); } .pob-buildcols .pob-side { position: static; max-height: none; } }
+.pob-side .pob-itemtip { flex-direction: column; }
+.pob-side .pob-itembox, .pob-side .pob-cmpbox { min-width: 0; max-width: none; width: 100%; box-sizing: border-box; }
+
+/* menu groups: Loot, Wealth, Tools */
+.rail .nav-group { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding: 14px 14px 4px; }
+html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transform: none; letter-spacing: .06em; color: var(--muted); }

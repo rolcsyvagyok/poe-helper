@@ -525,3 +525,17 @@ test('area level: campaign tiers change their upper bound, the lower one stays',
   const end = T.tierView(['Show # $type->endgameflasks $tier->utility85', '\tAreaLevel >= 68', '\tItemLevel >= 85', '\tClass == "Utility Flasks"', '\tSetFontSize 40', ''].join('\n'), {}).types[0].tiers[0];
   assert.equal(end.campaign, false, 'an endgame tier has no area level slider');
 });
+
+test('stacked supplies fold into Small stacks, and their own blocks are commented out', () => {
+  const T = require('../src/core/filter/tiers');
+  const txt = [
+    'Show # $type->currency->stackedsupplieshigh $tier->t3', '\tStackSize >= 3', '\tClass == "Stackable Currency"', '\tBaseType == "Orb of Transmutation"', '\tSetFontSize 40', '',
+    'Show # $type->currency->stackedsupplieslow $tier->t3', '\tStackSize >= 3', '\tClass == "Stackable Currency"', '\tBaseType == "Orb of Augmentation"', '\tSetFontSize 40', '',
+    'Show # $type->currency->stackedthree $tier->t5', '\tStackSize >= 3', '\tClass == "Stackable Currency"', '\tBaseType == "Orb of Alchemy"', '\tSetFontSize 40', '',
+    'Show # $type->currency->stackedthree $tier->t6', '\tStackSize >= 3', '\tClass == "Stackable Currency"', '\tBaseType == "Armourer\'s Scrap"', '\tSetFontSize 40', '',
+  ].join('\n');
+  const out = T.applyTierPatch(txt, {});
+  assert.match(out, /BaseType == "Armourer's Scrap" "Orb of Transmutation" "Orb of Augmentation"/);
+  for (const l of out.split('\n').filter((x) => /stackedsupplies/.test(x))) assert.ok(l.startsWith('#'), 'the supply blocks are off: ' + l);
+  assert.ok(!/^\s*BaseType == "PoE Helper/m.test(out), 'no placeholder base reaches the game');
+});
