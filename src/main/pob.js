@@ -156,6 +156,9 @@ class PobEngine {
     return r;
   }
 
+  /** Switches the passive tree, item set, skill set or config set (link: bring the sets of the same name). */
+  buildSet(kind, value, { link = false, save = false, name } = {}) { return this.send({ op: 'buildSet', kind, value, link, save, name }, 60000); }
+
   /** Sets one of PoB's pickers under Main skill (which skill, its part, stages, mines, minion, minion skill). */
   skillOpt(key, value, { save = false, name } = {}) { return this.send({ op: 'skillOpt', key, value, save, name }, 60000); }
 

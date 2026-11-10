@@ -47,6 +47,41 @@ window.poe.on('overlay:kept', (on) => {
   if (b) { b.classList.toggle('on', kept); b.setAttribute('aria-pressed', kept ? 'true' : 'false'); }
 });
 
+// PoB's colour codes, with its gain green and loss red as the app's colour-blind safe blue and orange
+const POB_COLOURS = ['#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#b3b3b3', '#666666'];
+const CB_SAFE = { '#33ff77': '#6cb4ff', '#dd0022': '#ff8a3d', '#00ff00': '#6cb4ff', '#ff0000': '#ff8a3d' };
+function pobText(str) {
+  const out = [];
+  let colour = null;
+  let last = 0;
+  let m;
+  const re = /\^x([0-9a-fA-F]{6})|\^(\d)/g;
+  const text = String(str ?? '');
+  const push = (t) => { if (t) out.push(colour && colour !== '#ffffff' ? h('span', { style: { color: colour } }, t) : t); };
+  while ((m = re.exec(text))) {
+    push(text.slice(last, m.index));
+    colour = m[1] ? `#${m[1]}` : POB_COLOURS[Number(m[2])];
+    colour = CB_SAFE[String(colour).toLowerCase()] || colour;
+    last = re.lastIndex;
+  }
+  push(text.slice(last));
+  return out;
+}
+function pobSection(pb) {
+  const box = h('div', { class: 'ov-block ov-pob' }, h('div', { class: 't' }, 'With your build', pb.build ? h('span', { class: 'faint' }, ` (${pb.build})`) : null));
+  if (pb.loading) { box.append(h('div', { class: 'small muted' }, h('span', { class: 'spin' }), ' Path of Building is working it out…')); return box; }
+  if (pb.error || pb.r?.error) { box.append(h('div', { class: 'small warn' }, pb.error || pb.r.error)); return box; }
+  const lines = pb.r?.lines || [];
+  const first = lines.findIndex((l) => /will give you/.test(l.text || ''));
+  const cmp = first >= 0 ? lines.slice(first).filter((l) => !/^\^x80A080Tip:/.test(l.text || '')) : [];
+  if (!cmp.length) { box.append(h('div', { class: 'small muted' }, 'This item doesn\'t fit any slot of this build, or changes nothing.')); return box; }
+  for (const l of cmp) {
+    if (l.sep) continue;
+    box.append(/will give you/.test(l.text || '') ? h('div', { class: 'ov-pob-head' }, String(l.text).split('\n').map((t) => h('div', {}, pobText(t)))) : h('div', { class: 'ov-pob-row' }, pobText(l.text)));
+  }
+  return box;
+}
+
 function render(p) {
   current = p;
   if (p.loading) {
@@ -99,6 +134,9 @@ function render(p) {
   if (filterHit?.line) {
     body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter${whereText ? `: ${whereText}` : ''}.`));
   }
+
+  // --- Path of Building: what this item does to your build (the compare hotkey only) ---
+  if (p.pob) body.append(pobSection(p.pob));
 
   // --- actions ---
   const tradeBox = h('div', { class: 'ov-block', style: { display: 'none' } });
@@ -316,6 +354,12 @@ async function openTrade(box) {
 
 // your recordings of the game's drop sounds, so ▶ works for "Game sound N" here too
 let gameSoundsLoaded = false;
+// the comparison arrives after the price: shown in the same popup
+window.poe.on('overlay:pob', (pb) => {
+  if (!current || !current.pob) return;
+  current = { ...current, pob: pb };
+  render(current);
+});
 window.poe.on('overlay:show', (p) => {
   if (!gameSoundsLoaded) {
     gameSoundsLoaded = true;

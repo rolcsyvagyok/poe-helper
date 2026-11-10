@@ -177,6 +177,26 @@
         render();
       } catch (e) { toast(errText(e), true); }
     };
+    // several trees / item sets / skill sets / config sets in one build (PoB's loadouts)
+    const setSet = async (kind, value) => {
+      try {
+        const st = await call('pob:buildSet', { file, kind, value, link: kind === 'tree' });
+        for (const k of Object.keys(PB.results)) if (k.endsWith(`|${file}`)) delete PB.results[k];
+        PB.results.test = null; PB.results.find = null;
+        PB.results[`stats|${file}`] = st;
+        toast(kind === 'tree' ? `Tree: ${st.sets?.trees?.[st.sets.tree - 1] || ''}` : 'Switched');
+        render();
+      } catch (e) { toast(errText(e), true); }
+    };
+    const S2 = r.sets;
+    const setPick = (label, kind, list, cur) => list && list.length > 1 ? h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, label),
+      h('select', { 'aria-label': label, disabled: !r.editable, title: r.editable ? null : 'Switch this in Path of Building for your own builds; snapshots and imported builds can be switched here.', onchange: (e) => setSet(kind, Number(e.target.value)) },
+        list.map((x, i) => h('option', { value: kind === 'tree' ? i + 1 : x.id, selected: kind === 'tree' ? i + 1 === cur : x.id === cur }, kind === 'tree' ? x : x.title)))) : null;
+    const setsRow = S2 ? h('div', { class: 'row small pob-sets', style: { gap: '14px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '8px' } },
+      setPick('Tree', 'tree', S2.trees, S2.tree),
+      setPick('Items', 'items', S2.items, S2.itemsActive),
+      setPick('Skills', 'skills', S2.skills, S2.skillsActive),
+      setPick('Config', 'configs', S2.configs, S2.configsActive)) : null;
     const so = r.skillOpts;
     const pick = (label, key, list, cur) => h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, label),
       h('select', { 'aria-label': label, disabled: !r.editable || list.length < 2, title: r.editable ? null : 'Pick this in Path of Building for your own builds; snapshots can be changed here.', onchange: (e) => setOpt(key, key === 'minion' ? e.target.value : Number(e.target.value)) },
@@ -197,7 +217,7 @@
       h('span', { class: 'spacer' }),
       r.skillGroups?.length ? h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, 'Main skill'),
         h('select', { 'aria-label': 'Main skill', onchange: (e) => pickMain(e.target.value) },
-          r.skillGroups.map((g) => h('option', { value: g.index, selected: g.index === r.mainGroup }, `${g.name}${g.slot ? ` (${g.slot})` : ''}`)))) : null), optsRow);
+          r.skillGroups.map((g) => h('option', { value: g.index, selected: g.index === r.mainGroup }, `${g.name}${g.slot ? ` (${g.slot})` : ''}`)))) : null), setsRow, optsRow);
     const groups = STAT_GROUPS.map(([title, rows]) => {
       const list = rows.filter(([k]) => shownStat(d, k));
       if (!list.length) return null;

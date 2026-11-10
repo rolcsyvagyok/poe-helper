@@ -266,7 +266,7 @@ async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
   return text;
 }
 
-async function priceCheck({ advanced = false, accelerator = '' } = {}) {
+async function priceCheck({ advanced = false, accelerator = '', compare = false } = {}) {
   // If you clicked into the popup, hide it so the copy goes to the game, not to the popup.
   if (overlay?.isVisible() && overlay.isFocused()) {
     overlay.hide();
@@ -277,7 +277,7 @@ async function priceCheck({ advanced = false, accelerator = '' } = {}) {
     showOverlayAtCursor({ error: hasKeySender() ? 'Hover an item in game and press the hotkey again.' : 'Press Ctrl+C on an item first (automatic copy needs uiohook-napi).' });
     return;
   }
-  await runPriceCheck(text);
+  await runPriceCheck(text, { compare });
 }
 
 /** The PoB item tester hotkey: copies the item in game and opens it on the Path of Building page. */
@@ -289,15 +289,30 @@ async function pobTestHotkey(accelerator) {
   mainWin?.webContents.send('app:goto', { page: 'pob', tab: 'test', text });
 }
 
-async function runPriceCheck(text) {
+async function runPriceCheck(text, { compare = false } = {}) {
   showOverlayAtCursor({ loading: true });
+  // the comparison only on its own hotkey and only when it's switched on: the normal price check never starts PoB
+  const wantPob = compare && services.settings.get('pobCompareOn') !== false && /Rarity:\s*(Normal|Magic|Rare|Unique)/i.test(text) && !/^Rarity:\s*Unique[\s\S]*?\nMap Tier:/i.test(text);
   try {
     const result = await services.priceText(text);
-    showOverlayAtCursor({ ...result, text, league: await services.getLeague() });
+    showOverlayAtCursor({ ...result, text, league: await services.getLeague(), pob: wantPob ? { loading: true } : null });
     mainWin?.webContents.send('history:updated');
   } catch (e) {
     showOverlayAtCursor({ error: e.message });
+    return;
   }
+  if (wantPob) overlay?.webContents.send('overlay:pob', await pobCompareFor(text));
+}
+
+/** Path of Building's tooltip and comparison for an item, against the build you last used on the PoB page. */
+async function pobCompareFor(text) {
+  const st = services.settings.get('pob') || {};
+  const file = [st.current, st.last?.file].find((f) => f && fs.existsSync(f));
+  if (!file) return { error: 'Pick a build on the Path of Building page first, or save a snapshot.' };
+  try {
+    const r = await pobWith(file, () => pob.timeless('itemTooltip', { item: String(text).slice(0, 20000) }));
+    return { r, build: path.basename(file, '.xml') };
+  } catch (e) { return { error: e.message }; }
 }
 
 function startClipboardWatcher() {
@@ -365,6 +380,8 @@ function registerHotkeys({ quiet = false } = {}) {
   tryReg('hotkeyLab', () => toggleLab());
   tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
   tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
+  if (services.settings.get('pobCompareOn') !== false) tryReg('hotkeyPobCompare', (acc) => priceCheck({ accelerator: acc, compare: true }));
+  else hotkeyStatus.hotkeyPobCompare = 'off';
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
   return hotkeyStatus;
 }
@@ -720,7 +737,7 @@ function registerIpc() {
     const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.includes(k)));
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyPobCompare' in clean || 'pobCompareOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
@@ -940,6 +957,20 @@ function registerIpc() {
     if (group) mainGroups[file] = group; else delete mainGroups[file];
     services.settings.set('pob', { ...cur, mainGroups });
     return pobWith(file, async () => ({ ...(await pob.stats()), editable: pobIsSnapshot(file) }));
+  });
+  // builds with several trees and gear/skill/config sets: switch which one is in use (saved into snapshots)
+  handle('pob:buildSet', ({ file, kind, value, link } = {}) => {
+    if (!pobIsSnapshot(file)) throw new Error('Only snapshots and imported builds are changed here; pick this in Path of Building for your own builds.');
+    if (!['tree', 'items', 'skills', 'configs'].includes(kind)) throw new Error('Unknown set.');
+    return pobWith(file, async () => {
+      const r = await pob.buildSet(kind, Number(value), { link: !!link, save: true, name: path.basename(file, '.xml') });
+      if (r.error) throw new Error(r.error);
+      if (!r.xml) throw new Error('Path of Building did not save the build.');
+      fs.writeFileSync(file, r.xml, 'utf8');
+      delete r.xml;
+      pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r };
+      return { ...r, editable: true };
+    });
   });
   // PoB's pickers under Main skill (Kinetic Blast: Projectile / Explosions, minion skills…), saved into snapshots
   handle('pob:skillOpt', ({ file, key, value } = {}) => {
@@ -1347,6 +1378,8 @@ function pobIdleLater() {
 }
 /** Runs fn with that build loaded in PoB; calls wait their turn. */
 function pobWith(file, fn) {
+  // the build in use, for the compare hotkey
+  try { const cur = services.settings.get('pob') || {}; if (file && cur.current !== file) services.settings.set('pob', { ...cur, current: file }); } catch { /* not important */ }
   const job = pobQueue.then(async () => {
     const st = pobState();
     if (!st.dir) throw new Error('Path of Building (Community) wasn\'t found. Choose its folder on the Path of Building page.');

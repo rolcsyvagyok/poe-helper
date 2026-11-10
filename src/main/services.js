@@ -31,6 +31,8 @@ const DEFAULT_SETTINGS = {
   hotkeyPriceAdvanced: 'Ctrl+Alt+D',
   hotkeySnapshot: '',
   hotkeyPobTest: '', // copy the item under the mouse and test it against your build on the Path of Building page (off until you pick one) // save a Path of Building snapshot of your character (off until you pick one)
+  hotkeyPobCompare: 'Ctrl+E', // price check plus Path of Building's comparison against your build, like the item tester
+  pobCompareOn: true, // off: that hotkey does nothing and Path of Building isn't started for it
   hotkeyLab: 'Alt+L', // daily lab overlay: pick a difficulty, see today's layout from poelab
   labLast: 'uber',
   labFavorite: null, // the lab the hotkey opens straight away (null: ask every time)

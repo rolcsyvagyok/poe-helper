@@ -354,6 +354,62 @@ local function setSkillOpt(req)
 	return { ok = true }
 end
 
+-- Builds with several passive trees, item sets, skill sets or config sets (PoB's loadouts): the lists and
+-- which one is in use. Titles like "Mapping {1}" link sets together; the braces are dropped for display.
+local function setTitle(t) return (tostring(t or "Default"):gsub("%s*%{[%w,]+%}%s*", " "):gsub("^%s+", ""):gsub("%s+$", "")) end
+local function buildSets()
+	local r, many = { }, false
+	local tt = build.treeTab
+	if tt and tt.specList then
+		r.trees = { }
+		for i, spec in ipairs(tt.specList) do r.trees[i] = setTitle(spec.title) ~= "" and setTitle(spec.title) or ("Tree " .. i) end
+		r.tree = tt.activeSpec or 1
+		many = many or #r.trees > 1
+	end
+	local function sets(tab, order, list, active, key, label)
+		if not tab or not tab[order] then return end
+		r[key] = { }
+		for i, id in ipairs(tab[order]) do
+			local t = setTitle(tab[list][id] and tab[list][id].title)
+			r[key][i] = { id = id, title = t ~= "" and t or (label .. " " .. i) }
+		end
+		r[key .. "Active"] = tab[active]
+		many = many or #r[key] > 1
+	end
+	sets(build.itemsTab, "itemSetOrderList", "itemSets", "activeItemSetId", "items", "Item set")
+	sets(build.skillsTab, "skillSetOrderList", "skillSets", "activeSkillSetId", "skills", "Skill set")
+	sets(build.configTab, "configSetOrderList", "configSets", "activeConfigSetId", "configs", "Config set")
+	return many and r or nil
+end
+local function setBuildSet(req)
+	local kind, v = req.kind, req.value
+	local function byTitle(tab, order, list, title, fn)
+		if not tab or not tab[order] then return end
+		for _, id in ipairs(tab[order]) do
+			if setTitle(tab[list][id] and tab[list][id].title) == title then tab[fn](tab, id) return end
+		end
+	end
+	if kind == "tree" then
+		local i = tonumber(v)
+		if not i or not build.treeTab.specList[i] then return { error = "No such tree." } end
+		build.treeTab:SetActiveSpec(i)
+		-- a loadout: item, skill and config sets with the same name come along, as in PoB
+		if req.link then
+			local title = setTitle(build.treeTab.specList[i].title)
+			byTitle(build.itemsTab, "itemSetOrderList", "itemSets", title, "SetActiveItemSet")
+			byTitle(build.skillsTab, "skillSetOrderList", "skillSets", title, "SetActiveSkillSet")
+			byTitle(build.configTab, "configSetOrderList", "configSets", title, "SetActiveConfigSet")
+		end
+	elseif kind == "items" then build.itemsTab:SetActiveItemSet(tonumber(v))
+	elseif kind == "skills" then build.skillsTab:SetActiveSkillSet(tonumber(v))
+	elseif kind == "configs" then build.configTab:SetActiveConfigSet(tonumber(v))
+	else return { error = "Unknown set." } end
+	build.modFlag = true
+	build.buildFlag = true
+	runCallback("OnFrame")
+	return { ok = true }
+end
+
 local function stats(mainGroup)
 	if mainGroup and build.skillsTab.socketGroupList[mainGroup] and mainGroup ~= build.mainSocketGroup then setMainGroup(mainGroup) end
 	local out = build.calcsTab.mainOutput
@@ -373,6 +429,7 @@ local function stats(mainGroup)
 	s.skillGroups = skillGroups()
 	s.mainGroup = build.mainSocketGroup
 	s.skillOpts = mainSkillOpts()
+	s.sets = buildSets()
 	return s
 end
 
@@ -1829,6 +1886,13 @@ function handle(line)
 				if not build then return { error = "No build loaded." } end
 				applyConfig(req.values)
 				local r = summary()
+				if req.save then r.xml = build:SaveDB(req.name or "build") end
+				return r
+			elseif req.op == "buildSet" then
+				if not build then return { error = "No build loaded." } end
+				local r = setBuildSet(req)
+				if r.error then return r end
+				r = stats()
 				if req.save then r.xml = build:SaveDB(req.name or "build") end
 				return r
 			elseif req.op == "skillOpt" then

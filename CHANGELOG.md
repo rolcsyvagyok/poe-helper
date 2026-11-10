@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.48 - 2026-11-10
+
+- **Compare items with your build in game (Ctrl+E)**: hover an item and press Ctrl+E. The price check pops up as usual, and under it Path of Building shows what the item does to your build, like the item tester: DPS, life, resistances and the rest, per slot it fits. It uses the build you last picked on the Path of Building page. The normal price check (Alt+E) never starts Path of Building, so it stays fast. Settings → Price check → "Compare items with my build" turns it off; then the hotkey does nothing and nothing is calculated. The hotkey can be changed there too.
+
+- **Builds with several trees and setups**: an imported build (or a snapshot) that has more than one passive tree, item set, skill set or config set, like a levelling tree and an endgame tree, keeps all of them, and the Build tab gets **Tree**, **Items**, **Skills** and **Config** pickers to switch between them. Picking a tree also switches to the item, skill and config sets with the same name, like Path of Building's loadouts. Your choice is saved in the build, and every tab (Calcs, Tree, Upgrades, Support gems) uses it.
+
 ## 1.0.47 - 2026-11-10
 
 - **Taskbar icon, the real fix**: the icon file stored its small sizes (16 to 48 pixels) as compressed PNG pictures. The title bar could read them, but the taskbar often can't, so it showed a blank square. The small sizes are now classic bitmaps that every part of Windows reads; only the 256 pixel size stays PNG. The same goes for the classic icon and for your own picked icon. After updating, quit PoE Helper from the tray and start it again.
