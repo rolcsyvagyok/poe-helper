@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.50 - 2026-11-10
+
+- **One price check hotkey**: Alt+E prices the item and, under it, shows what it does to your build (what Ctrl+E did). Settings → Price check → the compare switch turns the build part off; then Path of Building isn't run and Alt+E only prices. The separate compare hotkey is gone, and so is "Price check with mod tiers" (the normal price check reads the mods anyway).
+
 ## 1.0.49 - 2026-11-10
 
 - **Chat macros** (new page in the menu, under Tools): F1 to F5 each press Enter, type your text and press Enter again in game. F1 is **/exit** (log out to character select) and F2 is **/hideout** to start with; F3 to F5 are yours to fill, with ideas like /kingsmarch, /menagerie, /delve or @last as you type. Untick **Send** to only type the text, e.g. "@last " to start a reply. The keys only work while Path of Exile is the active window, so F1 to F5 keep working normally in every other app, and your clipboard is put back after each macro. One key press sends one message, the same as typing it yourself. Turn them all off with "Use chat macros".

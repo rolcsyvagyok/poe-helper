@@ -378,13 +378,11 @@ function registerHotkeys({ quiet = false } = {}) {
       if (!quiet) notify(`"${acc}" can't be used as a hotkey: ${e.message}`);
     }
   };
-  tryReg('hotkeyPrice', (acc) => priceCheck({ advanced: false, accelerator: acc }));
-  tryReg('hotkeyPriceAdvanced', (acc) => priceCheck({ advanced: true, accelerator: acc }));
+  // one price check hotkey; with "Compare items with my build" on it also shows what the item does to your build
+  tryReg('hotkeyPrice', (acc) => priceCheck({ accelerator: acc, compare: services.settings.get('pobCompareOn') !== false }));
   tryReg('hotkeyLab', () => toggleLab());
   tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
   tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
-  if (services.settings.get('pobCompareOn') !== false) tryReg('hotkeyPobCompare', (acc) => priceCheck({ accelerator: acc, compare: true }));
-  else hotkeyStatus.hotkeyPobCompare = 'off';
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
   // unregisterAll above dropped the chat macro keys too
   if (!chatMacros) chatMacros = createChatMacros({ globalShortcut, clipboard, keys: keysMod, foreground: require('./foreground'), settings: s, log });
@@ -750,7 +748,7 @@ function registerIpc() {
     }
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyPriceAdvanced' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyPobCompare' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if ('hotkeyPrice' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
