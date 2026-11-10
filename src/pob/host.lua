@@ -80,6 +80,7 @@ end
 
 local dkjson = require("dkjson")
 local applyConfig -- set further down (PoB's Configuration tab)
+local autoConfig -- set further down too
 -- An item from its text. PoB's released versions build it with new("Item", raw); its newer code with
 -- newItem(raw). Works with both.
 local function newItem(raw)
@@ -214,10 +215,17 @@ local function importCharacter(req)
 	-- PoB's import makes the group with the most gems the main skill (often an aura link); take the one
 	-- that does the most damage instead
 	pickMainSkill()
+	-- then the Configuration ticks the build tells (charges, Onslaught and other buffs, rage...)
+	local autoList
+	if req.auto ~= false then
+		local ok, vals, list = pcall(autoConfig)
+		if ok and next(vals) then applyConfig(vals); autoList = list; pickMainSkill() end
+	end
 	local xml = build:SaveDB(req.name or "snapshot")
 	if not xml then return { error = "PoB couldn't write the build." } end
 	local s = summary()
 	s.xml = xml
+	s.autoConfig = autoList
 	return s
 end
 
@@ -616,14 +624,58 @@ local function masteryOpts(spec, node)
 	end
 	return out
 end
+-- the art of a node, from PoB's own sprite sheets (the files of the passive tree GGG publishes, in PoB's
+-- TreeData folder): which sheet, and where on it
+local function spriteOf(tree, spriteType, name)
+	local data = name and tree.skillSprites and tree.skillSprites[spriteType]
+	if not data then return nil end
+	local z = data[0.3835] or data[1] or data[#data] or data
+	local c = z and z.coords and z.coords[name]
+	if not c or not z.filename then return nil end
+	local function v(a) return type(a) == "table" and a[#a] or a end
+	return { f = (z.filename:gsub("%?%x+$", ""):gsub(".*/", "")), x = v(c.x), y = v(c.y), w = v(c.w), h = v(c.h) }
+end
+local function frameSprite(tree, name)
+	if not name or not tree.skillSprites then return nil end
+	for t in pairs(tree.skillSprites) do
+		local sp = spriteOf(tree, t, name)
+		if sp then return sp end
+	end
+	return nil
+end
+local function treeArt(spec, n, o, sprites, index)
+	local tree = spec.tree
+	local function add(sp)
+		if not sp then return nil end
+		local key = sp.f .. ":" .. sp.x .. ":" .. sp.y .. ":" .. sp.w .. ":" .. sp.h
+		if not index[key] then sprites[#sprites + 1] = sp; index[key] = #sprites end
+		return index[key]
+	end
+	local ty = n.type
+	if ty == "Normal" or ty == "Notable" or ty == "Keystone" then
+		o.ia = add(spriteOf(tree, ty:lower() .. "Active", n.icon))
+		o.iu = add(spriteOf(tree, ty:lower() .. "Inactive", n.icon))
+	elseif ty == "Mastery" then
+		o.ia = add(spriteOf(tree, "masteryActiveSelected", n.activeIcon) or spriteOf(tree, "mastery", n.icon))
+		o.iu = add(spriteOf(tree, "masteryInactive", n.inactiveIcon) or spriteOf(tree, "mastery", n.icon))
+	end
+	local ov = tree.nodeOverlay and tree.nodeOverlay[ty]
+	if ov and ty ~= "Mastery" then
+		local asc = n.ascendancyName and "Ascend" or ""
+		o.fa = add(frameSprite(tree, ov["alloc" .. asc] or ov.alloc))
+		o.fu = add(frameSprite(tree, ov["unalloc" .. asc] or ov.unalloc))
+	end
+end
 local function tree()
 	local spec = build.spec
 	local shown = treeFilter(spec)
 	local nodes, edges, seen = { }, { }, { }
+	local sprites, spriteIndex = { }, { }
 	local startId
 	for id, n in pairs(spec.nodes) do
 		if shown(n) then
 			local o = { i = id, x = math.floor(n.x + 0.5), y = math.floor(n.y + 0.5), t = TYPE_CODE[n.type] or 0, n = n.dn, a = n.alloc and 1 or nil, asc = n.ascendancyName and 1 or nil }
+			pcall(treeArt, spec, n, o, sprites, spriteIndex)
 			if n.type == "ClassStart" then
 				-- only your class's start counts
 				if n.alloc then startId = id else o.n = nil end
@@ -665,7 +717,7 @@ local function tree()
 	local extra = build.calcsTab.mainOutput and build.calcsTab.mainOutput.ExtraPoints or 0
 	local maxPoints = math.min(math.max(build.characterLevel or 1, 1), 100) - 1 + 23 + extra
 	return { nodes = nodes, edges = edges, start = startId, class = spec.curClassName, ascendancy = spec.curAscendClassName, used = used, ascUsed = ascUsed, maxPoints = maxPoints, ascMax = 8,
-		level = build.characterLevel, treeVersion = spec.treeVersion }
+		level = build.characterLevel, treeVersion = spec.treeVersion, sprites = sprites }
 end
 
 -- what a node does: PoB's "Allocating this node will give you" (and the path to it), or the reverse for an allocated one
@@ -695,7 +747,7 @@ local function treeEdit(req)
 	if req.undo then
 		spec:Undo()
 	else
-		local node = spec.nodes[tonumber(req.id) or 0]
+		local node = spec.nodes[tonumber(req.node) or 0]
 		if not node then return { error = "No such node." } end
 		if node.type == "ClassStart" or node.type == "AscendClassStart" then return { error = "That's where your class starts." } end
 		if node.type == "Mastery" and req.effect then
@@ -886,11 +938,11 @@ local function optStep()
 	else
 		-- do it, then check PoB agrees (paths can change once nodes go)
 		local before = pick(base)
-		local removed, added = { }, { }
-		for _, r in ipairs(best.rem) do removed[#removed + 1] = nodeName(r); if r.alloc then spec:DeallocNode(r) end end
+		local removed, added, removedIds, addedIds = { }, { }, { }, { }
+		for _, r in ipairs(best.rem) do removed[#removed + 1] = nodeName(r); removedIds[#removedIds + 1] = r.id; if r.alloc then spec:DeallocNode(r) end end
 		local target = best.a.n
 		if target.path then
-			for _, pn in ipairs(target.path) do added[#added + 1] = nodeName(pn) end
+			for _, pn in ipairs(target.path) do added[#added + 1] = nodeName(pn); addedIds[#addedIds + 1] = pn.id end
 			spec:AllocNode(target)
 		end
 		build.buildFlag = true
@@ -898,7 +950,7 @@ local function optStep()
 		local _, nb = build.calcsTab:GetMiscCalculator(build)
 		if target.alloc and optValue(nb) > cur and optOk(nb) then
 			spec:AddUndoState()
-			local entry = { removed = removed, added = added, target = nodeName(target), before = before, after = pick(nb) }
+			local entry = { removed = removed, added = added, removedIds = removedIds, addedIds = addedIds, target = nodeName(target), before = before, after = pick(nb) }
 			opt.log[#opt.log + 1] = entry
 			step.swap = entry
 			step.value = optValue(nb)
@@ -1507,6 +1559,99 @@ local function levelPlanStep(req)
 	return r
 end
 
+-- Configuration ticks the build itself tells: charges you generate, Onslaught and the other buffs you gain,
+-- rage (at its maximum), a flask, a warcry. Only options still at their default are set.
+local AUTO_RULES = {
+	{ var = "usePowerCharges", gain = "power charge", gems = { "Power Charge On Critical", "Assassin's Mark" } },
+	{ var = "useFrenzyCharges", gain = "frenzy charge", gems = { "Frenzy", "Blood Rage", "Poacher's Mark" } },
+	{ var = "useEnduranceCharges", gain = "endurance charge", gems = { "Enduring Cry", "Endurance Charge on Melee Stun", "Warlord's Mark" } },
+	{ var = "buffOnslaught", gain = "onslaught", have = "you have onslaught", flask = "Silver Flask" },
+	{ var = "buffArcaneSurge", gain = "arcane surge", gems = { "Arcane Surge" } },
+	{ var = "buffUnholyMight", gain = "unholy might" },
+	{ var = "buffChaoticMight", gain = "chaotic might" },
+	{ var = "buffFortification", gain = "fortif", also = "fortify", gems = { "Fortify" } },
+	{ var = "buffTailwind", gain = "tailwind" },
+	{ var = "buffAdrenaline", gain = "adrenaline" },
+	{ var = "buffLifetap", gems = { "Lifetap" } },
+	{ var = "conditionOnConsecratedGround", gain = "consecrated ground", also = "create consecrated ground" },
+}
+local function buildText()
+	local lines, gems, flasks = { }, { }, { }
+	for _, n in pairs(build.spec.allocNodes) do for _, l in ipairs(n.sd or { }) do lines[#lines + 1] = l:lower() end end
+	for name, slot in pairs(build.itemsTab.slots) do
+		local it = slot.selItemId and build.itemsTab.items[slot.selItemId]
+		if it and not name:find("Swap") then
+			for _, key in ipairs({ "implicitModLines", "explicitModLines", "enchantModLines", "scourgeModLines", "crucibleModLines" }) do
+				for _, ml in ipairs(it[key] or { }) do if ml.line then lines[#lines + 1] = ml.line:lower() end end
+			end
+			if name:match("^Flask") then flasks[#flasks + 1] = it.baseName or it.name or "" end
+		end
+	end
+	local warcry = false
+	for _, g in ipairs(build.skillsTab.socketGroupList or { }) do
+		if g.enabled ~= false then
+			for _, gem in ipairs(g.gemList or { }) do
+				if gem.enabled ~= false and gem.gemData then
+					gems[gem.gemData.name or gem.nameSpec or ""] = true
+					if gem.gemData.tags and gem.gemData.tags.warcry then warcry = true end
+				end
+			end
+		end
+	end
+	return lines, gems, flasks, warcry
+end
+function autoConfig()
+	local lines, gems, flasks, warcry = buildText()
+	local input = build.configTab.input or { }
+	local out, why = { }, { }
+	local function gains(word)
+		for _, l in ipairs(lines) do
+			if l:find(word, 1, true) and (l:find("%f[%a]gains?%f[%A]") or l:find("%f[%a]grants?%f[%A]") or l:find("%f[%a]generat") or l:find("maximum " .. word, 1, true)) and not l:find("lose all", 1, true) then return l end
+		end
+	end
+	for _, r in ipairs(AUTO_RULES) do
+		local hit = r.gain and gains(r.gain)
+		if not hit and r.have then for _, l in ipairs(lines) do if l:find(r.have, 1, true) then hit = l break end end end
+		if not hit and r.also then for _, l in ipairs(lines) do if l:find(r.also, 1, true) then hit = l break end end end
+		if not hit and r.gems then for _, g in ipairs(r.gems) do if gems[g] then hit = g .. " (gem)" break end end end
+		if not hit and r.flask then for _, f in ipairs(flasks) do if f:find(r.flask, 1, true) then hit = f break end end end
+		if hit then out[r.var] = true; why[r.var] = hit end
+	end
+	if #flasks > 0 then out.conditionUsingFlask = true; why.conditionUsingFlask = flasks[1] end
+	if warcry then out.conditionUsedWarcryRecently = true; why.conditionUsedWarcryRecently = "a warcry gem" end
+	-- rage: PoB knows when you can gain it; at its maximum
+	local env = build.calcsTab.mainEnv
+	local canRage = env and env.player and env.player.modDB and env.player.modDB:Flag(nil, "Condition:CanGainRage")
+	local maxRage = build.calcsTab.mainOutput and build.calcsTab.mainOutput.MaximumRage
+	if canRage and maxRage and maxRage > 0 then out.multiplierRage = maxRage; why.multiplierRage = string.format("maximum Rage %d", maxRage) end
+	-- only what you haven't set yourself
+	local list = { }
+	for var, v in pairs(out) do
+		local cur = input[var]
+		if cur == nil or cur == false or cur == 0 then list[#list + 1] = { var = var, value = v, why = why[var] } else out[var] = nil end
+	end
+	table.sort(list, function(a, b) return a.var < b.var end)
+	return out, list
+end
+
+-- PoB's own item tooltip (Items tab): the item, then what equipping it in each slot does (its stat compares).
+-- PoB draws it on a tooltip object; here a stand-in collects the lines.
+local function itemTooltip(text)
+	local item = newItem(text)
+	if not item or not item.base then return { error = "PoB doesn't know this item's base." } end
+	local lines = { }
+	local tt = setmetatable({ lines = lines }, { __index = function(t, k)
+		if k == "AddLine" then return function(_, size, txt, font) lines[#lines + 1] = { size = size, text = tostring(txt or "") } end end
+		if k == "AddSeparator" then return function(_, size) lines[#lines + 1] = { sep = true } end end
+		if type(k) == "string" and k:match("^%u") then return function() end end
+		return nil
+	end })
+	tt.maxWidth = 600
+	local ok, err = pcall(build.itemsTab.AddItemTooltip, build.itemsTab, tt, item)
+	if not ok then return { error = tostring(err) } end
+	return { item = item.name, rarity = item.rarity, lines = lines }
+end
+
 function handle(line)
 	local ok, req = pcall(dkjson.decode, line)
 	if not ok or type(req) ~= "table" then return dkjson.encode({ error = "bad request" }) end
@@ -1514,6 +1659,9 @@ function handle(line)
 			if req.op == "load" then
 				if not loadBuild(req.xml, req.name) then return { error = "PoB couldn't open that build." } end
 				return summary()
+			elseif req.op == "itemTooltip" then
+				if not build then return { error = "No build loaded." } end
+				return itemTooltip(req.item or "")
 			elseif req.op == "compare" then
 				if not build then return { error = "No build loaded." } end
 				return compare(req.item)
@@ -1557,7 +1705,7 @@ function handle(line)
 				return r
 			elseif req.op == "node" then
 				if not build then return { error = "No build loaded." } end
-				return nodeDiff(tonumber(req.id) or 0)
+				return nodeDiff(tonumber(req.node) or 0)
 			elseif req.op == "treeEdit" then
 				if not build then return { error = "No build loaded." } end
 				return treeEdit(req)
@@ -1604,6 +1752,10 @@ function handle(line)
 			elseif req.op == "asSkillOff" then
 				if not build then return { ok = true } end
 				return asSkillOff()
+			elseif req.op == "autoConfig" then
+				if not build then return { error = "No build loaded." } end
+				local vals, list = autoConfig()
+				return { values = vals, list = list }
 			elseif req.op == "activeSkills" then
 				if not build then return { error = "No build loaded." } end
 				return activeSkills()

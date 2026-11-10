@@ -3,6 +3,17 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.39 - 2026-11-10
+
+- **Fixed: "No such node"** on the Tree tab: pointing at a node or clicking it asked Path of Building about the wrong node, so the stats of a node and changing the tree didn't work.
+- **Fixed: "Path of Building stopped (3221226505)"** for builds with a timeless jewel (or other conquered passives): unpacking Path of Building's timeless jewel tables went through a call from Path of Building back into the app, which could crash it. The tables are now unpacked once into the app's own folder beforehand (Path of Building does the same with its .bin files). If Path of Building ever stops, the message now says what it was doing, and it starts again by itself.
+- **Stats is now the Build tab**, right after Snapshot, and **Save snapshot opens it** with the new snapshot.
+- **The item tester is on the Build tab and looks like Path of Building's Items tab**: paste or copy an item and you get Path of Building's own tooltip, the item on the left and "Equipping this item in … will give you" with every stat it changes on the right, for each slot it fits.
+- **Snapshots tick the Configuration for you**: charges you generate (power, frenzy, endurance), Onslaught, Arcane Surge, Unholy and Chaotic Might, Fortification, Tailwind, Adrenaline, Lifetap and Consecrated Ground when your tree, gear or gems give them, **Rage at its maximum** when you can gain Rage, a flask when you have one and a warcry when you use one. Only options you haven't set are changed, and your own ticks still carry over to the next snapshot. **Tick from my build** on the Configuration tab does the same for a snapshot you already have.
+- **Full screen tree**: the button in the tree's corner fills the window with it (Esc leaves).
+- **Optimiser: point at a swap to see it on the tree** (new nodes green, given-up ones red); click it to go there.
+- **The tree has the real art now**: every passive's icon and frame, allocated or not, like in Path of Building. They come from your Path of Building folder (the passive tree files GGG publishes for tools like it), read when you look at the tree; the app doesn't ship them.
+
 ## 1.0.38 - 2026-11-10
 
 - **Path of Building → Tree**: your passive tree from Path of Building, with what you allocated, jewels in their sockets and your ascendancy. **Point at a node** to see its stats and what it does to your build, like Path of Building's tooltip ("Allocating this node will give you…", also with the whole path to it, which lights up). Search, drag to move, scroll to zoom.

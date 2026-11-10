@@ -129,8 +129,9 @@ function pobSnapshotBox(st, refresh) {
     btn.disabled = true; mount(status, 'Reading your character and building it in Path of Building…');
     try {
       const r = await call('pob:snapshot');
-      toast(`Saved a snapshot of ${r.character}`);
-      refresh();
+      const auto = (r.summary?.autoConfig || []).length;
+      toast(`Saved a snapshot of ${r.character}${auto ? ` (${auto} Configuration ${auto === 1 ? 'option' : 'options'} ticked from the build: charges, buffs, rage…)` : ''}`);
+      if (window.PobView?.showBuild && currentPage === 'pob') window.PobView.showBuild(r.file); else refresh();
     } catch (e) { mount(status, h('span', { class: 'warn' }, cleanErr(e))); btn.disabled = false; }
   };
   return h('div', { class: 'panel stack' },

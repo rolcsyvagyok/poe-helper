@@ -8,9 +8,37 @@
 const path = require('path');
 
 let call = null;
-const keep = []; // callbacks Lua holds on to
 
-function start({ pobDir, hostSource, stubSource }) {
+// the timeless jewel tables, unpacked: { [packed size]: unpacked file }
+function unpackTimeless(pobDir, cacheDir) {
+  const fs = require('fs');
+  const zlib = require('zlib');
+  const out = {};
+  const dataDir = path.join(pobDir, 'Data', 'TimelessJewelData');
+  if (!cacheDir || !fs.existsSync(dataDir)) return out;
+  const names = new Set(fs.readdirSync(dataDir).map((f) => /^(\w+)\.zip(\.part\d+)?$/.exec(f)?.[1]).filter(Boolean));
+  fs.mkdirSync(cacheDir, { recursive: true });
+  for (const name of names) {
+    try {
+      const single = path.join(dataDir, `${name}.zip`);
+      const parts = fs.existsSync(single) ? [single] : fs.readdirSync(dataDir).filter((f) => f.startsWith(`${name}.zip.part`))
+        .sort((x, y) => Number(x.split('part')[1]) - Number(y.split('part')[1])).map((f) => path.join(dataDir, f));
+      const size = parts.reduce((n, f) => n + fs.statSync(f).size, 0);
+      const bin = path.join(cacheDir, `${name}-${size}.bin`);
+      // tables of an older PoB (another size) go
+      for (const f of fs.readdirSync(cacheDir)) if (f.startsWith(`${name}-`) && f !== path.basename(bin)) { try { fs.unlinkSync(path.join(cacheDir, f)); } catch { /* in use */ } }
+      if (!fs.existsSync(bin)) {
+        const data = zlib.inflateSync(Buffer.concat(parts.map((f) => fs.readFileSync(f))));
+        fs.writeFileSync(`${bin}.tmp`, data);
+        fs.renameSync(`${bin}.tmp`, bin);
+      }
+      out[size] = bin.replace(/\\/g, '/');
+    } catch { /* that jewel's table stays unavailable, as in PoB without it */ }
+  }
+  return out;
+}
+
+function start({ pobDir, hostSource, stubSource, cacheDir }) {
   const koffi = require('koffi');
   const lib = koffi.load(path.join(pobDir, 'lua51.dll'));
   const newstate = lib.func('void* luaL_newstate()');
@@ -25,31 +53,10 @@ function start({ pobDir, hostSource, stubSource }) {
 
   const L = newstate();
   openlibs(L);
-  // Inflate and Deflate for PoB (its timeless jewel tables are zlib files): SimpleGraphic gives them to PoB,
-  // headless they come from Node's zlib
-  const zlib = require('zlib');
-  const LuaCFunction = koffi.proto('int LuaCFunction(void* L)');
-  const pushcclosure = lib.func('void lua_pushcclosure(void* L, LuaCFunction* fn, int n)');
-  const setfield = lib.func('void lua_setfield(void* L, int idx, const char* k)');
-  const tobytes = lib.func('const void* lua_tolstring(void* L, int idx, _Out_ size_t* len)');
-  const pushbytes = lib.func('void lua_pushlstring(void* L, const uint8_t* s, size_t len)');
-  const pushnil = lib.func('void lua_pushnil(void* L)');
-  const argBytes = (Ls) => {
-    const len = [0];
-    const ptr = tobytes(Ls, 1, len);
-    if (!ptr || !len[0]) return Buffer.alloc(0);
-    return Buffer.from(koffi.view(ptr, len[0]));
-  };
-  const zfn = (fn) => koffi.register((Ls) => {
-    try {
-      const out = fn(argBytes(Ls));
-      pushbytes(Ls, out, out.length);
-    } catch { pushnil(Ls); }
-    return 1;
-  }, koffi.pointer(LuaCFunction));
-  keep.push(zfn((b) => { try { return zlib.inflateSync(b); } catch { return zlib.gunzipSync(b); } }), zfn((b) => zlib.deflateSync(b)));
-  pushcclosure(L, keep[0], 0); setfield(L, GLOBALS, 'POEHELPER_INFLATE');
-  pushcclosure(L, keep[1], 0); setfield(L, GLOBALS, 'POEHELPER_DEFLATE');
+  // PoB's timeless jewel tables are zlib files it unpacks with SimpleGraphic's Inflate. Headless, they are
+  // unpacked here once into the app's cache folder, and Inflate (SimpleGraphic.lua) reads the unpacked file
+  // that matches the data it is given (by its size). No calls from Lua back into JavaScript.
+  const inflated = unpackTimeless(pobDir, cacheDir);
   const run = (code, name) => {
     if (loadbuffer(L, code, Buffer.byteLength(code), name) || pcall(L, 0, 0, 0)) {
       const err = tostr(L, -1, null);
@@ -58,6 +65,8 @@ function start({ pobDir, hostSource, stubSource }) {
     }
   };
   const dir = pobDir.replace(/\\/g, '/').replace(/'/g, "\\'");
+  const lua = (t) => `'${String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  run(`POEHELPER_INFLATED = { ${Object.entries(inflated).map(([n, f]) => `[${Number(n)}] = ${lua(f)}`).join(', ')} }`, '=poehelper-inflate');
   run(`POEHELPER_EMBEDDED = true
 package.path = '${dir}/lua/?.lua;${dir}/lua/?/init.lua;${dir}/?.lua;' .. package.path
 package.cpath = '${dir}/?.dll;' .. package.cpath`, '=poehelper');

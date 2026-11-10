@@ -885,9 +885,12 @@ function registerIpc() {
     if (r.error) return { error: r.error };
     return require('./pob').summarise(r);
   }));
+  // PoB's own item tooltip: the item, and what equipping it in each slot gives (its stat compares)
+  handle('pob:itemTooltip', ({ file, text } = {}) => pobWith(file, () => pob.timeless('itemTooltip', { item: String(text || '').slice(0, 20000) })));
   handle('pob:upgrades', (a) => { const { file, asSkill } = typeof a === 'string' ? { file: a } : a || {}; return pobWith(file, () => pob.withSkill(asSkill, () => pob.upgrades())); });
   handle('pob:calcs', (file) => pobWith(file, () => pob.calcs()));
   handle('pob:breakdown', ({ file, ref } = {}) => pobWith(file, () => pob.breakdown(String(ref || ''))));
+  handle('pob:autoConfig', (file) => pobWith(file, () => pob.timeless('autoConfig')));
   handle('pob:tree', (file) => pobWith(file, async () => ({ ...(await pob.tree()), editable: pobIsSnapshot(file) })));
   handle('pob:node', ({ file, id } = {}) => pobWith(file, () => pob.node(Number(id) || 0)));
   handle('pob:power', ({ file, from, count } = {}) => pobWith(file, () => pob.power(Number(from) || 0, Number(count) || 150)));
@@ -913,6 +916,27 @@ function registerIpc() {
     const q = { query: { status: { option: services.settings.get('tradeStatus') || 'securable' }, stats: [{ type: 'count', value: { min: 1 }, filters }] }, sort: { price: 'asc' } };
     openExternal(`https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify(q))}`);
     return { ok: true };
+  });
+  // the passive tree's art from your Path of Building folder (TreeData: the files of the tree GGG publishes),
+  // read from disk when you look at the tree, never shipped with the app
+  const treeArtCache = new Map();
+  handle('pob:treeArt', ({ version, files } = {}) => {
+    const st = pobState();
+    if (!st.dir || !/^[\w.-]{1,40}$/.test(String(version || ''))) return {};
+    const out = {};
+    for (const f of (files || []).slice(0, 20)) {
+      if (!/^[\w.-]{1,80}\.(png|jpg|jpeg|webp)$/i.test(f)) continue;
+      const key = `${version}/${f}`;
+      if (!treeArtCache.has(key)) {
+        const file = path.join(st.dir, 'TreeData', version, f);
+        if (!fs.existsSync(file)) { treeArtCache.set(key, null); continue; }
+        const ext = f.split('.').pop().toLowerCase();
+        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+        treeArtCache.set(key, `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`);
+      }
+      if (treeArtCache.get(key)) out[f] = treeArtCache.get(key);
+    }
+    return out;
   });
   // the levelling plan: the order to take the tree in (gems per level come from pob:supportGems)
   handle('pob:levelPlan', ({ file, op, ...o } = {}) => {
@@ -1143,7 +1167,7 @@ function pobState() {
   };
 }
 async function pobReady(dir) {
-  if (!pob) pob = new (require('./pob').PobEngine)({ utilityProcess, hostFile: path.join(__dirname, '..', 'pob', 'host.lua'), workerFile: path.join(__dirname, 'pob-worker.js'), log });
+  if (!pob) pob = new (require('./pob').PobEngine)({ utilityProcess, hostFile: path.join(__dirname, '..', 'pob', 'host.lua'), workerFile: path.join(__dirname, 'pob-worker.js'), cacheDir: path.join(app.getPath('userData'), 'pob-cache'), log });
   clearTimeout(pobIdle);
   try {
     await pob.start(dir);

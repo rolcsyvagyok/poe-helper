@@ -71,7 +71,8 @@ function pickCharacter(list, wanted) {
 }
 
 class PobEngine {
-  constructor({ utilityProcess, hostFile, workerFile, log = () => {} }) {
+  constructor({ utilityProcess, hostFile, workerFile, cacheDir = null, log = () => {} }) {
+    this.cacheDir = cacheDir;
     this.up = utilityProcess;
     this.hostFile = hostFile;
     this.workerFile = workerFile;
@@ -87,6 +88,7 @@ class PobEngine {
   send(msg, timeoutMs = 120000) {
     if (!this.proc) return Promise.reject(new Error('Path of Building is not running.'));
     const id = ++this.seq;
+    if (msg.op !== 'ping') this.lastOp = msg.op === 'load' ? `opening ${path.basename(String(msg.file || 'a build'))}` : `working on "${msg.op}"`;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Path of Building took too long.')); }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
@@ -110,14 +112,19 @@ class PobEngine {
         if (m.error && !m.stats && !m.slots && !m.detail && !m.results) p.reject(new Error(m.error)); else p.resolve(m);
       });
       this.proc.on('exit', (code) => {
-        for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error(`Path of Building stopped (${code}).`)); }
+        const hex = typeof code === 'number' && code > 0xffff ? ` 0x${(code >>> 0).toString(16).toUpperCase()}` : '';
+        const doing = this.lastOp ? ` while ${this.lastOp}` : '';
+        const msg = `Path of Building stopped${doing} (${code}${hex}). It starts again on the next request.`;
+        this.log(msg, this.lastFile || '');
+        for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error(msg)); }
         this.pending.clear();
-        if (this.state !== 'off') { this.state = 'failed'; this.error = this.error || `Path of Building stopped (${code}).`; }
+        this.loaded = null; // a new PoB opens the build again
+        if (this.state !== 'off') { this.state = 'failed'; this.error = this.error || msg; }
         this.proc = null;
       });
       const hostSource = fs.readFileSync(this.hostFile, 'utf8');
       const stubSource = fs.readFileSync(path.join(path.dirname(this.hostFile), 'SimpleGraphic.lua'), 'utf8');
-      const r = await this.send({ op: 'start', pobDir: dir, hostSource, stubSource }, 180000);
+      const r = await this.send({ op: 'start', pobDir: dir, hostSource, stubSource, cacheDir: this.cacheDir || null }, 180000);
       this.state = 'ready';
       this.log(`PoB started in ${r.ms} ms`);
     } catch (err) {
@@ -169,9 +176,9 @@ class PobEngine {
   breakdown(ref) { return this.send({ op: 'breakdown', ref }, 30000); }
   /** PoB's Tree tab: the passive tree of the build, and what one node (and the path to it) does. */
   tree() { return this.send({ op: 'tree' }, 60000); }
-  node(id) { return this.send({ op: 'node', id }, 60000); }
+  node(id) { return this.send({ op: 'node', node: id }, 60000); }
   /** Allocate or remove a node like a click in PoB (a mastery needs its effect); undo the last change. */
-  treeEdit({ id, effect, undo, save = false, name } = {}) { return this.send({ op: 'treeEdit', id, effect, undo, save, name }, 60000); }
+  treeEdit({ id, effect, undo, save = false, name } = {}) { return this.send({ op: 'treeEdit', node: id, effect, undo, save, name }, 60000); }
   /** What each node is worth to the build, a piece at a time. */
   power(from, count) { return this.send({ op: 'power', from, count }, 120000); }
   /** The tree optimiser: start with the goal and limits, then one swap a step; end keeps the tree (saved) or not. */

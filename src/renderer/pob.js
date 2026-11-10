@@ -5,7 +5,7 @@
    Uses helpers defined in app.js (S, call, h, mount, section, toast, pageHead, refreshState, hotkeyField, fmtNum, pobBox, cleanErr). */
 (() => {
   const PB = { recent: [], tab: 'snapshot', file: null, a: null, b: null, text: '', builds: null, results: {}, busy: {} };
-  const TABS = [['snapshot', 'Snapshot'], ['test', 'Item tester'], ['stats', 'Stats'], ['tree', 'Tree'], ['calcs', 'Calcs'], ['config', 'Configuration'], ['upgrades', 'Upgrades'], ['gems', 'Support gems'], ['levelling', 'Levelling plan'], ['compare', 'Compare snapshots']];
+  const TABS = [['snapshot', 'Snapshot'], ['stats', 'Build'], ['tree', 'Tree'], ['calcs', 'Calcs'], ['config', 'Configuration'], ['upgrades', 'Upgrades'], ['gems', 'Support gems'], ['levelling', 'Levelling plan'], ['compare', 'Compare snapshots']];
 
   const num = (n, unit = '') => {
     if (n == null || !Number.isFinite(n)) return '–';
@@ -51,54 +51,59 @@
     } }, 'Open in Path of Building') : null);
 
   // ---------------------------------------------------------------- item tester
-  function testTab() {
-    const ta = h('textarea', { rows: 6, placeholder: 'Paste an item: hover it in game, press Ctrl+C, then paste here (Ctrl+V).', style: { width: '100%', fontFamily: 'var(--mono, monospace)', fontSize: '12.5px' } }, PB.text);
+  // ---------------------------------------------------------------- item tester (on the Build tab), like PoB's Items tab:
+  // paste or copy an item, see PoB's own tooltip with what equipping it in each slot gives
+  function itemTester() {
+    const ta = h('textarea', { rows: 4, placeholder: 'Paste an item: hover it in game, press Ctrl+C, then paste here (Ctrl+V). With "Test every item I copy" on, just copy it in game.', style: { width: '100%', fontFamily: 'var(--mono, monospace)', fontSize: '12.5px' } }, PB.text);
     const out = h('div', { class: 'stack' });
     const run = async () => {
       PB.text = ta.value;
       if (!PB.text.trim()) return mount(out, h('p', { class: 'small muted' }, 'Paste an item first.'));
       if (!PB.file) return mount(out, h('p', { class: 'small warn' }, 'Pick a build first, or save a snapshot.'));
       mount(out, h('p', { class: 'small muted' }, h('span', { class: 'spin' }), ' Path of Building is working it out…'));
-      try { PB.results.test = { text: PB.text, r: await call('pob:test', { file: PB.file, text: PB.text }) }; showTest(out); } catch (e) { mount(out, h('p', { class: 'small warn' }, errText(e))); }
+      try { PB.results.test = { text: PB.text, file: PB.file, r: await call('pob:itemTooltip', { file: PB.file, text: PB.text }) }; showTip(out); } catch (e) { mount(out, h('p', { class: 'small warn' }, errText(e))); }
     };
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) run(); });
     ta.addEventListener('paste', () => setTimeout(run, 0));
-    if (PB.results.test && PB.results.test.text === PB.text) showTest(out);
-    else if (!PB.text) mount(out, h('div', { class: 'panel small muted' }, 'Copy an item in game (hover it, Ctrl+C) or paste one below: what it does to your build shows here.'));
-    else if (PB.text && PB.autoRun) { PB.autoRun = false; setTimeout(run, 0); }
+    if (PB.results.test && PB.results.test.text === PB.text && PB.results.test.file === PB.file) showTip(out);
+    else if (PB.text && (PB.autoRun || PB.results.test?.file !== PB.file)) { PB.autoRun = false; setTimeout(run, 0); }
     const watching = PB.st?.watchClipboard !== false;
     const nameOf = (t) => { const l = t.split(/\r?\n/).map((x) => x.trim()); const i = l.findIndex((x) => x.startsWith('Rarity:')); return i >= 0 ? (l[i + 2] && !l[i + 2].startsWith('---') ? `${l[i + 1]}, ${l[i + 2]}` : l[i + 1]) : 'Item'; };
-    return [buildRow(), out,
-      h('div', { class: 'panel stack', style: { marginTop: '12px' } },
-        h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: watching, onchange: async (e) => { await call('pob:set', { watchClipboard: e.target.checked }); PB.st.watchClipboard = e.target.checked; toast(e.target.checked ? 'Every item you copy is tested here' : 'Copied items are no longer tested'); } }),
-          'Test every item I copy: hover an item in game, press Ctrl+C, and the result shows here'),
-        PB.recent.length > 1 ? h('div', { class: 'row small', style: { gap: '6px', flexWrap: 'wrap' } }, h('span', { class: 'muted' }, 'Copied before:'),
-          PB.recent.slice(1).map((t) => h('button', { class: 'quiet sm', onclick: () => { PB.text = t; PB.results.test = null; PB.autoRun = true; render(); } }, nameOf(t)))) : null,
-        ta,
-        h('div', { class: 'row', style: { gap: '8px' } },
-          h('button', { class: 'primary sm', onclick: run }, 'Test'),
-          h('button', { class: 'sm', title: 'Use the item you copied last', onclick: async () => { const t = await call('clipboard:item').catch(() => null); if (!t) return toast('The clipboard has no Path of Exile item. Press Ctrl+C on one in game first.', true); ta.value = t; run(); } }, 'Paste from clipboard'),
-          h('span', { class: 'small faint' }, 'Ctrl+Enter tests too.')),
-        hotkeyField('hotkeyPobTest', 'Item tester hotkey', S.settings, 'Hover an item in game and press it: the item is copied and tested here, against the build above.', ''))];
+    return h('div', { class: 'panel stack pob-tester' },
+      h('div', { class: 'row', style: { gap: '10px', flexWrap: 'wrap' } }, h('h3', { style: { margin: 0 } }, 'Item tester'),
+        h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: watching, onchange: async (e) => { await call('pob:set', { watchClipboard: e.target.checked }); PB.st.watchClipboard = e.target.checked; toast(e.target.checked ? 'Every item you copy is tested here' : 'Copied items are no longer tested'); } }),
+          'Test every item I copy in game (Ctrl+C)'),
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'sm', title: 'Use the item you copied last', onclick: async () => { const t = await call('clipboard:item').catch(() => null); if (!t) return toast('The clipboard has no Path of Exile item. Press Ctrl+C on one in game first.', true); ta.value = t; run(); } }, 'Paste from clipboard'),
+        h('button', { class: 'primary sm', onclick: run }, 'Test')),
+      PB.recent.length > 1 ? h('div', { class: 'row small', style: { gap: '6px', flexWrap: 'wrap' } }, h('span', { class: 'muted' }, 'Copied before:'),
+        PB.recent.slice(1).map((t) => h('button', { class: 'quiet sm', onclick: () => { PB.text = t; PB.results.test = null; PB.autoRun = true; render(); } }, nameOf(t)))) : null,
+      ta, out,
+      h('details', {}, h('summary', { class: 'small muted' }, 'Hotkey'), hotkeyField('hotkeyPobTest', 'Item tester hotkey', S.settings, 'Hover an item in game and press it: the item is copied and tested here, against the build above.', '')));
   }
-  function showTest(out) {
+  // PoB's tooltip: the item on the left, what each slot gives on the right
+  function showTip(out) {
     const r = PB.results.test?.r;
     if (!r) return mount(out);
     if (r.error) return mount(out, h('p', { class: 'small warn' }, r.error));
-    const main = r.slots.filter((s) => !s.swap);
-    const swap = r.slots.filter((s) => s.swap);
-    const card = (s) => {
-      const dps = s.changes.find((c) => c.key === 'dps');
-      const rest = s.changes.filter((c) => c.key !== 'dps');
-      return h('div', { class: 'panel pob-slot' },
-        h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, s.slot), h('span', { class: 'small faint' }, s.current ? `instead of ${s.current}` : 'empty slot'), h('span', { class: 'spacer' }),
-          dps ? h('span', { class: `pob-big ${dps.diff > 0 ? 'up' : 'down'}` }, `${pct(dps.pct) || signed(dps.diff)} ${r.full ? 'full DPS' : 'DPS'}`) : h('span', { class: 'small faint' }, 'same DPS')),
-        rest.length ? h('div', { class: 'pob-chgs' }, rest.map((c) => h('span', { class: `pob-chg ${c.diff > 0 ? 'up' : 'down'}`, title: `${num(c.before, c.unit)} → ${num(c.after, c.unit)}` }, `${signed(c.diff, c.unit)} ${c.label}`))) : h('div', { class: 'small faint' }, 'Nothing else changes.'));
-    };
-    mount(out,
-      h('div', { class: 'small muted' }, `${r.item} with ${PB.builds.find((b) => b.file === PB.file)?.name.replace(/^PoE Helper snapshots \/ /, '') || 'your build'}:`),
-      main.length ? main.map(card) : h('p', { class: 'small muted' }, 'This item doesn\'t fit any slot of this build.'),
-      swap.length ? h('details', {}, h('summary', { class: 'small muted' }, 'Weapon swap'), swap.map(card)) : null);
+    const lines = r.lines || [];
+    const firstCmp = lines.findIndex((l) => /will give you|^\^x80A080Tip:/.test(l.text || ''));
+    const itemLines = firstCmp >= 0 ? lines.slice(0, firstCmp) : lines;
+    const cmpLines = firstCmp >= 0 ? lines.slice(firstCmp).filter((l) => !/^\^x80A080Tip:/.test(l.text || '')) : [];
+    while (itemLines.length && itemLines[itemLines.length - 1].sep) itemLines.pop();
+    const rarity = String(r.rarity || '').toLowerCase();
+    const line = (l, i) => (l.sep ? h('div', { class: 'tsep' }) : h('div', { class: l.size >= 20 ? 'thead' : l.size >= 16 ? 'tline' : 'tline small' }, String(l.text).split('\n').map((t, k) => h('div', { key: k }, pobText(t)))));
+    // compares: one block per "Equipping this item in … will give you:" header
+    const blocks = [];
+    for (const l of cmpLines) {
+      if (/will give you/.test(l.text || '') || !blocks.length) blocks.push({ head: l, rows: [] });
+      else blocks[blocks.length - 1].rows.push(l);
+    }
+    mount(out, h('div', { class: 'pob-itemtip' },
+      h('div', { class: `pob-itembox rar-${rarity}` }, itemLines.map(line)),
+      h('div', { class: 'pob-cmpbox' }, blocks.length ? blocks.map((b) => h('div', { class: 'pob-cmp' }, h('div', { class: 'chead' }, String(b.head.text).split('\n').map((t) => h('div', {}, pobText(t)))),
+        b.rows.length ? b.rows.map((l) => (l.sep ? null : h('div', { class: 'crow' }, pobText(l.text)))) : h('div', { class: 'crow faint' }, 'No change.')))
+        : h('div', { class: 'small muted' }, 'This item doesn\'t fit any slot of this build, or changes nothing.'))));
   }
 
   // ---------------------------------------------------------------- stats
@@ -166,7 +171,7 @@
     const gems = h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Gems'), (r.gems || []).map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') + (g.main ? ' main' : '') },
       h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.main ? ' · main skill' : '', g.enabled ? '' : ' · off'),
       h('div', {}, g.gems.map((x, i) => h('span', { class: (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, i ? ' · ' : '', `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`))))));
-    return [head, h('div', { class: 'pob-grid' }, groups, skills), h('div', { class: 'pob-grid' }, gear, gems)];
+    return [head, itemTester(), h('div', { class: 'pob-grid' }, groups, skills), h('div', { class: 'pob-grid' }, gear, gems)];
   }
 
   // the exact item, like the game's tooltip, when you point at a gear row
@@ -391,6 +396,39 @@
       for (const id of TL.shown?.ids || []) nodeEls.get(id)?.classList.add('tconq');
     }
 
+    // the real node art (PoB's sprite sheets from your PoB folder), under the circles that keep hover and highlights
+    const drawArt = (art) => {
+      if (!root.isConnected && !root.parentNode) { /* still being built: fine */ }
+      const defs = svg('defs');
+      const sheetId = {};
+      Object.entries(art).forEach(([f, url], k) => { const im = svg('image', { id: `pobsheet-${k}`, href: url }); defs.append(im); sheetId[f] = `pobsheet-${k}`; });
+      const gArt = svg('g', { class: 'tart', 'pointer-events': 'none' });
+      const put = (n, idx) => {
+        const sp = idx && r.sprites[idx - 1];
+        if (!sp || !sheetId[sp.f]) return;
+        const size = sp.w * 2.66;
+        const hh = sp.h * 2.66;
+        const box = svg('svg', { x: n.x - size / 2, y: n.y - hh / 2, width: size, height: hh, viewBox: `${sp.x} ${sp.y} ${sp.w} ${sp.h}`, preserveAspectRatio: 'none', overflow: 'hidden' });
+        box.append(svg('use', { href: `#${sheetId[sp.f]}` }));
+        gArt.append(box);
+      };
+      for (const n of r.nodes) {
+        if (n.t === 5 && !n.n) continue;
+        put(n, n.a ? n.ia : n.iu);
+        put(n, n.a ? n.fa : n.fu);
+      }
+      root.insertBefore(defs, root.firstChild);
+      root.insertBefore(gArt, gNodes);
+      root.classList.add('art');
+    };
+    if (r.sprites?.length && r.treeVersion) {
+      const files = [...new Set(r.sprites.map((x) => x.f))];
+      const ak = `${r.treeVersion}|${files.join(',')}`;
+      const cached = (PB.treeArt || (PB.treeArt = {}))[ak];
+      if (cached) drawArt(cached);
+      else call('pob:treeArt', { version: r.treeVersion, files }).then((art) => { PB.treeArt[ak] = art; if (Object.keys(art).length) drawArt(art); }).catch(() => {});
+    }
+
     // search: rings round the nodes that match, like PoB
     const doSearch = () => {
       const q = F.q.trim().toLowerCase();
@@ -522,7 +560,25 @@
     doSearch();
     showDiff();
     if (F.heat) runHeat();
-    return [head, optPanel, tlPanel, heatBox, h('div', { class: 'pob-tree-box' }, root), diffBar,
+    // full screen: the tree fills the window (button in its corner, Esc or the button again to leave)
+    const FS_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+    const FS_EXIT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+    const fsBtn = h('button', { class: 'sm pob-tree-fs', 'aria-label': 'Full screen', title: 'Full screen (Esc to leave)' });
+    const treeBox = h('div', { class: 'pob-tree-box' + (PB.treeFull ? ' full' : '') }, root, fsBtn);
+    const setFull = (on) => {
+      PB.treeFull = on;
+      treeBox.classList.toggle('full', on);
+      fsBtn.innerHTML = on ? FS_EXIT : FS_ICON;
+      fsBtn.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+      document.body.classList.toggle('pob-tree-fullscreen', on);
+      if (on) treeBox.append(diffBar); else treeBox.after(diffBar);
+    };
+    fsBtn.onclick = () => setFull(!PB.treeFull);
+    if (PB.treeEsc) document.removeEventListener('keydown', PB.treeEsc);
+    PB.treeEsc = (e) => { if (e.key === 'Escape' && PB.treeFull && treeBox.isConnected) setFull(false); };
+    document.addEventListener('keydown', PB.treeEsc);
+    setTimeout(() => setFull(!!PB.treeFull), 0);
+    return [head, optPanel, tlPanel, heatBox, treeBox, diffBar,
       h('p', { class: 'small faint' }, `Hover a node to see what it does to your build (Path of Building works it out with the path to it). Drag to move, scroll to zoom.${r.editable ? ' Changes are saved into this snapshot.' : ''}`)];
   }
 
@@ -1003,7 +1059,26 @@
           h('button', { class: 'sm', onclick: () => end(false) }, O.steps.length ? 'Go back to my tree' : 'Close')]),
       O.error ? h('div', { class: 'small warn' }, O.error) : null,
       changes.length && O.stats ? h('div', { class: 'pob-cfg-diff inline' }, changes.map((c) => h('span', { class: 'chg ' + (c.diff > 0 ? 'up' : 'down') }, `${c.label} ${fmtStat(c.before, c.unit)} → ${fmtStat(c.after, c.unit)}`))) : null,
-      O.steps.length ? h('ol', { class: 'pob-opt-steps small' }, O.steps.map((sw) => h('li', {},
+      O.steps.length ? h('ol', { class: 'pob-opt-steps small' }, O.steps.map((sw) => h('li', {
+        // point at a swap: its nodes light up on the tree
+        onmouseenter: () => {
+          const mark = (ids, cls) => (ids || []).forEach((id) => document.querySelectorAll(`.pob-tree-svg .tn[data-i="${id}"]`).forEach((el) => el.classList.add(cls)));
+          mark(sw.addedIds, 'swap-add'); mark(sw.removedIds, 'swap-rem');
+        },
+        onmouseleave: () => document.querySelectorAll('.pob-tree-svg .swap-add, .pob-tree-svg .swap-rem').forEach((el) => el.classList.remove('swap-add', 'swap-rem')),
+        // click: look at them on the tree
+        onclick: () => {
+          const t = PB.results[`tree|${file}`];
+          const ids = new Set([...(sw.addedIds || []), ...(sw.removedIds || [])]);
+          const ns = (t?.nodes || []).filter((n) => ids.has(n.i));
+          if (!ns.length) return;
+          const xs = ns.map((n) => n.x); const ys = ns.map((n) => n.y);
+          const pad = 900;
+          (PB.treeViews || (PB.treeViews = {}))[file] = { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad, w: Math.max(...xs) - Math.min(...xs) + pad * 2, h: Math.max(...ys) - Math.min(...ys) + pad * 2 };
+          redraw();
+        },
+        title: 'Point at it to see it on the tree; click to go there',
+      },
         h('span', { class: 'gone' }, `− ${sw.removed.join(', ') || 'nothing'}`), '  ', h('span', { class: 'new' }, `+ ${sw.added.join(', ')}`),
         h('span', { class: 'faint' }, `  ${GOALS[O.goal]} ${fmtStat(optValueOf(sw.before, O.goal))} → ${fmtStat(optValueOf(sw.after, O.goal))}`)))) : null,
       h('div', { class: 'small faint' }, 'On the tree: green nodes are new, red rings are nodes given up.'));
@@ -1279,7 +1354,17 @@
         h('div', { class: 'row', style: { gap: '12px', flexWrap: 'wrap' } },
           h('input', { type: 'search', placeholder: 'Search the options', value: F.q, style: { flex: 1, minWidth: '200px' }, oninput: (e) => { F.q = e.target.value; drawList(); } }),
           h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: F.all, onchange: (e) => { F.all = e.target.checked; drawList(); } }), 'Show every option (also ones this build doesn\'t use)'),
-          h('span', { class: 'small faint' }, `${changedCount} set`)),
+          h('span', { class: 'small faint' }, `${changedCount} set`),
+          r.editable ? h('button', { class: 'sm', title: 'Ticks what the build itself gives: charges you generate, Onslaught and other buffs you gain, Rage at its maximum, a flask, a warcry (snapshots do this by themselves)', onclick: async (e) => {
+            const b = e.currentTarget; b.disabled = true;
+            try {
+              const a = await call('pob:autoConfig', file);
+              if (!a.list?.length) { toast('Nothing more to tick from this build'); return; }
+              for (const it of a.list) { const o = r.options.find((x) => x.var === it.var); if (o) change(o, it.value); }
+              drawList();
+              toast(`Ticked: ${a.list.map((it) => r.options.find((x) => x.var === it.var)?.label.replace(/[?:]\s*$/, '') || it.var).join(', ')}`);
+            } catch (err) { toast(errText(err)); } finally { b.disabled = false; }
+          } }, 'Tick from my build') : null),
         sumBox),
       listBox,
       diffBar,
@@ -1532,8 +1617,7 @@
       const box = h('div', { class: 'pob-box' });
       mount(body, box, shareBox());
       await pobBox(box);
-    } else if (PB.tab === 'test') mount(body, testTab());
-    else if (PB.tab === 'stats') mount(body, statsTab());
+    } else if (PB.tab === 'stats' || PB.tab === 'test') mount(body, statsTab());
     else if (PB.tab === 'calcs') mount(body, calcsTab());
     else if (PB.tab === 'tree') mount(body, treeTab());
     else if (PB.tab === 'gems') mount(body, gemsTab());
@@ -1556,15 +1640,17 @@
     PB.text = t;
     PB.results.test = null;
     PB.autoRun = true;
-    if (currentPage === 'pob' && PB.tab === 'test') render();
+    if (currentPage === 'pob' && (PB.tab === 'stats' || PB.tab === 'test')) render();
   });
   // the item tester hotkey
   window.poe.on('app:goto', (g) => {
     if (g?.page !== 'pob') return;
-    PB.tab = g.tab || PB.tab;
+    PB.tab = g.tab === 'test' ? 'stats' : g.tab || PB.tab;
     if (g.text) { PB.text = g.text; PB.recent = [g.text, ...PB.recent.filter((x) => x !== g.text)].slice(0, 8); PB.results.test = null; PB.autoRun = true; }
     go('pob');
   });
 
-  window.PobView = { render };
+  // a snapshot just saved: show it on the Build tab
+  const showBuild = (file) => { if (file) { PB.file = file; PB.lastSeen = file; } PB.tab = 'stats'; PB.results = {}; PB.builds = null; render(); };
+  window.PobView = { render, showBuild };
 })();

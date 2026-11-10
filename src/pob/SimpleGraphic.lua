@@ -368,8 +368,6 @@ function Paste() end
 ---@return string? compressedData
 ---@return string? errMsg
 function Deflate(data, isGzip)
-	-- the app gives zlib to PoB (Node's)
-	if POEHELPER_DEFLATE then return POEHELPER_DEFLATE(data) end
 	return ""
 end
 
@@ -377,7 +375,12 @@ end
 ---@return string? data
 ---@return string? errMsg
 function Inflate(data)
-	if POEHELPER_INFLATE then return POEHELPER_INFLATE(data) end
+	-- the app unpacked PoB's timeless jewel tables beforehand; this is the one with data's size
+	local file = POEHELPER_INFLATED and data and POEHELPER_INFLATED[#data]
+	if file then
+		local f = io.open(file, "rb")
+		if f then local out = f:read("*a"); f:close(); return out end
+	end
 	return ""
 end
 
