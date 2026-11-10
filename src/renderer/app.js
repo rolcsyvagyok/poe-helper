@@ -59,6 +59,7 @@ async function refreshState() {
   if (!S.sounds.length) S.sounds = await call('sounds:list').catch(() => []);
   window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
   window.UI.applyTheme(S.settings.uiTheme);
+  call('appIcon:get').then((u) => { const el = document.getElementById('brandIcon'); if (el && u) el.src = u; }).catch(() => {});
   if (!S.iconsLoaded) { S.userIcons = await call('icons:list').catch(() => []); UI.setUserIcons(S.userIcons); S.iconsLoaded = true; }
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
@@ -159,7 +160,7 @@ async function setUiTheme(id) {
 }
 function themeDots() {
   const cur = S.settings.uiTheme || 'atlas';
-  return h('div', { class: 'theme-dots', role: 'group', 'aria-label': 'Look' }, window.UI.UI_THEMES.map((t) => h('button', {
+  return h('div', { class: 'theme-dots', role: 'group', 'aria-label': 'Look' }, h('span', { class: 'faint' }, 'Look'), window.UI.UI_THEMES.map((t) => h('button', {
     class: t.id === cur ? 'on' : '', 'data-theme-id': t.id, title: `${t.name} look`, 'aria-label': `${t.name} look`,
     style: { background: `linear-gradient(135deg, ${t.sw[1]} 50%, ${t.sw[2]} 50%)` }, onclick: () => setUiTheme(t.id),
   })));
@@ -177,8 +178,8 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(undefined, { year: 'n
 function versionLine() {
   const v = S.ver;
   return h('button', { class: 'version-line', title: 'Read the patch notes', onclick: () => openNotes() },
-    h('span', {}, `Version ${v?.version || S.settings.version}`),
-    v?.releasedAt ? h('span', { class: 'faint' }, ` · released ${fmtDate(v.releasedAt)}`) : null,
+    h('div', {}, `Version ${v?.version || S.settings.version}`),
+    v?.releasedAt ? h('div', { class: 'faint' }, `Released ${fmtDate(v.releasedAt)}`) : null,
     v?.updatedAt ? h('div', { class: 'faint' }, v.updatedFrom ? `Updated from ${v.updatedFrom} on ${fmtDate(v.updatedAt)}` : `Installed ${fmtDate(v.updatedAt)}`) : null);
 }
 function openNotes() {
@@ -340,6 +341,14 @@ async function renderOverviewNow() {
       figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot', latest ? `Net worth, updated ${ago(Date.now() - latest.ts)}` : 'Net worth: take a snapshot on the WealthyExile page'),
       figure(report?.perHourChaos != null ? `${report.perHourChaos >= 0 ? '+' : ''}${fmt(report.perHourChaos)}c` : '–', 'Per hour over the last day', report?.perHourChaos >= 0 ? 'good' : report?.perHourChaos < 0 ? 'bad' : ''),
       figure(`${g.today.total} of ${g.dailyBudget}`, 'GGG requests used today'))),
+    // net worth over the last day, from snapshots already taken (no new requests)
+    (report?.series || []).length > 1 ? h('div', { style: { marginTop: '28px' } },
+      h('div', { class: 'section-head' }, h('h2', {}, 'Net worth, last day'), h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => go('networth') }, 'Open WealthyExile')),
+      h('div', { class: 'panel' }, window.lineChart(report.series.filter((p) => p.ts >= latest.ts - 24 * 3600 * 1000), { divine: latest.divine, height: 150 }))) : null,
+    // the things people open most, one click away
+    h('div', { class: 'ov-shortcuts', style: { marginTop: '28px' } },
+      [['pob', 'Snapshot my build', 'Path of Building: DPS, tree, upgrades'], ['lab', "Today's lab", 'The layout from poelab'], ['regex', 'Map regex', 'Copy a search for your stash'], ['farm', 'What to farm', 'What pays best right now'], ['filters', 'Loot filter', 'Your tiers and price changes']]
+        .map(([page, title, note]) => h('button', { class: 'ov-card', onclick: () => go(page) }, h('b', {}, title), h('span', { class: 'small muted' }, note)))),
     h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start' } },
       h('div', {},
         h('div', { class: 'section-head' }, h('h2', {}, 'Recent price checks'), h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, `${window.Hotkey ? window.Hotkey.label(S.settings.hotkeyPrice) : S.settings.hotkeyPrice} over an item`)),
@@ -347,7 +356,7 @@ async function renderOverviewNow() {
       h('div', {},
         h('div', { class: 'section-head' }, h('h2', {}, 'Requests today')),
         h('div', { class: 'panel stack' },
-          h('div', { class: 'bar' }, h('i', { style: { width: Math.min(100, (100 * g.today.total) / g.dailyBudget) + '%' } })),
+          g.today.total ? h('div', { class: 'bar' }, h('i', { style: { width: Math.min(100, (100 * g.today.total) / g.dailyBudget) + '%' } })) : null,
           Object.keys(g.today.byKey || {}).length
             ? h('table', {}, h('tbody', {}, Object.entries(g.today.byKey).map(([k, v]) => h('tr', {}, h('td', {}, { stash: 'Stash tabs', 'trade-search': 'Trade searches', 'trade-fetch': 'Trade listings', 'trade-data': 'Trade mod list' }[k] || k), h('td', { class: 'r' }, v)))))
             : h('p', { class: 'small muted' }, 'None yet. Price checks only use poe.ninja, so they never count here.'),
@@ -970,8 +979,9 @@ function appIconBox(st) {
   return [img,
     h('div', { class: 'stack', style: { gap: '6px', flex: 1 } },
       h('div', { class: 'row' },
-        h('button', { class: 'primary', onclick: async () => { const u = await call('appIcon:pick'); if (u) { img.src = u; toast('Icon changed'); renderSettings(); } } }, 'Choose an image…'),
-        st.customAppIcon ? h('button', { class: 'quiet', onclick: async () => { img.src = await call('appIcon:reset'); toast('Back to the PoE Helper icon'); renderSettings(); } }, 'Use the default icon') : null),
+        [['flask', 'Flask'], ['classic', 'Classic']].map(([k, label]) => h('button', { class: !st.customAppIcon && (st.appIconStyle || 'flask') === k ? 'primary' : 'quiet', 'aria-pressed': String(!st.customAppIcon && (st.appIconStyle || 'flask') === k), onclick: async () => { img.src = await call('appIcon:style', k); const b = document.getElementById('brandIcon'); if (b) b.src = img.src; toast(`${label} icon`); renderSettings(); } }, label)),
+        h('button', { class: st.customAppIcon ? 'primary' : 'quiet', onclick: async () => { const u = await call('appIcon:pick'); if (u) { img.src = u; const b = document.getElementById('brandIcon'); if (b) b.src = u; toast('Icon changed'); renderSettings(); } } }, 'Choose an image…'),
+        null),
       h('span', { class: 'small muted' }, 'Any .png, .jpg or .ico. It is cropped to a square; simple shapes read best at tray size (16 px). The desktop shortcut keeps its own icon.'))];
 }
 
@@ -1009,7 +1019,7 @@ async function renderSettingsNow() {
         section('Requests', 'How much the app may ask of GGG and poe.ninja.',
           h('div', { class: 'panel stack' },
             field('GGG requests per day', h('input', { type: 'number', min: 10, value: st.dailyGggBudget, onchange: set('dailyGggBudget', Number) }), 'Stash and trade requests stop once this is reached. Price checks never count.'),
-            field('Speed', h('select', { onchange: set('rateSafety', Number) }, [[0.3, 'Gentle: 30% of the allowed rate'], [0.5, 'Normal: 50%'], [0.7, 'Faster: 70%']].map(([v, l]) => h('option', { value: v, selected: Number(st.rateSafety) === v }, l)))),
+            field('Speed', h('select', { onchange: set('rateSafety', Number) }, [[0.3, 'Gentle (a third of what GGG allows)'], [0.5, 'Normal (half of what GGG allows)'], [0.7, 'Faster (most of what GGG allows)']].map(([v, l]) => h('option', { value: v, selected: Number(st.rateSafety) === v }, l)))),
             field('Keep prices for (minutes)', h('input', { type: 'number', min: 5, value: st.ninjaTtlMin, onchange: set('ninjaTtlMin', Number) }), 'poe.ninja updates about every 15 minutes, so lower values only add downloads.'),
             field('Your name or link for request headers', h('input', { value: st.contact || '', placeholder: 'Optional, for example github.com/you', onchange: set('contact', (v) => v.trim()) })),
             h('details', {}, h('summary', {}, 'Price server address'),

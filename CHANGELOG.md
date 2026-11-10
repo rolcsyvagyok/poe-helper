@@ -3,6 +3,16 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.45 - 2026-11-10
+
+- **Colour-blind friendly everywhere**: gains, losses, on and off are now blue and orange across the whole app (Compare snapshots, net worth per hour, prices, regex picks and more), like the tree. The + and − signs stay.
+- **Overview**: a net worth chart for the last day (from snapshots you already have, no extra requests) and one-click cards for your most used pages. The empty bar under "Requests today" is gone until there are requests.
+- **Menu**: the app's icon sits next to its name; the version, release date and install date each get their own line; the theme dots are labelled "Look".
+- **Buttons**: small and plain buttons use the normal font instead of the game font, so long labels like "Log in again on pathofexile.com" read easily.
+- **Settings → Speed** says what it means: "Normal (half of what GGG allows)".
+
+- **New icon**: a tall, square life flask in a brass frame, seen from the side at an angle, with murky blood-red liquid and a red glow, in a worn brass border. The old gold diamond is still there: Settings → Tray and app icon → **Classic**. If you picked your own icon, yours stays. Windows may show the old icon for a while until it refreshes its icon cache.
+
 ## 1.0.44 - 2026-11-10
 
 - **Cleaned out leftovers** from removed features: the old item test page, the automatic fractured tiering, a few unused background requests and settings, and about 40 unused styles. Nothing you use changes; the app just carries less.

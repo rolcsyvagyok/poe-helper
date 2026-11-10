@@ -44,6 +44,7 @@ const DEFAULT_SETTINGS = {
   overlayPos: null, // where you last dragged the price check
   minimizeToTray: false,
   customAppIcon: false, // your own tray/app icon in <userData>/app-icon.png
+  appIconStyle: 'flask', // the built-in icon: 'flask' (default) or 'classic' (the gold diamond)
   trayHintShown: false,
   categoryIcons: {}, // type -> built-in icon name or "img:<file>"
   baseFilterName: null, // the chosen filter's name, to find it again if the game renames the file

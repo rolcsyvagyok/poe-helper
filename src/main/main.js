@@ -391,20 +391,25 @@ function notify(body) {
 const DEFAULT_ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const customIconPath = () => path.join(app.getPath('userData'), 'app-icon.png');
 
-/** Your own icon if you picked one (Settings → Tray and app icon), else the app's. */
+// 'flask' is the default icon, 'classic' the earlier gold diamond; your own image overrides both
+const ASSETS = path.join(__dirname, '..', '..', 'assets');
+const iconStyle = () => (services?.settings.get('appIconStyle') === 'classic' ? 'classic' : 'flask');
+const assetFile = (base, ext) => path.join(ASSETS, `${base}${iconStyle() === 'classic' ? '-classic' : ''}${ext}`);
+
+/** Your own icon if you picked one (Settings → Tray and app icon), else the chosen built-in one. */
 function appIconImage() {
   if (services?.settings.get('customAppIcon')) {
     const img = nativeImage.createFromPath(customIconPath());
     if (!img.isEmpty()) return img;
   }
-  const img = nativeImage.createFromPath(DEFAULT_ICON);
-  return img.isEmpty() ? nativeImage.createEmpty() : img;
+  const img = nativeImage.createFromPath(assetFile('icon', '.png'));
+  return img.isEmpty() ? nativeImage.createFromPath(DEFAULT_ICON) : img;
 }
 
-/** The tray gets its own simplified 16/32 px drawing (tray.png + tray@2x.png) unless you picked an icon. */
+/** The tray gets its own close-cropped 16/32 px drawing (tray.png + tray@2x.png) unless you picked an icon. */
 function trayImage() {
   if (!services?.settings.get('customAppIcon')) {
-    const t = nativeImage.createFromPath(path.join(__dirname, '..', '..', 'assets', 'tray.png'));
+    const t = nativeImage.createFromPath(assetFile('tray', '.png'));
     if (!t.isEmpty()) return t;
   }
   return appIconImage().resize({ width: 16, height: 16, quality: 'best' });
@@ -421,23 +426,25 @@ function pngToIco(png) {
 }
 
 /**
- * The taskbar takes its icon from a real file outside the app archive: the installed PoE Helper.exe (its
- * icon is built in), your own icon as an .ico, or assets/icon.ico when run from the source folder.
- * Without this, Windows sometimes shows the blank default icon (after hiding to the tray, or an update).
+ * The taskbar takes its icon from a real file outside the app archive: the installed PoE Helper.exe (the
+ * flask is built in), a copy of the classic icon or your own icon as an .ico, or assets/icon.ico when run
+ * from the source folder. Without this, Windows sometimes shows the blank default icon.
  */
 function taskbarIcon() {
   if (process.platform !== 'win32' || !mainWin || mainWin.isDestroyed()) return;
-  let iconPath = app.isPackaged ? process.execPath : path.join(__dirname, '..', '..', 'assets', 'icon.ico');
-  if (services?.settings.get('customAppIcon')) {
-    try {
+  let iconPath = app.isPackaged ? process.execPath : path.join(ASSETS, 'icon.ico');
+  try {
+    if (services?.settings.get('customAppIcon')) {
       const img = nativeImage.createFromPath(customIconPath());
       if (!img.isEmpty()) {
-        const ico = path.join(app.getPath('userData'), 'app-icon.ico');
-        fs.writeFileSync(ico, pngToIco(img.resize({ width: 256, height: 256, quality: 'best' }).toPNG()));
-        iconPath = ico;
+        iconPath = path.join(app.getPath('userData'), 'app-icon.ico');
+        fs.writeFileSync(iconPath, pngToIco(img.resize({ width: 256, height: 256, quality: 'best' }).toPNG()));
       }
-    } catch { /* keep the app's icon */ }
-  }
+    } else if (iconStyle() === 'classic') {
+      iconPath = path.join(app.getPath('userData'), 'app-icon-classic.ico');
+      fs.writeFileSync(iconPath, fs.readFileSync(path.join(ASSETS, 'icon-classic.ico')));
+    }
+  } catch { /* keep the app's icon */ }
   try {
     mainWin.setAppDetails({
       appId: 'dev.poehelper.app', appIconPath: iconPath, appIconIndex: 0,
@@ -451,7 +458,7 @@ function applyAppIcon() {
   taskbarIcon();
   if (tray) tray.setImage(trayImage());
   if (mainWin && !img.isEmpty() && services?.settings.get('customAppIcon')) mainWin.setIcon(img.resize({ width: 256, height: 256, quality: 'best' }));
-  else if (mainWin) mainWin.setIcon(path.join(__dirname, '..', '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
+  else if (mainWin) mainWin.setIcon(assetFile('icon', process.platform === 'win32' ? '.ico' : '.png'));
 }
 
 function hideToTray() {
@@ -1061,6 +1068,12 @@ function registerIpc() {
     applyAppIcon();
     return appIconImage().resize({ width: 64, height: 64, quality: 'best' }).toDataURL();
   });
+  handle('appIcon:style', (style) => {
+    s.set('appIconStyle', style === 'classic' ? 'classic' : 'flask');
+    s.set('customAppIcon', false);
+    applyAppIcon();
+    return appIconImage().resize({ width: 64, height: 64, quality: 'best' }).toDataURL();
+  });
   handle('appIcon:reset', () => {
     s.set('customAppIcon', false);
     applyAppIcon();
@@ -1392,7 +1405,7 @@ app.whenReady().then(async () => {
   createMainWindow();
   createOverlay();
   createTray();
-  if (services.settings.get("customAppIcon")) applyAppIcon();
+  if (services.settings.get("customAppIcon") || services.settings.get("appIconStyle") === "classic") applyAppIcon();
   // automatic updates from GitHub Releases (installed app only)
   updater = require('./updater').createUpdater({
     app,

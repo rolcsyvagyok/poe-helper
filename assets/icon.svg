@@ -1,41 +1,111 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#262a33"/><stop offset="1" stop-color="#101216"/>
-    </linearGradient>
-    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff6dc" stop-opacity="0"/>
-      <stop offset=".35" stop-color="#fff1c8" stop-opacity=".55"/>
-      <stop offset="1" stop-color="#ffd27a" stop-opacity=".95"/>
-    </linearGradient>
-    <radialGradient id="glow" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="#ffcf6b" stop-opacity=".55"/><stop offset="1" stop-color="#ffcf6b" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#fff3c4"/><stop offset=".45" stop-color="#f0b443"/><stop offset="1" stop-color="#9a5d10"/>
-    </linearGradient>
-    <linearGradient id="gemDark" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#c98a24"/><stop offset="1" stop-color="#6e3f08"/>
-    </linearGradient>
-    <clipPath id="tile"><rect x="8" y="8" width="240" height="240" rx="54"/></clipPath>
-  </defs>
-  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#bg)"/>
-  <g clip-path="url(#tile)">
-    <!-- the loot beam -->
-    <path d="M116 0 H140 L162 168 H94 Z" fill="url(#beam)"/>
-    <ellipse cx="128" cy="166" rx="96" ry="70" fill="url(#glow)"/>
-    <!-- ground shadow -->
-    <ellipse cx="128" cy="212" rx="58" ry="10" fill="#000" opacity=".45"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><defs>
+<filter id="paint" x="-5%" y="-5%" width="110%" height="110%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="11" result="n"/>
+  <feDisplacementMap in="SourceGraphic" in2="n" scale="8" result="d"/>
+  <feGaussianBlur in="d" stdDeviation="1.3"/>
+</filter>
+<filter id="soft"><feGaussianBlur stdDeviation="8"/></filter>
+<filter id="soft2"><feGaussianBlur stdDeviation="3"/></filter>
+<filter id="grain" x="0" y="0" width="100%" height="100%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="4"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 -.25"/>
+  <feComposite in2="SourceGraphic" operator="in"/>
+</filter>
+<filter id="mottle" x="0" y="0" width="100%" height="100%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="21"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 .2  0 0 0 0 .16  0 0 0 0 .14  0 0 0 .45 -.12"/>
+  <feComposite in2="SourceGraphic" operator="in"/>
+</filter>
+<radialGradient id="bg" cx="50%" cy="55%" r="75%"><stop offset="0" stop-color="#2e1c17"/><stop offset=".5" stop-color="#1c1714"/><stop offset="1" stop-color="#0d0b0a"/></radialGradient>
+<radialGradient id="glass" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#2c2420"/><stop offset=".6" stop-color="#110d0c"/><stop offset="1" stop-color="#050404"/></radialGradient>
+<radialGradient id="blood" cx="42%" cy="35%" r="80%"><stop offset="0" stop-color="#c4220f"/><stop offset=".3" stop-color="#780b07"/><stop offset=".7" stop-color="#300202"/><stop offset="1" stop-color="#100000"/></radialGradient>
+<radialGradient id="redglow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#b8200e" stop-opacity=".55"/><stop offset="1" stop-color="#b8200e" stop-opacity="0"/></radialGradient>
+<linearGradient id="metal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1e1408"/><stop offset=".3" stop-color="#7a5e2c"/><stop offset=".55" stop-color="#3e2c12"/><stop offset="1" stop-color="#140c04"/></linearGradient>
+<linearGradient id="strap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a5026"/><stop offset=".5" stop-color="#3a2a12"/><stop offset="1" stop-color="#20160a"/></linearGradient>
+<linearGradient id="cork" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1a0f07"/><stop offset=".35" stop-color="#4e3319"/><stop offset="1" stop-color="#120a04"/></linearGradient>
+<!-- tall, narrow flask: long neck, slim shoulders, a rounded belly -->
+<path id="shape" d="M234 104 L278 104 L282 178 C 330 196, 352 240, 352 300 C 352 392, 322 452, 256 452 C 190 452, 160 392, 160 300 C 160 240, 182 196, 230 178 Z"/>
+<clipPath id="body"><use href="#shape"/></clipPath>
+<linearGradient id="front" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a1208"/><stop offset=".35" stop-color="#c0240f"/><stop offset=".7" stop-color="#7a0c06"/><stop offset="1" stop-color="#3a0303"/></linearGradient>
+<linearGradient id="side" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a0404"/><stop offset="1" stop-color="#160101"/></linearGradient>
+<linearGradient id="liqv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".75" stop-color="#000" stop-opacity=".15"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient>
+<linearGradient id="brass" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a2810"/><stop offset=".35" stop-color="#b08a48"/><stop offset=".6" stop-color="#6a4e24"/><stop offset="1" stop-color="#2a1c0a"/></linearGradient>
+<linearGradient id="brassV" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c49a54"/><stop offset=".5" stop-color="#6e5226"/><stop offset="1" stop-color="#2e2010"/></linearGradient>
+<radialGradient id="dome" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#d4ac62"/><stop offset=".45" stop-color="#7a5a28"/><stop offset="1" stop-color="#22160a"/></radialGradient>
+<filter id="murk" x="0" y="0" width="100%" height="100%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.018 0.045" numOctaves="4" seed="9"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 .05  0 0 0 0 0  0 0 0 0 0  0 0 0 1.6 -.55"/>
+  <feComposite in2="SourceGraphic" operator="in"/>
+</filter>
+<filter id="swirl" x="0" y="0" width="100%" height="100%">
+  <feTurbulence type="turbulence" baseFrequency="0.012 0.03" numOctaves="2" seed="5"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 .45  0 0 0 0 .3  0 0 0 2.2 -1.25"/>
+  <feComposite in2="SourceGraphic" operator="in"/>
+  <feGaussianBlur stdDeviation="1.5"/>
+</filter>
+<filter id="inner" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="10"/></filter>
+<clipPath id="frontClip"><path d="M176 150 L306 150 L306 440 L176 440 Z"/></clipPath>
+</defs>
+<rect x="8" y="8" width="496" height="496" rx="44" fill="url(#bg)"/>
+<rect x="8" y="8" width="496" height="496" rx="44" fill="#000" filter="url(#mottle)"/>
+<ellipse cx="256" cy="300" rx="190" ry="200" fill="url(#redglow)"/>
+<g transform="translate(22 6)"><g filter="url(#paint)">
+  <!-- three-quarter view: wide front face, narrow side face on the right -->
+  <!-- side face -->
+  <path d="M312 150 L346 136 L346 428 L312 450 Z" fill="url(#side)"/>
+  <!-- front face: the liquid behind glass -->
+  <path d="M170 150 L312 150 L312 450 L170 450 Z" fill="url(#front)"/>
+  <path d="M170 150 L312 150 L312 450 L170 450 Z" fill="url(#liqv)"/>
+  <ellipse cx="226" cy="300" rx="44" ry="110" fill="#ff4a26" opacity=".25" filter="url(#soft)"/>
+  <g clip-path="url(#frontClip)">
+    <!-- murky depth and slow swirls in the liquid -->
+    <rect x="170" y="150" width="140" height="300" fill="#000" filter="url(#murk)" opacity=".7"/>
+    <rect x="170" y="150" width="140" height="300" fill="#000" filter="url(#swirl)" opacity=".35"/>
+    <!-- a little air at the top, and the liquid's surface -->
+    <rect x="170" y="150" width="140" height="22" fill="#1a0806" opacity=".9"/>
+    <path d="M176 172 C 210 168, 260 176, 306 170" fill="none" stroke="#ff8a6a" stroke-width="3" opacity=".45" filter="url(#soft2)"/>
+    <!-- light from inside, deep near the bottom -->
+    <ellipse cx="232" cy="330" rx="40" ry="90" fill="#ff5a2a" opacity=".22" filter="url(#soft)"/>
+    <!-- bubbles rising -->
+    <circle cx="212" cy="321" r="5.9" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.46"/><circle cx="210.1" cy="318.5" r="1.8" fill="#fff2e6" opacity="0.46"/><circle cx="255" cy="206" r="1.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.57"/><circle cx="254.3" cy="205.2" r="0.7" fill="#fff2e6" opacity="0.57"/><circle cx="238" cy="322" r="2.0" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.60"/><circle cx="236.9" cy="321.5" r="0.7" fill="#fff2e6" opacity="0.60"/><circle cx="238" cy="391" r="3.0" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.39"/><circle cx="236.7" cy="389.7" r="0.9" fill="#fff2e6" opacity="0.39"/><circle cx="281" cy="246" r="2.0" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.55"/><circle cx="280.0" cy="245.0" r="0.7" fill="#fff2e6" opacity="0.55"/><circle cx="244" cy="368" r="6.7" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.27"/><circle cx="241.2" cy="365.6" r="2.0" fill="#fff2e6" opacity="0.27"/><circle cx="269" cy="332" r="2.4" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.52"/><circle cx="268.6" cy="331.0" r="0.7" fill="#fff2e6" opacity="0.52"/><circle cx="277" cy="255" r="3.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.50"/><circle cx="275.3" cy="253.4" r="1.1" fill="#fff2e6" opacity="0.50"/><circle cx="283" cy="361" r="3.0" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.39"/><circle cx="281.6" cy="360.3" r="0.9" fill="#fff2e6" opacity="0.39"/><circle cx="274" cy="297" r="2.0" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.56"/><circle cx="273.4" cy="296.0" r="0.7" fill="#fff2e6" opacity="0.56"/><circle cx="197" cy="223" r="5.5" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.59"/><circle cx="194.8" cy="220.7" r="1.7" fill="#fff2e6" opacity="0.59"/><circle cx="234" cy="340" r="2.4" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.40"/><circle cx="233.1" cy="339.6" r="0.7" fill="#fff2e6" opacity="0.40"/><circle cx="278" cy="328" r="3.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.45"/><circle cx="276.4" cy="326.5" r="1.1" fill="#fff2e6" opacity="0.45"/><circle cx="250" cy="407" r="4.5" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.57"/><circle cx="248.7" cy="405.4" r="1.3" fill="#fff2e6" opacity="0.57"/><circle cx="189" cy="257" r="3.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.48"/><circle cx="187.9" cy="255.9" r="1.1" fill="#fff2e6" opacity="0.48"/><circle cx="204" cy="397" r="7.4" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.57"/><circle cx="201.3" cy="394.0" r="2.2" fill="#fff2e6" opacity="0.57"/><circle cx="249" cy="361" r="2.0" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.47"/><circle cx="247.9" cy="360.6" r="0.7" fill="#fff2e6" opacity="0.47"/><circle cx="295" cy="254" r="1.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.27"/><circle cx="294.1" cy="253.5" r="0.7" fill="#fff2e6" opacity="0.27"/><circle cx="280" cy="428" r="1.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.37"/><circle cx="279.4" cy="427.0" r="0.7" fill="#fff2e6" opacity="0.37"/><circle cx="193" cy="405" r="1.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.35"/><circle cx="192.8" cy="404.7" r="0.7" fill="#fff2e6" opacity="0.35"/><circle cx="271" cy="399" r="5.1" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.47"/><circle cx="268.8" cy="397.7" r="1.5" fill="#fff2e6" opacity="0.47"/><circle cx="191" cy="362" r="2.4" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.44"/><circle cx="190.1" cy="361.6" r="0.7" fill="#fff2e6" opacity="0.44"/><circle cx="287" cy="257" r="2.0" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.60"/><circle cx="286.7" cy="256.3" r="0.7" fill="#fff2e6" opacity="0.60"/><circle cx="220" cy="208" r="3.6" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.44"/><circle cx="218.8" cy="207.2" r="1.1" fill="#fff2e6" opacity="0.44"/><circle cx="290" cy="423" r="2.4" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.46"/><circle cx="289.5" cy="422.3" r="0.7" fill="#fff2e6" opacity="0.46"/><circle cx="203" cy="200" r="7.2" fill="none" stroke="#ffb49a" stroke-width="1.3" opacity="0.36"/><circle cx="200.7" cy="197.7" r="2.2" fill="#fff2e6" opacity="0.36"/>
+    <!-- the frame's shadow on the glass edges -->
+    <path d="M176 150 L306 150 L306 440 L176 440 Z" fill="none" stroke="#000" stroke-width="22" opacity=".55" filter="url(#inner)"/>
   </g>
-  <!-- the drop: a cut gem, facets in gold -->
-  <g transform="translate(128 160)">
-    <path d="M-50 -18 L-26 -46 H26 L50 -18 L0 46 Z" fill="url(#gem)" stroke="#3b2205" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M-50 -18 H50 L0 46 Z" fill="url(#gemDark)" opacity=".55"/>
-    <path d="M-26 -46 L-14 -18 L0 46 L14 -18 L26 -46" fill="none" stroke="#3b2205" stroke-width="3.5" stroke-linejoin="round" opacity=".65"/>
-    <path d="M-50 -18 H50" stroke="#3b2205" stroke-width="3.5" opacity=".65"/>
-    <path d="M-20 -40 L-10 -22 H-38 Z" fill="#fffbe9" opacity=".85"/>
+  <!-- brass frame on the edges -->
+  <path d="M164 146 L176 146 L176 456 L164 456 Z" fill="url(#brass)"/>
+  <path d="M306 146 L318 146 L318 456 L306 456 Z" fill="url(#brass)"/>
+  <path d="M340 132 L350 128 L350 430 L340 436 Z" fill="#4a3618"/>
+  <path d="M160 440 L320 440 L352 420 L352 432 L320 458 L160 458 Z" fill="url(#brassV)"/>
+  <!-- shoulders and neck -->
+  <path d="M160 132 L320 132 L352 120 L352 136 L320 152 L160 152 Z" fill="url(#brassV)"/>
+  <path d="M196 132 L206 104 L286 104 L298 132 Z" fill="#4e3a1a"/>
+  <path d="M196 132 L206 104 L286 104 L298 132 Z" fill="none" stroke="#9a7a40" stroke-width="3" opacity=".7"/>
+  <rect x="214" y="82" width="64" height="24" rx="5" fill="url(#brass)"/>
+  <!-- domed cap with a ring knob -->
+  <path d="M206 84 C 206 46, 286 46, 286 84 Z" fill="url(#dome)"/>
+  <path d="M238 52 C 236 40, 242 30, 246 24 C 250 30, 256 40, 254 52 Z" fill="url(#dome)"/>
+  <!-- etched band across the front -->
+  <rect x="176" y="270" width="130" height="8" fill="#2a0a04" opacity=".35" filter="url(#soft2)"/>
+  <rect x="176" y="268" width="130" height="2" fill="#d8a860" opacity=".22"/>
+</g>
+<!-- gloss on the glass -->
+<path d="M192 176 L192 420" stroke="#fff4e4" stroke-width="12" stroke-linecap="round" opacity=".18" filter="url(#soft2)"/>
+<path d="M190 182 L190 320" stroke="#fff8ee" stroke-width="5" stroke-linecap="round" opacity=".4" filter="url(#soft2)"/>
+<path d="M296 190 L296 300" stroke="#ff9a80" stroke-width="4" stroke-linecap="round" opacity=".3" filter="url(#soft2)"/>
+<ellipse cx="232" cy="62" rx="10" ry="5" fill="#fff" opacity=".35"/></g>
+<rect x="8" y="8" width="496" height="496" rx="44" fill="#000" filter="url(#grain)" opacity=".45"/>
+<!-- worn brass border -->
+<g filter="url(#paint)">
+  <rect x="14" y="14" width="484" height="484" rx="40" fill="none" stroke="#0a0705" stroke-width="18"/>
+  <rect x="16" y="16" width="480" height="480" rx="38" fill="none" stroke="url(#brassV)" stroke-width="11"/>
+  <rect x="30" y="30" width="452" height="452" rx="28" fill="none" stroke="#000" stroke-width="5" opacity=".7"/>
+  <rect x="34" y="34" width="444" height="444" rx="25" fill="none" stroke="#7a5e2c" stroke-width="2" opacity=".55"/>
+  <g fill="url(#brassV)" stroke="#120a04" stroke-width="3">
+    <path d="M14 70 L70 14 L96 14 L14 96 Z"/>
+    <path d="M498 70 L442 14 L416 14 L498 96 Z"/>
+    <path d="M14 442 L70 498 L96 498 L14 416 Z"/>
+    <path d="M498 442 L442 498 L416 498 L498 416 Z"/>
   </g>
-  <!-- sparkle: the "tink" -->
-  <path d="M190 62 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z" fill="#fff6dc"/>
-  <rect x="8.75" y="8.75" width="238.5" height="238.5" rx="53.5" fill="none" stroke="#ffffff" stroke-opacity=".09" stroke-width="1.5"/>
+</g>
+<rect x="17" y="17" width="478" height="2" rx="1" fill="#f0d090" opacity=".25"/>
 </svg>
