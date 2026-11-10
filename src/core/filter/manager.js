@@ -360,7 +360,8 @@ const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : '
  */
 function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {} } = {}) {
   const out = [];
-  const area = mapsOnly ? [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }] : [];
+  const endgame = [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }];
+  const area = mapsOnly ? endgame : [];
   const sockets = [{ keyword: 'Sockets', op: '<', values: ['6'] }];
   for (const k of RANK_KINDS) {
     const min = kinds?.[k.id];
@@ -371,7 +372,8 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
     const keep = min === 'none' ? [] : RANKS.slice(0, RANKS.indexOf(min) + 1);
     for (const r of keep) {
       const list = bases.filter((b) => rankOf(ranks, b) === r).sort();
-      if (list.length) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...conds, { keyword: 'BaseType', op: '==', values: list }], style: RANK_LOOKS[r] });
+      // the rank looks are for maps only: in the campaign bases keep FilterBlade's own look
+      if (list.length) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...conds, ...endgame, { keyword: 'BaseType', op: '==', values: list }], style: RANK_LOOKS[r] });
     }
     const drop = bases.filter((b) => !keep.includes(rankOf(ranks, b))).sort();
     if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });

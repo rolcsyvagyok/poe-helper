@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.34 - 2026-11-10
+
+- **Base ranks only in maps.** In the campaign bases keep FilterBlade's own look; the rank looks (and hiding bases below your rank, as before) start at area level 68.
+- **Search the trade site (Path of Building → Upgrades):** the search is now sent exactly the way Path of Building sends its own (search engine and weapon categories as PoB has them). If the trade site still refuses a search, PoE Helper now shows the reason the trade site gives instead of just "GGG 400".
+
 ## 1.0.33 - 2026-11-10
 
 - **Fixed: the item tester, Upgrades and Search the trade site stopped with "attempt to call method 'Item'".** The released Path of Building makes items differently from its newest code; PoE Helper now works with both.

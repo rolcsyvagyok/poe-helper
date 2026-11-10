@@ -60,14 +60,14 @@ const CANDIDATES = [
   { line: '35% increased Critical Strike Chance', value: 35, trade: [['explicit', '#% increased Critical Strike Chance']], kinds: ['weapon'], local: true },
 ];
 
-/** PoB item type -> trade category. */
+/** PoB item type -> trade category (the same as Path of Building's TradeHelpers.getTradeCategory). */
 const CATEGORY = {
   Helmet: 'armour.helmet', 'Body Armour': 'armour.chest', Gloves: 'armour.gloves', Boots: 'armour.boots', Shield: 'armour.shield', Quiver: 'armour.quiver',
   Amulet: 'accessory.amulet', Ring: 'accessory.ring', Belt: 'accessory.belt',
   'One Handed Sword': 'weapon.onesword', 'Thrusting One Handed Sword': 'weapon.onesword', 'Two Handed Sword': 'weapon.twosword',
-  'One Handed Axe': 'weapon.oneaxe', 'Two Handed Axe': 'weapon.twoaxe', 'One Handed Mace': 'weapon.onemace', 'Two Handed Mace': 'weapon.twomace',
-  Sceptre: 'weapon.sceptre', Bow: 'weapon.bow', Claw: 'weapon.claw', Dagger: 'weapon.dagger', 'Rune Dagger': 'weapon.runedagger',
-  Staff: 'weapon.staff', Warstaff: 'weapon.warstaff', Wand: 'weapon.wand', 'Fishing Rod': 'weapon.rod',
+  'One Handed Axe': 'weapon.oneaxe', 'Two Handed Axe': 'weapon.twoaxe', 'One Handed Mace': 'weapon.onemace', Sceptre: 'weapon.onemace', 'Two Handed Mace': 'weapon.twomace',
+  Bow: 'weapon.bow', Claw: 'weapon.claw', Dagger: 'weapon.dagger', 'Rune Dagger': 'weapon.dagger',
+  Staff: 'weapon.staff', Warstaff: 'weapon.staff', Wand: 'weapon.wand', 'Fishing Rod': 'weapon.rod',
 };
 /** Item kind for the candidate list, from the PoB item type. */
 function kindOf(type) {
@@ -134,7 +134,7 @@ function buildWeightedQuery({ weights, category, maxLevel, maxPriceChaos, minSum
   };
   if (maxLevel) query.filters.req_filters = { filters: { lvl: { max: Math.round(maxLevel) } } };
   if (maxPriceChaos) query.filters.trade_filters = { filters: { price: { max: Math.round(maxPriceChaos * 100) / 100 } } };
-  return { query, sort: { 'statgroup.0': 'desc' } };
+  return { query, sort: { 'statgroup.0': 'desc' }, engine: 'new' };
 }
 
 /** A fetched trade listing -> the text the game copies, which PoB reads. */

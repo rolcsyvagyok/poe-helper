@@ -1014,7 +1014,11 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
   const curWorth = (f.dps * (w.current.dpsPct || 0) + f.ehp * (w.current.ehpPct || 0)) * scale;
   const minSum = betterOnly && curWorth > 0 ? curWorth * 0.9 : 0;
   const body = T.buildWeightedQuery({ weights, category: T.CATEGORY[w.type], maxLevel, maxPriceChaos, minSum, status: services.settings.get('tradeStatus') || 'securable' });
-  const res = await services.ggg.tradeSearch(league, body);
+  let res;
+  try { res = await services.ggg.tradeSearch(league, body); } catch (e) {
+    log('pob trade search refused', e.message, JSON.stringify(body));
+    throw e;
+  }
   const out = { slot, type: w.type, base: w.base, current: w.currentName, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, weights: weights.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum, listings: [] };
   if (!res.result?.length) return out;
   const fetched = await services.ggg.tradeFetch(res.id, res.result.slice(0, 10));

@@ -71,7 +71,12 @@ class GggClient {
     const r = res.response;
     if (r.status === 401 || r.status === 403) throw new AuthError(`GGG returned ${r.status}. Your POESESSID may have expired, or the account name is wrong.`);
     if (r.status === 429) throw new Error('Rate limited by GGG. The helper will wait automatically before the next request.');
-    if (!r.ok) throw new Error(`GGG ${r.status} for ${key}`);
+    if (!r.ok) {
+      // GGG says what it didn't like ({ error: { code, message } }); keep it in the error
+      let msg = '';
+      try { const j = await r.json(); msg = j?.error?.message || ''; } catch { /* no body */ }
+      throw new Error(msg ? `The trade site said: ${msg} (GGG ${r.status} for ${key})` : `GGG ${r.status} for ${key}`);
+    }
     return r.json();
   }
 
