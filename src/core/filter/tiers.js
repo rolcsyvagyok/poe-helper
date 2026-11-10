@@ -204,7 +204,42 @@ function typeLabel(type) {
 }
 
 /** Apply a patch to filter text. Returns new text. Pure: same input, same output. */
+// ---- six tiers ----
+// Currency (General) has FilterBlade's Tier 1-9; the app works with six (the tier designs have six looks).
+// Everything in Tier 7 and lower goes into Tier 6, worked out again from each FilterBlade download, and a
+// move into Tier 7+ (yours or price review's) lands in Tier 6 too. Scrolls stay where FilterBlade has them:
+// they are listed on their own page.
+const FOLD_TYPES = new Set(['currency']);
+const FOLD_KEEP = new Set(['Portal Scroll', 'Scroll of Wisdom', 'Scroll Fragment']);
+const tierNum = (name) => { const m = /^t(\d+)(?!\d)/i.exec(String(name || '')); return m ? Number(m[1]) : null; };
+function foldInfo(types) {
+  const info = new Map(); // type -> { six, folded: Set of tier names }
+  for (const t of types) {
+    if (!FOLD_TYPES.has(t.type)) continue;
+    const six = t.tiers.find((x) => tierNum(x.tier) === 6 && !x.special);
+    if (!six) continue;
+    const folded = new Set(t.tiers.filter((x) => tierNum(x.tier) > 6 && !x.special).map((x) => x.tier));
+    if (folded.size) info.set(t.type, { six: six.tier, folded, tiers: t.tiers });
+  }
+  return info;
+}
+/** The patch with Tier 7+ folded into Tier 6 (automatic moves first, then yours, yours into Tier 7+ redirected). */
+function foldedPatch(text, patch = {}) {
+  const info = foldInfo(extractTiers(parse(text)));
+  if (!info.size) return patch;
+  const moves = {};
+  for (const [type, f] of info) {
+    for (const x of f.tiers) if (f.folded.has(x.tier)) for (const b of x.bases) if (!FOLD_KEEP.has(b)) moves[`${type}\t${b}`] = f.six;
+  }
+  for (const [k, to] of Object.entries(patch.moves || {})) {
+    const f = info.get(k.split('\t')[0]);
+    moves[k] = f && f.folded.has(to) ? f.six : to;
+  }
+  return { ...patch, moves };
+}
+
 function applyTierPatch(text, patch = {}) {
+  patch = foldedPatch(text, patch);
   const doc = parse(text);
   const all = blocks(doc);
   const byType = new Map();
@@ -441,6 +476,9 @@ function tierView(text, patch = {}) {
     const x = patched.find((t) => t.type === nt.type)?.tiers.find((y) => y.tier === nt.tier);
     if (x) { x.customName = nt.name; x.mine = true; x.copyFrom = nt.copyFrom; }
   }
+  // the tiers folded into Tier 6 aren't shown
+  const folds = foldInfo(original);
+  for (const t of patched) { const f = folds.get(t.type); if (f) for (const x of t.tiers) if (f.folded.has(x.tier) && !x.bases.length) x.folded = true; }
   return { types: patched, moved, editedStyles: Object.keys(patch.styles || {}), editedActions: patch.actions || {} };
 }
 

@@ -31,3 +31,30 @@ test('where in the filter: PoE Helper\'s own pages, your rules, FilterBlade tier
   assert.deepStrictEqual(r, { text: 'Currency', tier: { type: 'currency', tier: 't1', name: null }, goto: { page: 'filters', type: 'currency', key: 'currency|t1' } });
   assert.strictEqual(whereInFilter(FILE, { line: null }), null);
 });
+
+test('currency has six tiers: Tier 7 and lower go into Tier 6, from any FilterBlade download; scrolls stay', () => {
+  const { applyTierPatch, tierView } = require('../src/core/filter/tiers');
+  const block = (tier, bases, action = 'Show') => [`${action} # $type->currency $tier->${tier}`, '\tClass == "Stackable Currency"', `\tBaseType == ${bases.map((b) => `"${b}"`).join(' ')}`, '\tSetFontSize 40', ''].join('\n');
+  const text = [block('t5alchemy', ['Vaal Orb']), block('t6chrom', ['Regal Orb'], 'Hide'), block('t7chance', ['Orb of Chance'], 'Hide'), block('t8trans', ['Orb of Binding', 'Portal Scroll'], 'Hide')].join('\n');
+  const v = tierView(text, {});
+  const cur = v.types.find((t) => t.type === 'currency');
+  const six = cur.tiers.find((x) => x.tier === 't6chrom');
+  assert.deepStrictEqual(six.bases.sort(), ['Orb of Binding', 'Orb of Chance', 'Regal Orb']);
+  assert.strictEqual(cur.tiers.find((x) => x.tier === 't7chance').folded, true);
+  assert.deepStrictEqual(cur.tiers.find((x) => x.tier === 't8trans').bases, ['Portal Scroll']);
+  assert.deepStrictEqual(v.moved, {}); // the app's folding isn't shown as your moves
+  // your move into Tier 7 lands in Tier 6
+  const out = applyTierPatch(text, { moves: { 'currency\tVaal Orb': 't7chance' } });
+  const t6 = out.split('\n\n').find((b) => b.includes('$tier->t6chrom'));
+  assert.ok(t6.includes('"Vaal Orb"'));
+});
+
+test('scrolls: every scroll-only tier, biggest stacks first', () => {
+  const { scrollTiers } = require('../src/core/filter/scrolls');
+  const view = { types: [
+    { type: 'currency', tiers: [{ key: 'a', tier: 'twisdom', bases: ['Scroll of Wisdom'], line: 30 }, { key: 'b', tier: 't4chaos', bases: ['Chaos Orb', 'Portal Scroll'], line: 10 }, { key: 'f', tier: 'scrollfragments', bases: ['Scroll Fragment'], line: 90 }] },
+    { type: 'currency->leveling', tiers: [{ key: 'c', tier: 'portal', bases: ['Portal Scroll'], line: 5 }] },
+    { type: 'currency->stackedsuppliesportal', tiers: [{ key: 'd', tier: 't2', bases: ['Portal Scroll'], line: 50 }, { key: 'e', tier: 't1', bases: ['Portal Scroll'], line: 40 }] },
+  ] };
+  assert.deepStrictEqual(scrollTiers(view).map((x) => x.key), ['e', 'd', 'c', 'a', 'f']);
+});

@@ -844,7 +844,7 @@ function registerIpc() {
   handle('icons:import', (a) => services.importIcon(a || {}));
   handle('icons:delete', (id) => services.deleteIcon(id));
   handle('sounds:data', (id) => services.soundData(id));
-  handle('tiers:view', () => services.tierViewNow());
+  handle('tiers:view', () => { const v = services.tierViewNow(); return v ? { ...v, scrolls: require('../core/filter/scrolls').scrollTiers(v) } : v; });
   handle('tiers:prices', (type) => services.tierPrices(String(type)));
   handle('tiers:action', ({ key, action }) => services.setTierAction(String(key), ['Show', 'Hide', 'Off'].includes(action) ? action : null));
   handle('tiers:suggest', (type) => services.tierSuggest(String(type)));

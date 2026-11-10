@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.35 - 2026-11-10
+
+- **Currency has six tiers.** FilterBlade's currency Tier 7, 8 and lower go into Tier 6, so the six looks of a tier design cover all of it. This is worked out again from every FilterBlade download, and a move into Tier 7 or lower (yours or price review's) lands in Tier 6.
+- **Scrolls page** under Currency: every Portal Scroll, Scroll of Wisdom and Scroll Fragment rule of your filter in one list (stacked, campaign and the plain ones), biggest stacks first. Each keeps FilterBlade's look; show, hide or restyle them there.
+
 ## 1.0.34 - 2026-11-10
 
 - **Base ranks only in maps.** In the campaign bases keep FilterBlade's own look; the rank looks (and hiding bases below your rank, as before) start at area level 68.

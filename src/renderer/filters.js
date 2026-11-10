@@ -82,8 +82,35 @@ function baseViews(types) {
   return out;
 }
 const mergeOf = (key) => TYPE_MERGES.find((m) => m.key === key || m.parts.some(([k]) => k === key)) || null;
+// Scrolls: every tier that holds only scrolls, from wherever FilterBlade keeps them, listed on one page
+// (the list comes from the app: core/filter/scrolls.js). Their own pages don't list them any more.
+const SCROLLS_KEY = 'currency->scrolls';
+function scrollsView(view) {
+  const list = view.scrolls || [];
+  if (!list.length) return view;
+  const keys = new Set(list.map((x) => x.key));
+  const found = new Map();
+  const types = [];
+  for (const t of view.types) {
+    for (const y of t.tiers) if (keys.has(y.key)) found.set(y.key, { ...y, fromType: t.type, fromLabel: t.label });
+    const rest = t.tiers.filter((y) => !keys.has(y.key));
+    if (rest.length || !t.tiers.length) types.push(rest.length === t.tiers.length ? t : { ...t, tiers: rest });
+  }
+  const tiers = list.map((x) => found.get(x.key)).filter(Boolean).map((y) => {
+    // named by what it holds; moving bases between these makes no sense, so they read like special tiers
+    const what = [...new Set(y.bases.map((b) => ({ 'Portal Scroll': 'Portal Scrolls', 'Scroll of Wisdom': 'Scrolls of Wisdom', 'Scroll Fragment': 'Scroll Fragments' })[b] || b))].join(' and ') || `${tierName({ tier: y.tier, type: y.fromType })} (empty)`;
+    const stack = (y.conditions || []).map((c) => /^StackSize\s*>=?\s*(\d+)/.exec(c)).find(Boolean);
+    return { ...y, customName: `${what}${stack ? `, stacks of ${stack[1]}+` : ''}${/leveling/.test(y.fromType) ? ', campaign' : ''}`, special: true };
+  });
+  const cur = view.types.find((t) => t.type === 'currency') || view.types[0];
+  types.push({ ...cur, key: SCROLLS_KEY, type: SCROLLS_KEY, label: 'Scrolls', subLabel: 'Scrolls', scrollsView: true, tiers });
+  return { ...view, types };
+}
 function splitTypes(view) {
   if (!view?.types) return view;
+  // Tier 7 and lower of currency are folded into Tier 6 by the app; the emptied tiers aren't listed
+  view = { ...view, types: view.types.map((t) => (t.tiers.some((x) => x.folded) ? { ...t, tiers: t.tiers.filter((x) => !x.folded) } : t)) };
+  view = scrollsView(view);
   view = splitTiers(view);
   const types = view.types.map((t) => (mergeOf(t.key) ? { ...t, inMerge: true } : t));
   for (const m of TYPE_MERGES) {
@@ -213,7 +240,7 @@ function renderTiers(body, view) {
       return h('button', { role: 'tab', 'aria-selected': k === FB.type ? 'true' : 'false', class: 'fb-part' + (k === FB.type ? ' on' : ''), onclick: () => { FB.type = k; FB.selected.clear(); FB.search = ''; renderFilters(); } },
         name, h('span', { class: 'c' }, String(t.tiers.reduce((a, x) => a + x.bases.length, 0) || '')));
     })) : null;
-  let pricing = FB.prices[type.type] || null;
+  let pricing = FB.prices[type.type] || (type.scrollsView ? {} : null);
   if (!pricing) {
     call('tiers:prices', type.type).then((r) => { FB.prices[type.type] = r; pricing = r; drawList(); }).catch((e) => { pricing = { error: e.message }; drawList(); });
   }
@@ -534,6 +561,7 @@ function renderTiers(body, view) {
   }
 
   function addRow() {
+    if (type.scrollsView) return null;
     const q = FB.search.trim();
     if (q.length < 3) return null;
     const exists = type.tiers.some((t) => t.bases.some((b) => b.toLowerCase() === q.toLowerCase()));
@@ -668,19 +696,19 @@ function renderTiers(body, view) {
   mount(body, h('div', { class: 'fb' },
     h('aside', {}, cats),
     h('div', {},
-      h('div', { class: 'fb-typehead' }, iconPicker(type.type), h('h2', {}, type.key === CLUSTER_SIZE_TYPE ? 'Cluster jewels: looks by size' : merge ? merge.label : type.label), h('span', { class: 'small muted' }, 'Click bases to select them, or drag them between tiers.'), h('span', { class: 'spacer' }),
+      h('div', { class: 'fb-typehead' }, iconPicker(type.type), h('h2', {}, type.key === CLUSTER_SIZE_TYPE ? 'Cluster jewels: looks by size' : merge ? merge.label : type.label), type.scrollsView ? h('span', { class: 'small muted' }, 'Every scroll rule of your filter in one list, from the stacked, campaign and currency sections, biggest stacks first. Each keeps FilterBlade\'s look; change a look or show or hide it here.') : h('span', { class: 'small muted' }, 'Click bases to select them, or drag them between tiers.'), h('span', { class: 'spacer' }),
         // league start: every currency tier shows (hidden and switched-off ones too), each with its own look
         /^currency(->|$)/.test(type.type) ? (() => { const on = !!S.settings.showAllCurrency; return h('button', { class: on ? 'primary sm' : 'sm', 'aria-pressed': on ? 'true' : 'false',
           title: on ? 'Every currency tier shows, hidden ones too. Click to go back to your filter\'s choices' : 'League start: show every currency, also the tiers your filter hides or switched off',
           onclick: async () => { S.settings.showAllCurrency = await call('currency:showAll', !on); toast(!on ? 'All currency shows now (hidden tiers too). Select the filter in game again' : 'Currency follows your filter again'); renderFilters(); } }, on ? 'All currency shown ✓' : 'Show all currency'); })() : null,
         type.key === CLUSTER_SIZE_TYPE ? h('button', { class: 'sm', onclick: () => { FB.type = CLUSTER_GRID; renderFilters(); } }, '← Back to the enchantments') : null,
-        h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
+        type.scrollsView ? null : h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
           FB.priceColors = !FB.priceColors;
           // a fresh analysis when turning colours on (prices come from the 20-minute cache, so this is cheap)
           if (FB.priceColors) delete FB.prices[type.type];
           renderFilters();
         } }, FB.priceColors ? 'Hide price colours' : 'Check prices'),
-        h('button', { class: FB.catPrices === type.type ? 'primary sm' : 'sm', title: 'Set the price of each tier and move items to the tier their price fits, for this category only (like Price review)', onclick: async () => {
+        type.scrollsView ? null : h('button', { class: FB.catPrices === type.type ? 'primary sm' : 'sm', title: 'Set the price of each tier and move items to the tier their price fits, for this category only (like Price review)', onclick: async () => {
           if (FB.catPrices === type.type) { FB.catPrices = null; return renderFilters(); }
           FB.catPrices = type.type;
           renderFilters();
@@ -1350,6 +1378,7 @@ async function renderMyBases(body, view) {
 const CATEGORIES = [
   ['Currency', [
     { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], art: 'Divine Orb', icon: 'coin' },
+    { id: 'scrolls', name: 'Scrolls', match: [SCROLLS_KEY], art: ['Portal Scroll', 'Scroll of Wisdom'], icon: 'book' },
     { id: 'stacked', name: 'Stacked', match: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], order: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom'], art: ['Chaos Orb'], icon: 'coins' },
     { id: 'levelingcurrency', name: 'Levelling currency', match: ['currency->leveling', 'currency->levelingstacked'], art: ['Orb of Transmutation'], icon: 'leaf' },
   ]],
