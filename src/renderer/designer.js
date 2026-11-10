@@ -58,6 +58,27 @@ function draw() {
 }
 
 // your changes go into the filter by themselves, a moment after you stop changing things
+// Text size of every tier but Tier 1 (Tier 1 keeps its own): 2 points a press, within the game's 18-45
+const SIZE_STEP = 2;
+function sizeControl() {
+  const sizes = [2, 3, 4, 5, 6].map((lv) => D.levels?.[lv]?.fontSize).filter((n) => Number.isFinite(n));
+  const shift = (dir) => {
+    for (const lv of [2, 3, 4, 5, 6]) {
+      const st = D.levels?.[lv];
+      if (!st) continue;
+      st.fontSize = Math.max(18, Math.min(45, (Number(st.fontSize) || 32) + dir * SIZE_STEP));
+    }
+    persist(); draw(); applySoon();
+  };
+  const min = Math.min(...sizes);
+  const max = Math.max(...sizes);
+  return h('div', { class: 'row small', role: 'group', 'aria-label': 'Text size of Tier 2 to Tier 6', style: { gap: '6px' } },
+    h('span', { class: 'muted' }, 'Text size, Tier 2 to 6'),
+    h('button', { class: 'sm', disabled: !sizes.length || max <= 18, title: 'Every tier but Tier 1 smaller', onclick: () => shift(-1) }, 'Smaller'),
+    h('span', { class: 'faint', style: { minWidth: '92px', textAlign: 'center' } }, sizes.join(' · ')),
+    h('button', { class: 'sm', disabled: !sizes.length || min >= 45, title: 'Every tier but Tier 1 bigger', onclick: () => shift(1) }, 'Bigger'));
+}
+
 function applySoon(delay = 700) {
   clearTimeout(D.applyTimer);
   if (!D.state?.hasFilter) return;
@@ -84,7 +105,7 @@ function drawNow() {
       h('button', { class: 'primary sm', onclick: () => document.querySelector('button[data-page="filters"]')?.click() }, 'Open Loot filter')) : null,
     gallery(),
     h('section', { class: 'section' },
-      h('div', { class: 'section-head' }, h('h2', {}, 'Design'), h('p', {}, 'Click a drop in the preview or a tier below to edit it.')),
+      h('div', { class: 'section-head' }, h('h2', {}, 'Design'), h('p', {}, 'Click a drop in the preview or a tier below to edit it.'), h('span', { class: 'spacer' }), sizeControl()),
       h('div', { class: 'dz' }, pile(), editor())),
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', {}, 'Game sound previews'), h('p', {}, 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.')),

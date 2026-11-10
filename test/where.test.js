@@ -49,12 +49,13 @@ test('currency has six tiers: Tier 7 and lower go into Tier 6, from any FilterBl
   assert.ok(t6.includes('"Vaal Orb"'));
 });
 
-test('scrolls: every scroll-only tier, biggest stacks first', () => {
+test('scrolls: Wisdom, then Portal, each from one scroll up to the biggest stack, then fragments; campaign rules stay out', () => {
   const { scrollTiers } = require('../src/core/filter/scrolls');
   const view = { types: [
-    { type: 'currency', tiers: [{ key: 'a', tier: 'twisdom', bases: ['Scroll of Wisdom'], line: 30 }, { key: 'b', tier: 't4chaos', bases: ['Chaos Orb', 'Portal Scroll'], line: 10 }, { key: 'f', tier: 'scrollfragments', bases: ['Scroll Fragment'], line: 90 }] },
+    { type: 'currency', tiers: [{ key: 'a', tier: 'twisdom', bases: ['Scroll of Wisdom'], line: 30 }, { key: 'b', tier: 't4chaos', bases: ['Chaos Orb', 'Portal Scroll'], line: 10 }, { key: 'f', tier: 'scrollfragments', bases: ['Scroll Fragment'], line: 90 }, { key: 'p', tier: 't9armour', bases: ['Portal Scroll'], line: 80 }] },
     { type: 'currency->leveling', tiers: [{ key: 'c', tier: 'portal', bases: ['Portal Scroll'], line: 5 }] },
-    { type: 'currency->stackedsuppliesportal', tiers: [{ key: 'd', tier: 't2', bases: ['Portal Scroll'], line: 50 }, { key: 'e', tier: 't1', bases: ['Portal Scroll'], line: 40 }] },
+    { type: 'currency->stackedsuppliesportal', tiers: [{ key: 'd', tier: 't2', bases: ['Portal Scroll'], conditions: ['StackSize >= 5'], line: 50 }, { key: 'e', tier: 't1', bases: ['Portal Scroll'], conditions: ['StackSize >= 10'], line: 40 }] },
+    { type: 'currency->stackedsupplieswisdom', tiers: [{ key: 'w', tier: 't3', bases: ['Scroll of Wisdom'], conditions: ['StackSize >= 3'], line: 60 }] },
   ] };
-  assert.deepStrictEqual(scrollTiers(view).map((x) => x.key), ['e', 'd', 'c', 'a', 'f']);
+  assert.deepStrictEqual(scrollTiers(view).map((x) => x.key), ['a', 'w', 'p', 'd', 'e', 'f']);
 });

@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.37 - 2026-11-10
+
+- **Scrolls are a subcategory of Currency**, right below General: Wisdom scroll, Wisdom scroll 3+, 5+, 10+, then Portal scroll, 3+, 5+, 10+, then Scroll fragment. The campaign scroll rules stay in Levelling currency.
+- **Levelling currency is under Campaign** in the category list.
+- **Tier designer: Smaller / Bigger** changes the text size of Tier 2 to Tier 6 at once (2 points a press, within the game's 18-45). Tier 1 keeps its size.
+
 ## 1.0.36 - 2026-11-10
 
 - **Path of Building → Configuration**: Path of Building's Configuration tab in the app (charges, Onslaught, Fortify, enemy is Shocked, boss type, map mods, shrines and the rest), only the options that matter for the build unless you ask for all, with search. Changes are saved into the snapshot and recalculated right away. **A new snapshot keeps them**: it starts with the ticks of your last snapshot of that character, whether you set them here or in Path of Building.

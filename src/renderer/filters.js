@@ -110,10 +110,10 @@ function scrollsView(view) {
     if (rest.length || !t.tiers.length) types.push(rest.length === t.tiers.length ? t : { ...t, tiers: rest });
   }
   const tiers = list.map((x) => found.get(x.key)).filter(Boolean).map((y) => {
-    // named by what it holds; moving bases between these makes no sense, so they read like special tiers
-    const what = [...new Set(y.bases.map((b) => ({ 'Portal Scroll': 'Portal Scrolls', 'Scroll of Wisdom': 'Scrolls of Wisdom', 'Scroll Fragment': 'Scroll Fragments' })[b] || b))].join(' and ') || `${tierName({ tier: y.tier, type: y.fromType })} (empty)`;
-    const stack = (y.conditions || []).map((c) => /^StackSize\s*>=?\s*(\d+)/.exec(c)).find(Boolean);
-    return { ...y, customName: `${what}${stack ? `, stacks of ${stack[1]}+` : ''}${/leveling/.test(y.fromType) ? ', campaign' : ''}`, special: true };
+    // "Wisdom scroll", "Wisdom scroll 3+"...; moving bases between these makes no sense, so they read like special tiers
+    const x = list.find((z) => z.key === y.key);
+    const word = ['Wisdom scroll', 'Portal scroll', 'Scroll fragment'][x.kind];
+    return { ...y, customName: `${word}${x.stack ? ` ${x.stack}+` : ''}${x.empty ? ' (empty rule)' : ''}`, special: true };
   });
   const cur = view.types.find((t) => t.type === 'currency') || view.types[0];
   types.push({ ...cur, key: SCROLLS_KEY, type: SCROLLS_KEY, label: 'Scrolls', subLabel: 'Scrolls', scrollsView: true, tiers });
@@ -1399,10 +1399,8 @@ function pricedGroup(type) {
 // picture is the icon (loaded from GGG's image server via poe.ninja); `icon` is the fallback.
 const CATEGORIES = [
   ['Currency', [
-    { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], art: 'Divine Orb', icon: 'coin' },
-    { id: 'scrolls', name: 'Scrolls', match: [SCROLLS_KEY], art: ['Portal Scroll', 'Scroll of Wisdom'], icon: 'book' },
+    { id: 'currency', name: 'Currency', match: ['currency', 'incubator'], order: ['currency', SCROLLS_KEY], art: 'Divine Orb', icon: 'coin' },
     { id: 'stacked', name: 'Stacked', match: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], order: ['currency->stackedsix', 'currency->stackedthree', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom'], art: ['Chaos Orb'], icon: 'coins' },
-    { id: 'levelingcurrency', name: 'Levelling currency', match: ['currency->leveling', 'currency->levelingstacked'], art: ['Orb of Transmutation'], icon: 'leaf' },
   ]],
   ['Fragments', [
     { id: 'fragments', name: 'Other fragments', match: ['fragments', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
@@ -1451,6 +1449,7 @@ const CATEGORIES = [
   ]],
   ['Campaign (level 1-67)', [
     { id: 'leveling', name: 'Campaign & Leveling', match: ['leveling'], art: 'Scroll of Wisdom', icon: 'leaf' },
+    { id: 'levelingcurrency', name: 'Levelling currency', match: ['currency->leveling', 'currency->levelingstacked'], art: ['Orb of Transmutation'], icon: 'leaf' },
     { id: 'campaignhide', name: 'Hide item types', match: [], special: 'campaignhide', art: 'Scroll of Wisdom', icon: 'eye' },
   ]],
   ['Miscellaneous', [
