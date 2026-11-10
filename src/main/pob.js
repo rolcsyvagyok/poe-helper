@@ -156,6 +156,9 @@ class PobEngine {
     return r;
   }
 
+  /** Sets one of PoB's pickers under Main skill (which skill, its part, stages, mines, minion, minion skill). */
+  skillOpt(key, value, { save = false, name } = {}) { return this.send({ op: 'skillOpt', key, value, save, name }, 60000); }
+
   /** The open build's numbers, skills, gear and gems. */
   stats() { return this.send({ op: 'stats' }, 60000); }
 

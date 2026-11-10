@@ -1181,7 +1181,7 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-svg .tn { cursor: pointer; }
 
 .pob-tree-svg .tn.new { fill: #1f7ae0; stroke: #a8d4ff; stroke-width: 12; }
-.pob-tree-svg .tn.gone { fill: #15181d; stroke: #ff9a1f; stroke-width: 14; stroke-dasharray: 18 10; }
+.pob-tree-svg .tn.gone { fill: #15181d; stroke: #ff8c00; stroke-width: 14; }
 .pob-opt .pob-cfg-diff.inline { position: static; box-shadow: none; margin: 0; }
 .pob-opt-steps { margin: 0; padding-left: 22px; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
 .pob-opt-steps .gone { color: #ffad4a; } .pob-opt-steps .new { color: #6cb4ff; }
@@ -1204,7 +1204,7 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-svg.art .tn.t5 { stroke: #c8a85a; stroke-width: 10; }
 .pob-tree-svg.art .tn.hit { stroke: #ffff40; stroke-width: 14; }
 .pob-tree-svg.art .tn.path { fill: rgba(255, 255, 255, .25); stroke: #ffffff; stroke-dasharray: 22 12; }
-.pob-tree-svg.art .tn.new { fill: rgba(31, 122, 224, .55); stroke: #a8d4ff; stroke-width: 12; } .pob-tree-svg.art .tn.gone { stroke: #ff9a1f; stroke-width: 14; stroke-dasharray: 18 10; }
+.pob-tree-svg.art .tn.new { fill: rgba(31, 122, 224, .55); stroke: #a8d4ff; stroke-width: 12; } .pob-tree-svg.art .tn.gone { stroke: #ff8c00; stroke-width: 14; opacity: .55; }
 .pob-tree-svg.art .tn.tsock { stroke: #8fd0ff; stroke-width: 14; } .pob-tree-svg.art .tn.tconq { fill: rgba(255, 207, 74, .45); stroke: #fff2b0; }
 .pob-tree-svg.art .tn.heat { stroke-width: 8; }
 .pob-tree-svg.art .tn:hover { stroke: rgba(255,255,255,.8); }
@@ -1235,3 +1235,19 @@ body.pob-tree-fullscreen { overflow: hidden; }
 .pob-cfg-cols { columns: 3 380px; column-gap: 14px; }
 .pob-cfg-cols > .panel { break-inside: avoid; display: block; width: 100%; margin: 0 0 14px; }
 .pob-cfg-cols > .pob-cfg.maps { column-span: all; }
+
+/* changes on the tree: a dark band and a bright ring on top of the art, the connections in the same colours */
+.pob-tree-svg .thalo .halo-bg { fill: none; stroke: #000; stroke-width: 30; opacity: .85; }
+.pob-tree-svg .thalo .halo { fill: none; stroke-width: 16; }
+.pob-tree-svg .thalo .halo.new { stroke: #49a6ff; filter: drop-shadow(0 0 14px #49a6ff); }
+.pob-tree-svg .thalo .halo.gone { stroke: #ff8c00; stroke-width: 18; filter: drop-shadow(0 0 16px #ff8c00); }
+.pob-tree-svg .thalo .halo-x { stroke: #ff8c00; stroke-width: 14; stroke-linecap: round; filter: drop-shadow(0 0 4px #000) drop-shadow(0 0 4px #000); }
+.pob-tree-svg .thalo .halo-badge { stroke: #000; stroke-width: 7; }
+.pob-tree-svg .thalo .halo-badge.new { fill: #49a6ff; } .pob-tree-svg .thalo .halo-badge.gone { fill: #ff8c00; }
+.pob-tree-svg .thalo .halo-sign { fill: #000; font: 800 56px 'Segoe UI', system-ui, sans-serif; text-anchor: middle; }
+.pob-tree-svg .tl.new { stroke: #49a6ff; stroke-width: 26; filter: drop-shadow(0 0 10px #49a6ff); }
+.pob-tree-svg .tl.gone { stroke: #ffa024; stroke-width: 22; stroke-dasharray: 44 26; }
+.pob-tree-svg.art .tn.new { fill: rgba(31, 122, 224, .3); }
+/* pointing at a swap dims everything else */
+.pob-tree-svg.focus .tl, .pob-tree-svg.focus .tart, .pob-tree-svg.focus .tn:not(.swap-add):not(.swap-rem), .pob-tree-svg.focus .thalo > :not(.swap-halo) { opacity: .25; }
+.pob-tree-svg .thalo .swap-halo.halo { stroke-width: 22; }

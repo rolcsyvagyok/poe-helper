@@ -287,6 +287,73 @@ local function gems()
 	end
 	return list
 end
+-- PoB's extra pickers under Main skill: which skill of the group, its part (Kinetic Blast: Projectile /
+-- Explosions), stages, active mines, and for minion skills the minion and the minion's skill
+local function mainSkillGroup()
+	local g = build.skillsTab.socketGroupList[build.mainSocketGroup or 1]
+	if not g or not g.displaySkillList or not g.displaySkillList[1] then return nil end
+	return g, g.displaySkillList[g.mainActiveSkill or 1] or g.displaySkillList[1]
+end
+local function mainSkillOpts()
+	local g, as = mainSkillGroup()
+	if not g or not as.activeEffect then return nil end
+	local r = { active = { }, mainActive = g.mainActiveSkill or 1 }
+	for i, a in ipairs(g.displaySkillList) do
+		local es = a.activeEffect.srcInstance and a.activeEffect.srcInstance.explodeSource
+		r.active[i] = es and ("From " .. tostring(es.name or es.dn or "a monster")) or a.activeEffect.grantedEffect.name
+	end
+	local ae = as.activeEffect
+	local src, ge = ae.srcInstance or { }, ae.grantedEffect
+	local sd = as.skillData or { }
+	if ge.parts and #ge.parts > 1 then
+		r.parts = { }
+		for i, part in ipairs(ge.parts) do r.parts[i] = part.name end
+		r.part = math.min(src.skillPart or 1, #ge.parts)
+		local part = ge.parts[r.part]
+		if part and part.stages then r.stages = src.skillStageCount or sd.stagesMax or part.stagesMin or 1 end
+	end
+	if as.skillFlags and as.skillFlags.multiStage and not r.parts then r.stages = src.skillStageCount or sd.stagesMax or sd.stagesMin or 1 end
+	if as.skillFlags and as.skillFlags.mine then r.mine = true; r.mines = src.skillMineCount or false end
+	if as.skillFlags and not as.skillFlags.disable and not ge.minionHasItemSet and as.minionList and as.minionList[1] then
+		r.minions = { }
+		for _, id in ipairs(as.minionList) do
+			local m = build.data.minions[id]
+			r.minions[#r.minions + 1] = { id = id, name = m and m.name or tostring(id) }
+		end
+		r.minion = src.skillMinion or as.minionList[1]
+		if as.minion and as.minion.activeSkillList and #as.minion.activeSkillList > 0 then
+			r.minionSkills = { }
+			for i, ms in ipairs(as.minion.activeSkillList) do r.minionSkills[i] = ms.activeEffect.grantedEffect.name end
+			r.minionSkill = math.min(src.skillMinionSkill or 1, #r.minionSkills)
+		end
+	end
+	if #r.active < 2 and not r.parts and not r.stages and not r.mine and not (r.minions and (#r.minions > 1 or (r.minionSkills and #r.minionSkills > 1))) then return nil end
+	return r
+end
+local function setSkillOpt(req)
+	local g, as = mainSkillGroup()
+	if not g then return { error = "This build has no main skill." } end
+	local v, key = req.value, req.key
+	if key == "active" then
+		local i = tonumber(v)
+		if not i or not g.displaySkillList[i] then return { error = "No such skill in the group." } end
+		g.mainActiveSkill = i
+	else
+		local src = as.activeEffect and as.activeEffect.srcInstance
+		if not src then return { error = "This skill has no options." } end
+		if key == "part" then src.skillPart = tonumber(v)
+		elseif key == "stages" then src.skillStageCount = tonumber(v)
+		elseif key == "mines" then src.skillMineCount = tonumber(v)
+		elseif key == "minion" then src.skillMinion = tostring(v)
+		elseif key == "minionSkill" then src.skillMinionSkill = tonumber(v)
+		else return { error = "Unknown option." } end
+	end
+	build.modFlag = true
+	build.buildFlag = true
+	runCallback("OnFrame")
+	return { ok = true }
+end
+
 local function stats(mainGroup)
 	if mainGroup and build.skillsTab.socketGroupList[mainGroup] and mainGroup ~= build.mainSocketGroup then setMainGroup(mainGroup) end
 	local out = build.calcsTab.mainOutput
@@ -305,6 +372,7 @@ local function stats(mainGroup)
 	s.gems = gems()
 	s.skillGroups = skillGroups()
 	s.mainGroup = build.mainSocketGroup
+	s.skillOpts = mainSkillOpts()
 	return s
 end
 
@@ -511,6 +579,15 @@ local function calcs()
 		if grp then grp.mainActiveSkillCalcs = grp.mainActiveSkill end
 		ct:BuildOutput()
 	end
+	local _, as = mainSkillGroup()
+	local src = as and as.activeEffect and as.activeEffect.srcInstance
+	if src then
+		local changed = false
+		for _, k in ipairs({ "skillPart", "skillStageCount", "skillMineCount", "skillMinion", "skillMinionSkill" }) do
+			if src[k .. "Calcs"] ~= src[k] then src[k .. "Calcs"] = src[k]; changed = true end
+		end
+		if changed then ct:BuildOutput() end
+	end
 	local actor = calcsActor()
 	local out = { }
 	for si, sec in ipairs(ct.sectionList) do
@@ -666,6 +743,18 @@ local function treeArt(spec, n, o, sprites, index)
 		o.fu = add(frameSprite(tree, ov["unalloc" .. asc] or ov.unalloc))
 	end
 end
+-- Passive points a character of this level has: level - 1, plus the quest points of the acts done by
+-- then (the act you are in at that level, as in the levelling plan), plus the bandits' point after act 2.
+-- Never fewer than the tree already uses (a snapshot of your character has what you really spent).
+local QUEST_POINTS = { { 1, 0, 1 }, { 12, 2, 2 }, { 22, 4, 3 }, { 32, 6, 4 }, { 40, 7, 5 }, { 44, 9, 6 }, { 50, 12, 7 }, { 54, 15, 8 }, { 60, 18, 9 }, { 64, 20, 10 }, { 67, 23, 11 } }
+local function pointsForLevel(used)
+	local level = math.min(math.max(build.characterLevel or 1, 1), 100)
+	local q = QUEST_POINTS[1]
+	for _, a in ipairs(QUEST_POINTS) do if level >= a[1] then q = a end end
+	local extra = build.calcsTab.mainOutput and build.calcsTab.mainOutput.ExtraPoints or 0
+	return math.max(level - 1 + q[2] + (q[3] > 2 and extra or 0), used or 0), q[3]
+end
+
 local function tree()
 	local spec = build.spec
 	local shown = treeFilter(spec)
@@ -714,9 +803,9 @@ local function tree()
 		end
 	end
 	local used, ascUsed = spec:CountAllocNodes()
-	local extra = build.calcsTab.mainOutput and build.calcsTab.mainOutput.ExtraPoints or 0
-	local maxPoints = math.min(math.max(build.characterLevel or 1, 1), 100) - 1 + 23 + extra
-	return { nodes = nodes, edges = edges, start = startId, class = spec.curClassName, ascendancy = spec.curAscendClassName, used = used, ascUsed = ascUsed, maxPoints = maxPoints, ascMax = 8,
+	local maxPoints, act = pointsForLevel(used)
+	return { nodes = nodes, edges = edges, start = startId, class = spec.curClassName, ascendancy = spec.curAscendClassName, used = used, ascUsed = ascUsed, maxPoints = maxPoints, act = act,
+		ascMax = math.max(ascUsed or 0, (build.characterLevel or 1) >= 75 and 8 or (build.characterLevel or 1) >= 68 and 6 or (build.characterLevel or 1) >= 55 and 4 or (build.characterLevel or 1) >= 33 and 2 or 0),
 		level = build.characterLevel, treeVersion = spec.treeVersion, sprites = sprites }
 end
 
@@ -901,8 +990,7 @@ local function optStep()
 	end
 	table.sort(adds, function(a, b) return a.gain > b.gain end)
 	local used = spec:CountAllocNodes()
-	local extra = build.calcsTab.mainOutput and build.calcsTab.mainOutput.ExtraPoints or 0
-	local maxPoints = math.min(math.max(build.characterLevel or 1, 1), 100) - 1 + 23 + extra
+	local maxPoints = pointsForLevel(used)
 	local free = opt.useFree and math.max(0, maxPoints - used) or 0
 	-- try the best paths against the leaves worth least
 	local best
@@ -1741,6 +1829,13 @@ function handle(line)
 				if not build then return { error = "No build loaded." } end
 				applyConfig(req.values)
 				local r = summary()
+				if req.save then r.xml = build:SaveDB(req.name or "build") end
+				return r
+			elseif req.op == "skillOpt" then
+				if not build then return { error = "No build loaded." } end
+				local r = setSkillOpt(req)
+				if r.error then return r end
+				r = stats()
 				if req.save then r.xml = build:SaveDB(req.name or "build") end
 				return r
 			elseif req.op == "main" then

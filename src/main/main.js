@@ -857,7 +857,7 @@ function registerIpc() {
     if (!fs.existsSync(st.buildsDir)) return [];
     return require('./pob').listBuilds(st.buildsDir).map(({ file, name, mtime }) => ({ file, name, mtime, snapshot: /^PoE Helper snapshots \/ /.test(name) }));
   });
-  handle('pob:stats', (file) => pobWith(file, () => pob.stats()));
+  handle('pob:stats', (file) => pobWith(file, async () => ({ ...(await pob.stats()), editable: pobIsSnapshot(file) })));
   // PoB's Configuration tab: read on any build, changed (and saved into the file) only on your snapshots
   handle('pob:config', (file) => pobWith(file, async () => ({ ...(await pob.config()), editable: pobIsSnapshot(file) })));
   handle('pob:setConfig', ({ file, values } = {}) => {
@@ -878,7 +878,21 @@ function registerIpc() {
     const mainGroups = { ...(cur.mainGroups || {}) };
     if (group) mainGroups[file] = group; else delete mainGroups[file];
     services.settings.set('pob', { ...cur, mainGroups });
-    return pobWith(file, () => pob.stats());
+    return pobWith(file, async () => ({ ...(await pob.stats()), editable: pobIsSnapshot(file) }));
+  });
+  // PoB's pickers under Main skill (Kinetic Blast: Projectile / Explosions, minion skills…), saved into snapshots
+  handle('pob:skillOpt', ({ file, key, value } = {}) => {
+    if (!pobIsSnapshot(file)) throw new Error('Only snapshots are changed here; pick this in Path of Building for your own builds.');
+    if (!['active', 'part', 'stages', 'mines', 'minion', 'minionSkill'].includes(key)) throw new Error('Unknown option.');
+    return pobWith(file, async () => {
+      const r = await pob.skillOpt(key, typeof value === 'number' ? value : String(value ?? '').slice(0, 200), { save: true, name: path.basename(file, '.xml') });
+      if (r.error) throw new Error(r.error);
+      if (!r.xml) throw new Error('Path of Building did not save the build.');
+      fs.writeFileSync(file, r.xml, 'utf8');
+      delete r.xml;
+      pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r };
+      return { ...r, editable: true };
+    });
   });
   handle('pob:test', ({ file, text } = {}) => pobWith(file, async () => {
     const r = await pob.compare(String(text || ''));

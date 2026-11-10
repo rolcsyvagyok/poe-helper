@@ -9,9 +9,9 @@
 
 ## Next
 
-- **Skill parts (PoB's second Main Skill dropdown).** Some skills have parts PoB lets you pick, e.g. Kinetic Blast → "Projectile" / "Explosions", Summon Sacred Wisps → "Kinetic Blast" (wisps using it), and minion skills. Our Main skill picker only lists the socket group, so DPS uses PoB's default part. Read `activeSkill.activeEffect.grantedEffect.parts` (and `srcInstance.skillPart` / `skillPartCalcs`, plus `skillMinion` / `skillMinionSkill` for minions), show a second dropdown under Main skill when there's more than one part, save the choice in the build, and use it in Build, Calcs, Upgrades, Support gems and the optimiser. Also show the part-specific config options PoB adds (skill-specific settings like stages, number of projectiles hitting, etc.).
+- Done in 1.0.42: skill parts (PoB's pickers under Main skill: the skill of the group, its part, stages, active mines, minion and minion skill), saved into snapshots and used by every tab. Idea: let Upgrades / Support gems compare parts side by side.
 
-- **Taskbar icon is missing.** The installed app shows Electron's blank window icon on the Windows taskbar (and in the Alt+Tab preview) instead of the PoE Helper icon. Check that the BrowserWindow gets `icon`, that build/icon.ico is packaged (electron-builder `win.icon`), and set the AppUserModelID (`app.setAppUserModelId`) to match the installer's appId so Windows uses the shortcut's icon.
+- **Taskbar icon**: the window icon (icon.ico, 16–256 px), electron-builder `win.icon` and `app.setAppUserModelId('dev.poehelper.app')` matching the appId are all set already. Check on the PC whether the taskbar still shows Electron's icon; if so, try passing a nativeImage instead of the .ico path.
 
 ## Later
 

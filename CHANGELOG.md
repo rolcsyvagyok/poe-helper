@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.42 - 2026-11-10
+
+- **Tree changes stand out**: nodes the optimiser takes get a bright blue ring with a glow, nodes it gives up an orange ring and a cross; a + or − badge says which is which. Both sit on a dark band so they show over the node art. The connections it takes are blue and the ones it gives up dashed orange. Pointing at a swap dims the rest of the tree.
+- **Passive points match your level**: the tree counted every quest point at any level (51 at level 28). Now it counts level − 1 plus the quest points of the acts you have probably done by that level (as in the levelling plan), and the bandits' point after act 2: 32 at level 28. Hover the points to see which act it assumes. Ascendancy points follow the labyrinths the same way. The optimiser's "Use unspent points" uses this too.
+
+- **Skill parts, like in Path of Building**: under Main skill on the Build tab you can now pick the skill of the group (Summon Sacred Wisps or Kinetic Blast), its part (Kinetic Blast: Projectile or Explosions; Explosive Arrow: fuses or the arrow), stages, active mines, and for minions the minion and its skill. Snapshots keep your choice, and the Build, Calcs, Tree, Upgrades and Support gems tabs all use it.
+
 ## 1.0.41 - 2026-11-10
 
 - **Tree changes are colour-blind friendly**: new nodes are blue, nodes given up have a dashed orange ring, and the path to a node is a dashed white line (it was red and green before). The optimiser's lists and the tree tooltips use the same blue and orange.

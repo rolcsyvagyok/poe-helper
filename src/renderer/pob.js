@@ -153,12 +153,38 @@
         render();
       } catch (e) { toast(errText(e), true); }
     };
-    const head = h('div', { class: 'panel pob-sum row', style: { gap: '10px' } },
+    // PoB's pickers under Main skill: the skill of the group, its part, stages, mines, minion and its skill
+    const setOpt = async (key, value) => {
+      try {
+        const st = await call('pob:skillOpt', { file, key, value });
+        for (const k of Object.keys(PB.results)) if (k.endsWith(`|${file}`)) delete PB.results[k];
+        PB.results.test = null; PB.results.find = null;
+        PB.results[`stats|${file}`] = st;
+        toast(`Main skill: ${st.skill || 'none'}`);
+        render();
+      } catch (e) { toast(errText(e), true); }
+    };
+    const so = r.skillOpts;
+    const pick = (label, key, list, cur) => h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, label),
+      h('select', { 'aria-label': label, disabled: !r.editable || list.length < 2, title: r.editable ? null : 'Pick this in Path of Building for your own builds; snapshots can be changed here.', onchange: (e) => setOpt(key, key === 'minion' ? e.target.value : Number(e.target.value)) },
+        list.map(([v, t]) => h('option', { value: v, selected: v === cur }, t))));
+    const count = (label, key, cur, placeholder) => h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, label),
+      h('input', { type: 'number', min: 0, max: 999, style: { width: '64px' }, value: cur || '', placeholder: placeholder || '', disabled: !r.editable, 'aria-label': label,
+        onchange: (e) => setOpt(key, Math.max(0, Math.min(999, Math.round(Number(e.target.value) || 0)))) }));
+    const optsRow = so ? h('div', { class: 'row small pob-skillopts', style: { gap: '14px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '8px' } },
+      so.active?.length > 1 ? pick('Skill', 'active', so.active.map((n, i) => [i + 1, n]), so.mainActive) : null,
+      so.parts ? pick('Part', 'part', so.parts.map((n, i) => [i + 1, n]), so.part) : null,
+      so.stages != null ? count('Stages', 'stages', so.stages) : null,
+      so.mine ? count('Active mines', 'mines', so.mines, 'auto') : null,
+      so.minions ? pick('Minion', 'minion', so.minions.map((m) => [m.id, m.name]), so.minion) : null,
+      so.minionSkills ? pick('Minion skill', 'minionSkill', so.minionSkills.map((n, i) => [i + 1, n]), so.minionSkill) : null,
+      r.editable ? null : h('span', { class: 'faint' }, 'Change these in Path of Building for your own builds.')) : null;
+    const head = h('div', { class: 'panel pob-sum' }, h('div', { class: 'row', style: { gap: '10px' } },
       h('span', {}, h('b', {}, r.name), ` · ${[r.ascendancy || r.class, r.level ? `level ${r.level}` : null].filter(Boolean).join(' · ')}`),
       h('span', { class: 'spacer' }),
       r.skillGroups?.length ? h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, 'Main skill'),
         h('select', { 'aria-label': 'Main skill', onchange: (e) => pickMain(e.target.value) },
-          r.skillGroups.map((g) => h('option', { value: g.index, selected: g.index === r.mainGroup }, `${g.name}${g.slot ? ` (${g.slot})` : ''}`)))) : null);
+          r.skillGroups.map((g) => h('option', { value: g.index, selected: g.index === r.mainGroup }, `${g.name}${g.slot ? ` (${g.slot})` : ''}`)))) : null), optsRow);
     const groups = STAT_GROUPS.map(([title, rows]) => {
       const list = rows.filter(([k]) => shownStat(d, k));
       if (!list.length) return null;
@@ -263,6 +289,22 @@
       gEdges.append(e);
     }
     const nodeEls = new Map();
+    // rings drawn on top of everything, so changed nodes stand out from the art (a dark band, then the colour)
+    const gHalo = svg('g', { class: 'thalo', 'pointer-events': 'none' });
+    root.append(gHalo);
+    // new: blue ring and a "+" badge; given up: orange ring, crossed out, and a "−" badge
+    const haloEls = (x, y, r0, kind, extra = '') => {
+      const R = r0 + 24;
+      const out = [svg('circle', { cx: x, cy: y, r: R, class: `halo-bg${extra}` }), svg('circle', { cx: x, cy: y, r: R, class: `halo ${kind}${extra}` })];
+      if (kind === 'gone') { const d = R * 0.62; out.push(svg('path', { d: `M${x - d} ${y - d}L${x + d} ${y + d}`, class: `halo-x${extra}` })); }
+      const bx = x + R * 0.8; const by = y - R * 0.8;
+      out.push(svg('circle', { cx: bx, cy: by, r: 36, class: `halo-badge ${kind}${extra}` }));
+      const t = svg('text', { x: bx, y: by + 18, class: `halo-sign${extra}` }); t.textContent = kind === 'gone' ? '−' : '+';
+      out.push(t);
+      return out;
+    };
+    const halo = (n, kind) => gHalo.append(...haloEls(n.x, n.y, NODE_R[n.t] || 26, kind));
+    root.haloEls = haloEls;
     for (const n of r.nodes) {
       if (n.t === 5 && !n.n) continue; // other classes' starts
       const cls = `tn t${n.t}${n.a ? ' on' : ''}${n.asc ? ' asc' : ''}${n.j ? ` jewel rar-${String(n.jr || '').toLowerCase()}` : ''}`;
@@ -381,8 +423,15 @@
       for (const n of r.nodes) {
         const el = nodeEls.get(n.i);
         if (!el) continue;
-        if (n.a && !O.startIds.has(n.i)) el.classList.add('new');
-        if (!n.a && O.startIds.has(n.i)) el.classList.add('gone');
+        if (n.a && !O.startIds.has(n.i)) { el.classList.add('new'); halo(n, 'new'); }
+        if (!n.a && O.startIds.has(n.i)) { el.classList.add('gone'); halo(n, 'gone'); }
+      }
+      // the connections it takes (blue) and gives up (dashed orange)
+      const isOn = new Map(r.nodes.map((n) => [n.i, !!n.a]));
+      for (const e of gEdges.children) {
+        const a = Number(e.dataset.a); const b = Number(e.dataset.b);
+        if (isOn.get(a) && isOn.get(b) && (!O.startIds.has(a) || !O.startIds.has(b))) e.classList.add('new');
+        else if (O.startIds.has(a) && O.startIds.has(b) && (!isOn.get(a) || !isOn.get(b))) e.classList.add('gone');
       }
     }
     const optPanel = optimiserPanel(r, file);
@@ -545,8 +594,8 @@
     const ascOver = r.ascMax && r.ascUsed > r.ascMax;
     const head = h('div', { class: 'panel row', style: { gap: '12px', flexWrap: 'wrap' } },
       h('span', {}, h('b', {}, `${r.class || ''}${r.ascendancy ? ` · ${r.ascendancy}` : ''}`), h('span', { class: 'small muted' }, ` · level ${r.level || '?'} · `),
-        h('span', { class: 'small' + (over ? ' warn' : ' muted') }, `${r.used}${r.maxPoints ? ` / ${r.maxPoints}` : ''} points`),
-        h('span', { class: 'small' + (ascOver ? ' warn' : ' muted') }, ` · ${r.ascUsed || 0} / ${r.ascMax || 8} ascendancy`),
+        h('span', { class: 'small' + (over ? ' warn' : ' muted'), title: r.act ? `At level ${r.level} you are probably in act ${Math.min(10, r.act)}${r.act > 10 ? ' (campaign done)' : ''}: level − 1 plus the quest points of the acts before it${r.act > 2 ? ' and the bandits\' point' : ''}. Never fewer than the tree already has.` : null }, `${r.used}${r.maxPoints ? ` / ${r.maxPoints}` : ''} points`),
+        h('span', { class: 'small' + (ascOver ? ' warn' : ' muted') }, ` · ${r.ascUsed || 0} / ${r.ascMax ?? 8} ascendancy`),
         h('span', { class: 'small muted' }, ` · ${notables} notables and keystones`)),
       h('span', { class: 'spacer' }),
       h('label', { class: 'small row', style: { gap: '6px' } }, 'Heatmap',
@@ -1072,10 +1121,20 @@
       O.steps.length ? h('ol', { class: 'pob-opt-steps small' }, O.steps.map((sw) => h('li', {
         // point at a swap: its nodes light up on the tree
         onmouseenter: () => {
-          const mark = (ids, cls) => (ids || []).forEach((id) => document.querySelectorAll(`.pob-tree-svg .tn[data-i="${id}"]`).forEach((el) => el.classList.add(cls)));
+          const mark = (ids, cls) => (ids || []).forEach((id) => document.querySelectorAll(`.pob-tree-svg .tn[data-i="${id}"]`).forEach((el) => {
+            el.classList.add(cls);
+            const svgEl = el.ownerSVGElement; const g = svgEl?.querySelector('.thalo');
+            if (!g || !svgEl.haloEls) return;
+            g.append(...svgEl.haloEls(Number(el.getAttribute('cx')), Number(el.getAttribute('cy')), Number(el.getAttribute('r')) + 10, cls === 'swap-add' ? 'new' : 'gone', ' swap-halo'));
+          }));
           mark(sw.addedIds, 'swap-add'); mark(sw.removedIds, 'swap-rem');
+          document.querySelectorAll('.pob-tree-svg').forEach((el) => el.classList.add('focus'));
         },
-        onmouseleave: () => document.querySelectorAll('.pob-tree-svg .swap-add, .pob-tree-svg .swap-rem').forEach((el) => el.classList.remove('swap-add', 'swap-rem')),
+        onmouseleave: () => {
+          document.querySelectorAll('.pob-tree-svg .swap-add, .pob-tree-svg .swap-rem').forEach((el) => el.classList.remove('swap-add', 'swap-rem'));
+          document.querySelectorAll('.pob-tree-svg .swap-halo').forEach((el) => el.remove());
+          document.querySelectorAll('.pob-tree-svg.focus').forEach((el) => el.classList.remove('focus'));
+        },
         // click: look at them on the tree
         onclick: () => {
           const t = PB.results[`tree|${file}`];
@@ -1091,7 +1150,7 @@
       },
         h('span', { class: 'gone' }, `− ${sw.removed.join(', ') || 'nothing'}`), '  ', h('span', { class: 'new' }, `+ ${sw.added.join(', ')}`),
         h('span', { class: 'faint' }, `  ${GOALS[O.goal]} ${fmtStat(optValueOf(sw.before, O.goal))} → ${fmtStat(optValueOf(sw.after, O.goal))}`)))) : null,
-      h('div', { class: 'small faint' }, 'On the tree: blue nodes are new, dashed orange rings are nodes given up. A dashed white line is the path to the node you point at.'));
+      h('div', { class: 'small faint' }, 'On the tree: nodes to take have a blue ring and a + badge, nodes to give up an orange ring, a cross and a − badge. Point at a swap to see only its nodes.'));
   }
 
   // ---------------------------------------------------------------- Calcs (PoB's tab): hover a number for its breakdown
