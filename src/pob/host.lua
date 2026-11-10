@@ -1624,6 +1624,64 @@ function autoConfig()
 	local canRage = env and env.player and env.player.modDB and env.player.modDB:Flag(nil, "Condition:CanGainRage")
 	local maxRage = build.calcsTab.mainOutput and build.calcsTab.mainOutput.MaximumRage
 	if canRage and maxRage and maxRage > 0 then out.multiplierRage = maxRage; why.multiplierRage = string.format("maximum Rage %d", maxRage) end
+	-- the enemy, an estimate from what your main skill does: ailments you inflict often enough, the share of
+	-- each damage type in your hits, and debuffs your gear, tree and gems give
+	local o = build.calcsTab.mainOutput or { }
+	local hand = o.MainHand or { }
+	local function get(k) return tonumber(o[k]) or tonumber(hand[k]) or 0 end
+	local total = 0
+	local share = { }
+	for _, t in ipairs({ "Physical", "Lightning", "Cold", "Fire", "Chaos" }) do share[t] = get(t .. "HitAverage"); total = total + share[t] end
+	for t, v in pairs(share) do share[t] = total > 0 and v / total or 0 end
+	local function tick(var, reason) out[var] = true; why[var] = reason end
+	local function pc(v) return string.format("%d%%", math.floor(v * 100 + 0.5)) end
+	-- (PoB gives a chance to chill of 100% with no cold damage at all: an ailment counts only with damage of its kind)
+	local some = function(t) return (share[t] or 0) >= 0.02 end
+	if some("Lightning") and get("ShockChanceOnHit") >= 20 then tick("conditionEnemyShocked", string.format("%d%% chance to shock", get("ShockChanceOnHit")))
+	elseif share.Lightning >= 0.4 then tick("conditionEnemyShocked", pc(share.Lightning) .. " of your hits is lightning") end
+	if some("Cold") and (get("ChillChanceOnHit") >= 50 or share.Cold >= 0.3) then tick("conditionEnemyChilled", pc(share.Cold) .. " of your hits is cold") end
+	if some("Cold") and get("FreezeChanceOnHit") >= 50 then tick("conditionEnemyFrozen", string.format("%d%% chance to freeze", get("FreezeChanceOnHit"))) end
+	if (some("Fire") or get("IgniteDPS") > 0) and (get("IgniteChanceOnHit") >= 30 or (share.Fire >= 0.5 and get("IgniteChanceOnHit") > 0)) then
+		tick("conditionEnemyIgnited", string.format("%d%% chance to ignite", get("IgniteChanceOnHit")))
+		tick("conditionEnemyBurning", "ignited enemies burn")
+	elseif (tonumber(o.BurningGroundDPS) or 0) > 0 then tick("conditionEnemyBurning", "burning ground") end
+	-- crits: with a good crit chance you have crit recently; below a sure crit you have also dealt a non-crit
+	local crit = get("CritChance")
+	if crit >= 40 then tick("conditionCritRecently", string.format("%d%% crit chance", math.floor(crit + 0.5))) end
+	if crit > 0 and crit < 90 then tick("conditionNonCritRecently", string.format("%d%% crit chance: not every hit crits", math.floor(crit + 0.5))) end
+	-- buffs you have under a condition ("You have Tailwind if you have dealt a Critical Strike Recently"): when
+	-- the condition holds for this build
+	local BUFFS = { buffOnslaught = "onslaught", buffArcaneSurge = "arcane surge", buffUnholyMight = "unholy might", buffChaoticMight = "chaotic might",
+		buffFortification = "fortif", buffTailwind = "tailwind", buffAdrenaline = "adrenaline", buffElusive = "elusive" }
+	for var, word in pairs(BUFFS) do
+		if not out[var] then
+			for _, l in ipairs(lines) do
+				if l:find("you have " .. word, 1, true) or l:find("you are " .. word, 1, true) then
+					local holds = true
+					if l:find("critical strike", 1, true) and l:find("recently", 1, true) then holds = crit >= 40 end
+					if l:find("while you have", 1, true) and l:find("while you have " .. word, 1, true) then holds = false end
+					if holds then tick(var, l) break end
+				end
+			end
+		end
+	end
+	local function lineWith(...)
+		for _, l in ipairs(lines) do
+			local all = true
+			for _, w in ipairs({ ... }) do if not l:find(w, 1, true) then all = false break end end
+			if all then return l end
+		end
+	end
+	local function inflicts(word) return lineWith(word, "on hit") or lineWith("chance to " .. word) or lineWith(word .. " enemies") or lineWith(word .. " nearby") or lineWith("inflict", word) end
+	local function gem(...) for _, g in ipairs({ ... }) do if gems[g] then return g .. " (gem)" end end end
+	local r
+	r = inflicts("blind") or gem("Blind", "Blinding Aura", "Smoke Mine"); if r then tick("conditionEnemyBlinded", r) end
+	r = inflicts("intimidate") or gem("Intimidating Cry"); if r then tick("conditionEnemyIntimidated", r) end
+	r = inflicts("crush") or lineWith("crush"); if r then tick("conditionEnemyCrushed", r) end
+	r = inflicts("unnerve") or lineWith("unnerve"); if r then tick("conditionEnemyUnnerved", r) end
+	r = lineWith("covered in ash"); if r then tick("conditionEnemyCoveredInAsh", r) end
+	r = lineWith("covered in frost"); if r then tick("conditionEnemyCoveredInFrost", r) end
+	r = lineWith("consecrated ground", "creat") or gem("Consecrated Path", "Purifying Flame"); if r then tick("conditionEnemyOnConsecratedGround", r) end
 	-- only what you haven't set yourself
 	local list = { }
 	for var, v in pairs(out) do

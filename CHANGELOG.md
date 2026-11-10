@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.41 - 2026-11-10
+
+- **Tree changes are colour-blind friendly**: new nodes are blue, nodes given up have a dashed orange ring, and the path to a node is a dashed white line (it was red and green before). The optimiser's lists and the tree tooltips use the same blue and orange.
+- **Buffs you have under a condition are ticked when it holds**: "You have Tailwind if you have dealt a Critical Strike Recently" ticks Tailwind when you crit often enough (also Onslaught, Arcane Surge, Unholy and Chaotic Might, Fortification, Adrenaline, Elusive).
+- **Have you Crit Recently** is ticked with at least 40% crit chance, and **Have you dealt a Non-Crit Recently** below 90%.
+- **The enemy's conditions are ticked too** (For Effective DPS), as an estimate from your main skill: **Shocked** with a good chance to shock or mostly lightning hits, **Chilled** with a fair share of cold, **Frozen** with a high chance to freeze, **Ignited** and **Burning** with a good chance to ignite, and **Blinded, Intimidated, Crushed, Unnerved, covered in Ash or Frost, on Consecrated Ground** when your tree, gear or gems inflict it. Only options you haven't set; **Tick from my build** does it for a snapshot you have.
+
 ## 1.0.40 - 2026-11-10
 
 - **Upgrades and Support gems start with your main skill** in "For the skill", and links default to the most links your build has.

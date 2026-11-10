@@ -1149,7 +1149,7 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-svg.drag { cursor: grabbing; }
 .pob-tree-svg .tl { fill: none; stroke: #3a3f47; stroke-width: 9; }
 .pob-tree-svg .tl.on { stroke: #c8a85a; stroke-width: 14; }
-.pob-tree-svg .tl.path { stroke: #5fb0ff; stroke-width: 14; }
+.pob-tree-svg .tl.path { stroke: #f2f2f2; stroke-width: 14; stroke-dasharray: 30 18; }
 .pob-tree-svg .tn { fill: #15181d; stroke: #5b616b; stroke-width: 6; }
 .pob-tree-svg .tn.t1 { stroke: #8a7a52; stroke-width: 8; } .pob-tree-svg .tn.t2 { stroke: #9a8a62; stroke-width: 10; }
 .pob-tree-svg .tn.t4 { fill: none; stroke: #3d434c; stroke-dasharray: 10 8; } .pob-tree-svg .tn.t4.on { fill: #253a52; stroke: #9fd0ff; stroke-dasharray: none; }
@@ -1158,7 +1158,7 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-svg .tn.on { fill: #c8a85a; stroke: #f0d890; }
 .pob-tree-svg .tn.t1.on { fill: #e0bd62; stroke: #fff0b8; } .pob-tree-svg .tn.t2.on { fill: #f0c860; stroke: #fff; }
 .pob-tree-svg .tn.jewel.on { fill: #2a68c8; stroke: #a8d0ff; } .pob-tree-svg .tn.jewel.rar-unique.on { fill: #af6025; stroke: #ffc48a; } .pob-tree-svg .tn.jewel.rar-rare.on { fill: #b8a03a; stroke: #fff2a0; }
-.pob-tree-svg .tn.path { fill: #1d4a7a; stroke: #8fd0ff; }
+.pob-tree-svg .tn.path { fill: #4a4a4a; stroke: #ffffff; stroke-dasharray: 22 12; }
 .pob-tree-svg .tn.hit { stroke: #ffff40; stroke-width: 14; }
 .pob-tree-svg .tn:hover { stroke: #fff; }
 .pob-tree-svg .tclass { fill: #c8a85a; font: 700 44px 'Segoe UI', system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
@@ -1168,7 +1168,7 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-tip .tkind { font-weight: 400; font-size: 12px; color: #999; }
 .pob-tree-tip .tsec { margin-top: 6px; padding-top: 6px; border-top: 1px solid #2c2a24; }
 .pob-tree-tip .tdh { color: #ddd; margin-bottom: 2px; }
-.pob-tree-tip .up { color: #7ccf8a; } .pob-tree-tip .down { color: #e07a7a; } .pob-tree-tip .jl { color: #8888ff; }
+.pob-tree-tip .up { color: #6cb4ff; } .pob-tree-tip .down { color: #ffad4a; } .pob-tree-tip .jl { color: #8888ff; }
 
 .pob-cfg.maps { grid-column: 1 / -1; } .pob-cfg.maps .pob-cfg-maps { columns: 2 320px; column-gap: 28px; } .pob-cfg-maps > .small { column-span: all; } .pob-cfg-maps .pob-cfg-row { break-inside: avoid; }
 
@@ -1180,13 +1180,13 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-pick .opt:hover { border-color: #8a7a52; } .pob-tree-pick .opt.on { border-color: #e0bd62; color: #fff0b8; } .pob-tree-pick .opt.rm { color: #e07a7a; }
 .pob-tree-svg .tn { cursor: pointer; }
 
-.pob-tree-svg .tn.new { fill: #3fbf5f; stroke: #b8ffc8; }
-.pob-tree-svg .tn.gone { fill: #15181d; stroke: #ff4a4a; stroke-width: 12; }
+.pob-tree-svg .tn.new { fill: #1f7ae0; stroke: #a8d4ff; stroke-width: 12; }
+.pob-tree-svg .tn.gone { fill: #15181d; stroke: #ff9a1f; stroke-width: 14; stroke-dasharray: 18 10; }
 .pob-opt .pob-cfg-diff.inline { position: static; box-shadow: none; margin: 0; }
 .pob-opt-steps { margin: 0; padding-left: 22px; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
-.pob-opt-steps .gone { color: #e07a7a; } .pob-opt-steps .new { color: #7ccf8a; }
+.pob-opt-steps .gone { color: #ffad4a; } .pob-opt-steps .new { color: #6cb4ff; }
 
-.pob-gem-swap { margin-right: 14px; white-space: nowrap; } .pob-gem-swap .gone { color: #e07a7a; } .pob-gem-swap .new { color: #7ccf8a; }
+.pob-gem-swap { margin-right: 14px; white-space: nowrap; } .pob-gem-swap .gone { color: #ffad4a; } .pob-gem-swap .new { color: #6cb4ff; }
 
 .pob-tree-svg .tradius { fill: rgba(80, 140, 255, .06); stroke: rgba(120, 170, 255, .5); stroke-width: 10; stroke-dasharray: 30 20; pointer-events: none; }
 .pob-tree-svg .tn.tsock { stroke: #8fd0ff; stroke-width: 14; }
@@ -1203,8 +1203,8 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-svg.art .tn { fill: transparent; stroke: transparent; }
 .pob-tree-svg.art .tn.t5 { stroke: #c8a85a; stroke-width: 10; }
 .pob-tree-svg.art .tn.hit { stroke: #ffff40; stroke-width: 14; }
-.pob-tree-svg.art .tn.path { fill: rgba(80, 160, 255, .35); stroke: #8fd0ff; }
-.pob-tree-svg.art .tn.new { fill: rgba(63, 191, 95, .45); stroke: #b8ffc8; } .pob-tree-svg.art .tn.gone { stroke: #ff4a4a; stroke-width: 12; }
+.pob-tree-svg.art .tn.path { fill: rgba(255, 255, 255, .25); stroke: #ffffff; stroke-dasharray: 22 12; }
+.pob-tree-svg.art .tn.new { fill: rgba(31, 122, 224, .55); stroke: #a8d4ff; stroke-width: 12; } .pob-tree-svg.art .tn.gone { stroke: #ff9a1f; stroke-width: 14; stroke-dasharray: 18 10; }
 .pob-tree-svg.art .tn.tsock { stroke: #8fd0ff; stroke-width: 14; } .pob-tree-svg.art .tn.tconq { fill: rgba(255, 207, 74, .45); stroke: #fff2b0; }
 .pob-tree-svg.art .tn.heat { stroke-width: 8; }
 .pob-tree-svg.art .tn:hover { stroke: rgba(255,255,255,.8); }
@@ -1212,8 +1212,8 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-tree-svg.art .tn.jewel.on { fill-opacity: .55; stroke: transparent; }
 
 .pob-opt-steps li { cursor: default; border-radius: 4px; padding: 1px 4px; } .pob-opt-steps li:hover { background: rgba(255,255,255,.05); }
-.pob-tree-svg .tn.swap-add, .pob-tree-svg.art .tn.swap-add { fill: rgba(63, 220, 95, .55); stroke: #b8ffc8; stroke-width: 18; }
-.pob-tree-svg .tn.swap-rem, .pob-tree-svg.art .tn.swap-rem { fill: rgba(255, 60, 60, .45); stroke: #ff8080; stroke-width: 18; }
+.pob-tree-svg .tn.swap-add, .pob-tree-svg.art .tn.swap-add { fill: rgba(31, 122, 224, .65); stroke: #cfe6ff; stroke-width: 18; }
+.pob-tree-svg .tn.swap-rem, .pob-tree-svg.art .tn.swap-rem { fill: rgba(255, 154, 31, .5); stroke: #ffc070; stroke-width: 18; stroke-dasharray: 18 10; }
 
 /* item tester: Path of Building's tooltip */
 .pob-itemtip { display: flex; gap: 0; align-items: flex-start; flex-wrap: wrap; font-family: 'Segoe UI', system-ui, sans-serif; }

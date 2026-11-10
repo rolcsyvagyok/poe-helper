@@ -375,7 +375,7 @@
     });
     let lastDragMoved = false;
 
-    // the optimiser: what it changed so far (green: taken, red ring: given up)
+    // the optimiser: what it changed so far (blue: taken, dashed orange ring: given up)
     const O = PB.opt?.file === file ? PB.opt : null;
     if (O) {
       for (const n of r.nodes) {
@@ -1091,7 +1091,7 @@
       },
         h('span', { class: 'gone' }, `− ${sw.removed.join(', ') || 'nothing'}`), '  ', h('span', { class: 'new' }, `+ ${sw.added.join(', ')}`),
         h('span', { class: 'faint' }, `  ${GOALS[O.goal]} ${fmtStat(optValueOf(sw.before, O.goal))} → ${fmtStat(optValueOf(sw.after, O.goal))}`)))) : null,
-      h('div', { class: 'small faint' }, 'On the tree: green nodes are new, red rings are nodes given up.'));
+      h('div', { class: 'small faint' }, 'On the tree: blue nodes are new, dashed orange rings are nodes given up. A dashed white line is the path to the node you point at.'));
   }
 
   // ---------------------------------------------------------------- Calcs (PoB's tab): hover a number for its breakdown
