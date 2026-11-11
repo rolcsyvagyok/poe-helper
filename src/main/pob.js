@@ -143,16 +143,28 @@ class PobEngine {
   }
 
   /** Opens a build file in PoB (skipped when it is already open and unchanged). */
-  async load(file, mainGroup = null) {
+  /**
+   * @param sets  for your own PoB builds (never changed on disk): the tree, item, skill and config set you
+   *              picked in the app, { tree, items, skills, configs }, put back each time the build is loaded
+   */
+  async load(file, mainGroup = null, sets = null) {
     let mtime = 0;
     try { mtime = fs.statSync(file).mtimeMs; } catch { /* checked by the caller */ }
-    if (this.loaded && this.loaded.file === file && this.loaded.mtime === mtime && this.loaded.mainGroup === mainGroup) return this.loaded.summary;
+    const setsKey = sets ? JSON.stringify(sets) : '';
+    if (this.loaded && this.loaded.file === file && this.loaded.mtime === mtime && this.loaded.mainGroup === mainGroup && (this.loaded.setsKey || '') === setsKey) return this.loaded.summary;
     let r;
-    if (this.loaded && this.loaded.file === file && this.loaded.mtime === mtime) r = this.loaded.summary;
-    else r = await this.send({ op: 'load', xml: fs.readFileSync(file, 'utf8'), name: path.basename(file).replace(/\.xml$/i, '') });
+    const same = this.loaded && this.loaded.file === file && this.loaded.mtime === mtime && (this.loaded.setsKey || '') === setsKey;
+    if (same) r = this.loaded.summary;
+    else {
+      r = await this.send({ op: 'load', xml: fs.readFileSync(file, 'utf8'), name: path.basename(file).replace(/\.xml$/i, '') });
+      // the sets first: the skill groups (and so the main skill) depend on the skill set
+      for (const kind of ['tree', 'items', 'skills', 'configs']) {
+        if (sets?.[kind] != null) { const x = await this.send({ op: 'buildSet', kind, value: sets[kind] }); if (!x.error) r = x; }
+      }
+    }
     // the main skill you picked for this build
     if (mainGroup) r = await this.send({ op: 'main', group: mainGroup });
-    this.loaded = { file, mtime, mainGroup, summary: r };
+    this.loaded = { file, mtime, mainGroup, setsKey, summary: r };
     return r;
   }
 

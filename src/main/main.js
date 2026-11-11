@@ -946,7 +946,7 @@ function registerIpc() {
     if (!fs.existsSync(st.buildsDir)) return [];
     return require('./pob').listBuilds(st.buildsDir).map(({ file, name, mtime }) => ({ file, name, mtime, snapshot: /^PoE Helper snapshots \/ /.test(name) }));
   });
-  handle('pob:stats', (file) => pobWith(file, async () => ({ ...(await pob.stats()), editable: pobIsSnapshot(file) })));
+  handle('pob:stats', (file) => pobWith(file, async () => ({ ...(await pob.stats()), editable: pobIsSnapshot(file), setsEditable: true })));
   // PoB's Configuration tab: read on any build, changed (and saved into the file) only on your snapshots
   handle('pob:config', (file) => pobWith(file, async () => ({ ...(await pob.config()), editable: pobIsSnapshot(file) })));
   handle('pob:setConfig', ({ file, values } = {}) => {
@@ -971,12 +971,29 @@ function registerIpc() {
   });
   // builds with several trees and gear/skill/config sets: switch which one is in use (saved into snapshots)
   handle('pob:buildSet', ({ file, kind, value, link } = {}) => {
-    if (!pobIsSnapshot(file)) throw new Error('Only snapshots and imported builds are changed here; pick this in Path of Building for your own builds.');
     if (!['tree', 'items', 'skills', 'configs'].includes(kind)) throw new Error('Unknown set.');
+    // your own PoB builds: switched in the app only, remembered here, the file itself is never touched
+    if (!pobIsSnapshot(file)) {
+      return pobWith(file, async () => {
+        const r = await pob.buildSet(kind, Number(value), { link: !!link });
+        if (r.error) throw new Error(r.error);
+        const cur = services.settings.get('pob') || {};
+        const chosen = r.sets ? { tree: r.sets.tree, items: r.sets.itemsActive, skills: r.sets.skillsActive, configs: r.sets.configsActive } : null;
+        const buildSets = { ...(cur.buildSets || {}) };
+        if (chosen) buildSets[file] = chosen;
+        // a different skill set has different groups: the main skill goes back to the build's own
+        const mainGroups = { ...(cur.mainGroups || {}) };
+        if (kind === 'skills' || kind === 'tree') delete mainGroups[file];
+        services.settings.set('pob', { ...cur, buildSets: Object.fromEntries(Object.entries(buildSets).slice(-200)), mainGroups });
+        pob.loaded = { ...pob.loaded, mainGroup: mainGroups[file] || null, setsKey: chosen ? JSON.stringify(chosen) : '', summary: r };
+        return { ...r, editable: false, setsEditable: true };
+      });
+    }
     return pobWith(file, async () => {
       const r = await pob.buildSet(kind, Number(value), { link: !!link, save: true, name: path.basename(file, '.xml') });
       if (r.error) throw new Error(r.error);
       if (!r.xml) throw new Error('Path of Building did not save the build.');
+      if (kind === 'skills' || kind === 'tree') { const cur = services.settings.get('pob') || {}; const mainGroups = { ...(cur.mainGroups || {}) }; delete mainGroups[file]; services.settings.set('pob', { ...cur, mainGroups }); }
       fs.writeFileSync(file, r.xml, 'utf8');
       delete r.xml;
       pob.loaded = { ...pob.loaded, mtime: fs.statSync(file).mtimeMs, summary: r };
@@ -1397,7 +1414,8 @@ function pobWith(file, fn) {
     if (!file || !fs.existsSync(file)) throw new Error('That build file is gone. Pick another one.');
     try {
       await pobReady(st.dir);
-      await pob.load(file, (services.settings.get('pob') || {}).mainGroups?.[file] || null);
+      const cur = services.settings.get('pob') || {};
+      await pob.load(file, cur.mainGroups?.[file] || null, pobIsSnapshot(file) ? null : cur.buildSets?.[file] || null);
       return await fn();
     } finally { pobIdleLater(); }
   });

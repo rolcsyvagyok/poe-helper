@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.51 - 2026-11-11
+
+- **Every tree and setup of your own Path of Building builds**: the Tree, Items, Skills and Config pickers on the Build tab now work for your own PoB builds too (they used to be greyed out), so a build with a levelling tree, a mapping tree and an endgame tree, each with its own gems and supports, can be looked at and used in every tab. For your own builds the choice is kept by PoE Helper and your PoB file is never changed; snapshots and imported builds save it in the build as before. Divider sets like "-------" can't be picked. Switching the skill set or tree puts the main skill back to that setup's own.
+
 ## 1.0.50 - 2026-11-10
 
 - **One price check hotkey**: Alt+E prices the item and, under it, shows what it does to your build (what Ctrl+E did). Settings → Price check → the compare switch turns the build part off; then Path of Building isn't run and Alt+E only prices. The separate compare hotkey is gone, and so is "Price check with mod tiers" (the normal price check reads the mods anyway).

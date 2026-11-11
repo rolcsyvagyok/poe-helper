@@ -190,8 +190,8 @@
     };
     const S2 = r.sets;
     const setPick = (label, kind, list, cur) => list && list.length > 1 ? h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, label),
-      h('select', { 'aria-label': label, disabled: !r.editable, title: r.editable ? null : 'Switch this in Path of Building for your own builds; snapshots and imported builds can be switched here.', onchange: (e) => setSet(kind, Number(e.target.value)) },
-        list.map((x, i) => h('option', { value: kind === 'tree' ? i + 1 : x.id, selected: kind === 'tree' ? i + 1 === cur : x.id === cur }, kind === 'tree' ? x : x.title)))) : null;
+      h('select', { 'aria-label': label, title: r.editable ? null : 'Switched in PoE Helper only: your Path of Building file stays as it is.', onchange: (e) => setSet(kind, Number(e.target.value)) },
+        list.map((x, i) => { const t = kind === 'tree' ? x : x.title; const divider = /^[-=_~*.\s]{3,}$/.test(t); return h('option', { value: kind === 'tree' ? i + 1 : x.id, selected: kind === 'tree' ? i + 1 === cur : x.id === cur, disabled: divider }, divider ? '──────────' : t); }))) : null;
     const setsRow = S2 ? h('div', { class: 'row small pob-sets', style: { gap: '14px', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '8px' } },
       setPick('Tree', 'tree', S2.trees, S2.tree),
       setPick('Items', 'items', S2.items, S2.itemsActive),
