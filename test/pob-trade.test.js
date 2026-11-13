@@ -62,3 +62,13 @@ test('PoB trade search: a trade listing becomes the text the game copies', () =>
   const t = T.itemTextFromTrade({ frameType: 2, name: 'Doom Loop', typeLine: 'Steel Ring', ilvl: 84, implicitMods: ['Adds 3 to 11 Physical Damage to Attacks'], explicitMods: ['+70 to maximum Life'], craftedMods: ['+30% to Fire Resistance'], corrupted: true });
   assert.strictEqual(t, ['Rarity: Rare', 'Doom Loop', 'Steel Ring', '--------', 'Item Level: 84', '--------', 'Adds 3 to 11 Physical Damage to Attacks (implicit)', '--------', '+70 to maximum Life', '+30% to Fire Resistance (crafted)', '--------', 'Corrupted'].join('\n'));
 });
+
+test('weapons only try mods their type can roll, and your item\'s own weighted sum', () => {
+  const T = require('../src/core/pob-trade');
+  assert.ok(!T.candidatesFor('Two Handed Mace').some((c) => /Minion|Spell|Cast Speed/.test(c.line)), 'no caster mods on a two-handed mace');
+  assert.ok(T.candidatesFor('Wand').some((c) => /Minion Skill Gems/.test(c.line)));
+  assert.ok(T.candidatesFor('Helmet').some((c) => /Minion Skill Gems/.test(c.line)), 'armour keeps its own list');
+  const weights = [{ id: 'explicit.fire', tradeWeight: 94 }, { id: 'explicit.phys', tradeWeight: 21.5 }];
+  const mods = [{ id: 'explicit.fire', display: 75 }, { id: 'explicit.phys', display: 150 }, { id: 'crafted.str', display: 40 }, { id: null, display: 5 }];
+  assert.equal(T.itemSum(mods, weights), 94 * 75 + 21.5 * 150);
+});

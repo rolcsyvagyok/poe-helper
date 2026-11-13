@@ -18,6 +18,8 @@ const { indexStats } = require('./trade');
 const ARMOUR = ['helmet', 'body', 'gloves', 'boots', 'shield'];
 const JEWELLERY = ['amulet', 'ring', 'belt'];
 const GEAR = [...ARMOUR, ...JEWELLERY];
+// weapon types that can roll caster mods (spell damage, cast speed, + spell or minion gem levels); `weapons` limits a mod to those
+const CASTER = ['Wand', 'Sceptre', 'Staff', 'Rune Dagger', 'Dagger'];
 const CANDIDATES = [
   { line: '+100 to maximum Life', value: 100, trade: [['pseudo', '+# total maximum Life'], ['explicit', '+# to maximum Life']], kinds: GEAR },
   { line: '+60 to maximum Mana', value: 60, trade: [['pseudo', '+# total maximum Mana'], ['explicit', '+# to maximum Mana']], kinds: [...GEAR, 'weapon'] },
@@ -38,7 +40,7 @@ const CANDIDATES = [
   { line: '+50 to Intelligence', value: 50, trade: [['pseudo', '+# total to Intelligence'], ['explicit', '+# to Intelligence']], kinds: [...GEAR, 'weapon'] },
   { line: '30% increased Movement Speed', value: 30, trade: [['pseudo', '#% increased Movement Speed'], ['explicit', '#% increased Movement Speed']], kinds: ['boots'] },
   { line: '12% increased Attack Speed', value: 12, trade: [['pseudo', '+#% total Attack Speed'], ['explicit', '#% increased Attack Speed']], kinds: ['gloves', 'amulet', 'ring', 'shield', 'quiver'] },
-  { line: '12% increased Cast Speed', value: 12, trade: [['pseudo', '+#% total Cast Speed'], ['explicit', '#% increased Cast Speed']], kinds: ['amulet', 'ring', 'shield', 'weapon'] },
+  { line: '12% increased Cast Speed', value: 12, trade: [['pseudo', '+#% total Cast Speed'], ['explicit', '#% increased Cast Speed']], kinds: ['amulet', 'ring', 'shield', 'weapon'], weapons: CASTER },
   { line: '35% increased Global Critical Strike Chance', value: 35, trade: [['explicit', '#% increased Global Critical Strike Chance']], kinds: ['amulet', 'ring', 'quiver', 'helmet'] },
   { line: '+35% to Global Critical Strike Multiplier', value: 35, trade: [['explicit', '+#% to Global Critical Strike Multiplier']], kinds: ['amulet', 'ring', 'gloves', 'quiver', 'weapon'] },
   { line: 'Adds 10 to 20 Physical Damage to Attacks', value: 15, trade: [['pseudo', 'Adds # to # Physical Damage to Attacks'], ['explicit', 'Adds # to # Physical Damage to Attacks']], kinds: ['gloves', 'amulet', 'ring', 'quiver'] },
@@ -46,10 +48,10 @@ const CANDIDATES = [
   { line: 'Adds 20 to 40 Cold Damage to Attacks', value: 30, trade: [['pseudo', 'Adds # to # Cold Damage to Attacks'], ['explicit', 'Adds # to # Cold Damage to Attacks']], kinds: ['gloves', 'amulet', 'ring', 'quiver'] },
   { line: 'Adds 5 to 55 Lightning Damage to Attacks', value: 30, trade: [['pseudo', 'Adds # to # Lightning Damage to Attacks'], ['explicit', 'Adds # to # Lightning Damage to Attacks']], kinds: ['gloves', 'amulet', 'ring', 'quiver'] },
   { line: '35% increased Elemental Damage with Attack Skills', value: 35, trade: [['pseudo', '#% increased Elemental Damage with Attack Skills'], ['explicit', '#% increased Elemental Damage with Attack Skills']], kinds: ['amulet', 'ring', 'belt', 'quiver'] },
-  { line: '30% increased Spell Damage', value: 30, trade: [['pseudo', '#% increased Spell Damage'], ['explicit', '#% increased Spell Damage']], kinds: ['amulet', 'ring', 'shield', 'weapon'] },
+  { line: '30% increased Spell Damage', value: 30, trade: [['pseudo', '#% increased Spell Damage'], ['explicit', '#% increased Spell Damage']], kinds: ['amulet', 'ring', 'shield', 'weapon'], weapons: CASTER },
   { line: '+1 to Level of all Skill Gems', value: 1, trade: [['explicit', '+# to Level of all Skill Gems']], kinds: ['amulet'] },
-  { line: '+1 to Level of all Minion Skill Gems', value: 1, trade: [['explicit', '+# to Level of all Minion Skill Gems']], kinds: ['helmet', 'amulet', 'weapon'] },
-  { line: '+1 to Level of all Spell Skill Gems', value: 1, trade: [['explicit', '+# to Level of all Spell Skill Gems']], kinds: ['amulet', 'weapon'] },
+  { line: '+1 to Level of all Minion Skill Gems', value: 1, trade: [['explicit', '+# to Level of all Minion Skill Gems']], kinds: ['helmet', 'amulet', 'weapon'], weapons: ['Wand', 'Sceptre'] },
+  { line: '+1 to Level of all Spell Skill Gems', value: 1, trade: [['explicit', '+# to Level of all Spell Skill Gems']], kinds: ['amulet', 'weapon'], weapons: CASTER },
   // weapons: their own damage
   { line: '150% increased Physical Damage', value: 150, trade: [['explicit', '#% increased Physical Damage']], kinds: ['weapon'], local: true },
   { line: 'Adds 20 to 40 Physical Damage', value: 30, trade: [['explicit', 'Adds # to # Physical Damage']], kinds: ['weapon'], local: true },
@@ -85,7 +87,20 @@ function kindOf(type) {
 }
 function candidatesFor(type) {
   const kind = kindOf(type);
-  return kind ? CANDIDATES.filter((c) => c.kinds.includes(kind)) : [];
+  // a weapon only tries the mods its type can roll (no + minion gem levels on a two-handed mace)
+  return kind ? CANDIDATES.filter((c) => c.kinds.includes(kind) && (kind !== 'weapon' || !c.weapons || c.weapons.includes(type))) : [];
+}
+
+/**
+ * The weighted sum your own item has in the trade search: each of its mods the search weighs, its value times
+ * the weight. The same sum the trade site works out for a listing, so "at least this" means as good as yours.
+ * mods: matched trade mods of your item ({ id, display }).
+ */
+function itemSum(mods, weights) {
+  const byId = new Map(weights.map((w) => [w.id, w.tradeWeight]));
+  let sum = 0;
+  for (const m of mods || []) if (m?.id && byId.has(m.id) && Number.isFinite(Number(m.display))) sum += byId.get(m.id) * Number(m.display);
+  return Math.round(sum * 100) / 100;
 }
 
 const FOCUS = { damage: { dps: 1, ehp: 0 }, balanced: { dps: 0.5, ehp: 0.5 }, defence: { dps: 0, ehp: 1 } };
@@ -173,4 +188,4 @@ function itemTextFromTrade(item) {
   return out.join('\n');
 }
 
-module.exports = { limitWeights, CANDIDATES, CATEGORY, candidatesFor, kindOf, weightsFrom, buildWeightedQuery, itemTextFromTrade, FOCUS };
+module.exports = { itemSum, limitWeights, CANDIDATES, CATEGORY, candidatesFor, kindOf, weightsFrom, buildWeightedQuery, itemTextFromTrade, FOCUS };

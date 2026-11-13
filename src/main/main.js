@@ -1027,6 +1027,12 @@ function registerIpc() {
     return list.map((c) => ({ name: c.name, league: c.league, class: c.class, level: c.level, lastActive: !!c.lastActive }));
   });
   handle('pob:snapshot', () => pobSnapshot());
+  // from the price check popup: a new snapshot of your character, then this item compared again against it
+  handle('overlay:snapshotCompare', async (text) => {
+    await pobSnapshot();
+    mainWin?.webContents.send('pob:buildsChanged');
+    return pobCompareFor(String(text || ''));
+  });
   handle('clipboard:item', () => { const t = clipboard.readText(); return t && isPoeItemText(t) ? t : null; });
   // calculations on a build file (a snapshot or any PoB build): one at a time, PoB holds one build
   handle('pob:builds', () => {
@@ -1465,7 +1471,7 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
   const stats = await services.ggg.tradeStats();
   const loggedIn = services.ggg.hasSession();
   const found = T.weightsFrom(results, cands, stats, { focus });
-  const { missing, scale } = found;
+  const { missing } = found;
   const weights = T.limitWeights(found.weights, { loggedIn });
   if (!weights.length) throw new Error('None of the mods Path of Building tried make this build stronger in that slot, so there is nothing to search for.');
   const league = await services.getLeague();
@@ -1475,30 +1481,34 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
     if (!divine) throw new Error('poe.ninja has no Divine Orb price right now; give the price in chaos.');
     maxPriceChaos *= divine;
   }
-  // at least as good as your item: what it is worth in the same units, a little under to allow for rounding
+  // at least as good as your item: the weighted sum your own item has with these weights (what the trade site
+  // counts for a listing), a little under so the same item still shows. Before, PoB's whole worth of your item
+  // against a blank base was used, which counts the base's own damage too and was far too high.
   const f = T.FOCUS[focus] || T.FOCUS.balanced;
-  const curWorth = (f.dps * (w.current.dpsPct || 0) + f.ehp * (w.current.ehpPct || 0)) * scale;
-  const minSum = betterOnly && curWorth > 0 ? curWorth * 0.9 : 0;
+  let curMods = [];
+  try { const it = w.currentText ? services.readItem(w.currentText) : null; if (it) curMods = require('../core/trade').matchItemMods(stats, it); } catch (e) { log('find item: own item not read', e.message); }
+  const sumFor = (list) => (betterOnly ? Math.floor(T.itemSum(curMods, list) * 0.95 * 100) / 100 : 0);
+  const minSum = sumFor(weights);
   const make = (list, min) => T.buildWeightedQuery({ weights: list, category: T.CATEGORY[w.type], maxLevel, maxPriceChaos, minSum: min, status: services.settings.get('tradeStatus') || 'securable' });
   // the whole search, opened on the trade site itself (your browser is logged in there, so it allows more filters)
-  const full = make(found.weights.slice(0, 35), minSum);
+  const full = make(found.weights.slice(0, 35), sumFor(found.weights.slice(0, 35)));
   const siteUrl = `https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify({ query: full.query, sort: full.sort }))}`;
-  // "Query is too complex": try again with fewer stats (the ones worth most); with fewer stats the sum of an item
-  // as good as yours isn't known, so those searches only sort by it
+  // "Query is too complex": try again with fewer stats (the ones worth most); the sum of your item is worked out
+  // again for the stats kept
   const sizes = [...new Set([weights.length, 15, 8, 5].filter((n) => n <= weights.length))];
   let res = null;
   let used = weights;
   let refused = null;
   for (const n of sizes) {
     used = weights.slice(0, n);
-    const body = make(used, n === weights.length ? minSum : 0);
+    const body = make(used, sumFor(used));
     try { res = await services.ggg.tradeSearch(league, body, { login: true }); refused = null; break; } catch (e) {
       log('pob trade search refused', n, e.message);
       refused = e;
       if (!/too complex|reduce the amount of filters/i.test(e.message)) break;
     }
   }
-  const base = { slot, type: w.type, base: w.base, current: w.currentName, siteUrl, weights: used.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum: used.length === weights.length ? minSum : 0, listings: [], loggedIn, leftOut: found.weights.length - used.length };
+  const base = { slot, type: w.type, base: w.base, current: w.currentName, siteUrl, weights: used.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum: sumFor(used), listings: [], loggedIn, leftOut: found.weights.length - used.length };
   if (!res) return { ...base, refused: refused?.message || 'The trade site refused the search.', url: siteUrl, total: 0 };
   const out = { ...base, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0 };
   if (!res.result?.length) return out;

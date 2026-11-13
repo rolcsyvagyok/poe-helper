@@ -1287,3 +1287,7 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 .ov-hero-tools button { background: #0f1116cc; }
 .ov-hero.shipped { background-position: 60% 50%; }
 .ov-hero-credit { position: absolute; right: 14px; bottom: 10px; font-size: 11px; color: #ffffff59; }
+
+/* overlay: a weapon's own DPS */
+.ov-dps { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); margin: 4px 0 2px; }
+.ov-dps b { color: var(--text); font-weight: 650; }

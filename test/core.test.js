@@ -547,3 +547,19 @@ test('show all currency: hidden currency tiers show and switched-off ones are sw
   assert.strictEqual(out[10], 'Hide # $type->hidelayer $tier->final');
   assert.strictEqual(out[13], 'Show # $type->currency $tier->t1');
 });
+
+test('weapon DPS from the game text, and the DPS trade filter', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const { weaponDps, defaultProps, buildQuery, DPS_MOD } = require('../src/core/trade');
+  const text = 'Item Class: Two Hand Axes\nRarity: Rare\nEntropy Song\nJasper Chopper\n--------\nTwo Hand Axe\nPhysical Damage: 60-100 (augmented)\nElemental Damage: 10-20 (augmented), 5-35 (augmented)\nCritical Strike Chance: 5.00%\nAttacks per Second: 1.25 (augmented)\nWeapon Range: 1.3 metres\n--------\nItem Level: 43\n--------\n80% increased Physical Damage\nAdds 10 to 20 Fire Damage\nAdds 5 to 35 Lightning Damage\n10% increased Attack Speed\n+30 to Strength';
+  const it = parseItem(text);
+  const w = weaponDps(it);
+  assert.deepEqual(w, { phys: 100, ele: 43.8, chaos: 0, total: 143.8, aps: 1.25 });
+  const props = defaultProps(it);
+  assert.equal(props.dps.mode, 'phys');
+  assert.equal(props.dps.min, 90);
+  const q = buildQuery(it, [], { props });
+  assert.deepEqual(q.query.filters.weapon_filters, { filters: { pdps: { min: 90 } } });
+  assert.ok(DPS_MOD.test('80% increased Physical Damage') && DPS_MOD.test('Adds 5 to 35 Lightning Damage') && DPS_MOD.test('10% increased Attack Speed'));
+  assert.ok(!DPS_MOD.test('+30 to Strength'));
+});

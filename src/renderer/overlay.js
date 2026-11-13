@@ -67,19 +67,43 @@ function pobText(str) {
   push(text.slice(last));
   return out;
 }
+// the quick compare shows only what the item does to your damage and your effective HP
+const KEEP_ROW = /Average Damage|Effective Hit Pool/i;
+const DPS_ROW = /\b(Full DPS|Combined DPS|Total DPS|Hit DPS)\b/i; // builds with no Average Damage line (damage over time)
 function pobSection(pb) {
-  const box = h('div', { class: 'ov-block ov-pob' }, h('div', { class: 't' }, 'With your build', pb.build ? h('span', { class: 'faint' }, ` (${pb.build})`) : null));
-  if (pb.loading) { box.append(h('div', { class: 'small muted' }, h('span', { class: 'spin' }), ' Path of Building is working it out…')); return box; }
-  if (pb.error || pb.r?.error) { box.append(h('div', { class: 'small warn' }, pb.error || pb.r.error)); return box; }
+  // a new snapshot of your character from pathofexile.com, then this item compared again
+  const snap = h('button', { class: 'quiet sm', title: 'Takes a new snapshot of your character (your gear now) and compares this item again', onclick: async () => {
+    if (!current?.text) return;
+    snap.disabled = true; snap.textContent = 'Snapshot…';
+    let here = pobSection({ loading: true, build: pb.build });
+    slot.replaceWith(here); fit();
+    let next;
+    try { next = await call('overlay:snapshotCompare', current.text); } catch (e) { next = { error: String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), build: pb.build }; }
+    if (current) current = { ...current, pob: next };
+    const done = pobSection(next);
+    here.replaceWith(done); here = done; fit();
+  } }, 'New snapshot');
+  const slot = h('div');
+  const box = h('div', { class: 'ov-block ov-pob' }, h('div', { class: 't row', style: { gap: '6px' } }, h('span', {}, 'With your build', pb.build ? h('span', { class: 'faint' }, ` (${pb.build})`) : null), h('span', { class: 'spacer' }), pb.loading ? null : snap));
+  slot.append(box);
+  if (pb.loading) { box.append(h('div', { class: 'small muted' }, h('span', { class: 'spin' }), ' Path of Building is working it out…')); return slot; }
+  if (pb.error || pb.r?.error) { box.append(h('div', { class: 'small warn' }, pb.error || pb.r.error)); return slot; }
   const lines = pb.r?.lines || [];
   const first = lines.findIndex((l) => /will give you/.test(l.text || ''));
   const cmp = first >= 0 ? lines.slice(first).filter((l) => !/^\^x80A080Tip:/.test(l.text || '')) : [];
-  if (!cmp.length) { box.append(h('div', { class: 'small muted' }, 'This item doesn\'t fit any slot of this build, or changes nothing.')); return box; }
+  if (!cmp.length) { box.append(h('div', { class: 'small muted' }, 'This item doesn\'t fit any slot of this build, or changes nothing.')); return slot; }
+  const plain = (t) => String(t || '').replace(/\^x[0-9A-Fa-f]{6}|\^\d/g, '');
+  const head = cmp.filter((l) => !l.sep && /will give you/.test(l.text || ''));
+  const rows = cmp.filter((l) => !l.sep && !/will give you/.test(l.text || ''));
+  const keep = rows.some((l) => /Average Damage/i.test(plain(l.text))) ? rows.filter((l) => KEEP_ROW.test(plain(l.text)))
+    : rows.filter((l) => KEEP_ROW.test(plain(l.text)) || DPS_ROW.test(plain(l.text))).slice(0, 2);
   for (const l of cmp) {
     if (l.sep) continue;
-    box.append(/will give you/.test(l.text || '') ? h('div', { class: 'ov-pob-head' }, String(l.text).split('\n').map((t) => h('div', {}, pobText(t)))) : h('div', { class: 'ov-pob-row' }, pobText(l.text)));
+    if (head.includes(l)) box.append(h('div', { class: 'ov-pob-head' }, String(l.text).split('\n').map((t) => h('div', {}, pobText(t)))));
+    else if (keep.includes(l)) box.append(h('div', { class: 'ov-pob-row' }, pobText(l.text)));
   }
-  return box;
+  if (!keep.length) box.append(h('div', { class: 'small muted' }, 'No change to your damage or effective HP.'));
+  return slot;
 }
 
 function render(p) {
@@ -105,6 +129,16 @@ function render(p) {
 
   const body = h('div', { class: 'ov-body' });
   if (facts.length) body.append(h('div', { class: 'ov-meta' }, facts.join(', ')));
+  // a weapon's own DPS (its damage times attacks per second, as the game shows them)
+  if (p.weapon) {
+    const w = p.weapon;
+    body.append(h('div', { class: 'ov-dps' },
+      h('span', {}, h('b', {}, String(w.phys)), ' physical DPS'),
+      h('span', {}, h('b', {}, String(w.ele)), ' elemental DPS'),
+      w.chaos ? h('span', {}, h('b', {}, String(w.chaos)), ' chaos DPS') : null,
+      h('span', {}, h('b', {}, String(w.total)), ' total DPS'),
+      h('span', { class: 'faint' }, `${w.aps} attacks per second`)));
+  }
 
   // --- price ---
   if (price?.found) {

@@ -539,6 +539,26 @@ local function weights(req)
 	local out = { slot = req.slot, base = baseName, type = blank.type, full = full, level = build.characterLevel, results = { } }
 	out.current = cur and rel(base) or { dpsPct = 0, ehpPct = 0 }
 	out.currentName = cur and cur.name or nil
+	-- your item as the game would copy it, so the app can work out its weighted sum the way the trade site does
+	if cur then
+		local t = { "Rarity: " .. (cur.rarity == "UNIQUE" and "Unique" or cur.rarity == "MAGIC" and "Magic" or cur.rarity == "NORMAL" and "Normal" or "Rare"), cur.title or cur.name or "Item", cur.baseName or "", "--------", "Item Level: " .. tostring(cur.itemLevel or cur.ilvl or 84) }
+		local function sec(list, tag)
+			local lines = { }
+			for _, m in ipairs(list or { }) do if m.line and m.line ~= "" then
+				-- a range in the line ("(80-99)% increased ...") becomes the rolled value, as in game
+				local line = m.line
+				if line:find("%(%-?[%d%.]+%-%-?[%d%.]+%)") and itemLib and itemLib.applyRange then
+					local ok, v = pcall(itemLib.applyRange, line, m.range or 0.5, m.valueScalar)
+					if ok and type(v) == "string" then line = v end
+				end
+				lines[#lines + 1] = line .. (tag and (" (" .. tag .. ")") or (m.crafted and " (crafted)" or (m.fractured and " (fractured)" or ""))) end end
+			if #lines > 0 then t[#t + 1] = "--------"; for _, l in ipairs(lines) do t[#t + 1] = l end end
+		end
+		sec(cur.enchantModLines, "enchant")
+		sec(cur.implicitModLines, "implicit")
+		sec(cur.explicitModLines, nil)
+		out.currentText = table.concat(t, "\n")
+	end
 	for i, line in ipairs(req.lines or { }) do
 		local it = make({ line })
 		out.results[i] = rel(calcFunc({ repSlotName = req.slot, repItem = it }, full))

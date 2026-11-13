@@ -92,6 +92,18 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       h('input', { type: 'checkbox', checked: props.base.on, onchange: (e) => { props.base.on = e.target.checked; } }),
       h('span', { class: 'tp-text' }, `Same base: ${props.base.value}`, h('span', { class: 'faint' }, ' (untick for any base of this kind)')))));
   }
+  // weapons: search by its own DPS (physical, elemental or all)
+  if (props.dps?.show) {
+    const d = props.dps;
+    const cb = h('input', { type: 'checkbox', checked: !!d.on, 'aria-label': 'Search by weapon DPS', onchange: (e) => { d.on = e.target.checked; row.classList.toggle('on', d.on); } });
+    const minIn = h('input', { type: 'number', step: 'any', value: d.min ?? '', placeholder: 'min', 'aria-label': 'Lowest DPS' });
+    minIn.addEventListener('input', () => { d.min = num(minIn.value); if (!d.on) { d.on = true; cb.checked = true; row.classList.add('on'); } });
+    const which = h('select', { 'aria-label': 'Which DPS', onchange: (e) => { d.mode = e.target.value; d.min = Math.floor((d.values?.[d.mode] || 0) * 0.9); minIn.value = d.min; } },
+      [['phys', `Physical DPS (${d.values.phys})`], ['ele', `Elemental DPS (${d.values.ele})`], ['total', `Total DPS (${d.values.total})`]].map(([v, l]) => h('option', { value: v, selected: d.mode === v }, l)));
+    const row = h('div', { class: 'tp-mod' + (d.on ? ' on' : ''), title: 'The weapon\'s own DPS. Its damage and attack speed mods are left unticked: this number already counts them.' },
+      h('label', { class: 'tp-mod-main' }, cb, which), minIn, h('span', { class: 'tp-dash' }), h('span', { class: 'tp-num-empty' }));
+    propRows.push(row);
+  }
   rangeRow('ilvl', 'Item level');
   rangeRow('links', 'Linked sockets');
   rangeRow('quality', 'Quality');

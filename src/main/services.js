@@ -265,7 +265,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const hist = [entry, ...(settings.get('history') || [])].slice(0, 100);
     settings.set('history', hist);
     const tierInfo = tierInfoFor(item, filterHit);
-    return { item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable };
+    const weapon = require('../core/trade').weaponDps(item);
+    return { item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon };
   }
 
   async function tradePrepare(text) {
@@ -273,7 +274,19 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (!item) throw new Error('Not an item.');
     const stats = await ggg.tradeStats(); // 1 request per week at most
     const mods = matchItemMods(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 });
-    return { mods, props: defaultProps(item), kind: classify(item), status: settings.get('tradeStatus') || 'securable' };
+    const props = defaultProps(item);
+    // a weapon searched by DPS: its damage and attack speed mods are already in that number
+    if (props.dps?.on) { const { DPS_MOD } = require('../core/trade'); for (const m of mods) if (m.group !== 'pseudo' && DPS_MOD.test(m.text)) m.enabled = false; }
+    // melee weapons (axes, swords, maces, staves, claws, daggers): only the physical DPS to start with; tick more yourself
+    if (props.dps?.show && /^(one|two) hand (axes|swords|maces)$|^thrusting one hand swords$|^(staves|warstaves|claws|daggers)$/i.test(String(item.itemClass || ''))) {
+      for (const m of mods) m.enabled = false;
+      props.dps.on = true;
+      props.dps.mode = 'phys';
+      props.dps.min = Math.floor(props.dps.values.phys * 0.9);
+      if (props.base && props.category) props.base.on = false; // any base of this weapon type
+      for (const k of ['ilvl', 'links', 'quality']) if (props[k]) props[k].on = false;
+    }
+    return { mods, props, kind: classify(item), status: settings.get('tradeStatus') || 'securable' };
   }
 
   async function tradeSearch({ text, mods, props = null, opts = {} }) {

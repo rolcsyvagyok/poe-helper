@@ -3,6 +3,16 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.61 - 2026-11-13
+
+- Find an upgrade on trade (Path of Building): the **Weighted Sum** minimum is now your own item's sum, worked out from its mods the way the trade site counts a listing. Before, it used how much your whole item adds over an empty base of the same type, which was far too high and hid items as good as yours.
+- Price check on a weapon (Alt+E): shows its **physical, elemental and total DPS** (its damage times attacks per second, as the game shows them).
+- Trade search for a weapon: search by **Physical DPS, Elemental DPS or Total DPS** with a minimum (90% of yours to start). It's on by default, picks physical or elemental by which is higher, and leaves the damage and attack speed mods unticked, since the DPS already counts them.
+- Melee weapons (axes, swords, maces, staves, claws, daggers) start with only **Physical DPS** ticked in the trade search: no mods, no same base, no item level. Tick more if you want.
+- Price check compare with your build: shows only **Average Damage** and **Effective Hit Pool** (builds without an Average Damage line show their DPS instead).
+- A **New snapshot** button in that compare: takes a fresh snapshot of your character (your gear now) and compares the item again with it.
+- Weapons only ask for mods their type can roll: no more "+# to Level of all Minion Skill Gems", spell damage or cast speed on a two-handed axe or mace.
+
 ## 1.0.60 - 2026-11-13
 
 - Path of Building: hover a gem to see where you get it while levelling, for your build's class: its quest reward, the first vendor that sells it, and Lilly Roth in Act 6. Transfigured, Vaal and Awakened gems say where they come from instead.

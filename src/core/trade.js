@@ -207,6 +207,30 @@ const CATEGORIES = {
 };
 
 /** Item property filters for the picker, with sensible starting values. */
+/**
+ * A weapon's own DPS, as the trade site counts it: the damage ranges the game shows (local mods and quality
+ * already in) times attacks per second. { phys, ele, chaos, total, aps } rounded to one decimal, or null.
+ */
+function weaponDps(item) {
+  const p = item?.properties || {};
+  const aps = parseFloat(String(p['Attacks per Second'] || '').replace(',', '.'));
+  if (!(aps > 0)) return null;
+  const avg = (txt) => String(txt || '').split(',').reduce((n, part) => {
+    const m = /(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/.exec(part);
+    return m ? n + (Number(m[1]) + Number(m[2])) / 2 : n;
+  }, 0);
+  const r = (x) => Math.round(x * 10) / 10;
+  const phys = avg(p['Physical Damage']) * aps;
+  const ele = avg(p['Elemental Damage']) * aps;
+  const chaos = avg(p['Chaos Damage']) * aps;
+  if (!(phys + ele + chaos > 0)) return null;
+  return { phys: r(phys), ele: r(ele), chaos: r(chaos), total: r(phys + ele + chaos), aps };
+}
+// the trade site's weapon DPS filters
+const DPS_FILTERS = { phys: 'pdps', ele: 'edps', total: 'dps' };
+// mods a DPS search already counts (the weapon's own damage and attack speed): unticked when searching by DPS
+const DPS_MOD = /(\d+% increased Physical Damage$|^Adds \d+ to \d+ (Physical|Fire|Cold|Lightning|Chaos) Damage$|% increased Attack Speed$)/;
+
 function defaultProps(item) {
   const kind = classify(item);
   const plain = kind === 'rare' || kind === 'magic' || kind === 'normal';
@@ -225,6 +249,13 @@ function defaultProps(item) {
     influences: Object.fromEntries((item.influences || []).map((i) => [i, true])),
     fractured: !!item.flags?.fractured,
     synthesised: !!item.flags?.synthesised,
+    // weapons: search by the weapon's own DPS (physical, elemental or all), most of its worth in one number
+    dps: (() => {
+      const w = plain ? weaponDps(item) : null;
+      if (!w) return { show: false };
+      const mode = w.ele > w.phys ? 'ele' : 'phys';
+      return { show: true, on: true, mode, values: w, min: Math.floor(w[mode] * 0.9) };
+    })(),
   };
 }
 
@@ -297,6 +328,7 @@ function buildQuery(item, mods, opts = {}) {
     for (const [inf, on] of Object.entries(props.influences || {})) if (on) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };
     if (props.fractured) misc.fractured_item = { option: 'true' };
     if (props.synthesised) misc.synthesised_item = { option: 'true' };
+    if (props.dps?.on && DPS_FILTERS[props.dps.mode] && Number(props.dps.min) > 0) q.query.filters.weapon_filters = { filters: { [DPS_FILTERS[props.dps.mode]]: { min: Number(props.dps.min) } } };
     if (props.links?.on && range(props.links)) q.query.filters.socket_filters = { filters: { links: range(props.links) } };
     if (props.mapTier?.on && range(props.mapTier)) q.query.filters.map_filters = { filters: { map_tier: range(props.mapTier) } };
     if (!useBase && props.category) q.query.filters.type_filters = { filters: { category: { option: props.category } } };
@@ -338,4 +370,4 @@ function summarizeListings(fetchJson, divineChaos) {
   return { prices, min: chaosVals[0] ?? null, median };
 }
 
-module.exports = { indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };
+module.exports = { weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };
