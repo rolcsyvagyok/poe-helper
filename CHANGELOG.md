@@ -3,6 +3,14 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.62 - 2026-11-14
+
+- Find a better item on the trade site: the page now says what it's doing (working out stat weights, waiting for the trade site's rate limit, searching, testing listing 3 of 10…) instead of one message the whole time.
+- When the trade site says the search is too complex, the app remembers how many stats it took, so the next search goes through the first time instead of being refused again.
+- Testing the listings in Path of Building stops after a minute; any left are listed untested.
+- Fixed: while that search waited for the trade site, the rest of the Path of Building page (the levelling guide, the tree, the stats) couldn't load. Path of Building is now only busy while it really works.
+- When the trade site asks to wait more than 20 seconds, the search opens on the trade site in your browser instead of waiting.
+
 ## 1.0.61 - 2026-11-13
 
 - Find an upgrade on trade (Path of Building): the **Weighted Sum** minimum is now your own item's sum, worked out from its mods the way the trade site counts a listing. Before, it used how much your whole item adds over an empty base of the same type, which was far too high and hid items as good as yours.

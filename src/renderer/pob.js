@@ -1670,7 +1670,9 @@
     const field2 = (label, input) => h('label', { class: 'field', style: { minWidth: '140px' } }, label, input);
     const run = async (btn) => {
       btn.disabled = true;
-      mount(res, h('p', { class: 'small muted' }, h('span', { class: 'spin' }), ' Path of Building works out what each stat is worth, then the trade site is searched and the best 10 are tested in PoB…'));
+      const note = h('span', {}, ' Path of Building works out what each stat is worth…');
+      mount(res, h('p', { class: 'small muted' }, h('span', { class: 'spin' }), note));
+      const off = window.poe.on('pob:findProgress', (p) => { if (p?.text) note.textContent = ` ${p.text}`; });
       try {
         PB.results.find = await call('pob:findItem', { file: PB.file, slot: F.slot, focus: F.focus, maxLevel: Number(F.maxLevel) || null, maxPrice: Number(F.maxPrice) || null, unit: F.unit, betterOnly: F.betterOnly, asSkill: PB.findAsSkill?.() || null });
         PB.results.find.forFile = PB.file;
@@ -1678,6 +1680,7 @@
         if (PB.results.find.refused && PB.results.find.siteUrl) call('shell:open', PB.results.find.siteUrl);
         mount(res, asSkillNote(PB.results.find), findView(PB.results.find));
       } catch (e) { mount(res, h('p', { class: 'small warn' }, errText(e))); }
+      if (typeof off === 'function') off();
       btn.disabled = false;
     };
     if (PB.results.find?.forFile === PB.file && PB.results.find.slot === F.slot) mount(res, asSkillNote(PB.results.find), findView(PB.results.find));

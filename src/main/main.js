@@ -1211,7 +1211,9 @@ function registerIpc() {
   });
   // "find the best item for me": a weighted-sum trade search made from what PoB says each stat is worth
   // (2 trade requests: the search and the top 10 listings, which PoB then tests in that slot)
-  handle('pob:findItem', (a = {}) => pobWith(a.file, () => pob.withSkill(a.asSkill, () => pobFindItem(a))));
+  // PoB is only held while it works (the weights, then testing the listings): waiting for the trade site's rate
+  // limit in between doesn't block the rest of the Path of Building page (the levelling guide, the tree…)
+  handle('pob:findItem', (a = {}) => pobFindItem({ ...a, inPob: (fn) => pobWith(a.file, () => pob.withSkill(a.asSkill, fn)) }));
   handle('regex:campaignBuild', (a) => services.regexCampaignBuild(a || {}));
   handle('regex:beastBuild', (a) => services.regexBeastBuild(a || {}));
   handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
@@ -1459,11 +1461,15 @@ async function pobReady(dir) {
   }
 }
 
-async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice = null, unit = 'chaos', betterOnly = true }) {
+async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice = null, unit = 'chaos', betterOnly = true, inPob = (fn) => fn() }) {
   const T = require('../core/pob-trade');
   const P = require('./pob');
+  // what it's doing right now, shown on the page (the GGG rate limit can make a step wait)
+  const step = (text) => mainWin?.webContents.send('pob:findProgress', { text });
+  const limitWait = () => Math.ceil((services.limiter?.waitTime?.('trade-search') || 0) / 1000);
+  step('Path of Building works out what each stat is worth…');
   const all = T.CANDIDATES;
-  const w = await pob.weights(slot, all.map((c) => c.line));
+  const w = await inPob(() => pob.weights(slot, all.map((c) => c.line)));
   if (w.error) throw new Error(w.error);
   const cands = T.candidatesFor(w.type);
   if (!cands.length) throw new Error(`Searching for ${w.type || 'this kind of item'} isn't supported yet.`);
@@ -1495,31 +1501,53 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
   const siteUrl = `https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify({ query: full.query, sort: full.sort }))}`;
   // "Query is too complex": try again with fewer stats (the ones worth most); the sum of your item is worked out
   // again for the stats kept
-  const sizes = [...new Set([weights.length, 15, 8, 5].filter((n) => n <= weights.length))];
+  // how many stats the trade site took last time: start there, so a refused search isn't sent again each time
+  const maxKey = loggedIn ? 'findMaxStatsIn' : 'findMaxStats'; // logged in, the trade site takes more
+  const took = Number(services.settings.get(maxKey)) || 0;
+  const first = took ? Math.min(weights.length, took) : weights.length;
+  const sizes = [...new Set([first, 15, 8, 6, 5, 4, 3].filter((n) => n <= first))];
   let res = null;
   let used = weights;
   let refused = null;
   for (const n of sizes) {
     used = weights.slice(0, n);
     const body = make(used, sumFor(used));
-    try { res = await services.ggg.tradeSearch(league, body, { login: true }); refused = null; break; } catch (e) {
+    const wait = limitWait();
+    // a long wait (the trade site slows you down after refused searches): open the search on the site instead
+    if (wait > 20) { refused = new Error(`The trade site asks to wait ${wait} seconds before the next search, so the search was opened on the trade site instead.`); break; }
+    step(wait > 1 ? `Waiting ${wait} s for the trade site's rate limit, then searching with ${n} stats…` : `Searching the trade site with ${n} stats…`);
+    try {
+      res = await services.ggg.tradeSearch(league, body, { login: true });
+      refused = null;
+      if (n < weights.length) services.settings.set(maxKey, n);
+      break;
+    } catch (e) {
       log('pob trade search refused', n, e.message);
       refused = e;
       if (!/too complex|reduce the amount of filters/i.test(e.message)) break;
+      services.settings.set(maxKey, Math.max(3, n - 1)); // next time it starts with fewer
     }
   }
   const base = { slot, type: w.type, base: w.base, current: w.currentName, siteUrl, weights: used.map(({ text, tradeWeight, line }) => ({ text, weight: tradeWeight, line })), missing, minSum: sumFor(used), listings: [], loggedIn, leftOut: found.weights.length - used.length };
   if (!res) return { ...base, refused: refused?.message || 'The trade site refused the search.', url: siteUrl, total: 0 };
   const out = { ...base, url: services.ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0 };
   if (!res.result?.length) return out;
+  step('Getting the best 10 listings…');
   const fetched = await services.ggg.tradeFetch(res.id, res.result.slice(0, 10));
-  for (const r of fetched.result || []) {
+  const started = Date.now();
+  let k = 0;
+  const count = (fetched.result || []).filter((r) => r?.item).length;
+  await inPob(async () => { for (const r of fetched.result || []) {
     if (!r?.item) continue;
+    k += 1;
+    step(`Path of Building tests listing ${k} of ${count} in your build…`);
+    // a minute at most for the tests: the rest are listed untested
+    const late = Date.now() - started > 60000;
     const text = T.itemTextFromTrade(r.item);
     const p = r.listing?.price;
     const chaos = p ? (p.currency === 'divine' && divine ? p.amount * divine : p.currency === 'chaos' ? p.amount : null) : null;
     let test = null;
-    try {
+    if (!late) try {
       const c = await pob.compare(text);
       const s = P.summarise(c)?.slots.find((x) => x.slot === slot) || null;
       test = s ? { dps: s.changes.find((x) => x.key === 'dps') || null, changes: s.changes.filter((x) => x.key !== 'dps') } : null;
@@ -1530,7 +1558,7 @@ async function pobFindItem({ slot, focus = 'balanced', maxLevel = null, maxPrice
       mods: [...(r.item.implicitMods || []).map((m) => `${m} (implicit)`), ...(r.item.explicitMods || []), ...(r.item.craftedMods || []).map((m) => `${m} (crafted)`)],
       text, test, full: !!w.full,
     });
-  }
+  } });
   // best first by what PoB says each one does to your build (the trade sum is an estimate)
   const score = (l) => (l.test ? f.dps * (l.test.dps?.pct || 0) + f.ehp * ((l.test.changes.find((c) => c.key === 'TotalEHP')?.pct) || 0) : -Infinity);
   out.listings.sort((a, b) => score(b) - score(a));
