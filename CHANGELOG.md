@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.60 - 2026-11-13
+
+- Path of Building: hover a gem to see where you get it while levelling, for your build's class: its quest reward, the first vendor that sells it, and Lilly Roth in Act 6. Transfigured, Vaal and Awakened gems say where they come from instead.
+- Gem pictures now also show in a brand new league: poe.ninja has no gem lists for the first hours, so the pictures come from Standard until then.
+
 ## 1.0.59 - 2026-11-13
 
 - **New league found at once**: PoE Helper now asks pathofexile.com which league is running (once at start and every 3 hours), so price checks, trade searches and net worth switch to a new league from its first minute instead of staying on Standard until poe.ninja adds it. You get a notification when it switches.

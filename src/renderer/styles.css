@@ -1057,7 +1057,7 @@ html[data-ui-theme] select option:disabled { color: var(--faint); }
 .pob-gems:first-of-type { border-top: 0; }
 .pob-gems .sup { color: var(--muted); } .pob-gems .off { text-decoration: line-through; opacity: .6; } .pob-gems.off { opacity: .55; }
 .pob-gems .gem-ic { width: 20px; height: 20px; object-fit: contain; vertical-align: -5px; margin-right: 4px; }
-.pob-gems .gem { white-space: nowrap; }
+.pob-gems .gem { white-space: nowrap; cursor: help; }
 .pob-gems.main .act { color: var(--accent, var(--text)); font-weight: 600; }
 .pob-up { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 13px; } .pob-up > span:first-child { flex: 1; }
 .pob-cmp table td, .pob-cmp table th { padding: 3px 8px; } .pob-cmp tr.grp td { padding-top: 12px; font-weight: 600; color: var(--muted); border-top: 0; }

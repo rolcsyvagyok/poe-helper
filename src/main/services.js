@@ -477,6 +477,14 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       try { for (const l of await ninja.category(league, c)) if (l.icon && !icons.has(l.name)) icons.set(l.name, String(l.icon).startsWith('/') ? `https://web.poecdn.com${l.icon}` : String(l.icon)); } catch { /* none */ }
       for (const n of want) if (!out[n] && icons.has(n) && ok(icons.get(n))) out[n] = icons.get(n);
     }
+    // the first hours of a new league poe.ninja has few lists (no gems yet): pictures are the same in Standard
+    if (league !== 'Standard' && hinted.length && [...want].some((n) => !n.startsWith('*') && !out[n])) {
+      for (const c of hinted) {
+        let icons = new Map();
+        try { icons = await ninja.icons('Standard', c); } catch { continue; }
+        for (const n of want) if (!out[n] && icons.has(n) && ok(icons.get(n))) out[n] = icons.get(n);
+      }
+    }
     // "*Type" (any item of a category), cluster jewel bases and a tier 16 map: from the priced lists
     let anyMap = null; // poe.ninja's map list often has no tiers (only Vaal temple maps), so any map picture will do
     const special = [...want].filter((n) => n.startsWith('*') || /Cluster Jewel$/.test(n));

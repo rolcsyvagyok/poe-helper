@@ -1236,6 +1236,12 @@ function registerIpc() {
   handle('bases:style', (style) => services.setMyBasesStyle(style));
   handle('tiers:remove', (a) => services.removeTier(a || {}));
   handle('tiers:rename', (a) => services.renameTier(a || {}));
+  handle('gems:where', (a) => {
+    const { whereToGet } = require('../core/regex/gems');
+    const out = {};
+    for (const n of (Array.isArray(a?.names) ? a.names : []).slice(0, 200)) out[n] = whereToGet(String(n), String(a?.cls || ''));
+    return out;
+  });
   handle('art:icons', (names) => services.categoryArt(Array.isArray(names) ? names.map(String).slice(0, 60) : []));
   handle('tray:hide', () => { hideToTray(); return true; });
   // small pictures (the menu, Settings) use the version drawn for small sizes, so they don't turn muddy

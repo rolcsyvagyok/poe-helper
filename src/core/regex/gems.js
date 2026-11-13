@@ -73,4 +73,32 @@ function buildGemRegex(choices = {}) {
   return { strings: out.map((arr) => ({ text: `"${arr.join('|')}"`, count: arr.length })), count: list.length, max: MAX };
 }
 
-module.exports = { gemPiece, gemList, buildGemRegex, piecesByName, MAX };
+/**
+ * Where a gem comes from while levelling, for one class: its quest reward and the first vendor that sells
+ * it (Lilly Roth in Act 6 sells nearly all of them to everyone). Names may leave off " Support" (as PoB does).
+ * Returns { reward, buy, lilly, note } with plain sentences, or null for a gem the list doesn't know.
+ */
+const BY_NAME = new Map(DATA.gems.map((g) => [g.name.toLowerCase(), g]));
+function whereToGet(name, cls = '') {
+  const n = String(name || '').trim().toLowerCase();
+  const g = BY_NAME.get(n) || BY_NAME.get(`${n} support`);
+  if (!g) return null;
+  const forMe = (e) => !cls || !e.classes?.length || e.classes.includes(cls);
+  const real = (e) => e.npc && !/tutorial/i.test(e.npc);
+  const reward = (g.reward || []).filter(real).find(forMe);
+  const buy = (g.buy || []).filter(real).find(forMe);
+  const lilly = (g.buy || []).find((e) => /lilly/i.test(e.npc) && forMe(e));
+  const out = { reward: null, buy: null, lilly: null, note: null };
+  if (reward) out.reward = `Quest reward: Act ${reward.act}, ${reward.quest} (${reward.npc})`;
+  if (buy) out.buy = `Buy: Act ${buy.act}, ${buy.npc}, after ${buy.quest}`;
+  if (lilly && lilly !== buy) out.lilly = `Also sold by Lilly Roth in Act ${lilly.act}, after ${lilly.quest}`;
+  if (!out.reward && !out.buy) {
+    if (g.trans) out.note = `Transfigured ${g.trans}: from the Divine Font in the Labyrinth, or trade`;
+    else if (g.vaal) out.note = 'Vaal gem: corrupt the normal gem with a Vaal Orb, or find it';
+    else if (g.awakened) out.note = 'Awakened gem: drops in the endgame, or trade';
+    else out.note = cls ? `Not sold to ${cls} in the campaign: Lilly Roth, another class's vendor in a party, or trade` : 'Not sold in the campaign';
+  }
+  return out;
+}
+
+module.exports = { gemPiece, gemList, buildGemRegex, piecesByName, whereToGet, MAX };

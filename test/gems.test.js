@@ -20,3 +20,13 @@ test('gem searches stay under 250 characters each', () => {
   assert.ok(r.strings.length > 1 && r.strings.every((s) => s.text.length <= 250));
   assert.strictEqual(r.strings.reduce((a, s) => a + s.count, 0), 120);
 });
+
+test('where to get a gem while levelling, for the build\'s class', () => {
+  const { whereToGet } = require('../src/core/regex/gems');
+  const s = whereToGet('Sunder', 'Marauder');
+  assert.match(s.reward, /Act 1, The Siren's Cadence \(Nessa\)/);
+  assert.match(s.buy, /Act 1, Nessa/);
+  assert.match(whereToGet('Ruthless', 'Marauder').buy, /Enemy at the Gate/, 'PoB leaves " Support" off');
+  assert.match(whereToGet('Ground Slam of Earthshaking', 'Marauder').note, /Divine Font/);
+  assert.equal(whereToGet('No Such Gem'), null);
+});

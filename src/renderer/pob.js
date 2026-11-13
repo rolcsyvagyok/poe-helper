@@ -35,7 +35,32 @@
     }
     return img;
   }
-  const gemText = (x, i) => [i ? h('span', { class: 'sup' }, ' · ') : null, h('span', { class: 'gem ' + (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, gemIcon(x.name, x.support), `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`)];
+  // hover a gem: where you get it while levelling (quest reward and vendor for the build's class)
+  const GEM_WHERE = {};
+  let tipWant = new Map(); // "cls|name" -> [span]
+  let tipTimer = null;
+  function gemTip(span, name, cls) {
+    const k = `${cls}|${name}`;
+    const put = (w) => { span.title = [name, ...(w ? [w.reward, w.buy, w.lilly, w.note].filter(Boolean) : ['Not in the gem list'])].join('\n'); };
+    if (k in GEM_WHERE) return put(GEM_WHERE[k]);
+    if (!tipWant.has(k)) tipWant.set(k, []);
+    tipWant.get(k).push(span);
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => {
+      const want = tipWant; tipWant = new Map();
+      const byCls = new Map();
+      for (const key of want.keys()) { const [c, ...n] = key.split('|'); if (!byCls.has(c)) byCls.set(c, []); byCls.get(c).push(n.join('|')); }
+      for (const [c, names] of byCls) call('gems:where', { names, cls: c }).then((map) => {
+        for (const n of names) { const key = `${c}|${n}`; GEM_WHERE[key] = map?.[n] || null; for (const el of want.get(key) || []) { const w = GEM_WHERE[key]; el.title = [n, ...(w ? [w.reward, w.buy, w.lilly, w.note].filter(Boolean) : ['Not in the gem list'])].join('\n'); } }
+      }).catch(() => {});
+    }, 30);
+  }
+  // the gem with its picture; cls: the build's class, for the hover (where to get it)
+  const gemTextFor = (cls) => (x, i) => {
+    const span = h('span', { class: 'gem ' + (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, gemIcon(x.name, x.support), `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`);
+    gemTip(span, x.name, cls || '');
+    return [i ? h('span', { class: 'sup' }, ' · ') : null, span];
+  };
   const TABS = [['snapshot', 'Snapshot'], ['stats', 'Build'], ['tree', 'Tree'], ['calcs', 'Calcs'], ['config', 'Configuration'], ['upgrades', 'Upgrades'], ['gems', 'Support gems'], ['levelling', 'Levelling guide'], ['compare', 'Compare snapshots']];
 
   const num = (n, unit = '') => {
@@ -263,7 +288,7 @@
       h('td', { class: 'muted' }, g.slot), h('td', { class: `rar-${String(g.rarity || '').toLowerCase()}` }, g.title || g.name, g.title && g.base ? h('span', { class: 'faint' }, ` ${g.base}`) : null))))));
     const gems = h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Gems'), (r.gems || []).map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') + (g.main ? ' main' : '') },
       h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.main ? ' · main skill' : '', g.enabled ? '' : ' · off'),
-      h('div', {}, g.gems.map(gemText)))));
+      h('div', {}, g.gems.map(gemTextFor(r.class))))));
     // the item tester sits in its own column on the right, next to the stats
     return [head, h('div', { class: 'pob-buildcols' }, h('div', { class: 'stack', style: { gap: '12px', minWidth: 0 } }, h('div', { class: 'pob-grid' }, groups, skills), h('div', { class: 'pob-grid' }, gear, gems)), h('div', { class: 'pob-side' }, itemTester()))];
   }
@@ -969,7 +994,7 @@
       h('button', { class: 'sm', title: 'Copies a search for every gem in this gem setup: paste it in a vendor\'s search box (Ctrl+F) to highlight them', onclick: (e) => copyRegex(e.currentTarget, st) }, 'Copy gem search')),
       (st.gems || []).length ? st.gems.map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') },
         h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.enabled ? '' : ' · off'),
-        h('div', {}, g.gems.map(gemText))))
+        h('div', {}, g.gems.map(gemTextFor(st.class)))))
         : h('p', { class: 'small muted' }, 'No gems in this skill set.'));
     async function draw() {
       try {
