@@ -176,6 +176,37 @@ class GggClient {
     return this._request('trade-fetch', `${WEB}/api/trade/fetch/${slice.join(',')}?query=${encodeURIComponent(queryId)}`);
   }
 
+  /**
+   * The query behind a saved trade search link (once per saved search; the app keeps it). The trade API
+   * gives it for a search id; if it doesn't, the trade page itself holds it.
+   */
+  async tradeQuery(league, queryId) {
+    const path = `${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
+    let first;
+    try {
+      const j = await this._request('trade-search', `${WEB}/api/trade/search/${path}`);
+      if (j?.query) return { query: j.query, sort: j.sort || null };
+    } catch (e) { first = e; if (e instanceof BudgetExceededError) throw e; }
+    try {
+      const html = await this._requestText('trade-search', `${WEB}/trade/search/${path}`);
+      const state = findTradeState(html);
+      if (state?.query || state?.status) return { query: state.query || state, sort: state.sort || null };
+    } catch (e) { if (e instanceof BudgetExceededError) throw e; }
+    throw new Error(`Couldn't read this trade search from pathofexile.com${first ? ` (${first.message})` : ''}. Check the link opens in your browser.`);
+  }
+
+  /** A web page (not JSON), counted and rate limited like the API calls. */
+  async _requestText(key, url) {
+    if (this.usageToday().total >= this.dailyBudget) throw new BudgetExceededError(`Daily GGG request budget (${this.dailyBudget}) reached.`);
+    const res = await this.limiter.schedule(key, async () => {
+      this._count(key);
+      const r = await this.fetch(url, { headers: { 'User-Agent': this.userAgent, Accept: 'text/html' } });
+      return { status: r.status, headers: r.headers, response: r };
+    });
+    if (!res.response.ok) throw new Error(`GGG ${res.response.status} for ${key}`);
+    return res.response.text();
+  }
+
   tradeUrl(league, queryId) {
     return `${WEB}/trade/search/${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
   }
@@ -185,4 +216,21 @@ class GggClient {
   }
 }
 
-module.exports = { GggClient, BudgetExceededError, AuthError };
+/** The search the trade page was opened with: its script has `"state":{...}` with the query. */
+function findTradeState(html) {
+  const at = String(html || '').indexOf('"state":{');
+  if (at < 0) return null;
+  let i = at + '"state":'.length;
+  const start = i;
+  let depth = 0; let inStr = false;
+  for (; i < html.length; i += 1) {
+    const c = html[i];
+    if (inStr) { if (c === '\\') i += 1; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{') depth += 1;
+    else if (c === '}') { depth -= 1; if (!depth) break; }
+  }
+  try { return JSON.parse(html.slice(start, i + 1)); } catch { return null; }
+}
+
+module.exports = { GggClient, BudgetExceededError, AuthError, findTradeState };

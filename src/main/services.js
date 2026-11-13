@@ -80,6 +80,7 @@ const DEFAULT_SETTINGS = {
   baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
   rankKinds: { rares: 'D', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks)
   rankCraftIlvl: 82,
+  rankUnidTier: null, // 3.30 unidentified item tier per rank: { S: 2, A: 3 } (null = the filter decides)
   rankIlvl: {}, // lowest item level per kind of drop: { fractured: 68 } (crafting bases: rankCraftIlvl)
   hideFractured: false, // also hide fractured copies of bases you hid
   hideSynthesised: false, // and synthesised ones
@@ -110,6 +111,8 @@ const DEFAULT_SETTINGS = {
   tradeTolerance: 0.1,
   tradeStatus: 'securable', // Instant Buyout only
   tradeFetchListings: true,
+  overviewBgOff: false, // you removed the Overview picture that comes with the app
+  tradeSearches: [], // saved trade searches and live searches (Trade searches page), with the price watch
   filterDir: '',
   baseFilter: '',
   overrides: [],
@@ -267,6 +270,96 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       const fetched = await ggg.tradeFetch(res.id, res.result.slice(0, 10));
       const divine = await ninja.divinePrice(league).catch(() => null);
       out.listings = summarizeListings(fetched, divine);
+    }
+    return out;
+  }
+
+  // ---------- saved trade searches and the price watch ----------
+  const TW = require('../core/trade-watch');
+  const savedSearches = () => (Array.isArray(settings.get('tradeSearches')) ? settings.get('tradeSearches') : []);
+  const keepSearches = (list) => settings.set('tradeSearches', list);
+  const publicSearch = (s) => ({ ...s, query: undefined, hasQuery: !!s.query, told: undefined, lastTop: undefined, lastListings: undefined, link: TW.tradeLink(s) });
+  function tradeSearchList() {
+    const list = savedSearches();
+    return { list: list.map(publicSearch), perDay: TW.requestsPerDay(list), budget: settings.get('dailyGggBudget'), usedToday: ggg.usageToday().total, minEvery: TW.MIN_EVERY, maxWatched: TW.MAX_WATCHED };
+  }
+  function cleanMax(max) {
+    const amount = Number(max?.amount);
+    return amount > 0 ? { amount: Math.round(amount * 100) / 100, unit: max.unit === 'divine' ? 'divine' : 'chaos' } : null;
+  }
+  /** Add or change one: { key? (an existing one), name, url, max: { amount, unit }, everyMin, watch } */
+  function tradeSearchSave(e = {}) {
+    const list = savedSearches();
+    const old = e.key ? list.find((x) => x.key === e.key) : null;
+    const url = e.url ?? (old ? TW.tradeLink(old) : '');
+    const p = TW.parseTradeUrl(url);
+    if (!p) throw new Error('Paste a pathofexile.com/trade link, e.g. https://www.pathofexile.com/trade/search/League/AbC123');
+    const name = String(e.name ?? old?.name ?? '').trim().slice(0, 80) || (p.live ? 'Live search' : 'Trade search');
+    const same = old && old.league === p.league && old.id === p.id;
+    const next = {
+      ...(same ? old : {}),
+      key: old?.key || `ts${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      name, kind: p.kind, league: p.league, id: p.id, live: p.live,
+      max: e.max !== undefined ? cleanMax(e.max) : (old?.max || null),
+      everyMin: Math.max(TW.MIN_EVERY, Math.min(24 * 60, Math.round(Number(e.everyMin ?? old?.everyMin ?? 30)) || 30)),
+      watch: e.watch !== undefined ? !!e.watch : (old?.watch ?? false),
+      added: old?.added || Date.now(),
+    };
+    if (!same) { delete next.query; delete next.told; delete next.lastCheck; delete next.last; delete next.error; delete next.lastTop; delete next.lastListings; }
+    if (next.watch && next.kind === 'exchange') next.watch = false; // bulk exchange links can only be opened
+    const watched = list.filter((x) => x.watch && x.key !== next.key).length;
+    if (next.watch && watched >= TW.MAX_WATCHED) throw new Error(`At most ${TW.MAX_WATCHED} searches can be watched at once.`);
+    const out = old ? list.map((x) => (x.key === old.key ? next : x)) : [...list, next];
+    keepSearches(out);
+    return tradeSearchList();
+  }
+  function tradeSearchRemove(key) {
+    keepSearches(savedSearches().filter((x) => x.key !== key));
+    return tradeSearchList();
+  }
+  function tradeSearchMove(key, dir) {
+    const list = savedSearches();
+    const i = list.findIndex((x) => x.key === key);
+    const j = i + (dir < 0 ? -1 : 1);
+    if (i >= 0 && j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
+    keepSearches(list);
+    return tradeSearchList();
+  }
+  /** Runs one saved search again, cheapest first. Returns { entry, hits, url }. */
+  async function tradeSearchCheck(key) {
+    let s = savedSearches().find((x) => x.key === key);
+    if (!s) throw new Error('That search is gone.');
+    if (s.kind === 'exchange') throw new Error('Bulk exchange links can be opened, not checked for prices.');
+    const update = (patch) => { const list = savedSearches(); const i = list.findIndex((x) => x.key === key); if (i >= 0) { list[i] = { ...list[i], ...patch }; keepSearches(list); s = list[i]; } };
+    try {
+      if (!s.query) update({ query: await ggg.tradeQuery(s.league, s.id) });
+      const res = await ggg.tradeSearch(s.league, TW.cheapestFirst(s.query));
+      const divine = await ninja.divinePrice(s.league).catch(() => null);
+      // the same 10 cheapest listings as last time: their prices are known, so no fetch (half the requests)
+      const top = (res.result || []).slice(0, 10);
+      const sameTop = top.length && s.lastTop === top.join(',') && Array.isArray(s.lastListings);
+      const listings = sameTop ? s.lastListings.map((l) => ({ ...l, chaos: TW.chaosOf(l, divine) }))
+        : TW.listingsOf(top.length ? await ggg.tradeFetch(res.id, top) : { result: [] }, divine);
+      const { hits, cheapest } = TW.priceHits(listings, s.max, divine, s.told || []);
+      const told = [...new Set([...(s.told || []), ...hits.map((x) => x.id)])].slice(-200);
+      update({ lastCheck: Date.now(), error: null, told, lastTop: top.join(','), lastListings: listings.map(({ chaos, ...l }) => l), last: { total: res.total ?? res.result?.length ?? 0, cheapest, at: Date.now(), url: ggg.tradeUrl(s.league, res.id) } });
+      return { entry: publicSearch(s), hits, url: ggg.tradeUrl(s.league, res.id) };
+    } catch (e) {
+      update({ lastCheck: Date.now(), error: e.message });
+      throw e;
+    }
+  }
+  /** The price watch: checks the searches that are due, one after another. Returns what to tell you. */
+  async function tradeWatchTick() {
+    const out = [];
+    for (const s of TW.dueSearches(savedSearches())) {
+      try {
+        const r = await tradeSearchCheck(s.key);
+        if (r.hits.length) out.push(r);
+      } catch (e) {
+        log('trade watch', s.name, e.message);
+        if (/budget/i.test(e.message)) break;
+      }
     }
     return out;
   }
@@ -509,7 +602,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
   // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
-  const FILTER_KEYS = ['tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl',
+  const FILTER_KEYS = ['tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
@@ -1053,6 +1146,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       kinds: settings.get('rankKinds') || {},
       craftIlvl: settings.get('rankCraftIlvl') || 82,
       ilvls: settings.get('rankIlvl') || {},
+      unidTiers: settings.get('rankUnidTier') || null,
+      hasUnidTiers: (() => { try { return /\$type->gear->tiered\b/.test(filters.readBase()); } catch { return false; } })(),
       rankList: RANKS,
       rankLooks: RANK_LOOKS,
       rankKinds: RANK_KINDS.map((k) => ({ id: k.id, name: k.name, about: k.about, ilvl: !!k.ilvl })),
@@ -1203,8 +1298,17 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { ranks, target, leftOut: filters.lastDropped };
   }
   /** The lowest rank shown for one kind of drop: 'S' | 'A' | 'B' | 'C' (all) | 'none' | 'off' (filter decides). */
-  function setRankKind({ kind, min, craftIlvl, ilvl } = {}) {
-    const { RANK_KINDS } = require('../core/filter/manager');
+  function setRankKind({ kind, min, craftIlvl, ilvl, unidTiers } = {}) {
+    const { RANK_KINDS, UNID_TIERS } = require('../core/filter/manager');
+    // unidentified item tier per rank (null: the filter's own rules decide)
+    if (unidTiers !== undefined) {
+      if (unidTiers === null) settings.set('rankUnidTier', null);
+      else {
+        const clean = {};
+        for (const r of RANK_ORDER) { const t = Math.round(Number(unidTiers?.[r])); if (UNID_TIERS.includes(t)) clean[r] = t; }
+        settings.set('rankUnidTier', clean);
+      }
+    }
     const kinds = { ...(settings.get('rankKinds') || {}) };
     const known = kind && RANK_KINDS.some((k) => k.id === kind);
     if (known && min !== undefined) {
@@ -1227,7 +1331,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       settings.set('rankCraftIlvl', n >= 1 && n <= 100 ? n : 82);
     }
     const target = filters.basePath() ? filters.write() : null;
-    return { kinds, craftIlvl: settings.get('rankCraftIlvl') || 82, ilvls: settings.get('rankIlvl') || {}, target };
+    return { kinds, craftIlvl: settings.get('rankCraftIlvl') || 82, ilvls: settings.get('rankIlvl') || {}, unidTiers: settings.get('rankUnidTier') || null, target };
   }
   /**
    * Ranks in one go from the base order: in every column (item class and defence, or weapon type) the
@@ -1353,7 +1457,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { league, divine, ageMs, groups, movers: allMovers.slice(0, 40) };
   }
   // Categories auto-tiered by default. Uniques are opt-in: one base can hold a 1c and a 300c unique.
-  const DEFAULT_REVIEW_TYPES = ['divination', 'fragments', 'currency', 'currency->fossil', 'currency->oil', 'currency->essence', 'currency->deliriumorbs', 'currency->trial->omen', 'currency->trial->tattoo', 'runesgrafts', 'vials'];
+  const DEFAULT_REVIEW_TYPES = ['divination', 'fragments', 'currency', 'currency->fossil', 'currency->oil', 'currency->essence', 'currency->deliriumorbs', 'currency->trial->omen', 'currency->trial->tattoo', 'runesgrafts', 'mapenchantments'];
 
   function reviewCfg() {
     const c = settings.get('priceReview') || {};
@@ -1746,7 +1850,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

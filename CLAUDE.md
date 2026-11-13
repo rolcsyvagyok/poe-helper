@@ -46,6 +46,8 @@ the release steps, CHANGELOG.md what each version changed (written for players),
   - The main skill choice is kept per file in settings (`pob.mainGroups`).
 - `autoConfig` ticks Configuration options from the build (charges, buffs, conditional buffs, crit recently, enemy conditions). It only sets options still at their default.
 - Passive points available: `pointsForLevel` in host.lua. It is level − 1, plus the quest points by act (the same table as the levelling plan), plus the bandit point after act 2, and never fewer than the tree uses.
+- A PoB request that times out restarts the worker (`restartStuck`), so one stuck request can't block the queue.
+- `log()` in main.js also writes `userData/poe-helper.log` (1 MB, then `.old`). Ask the owner for it when something broke.
 
 ## Testing PoB changes
 

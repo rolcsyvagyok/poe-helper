@@ -173,3 +173,7 @@ test/                   node:test suites (npm test)
 ## Fonts
 
 Item labels use the game's **Fontin SmallCaps** when it's installed on your system. Otherwise they use the bundled **Marcellus SC** (© Astigmatic, SIL Open Font License 1.1, see `src/renderer/fonts/MarcellusSC-OFL.txt`), the closest open look-alike, tuned to match the game's label weight and spacing. For an exact match, download Fontin SmallCaps for free from exljbris.com and choose the file in **Settings → Price check → Item label font**. Fontin can't be shipped with the app under its licence.
+
+## Pictures
+
+The Overview background (`assets/overview-bg.jpg`) is *The Abbey in the Oakwood* by Caspar David Friedrich (1809–1810, Alte Nationalgalerie, Berlin), cropped and darkened. The painting is in the public domain. You can pick your own picture on the Overview page.

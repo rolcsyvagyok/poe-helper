@@ -539,3 +539,17 @@ test('stacked supplies fold into Small stacks, and their own blocks are commente
   for (const l of out.split('\n').filter((x) => /stackedsupplies/.test(x))) assert.ok(l.startsWith('#'), 'the supply blocks are off: ' + l);
   assert.ok(!/^\s*BaseType == "PoE Helper/m.test(out), 'no placeholder base reaches the game');
 });
+
+test('unidentified item tier: rules per rank and the filter\'s own tier rules switched off', () => {
+  const { unidTierRules, disableUnidTiers } = require('../src/core/filter/manager');
+  const rules = unidTierRules({ 'Vaal Regalia': 'S', 'Titan Plate': 'B' }, { S: 2, B: 4 }, ['Vaal Regalia', 'Titan Plate', 'Iron Ring']);
+  assert.equal(rules.length, 2);
+  assert.deepEqual(rules[0].conditions.find((c) => c.keyword === 'BaseType').values, ['Vaal Regalia']);
+  assert.equal(rules[1].conditions.find((c) => c.keyword === 'UnidentifiedItemTier').values[0], '4');
+  const text = 'Show # $type->gear->tiered $tier->t5r1 !x\n\tUnidentifiedItemTier >= 5\n\tBaseType == "Vaal Regalia"\n\nShow # $type->gear->tiered $tier->strandedfractured\n\tFracturedItem True\n\nShow # $type->gear->tiered $tier->any3\n\tClass == "Boots"\n';
+  const out = disableUnidTiers(text);
+  assert.match(out, /^#Show # \$type->gear->tiered \$tier->t5r1/m);
+  assert.match(out, /^#\tBaseType == "Vaal Regalia"/m);
+  assert.match(out, /^Show # \$type->gear->tiered \$tier->strandedfractured/m);
+  assert.match(out, /^#Show # \$type->gear->tiered \$tier->any3/m);
+});

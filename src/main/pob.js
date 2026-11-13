@@ -90,7 +90,14 @@ class PobEngine {
     const id = ++this.seq;
     if (msg.op !== 'ping') this.lastOp = msg.op === 'load' ? `opening ${path.basename(String(msg.file || 'a build'))}` : `working on "${msg.op}"`;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Path of Building took too long.')); }, timeoutMs);
+      // PoB answers one request at a time: one stuck there holds up every request after it, so it is
+      // stopped and starts fresh on the next request
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error('Path of Building took too long. It starts again on the next request.'));
+        this.log(`PoB timed out ${this.lastOp || ''}; restarting it`);
+        this.restartStuck();
+      }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       this.proc.postMessage({ ...msg, id });
     });
@@ -133,6 +140,15 @@ class PobEngine {
       this.stop(true);
       throw err;
     }
+  }
+
+  /** A request timed out: stop the worker (its other requests fail now, not minutes later). */
+  restartStuck() {
+    const proc = this.proc;
+    if (!proc) return;
+    for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error('Path of Building was restarted.')); }
+    this.pending.clear();
+    this.stop();
   }
 
   stop(keepState) {

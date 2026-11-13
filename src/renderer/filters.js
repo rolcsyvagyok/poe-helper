@@ -1213,6 +1213,23 @@ async function renderBaseMatrix(body, view) {
     return h('div', { class: 'bm-kind' }, h('b', {}, k.name), h('span', { class: 'small muted' }, k.about), sel, ilvl, note);
   });
 
+  // 3.30: unidentified items show their item tier. Per rank, the lowest tier you want to see.
+  let unidTiers = data.unidTiers || null;
+  const unidRow = (data.hasUnidTiers || unidTiers) ? (() => {
+    const DEFAULT_UNID = { S: 2, A: 3, B: 4, C: 5 }; // close to NeverSink's own
+    const save = async (v) => { const r = await call('ranks:kind', { unidTiers: v }); unidTiers = r.unidTiers; S.settings.rankUnidTier = unidTiers; renderFilters(); };
+    const mode = h('select', { 'aria-label': 'Unidentified item tier: who decides', onchange: (e) => save(e.target.value === 'off' ? null : { ...DEFAULT_UNID }) },
+      h('option', { value: 'off', selected: !unidTiers }, 'Filter decides'), h('option', { value: 'mine', selected: !!unidTiers }, 'By rank (below)'));
+    const per = unidTiers ? h('div', { class: 'row small bm-unid', style: { gap: '14px', flexWrap: 'wrap' } }, RANKS.map((r) => h('label', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
+      dressRank(h('span', { class: 'bm-cell sample' }, r), r),
+      h('select', { 'aria-label': `Rank ${r}: lowest unidentified item tier shown`, onchange: (e) => save({ ...unidTiers, [r]: e.target.value === '' ? undefined : Number(e.target.value) }) },
+        h('option', { value: '', selected: !unidTiers[r] }, 'Not shown'),
+        [1, 2, 3, 4, 5].map((t) => h('option', { value: t, selected: unidTiers[r] === t }, t === 5 ? 'Tier 5' : `Tier ${t}+`)))))) : null;
+    const shown = unidTiers ? RANKS.filter((r) => unidTiers[r]).length : 0;
+    return h('div', { class: 'bm-kind' }, h('b', {}, 'Unid item tier'), h('span', { class: 'small muted' }, 'Unidentified items by their item tier, item level 68+. Pick the lowest tier for each rank.'), mode, per,
+      h('span', { class: 'small faint' }, unidTiers ? `${shown} of ${RANKS.length} ranks shown` : ''));
+  })() : null;
+
   // ---------- a whole group at once: every shield, every staff, every pure armour base… ----------
   const namesOf = (list) => [...new Set(list.map((b) => b.name))];
   // shields and weapon types, then the armour defences; body armours, boots, gloves, helmets and
@@ -1297,6 +1314,7 @@ async function renderBaseMatrix(body, view) {
       h('div', { class: 'panel bm-kinds' },
         h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, 'Lowest rank shown'), h('span', { class: 'small faint' }, 'For each kind of drop. "Rares: S only" and "Fractured: B and up" hide a B rank rare but show it fractured. Uniques are never touched.')),
         kindRows,
+        unidRow,
         h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Looks:'), RANKS.map((r) => dressRank(h('span', { class: 'bm-cell sample' }, `Rank ${r}`), r)))),
       groupPanel,
       sectionTabs,
@@ -1411,6 +1429,8 @@ const CATEGORIES = [
   ]],
   ['League mechanics', [
     { id: 'league', name: 'Current league', match: ['event', 'currency->ducats', 'currency->deadmansulphur', 'currency->leagueexclusive'], art: null, icon: 'star' },
+    { id: 'viscera', name: 'Viscera', match: ['viscera'], art: null, icon: 'skull' },
+    { id: 'allflames', name: 'Allflame embers', match: ['mapenchantments'], art: ['Allflame Ember of Kulemak'], icon: 'flame' },
     { id: 'delirium', name: 'Delirium', match: ['currency->deliriumorbs', 'delirium'], art: ['Fine Delirium Orb', '*DeliriumOrb'], icon: 'orb' },
     { id: 'harvest', name: 'Harvest', match: ['currency->harvest', 'harvest'], art: ['Vivid Crystallised Lifeforce', 'Primal Crystallised Lifeforce'], icon: 'leaf' },
     { id: 'blight', name: 'Blight', match: ['currency->oil', 'oil'], art: ['Golden Oil', '*Oil'], icon: 'drop' },
@@ -1508,7 +1528,7 @@ async function saveLayout(next) {
 // Shown another way: NeverSink's economy cluster tiers are the Cluster enchantments grid.
 // Cluster jewels opens the enchantment grid; the size tiers ("Large: the rest", ...) are edited from there
 // stackedsupplies high/low (Transmutes, Augmentations): folded into Small stacks when the filter is written
-const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster', 'exotic->fractured', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow']); // fractured: Base ranks decides those
+const HIDDEN_TYPES = new Set(['gear->tiered', 'jewels->clustereco', 'jewels->cluster', 'exotic->fractured', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow']); // fractured and unid item tiers: Base ranks decides those
 // scarabs leave the game, so their pages aren't listed (the filter's own scarab rules stay as FilterBlade wrote them)
 const GONE = (key) => /^(fragments->scarabs|scarabs)(->|#|@|$)/.test(String(key));
 const CLUSTER_SIZE_TYPE = 'jewels->cluster';
@@ -1542,7 +1562,7 @@ const ICON_FOR = {
   endgametinctures: 'drop', tincture: 'drop', oil: 'drop', essence: 'flame', fossil: 'rock', delirium: 'orb', deliriumorbs: 'orb', jewels: 'hex', cluster: 'hex', clustereco: 'hex', abyss: 'hex',
   crafting: 'hammer', exoticbases: 'sword', exoticbaseslower: 'sword', rareid: 'sword', rare: 'sword', rr: 'sword', magicid: 'sparkle', gear: 'shield', armours: 'helmet',
   '6l': 'link', socketslinks: 'link', sockets: 'link', influenced: 'bolt', exotic: 'bolt', exoticmods: 'bolt', corruptions: 'skull', heist: 'key', heisttarget: 'key', contract: 'key', blueprint: 'key',
-  leveling: 'leaf', hidelayer: 'eyeoff', decorators: 'eye', questlike: 'book', logbook: 'book', expedition: 'book', sanctum: 'book', runesgrafts: 'sparkle', corpses: 'skull',
+  viscera: 'skull', mapenchantments: 'flame', leveling: 'leaf', hidelayer: 'eyeoff', decorators: 'eye', questlike: 'book', logbook: 'book', expedition: 'book', sanctum: 'book', runesgrafts: 'sparkle', corpses: 'skull',
   omen: 'eye', tattoo: 'heart', splinter: 'shard', stackedsplintershigh: 'shard', stackedsplinterslow: 'shard', breachrings: 'ring', talisman: 'ring', event: 'star', anyremaining: 'box',
 };
 function iconIdFor(type) {

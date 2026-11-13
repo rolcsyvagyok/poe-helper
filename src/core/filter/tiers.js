@@ -137,7 +137,7 @@ const TYPE_NAMES = {
   influenced: 'Influenced items', vials: 'Vials', runesgrafts: 'Runegrafts', corpses: 'Corpses', enshrouded: 'Enshrouded items',
   event: 'Event items', leveling: 'Levelling', anyremaining: 'Anything remaining', charts: 'Charts', expedition: 'Expedition',
   miscmapitems: 'Miscellaneous map items', miscmapitemsextra: 'Miscellaneous map items (extra)', heisttarget: 'Heist targets', exoticmap: 'Exotic maps',
-  gear: 'Gear', exotic: 'Exotic items',
+  gear: 'Gear', exotic: 'Exotic items', viscera: 'Viscera', mapenchantments: 'Allflame embers',
   currency: 'Currency', divination: 'Divination cards', uniques: 'Uniques', fragments: 'Fragments', scarabs: 'Scarabs',
   essence: 'Essences', fossil: 'Fossils', oil: 'Oils', gems: 'Gems', maps: 'Maps', incubator: 'Incubators',
   delirium: 'Delirium orbs', exotic: 'Exotic bases', rare: 'Rare items', crafting: 'Crafting bases', flasks: 'Flasks',
@@ -146,7 +146,7 @@ const TYPE_NAMES = {
   endgamergb: 'R-G-B recipe', maphiders: 'Map hiders', chancing: 'Chancing bases', gold: 'Gold',
 };
 // Order FilterBlade users expect; anything else follows in file order.
-const GROUP_ORDER = ['currency', 'divination', 'uniques', 'fragments', 'gems', 'maps', 'jewels', 'crafting', 'exoticbases', 'rareid', '6l', 'influenced', 'heist', 'vials', 'runesgrafts', 'corpses', 'gold', 'leveling'];
+const GROUP_ORDER = ['currency', 'divination', 'uniques', 'fragments', 'gems', 'maps', 'jewels', 'crafting', 'exoticbases', 'rareid', '6l', 'influenced', 'heist', 'viscera', 'mapenchantments', 'vials', 'runesgrafts', 'corpses', 'gold', 'leveling'];
 function groupRank(type) {
   const i = GROUP_ORDER.indexOf(type.split('->')[0]);
   return i < 0 ? GROUP_ORDER.length : i;
@@ -164,7 +164,7 @@ const SUB_NAMES = {
   wombgifts: 'Wombgifts', idols: 'Idols', corruptions: 'Corruptions', sockets: 'Sockets', fractured: 'Fractured', misc: 'Misc',
   talisman: 'Talismans', sanctifiedrelics: 'Sanctum', breachrings: 'Breach rings', all: 'All', flasks: 'Flasks', utility: 'Utility', hybrid: 'Hybrid', life: 'Life', mana: 'Mana',
   tincture: 'Tinctures', rare: 'Rare', magic: 'Magic', armours: 'Armours', firstlevels: 'First levels', wandprogression: 'Wand progression', remaining: 'Remaining',
-  rareeg: 'Rare endgame', exotic: 'Exotic',
+  rareeg: 'Rare endgame', exotic: 'Exotic', tiered: 'Unid item tier',
   levelingstacked: 'Stacked (levelling)', leveling: 'Levelling', stackedsupplieshigh: 'Transmutes', stackedsupplieslow: 'Augmentations',
   stacked: 'Stacked', corruptedimplicit: 'Corrupted implicits', implicitmod: 'Implicit mods', expensive: 'Expensive', generalgear: 'General gear',
   socketslinks: 'Sockets & links', normalmagic: 'Normal & magic', '4l': '4-link', '3l': '3-link', rgb: 'R-G-B', act1: 'Act 1', act2: 'Act 2',

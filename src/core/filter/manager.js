@@ -352,6 +352,35 @@ const RANK_KINDS = [ // in the order the page lists them; synthesised items are 
   { id: 'influenced', name: 'Influenced', about: 'Shaper, Elder and Conqueror bases', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'HasInfluence', values: ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }] },
 ];
 const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : 'D');
+// Unidentified item tier (3.30): per rank, the lowest unid item tier shown. tiers: { S: 2, A: 3, ... };
+// a rank left out isn't shown by tier. Only used when you choose it (the filter's own tier rules are then off).
+const UNID_TIERS = [1, 2, 3, 4, 5];
+function unidTierRules(ranks = {}, tiers = {}, bases = []) {
+  const out = [];
+  for (const r of RANKS) {
+    const t = Math.round(Number(tiers?.[r]));
+    if (!UNID_TIERS.includes(t)) continue;
+    const list = bases.filter((b) => rankOf(ranks, b) === r).sort();
+    if (!list.length) continue;
+    out.push({ id: `rank-unidtier-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: unidentified item tier ${t}+, rank ${r}`,
+      conditions: [{ keyword: 'Identified', values: ['False'] }, { keyword: 'UnidentifiedItemTier', op: '>=', values: [String(t)] }, { keyword: 'ItemLevel', op: '>=', values: ['68'] },
+        { keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'AreaLevel', op: '>=', values: ['68'] }, { keyword: 'BaseType', op: '==', values: list }],
+      style: RANK_LOOKS[r] });
+  }
+  return out;
+}
+/** Switches off the filter's own "High Unid-ItemTier bases" rules by base and by class (Base ranks decides those). */
+function disableUnidTiers(text) {
+  const lines = text.split(/\r?\n/);
+  const head = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^(Show|Hide|Minimal)\b.*\$type->gear->tiered\s+\$tier->(t\d+r\d+|any\d+)\b/.test(lines[i])) continue;
+    let k = i;
+    for (; k < lines.length && lines[k].trim() !== ''; k += 1) { if (k > i && head(lines[k])) break; lines[k] = '#' + lines[k]; }
+    i = k - 1;
+  }
+  return lines.join('\n');
+}
 
 /**
  * ranks: { base: 'S' | 'A' | 'B' | 'C' | 'D' } (missing = D); kinds: { fractured: 'B', rares: 'S', ... } where the
@@ -636,6 +665,8 @@ class FilterManager {
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
     let text = applyTierPatch(baseText, patch);
     if (this.store.get('showAllCurrency')) text = showAllCurrency(text);
+    const unidTiers = this.store.get('rankUnidTier');
+    if (unidTiers) text = disableUnidTiers(text);
     // Synced filters start with metadata the game keeps for online filters; the local copy doesn't need it.
     if (text.startsWith('#Online Item Filter')) text = text.replace(/^(#(Online Item Filter|[a-zA-Z]+:[^\n]*)\r?\n)+/, '');
     const eco = (this.store.get('economy')?.enabled ? this.lastEconomy : []).map((r) => cleanRule(r, fix)).filter(Boolean);
@@ -644,6 +675,7 @@ class FilterManager {
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
     const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {} });
+    const unid = unidTiers ? unidTierRules(this.store.get('baseRanks') || {}, unidTiers, RANKED_NAMES) : [];
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
     if (Object.keys(clusterState).length) {
@@ -654,7 +686,7 @@ class FilterManager {
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
     // base ranks come before base visibility: they're the finer choice (per kind of drop)
     const campaign = campaignHideRules(this.store.get('campaignHide') || {});
-    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...ranked, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
+    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
     const out = finalCheck(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), fix, this.log);
@@ -739,4 +771,4 @@ class FilterManager {
   }
 }
 
-module.exports = { showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

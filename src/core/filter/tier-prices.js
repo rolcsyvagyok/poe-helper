@@ -18,6 +18,7 @@ function categoriesForType(type) {
   if (g === 'uniques') return sub === 'maps' ? ['UniqueMap'] : sub ? [] : UNIQUE_CATS;
   if (g === 'runesgrafts') return ['Runegraft'];
   if (g === 'vials') return ['Vial'];
+  if (g === 'mapenchantments') return ['AllflameEmber'];
   if (g === 'corpses') return ['Corpse'];
   if (g === 'currency') {
     const map = { fossil: ['Fossil'], oil: ['Oil'], essence: ['Essence'], deliriumorbs: ['DeliriumOrb'], 'trial->omen': ['Omen'], 'trial->tattoo': ['Tattoo'], ducats: ['Ducat'], 'splinter->simulacrum': ['Fragment'] };

@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -272,6 +272,74 @@ async function renderMacros() {
       h('p', { class: 'small faint' }, 'Tip: start typing in a box for ideas like /exit, /hideout, /kingsmarch or @last. Your clipboard is put back after each macro.')));
 }
 
+// ---------------------------------------------------------------- trade searches
+// Saved pathofexile.com/trade links (normal and live searches), with a price watch: the search is run again
+// every few minutes, cheapest first, and you get a notification when something is at or under your price.
+const TRADE_EVERY = [5, 10, 15, 30, 60, 120];
+function agoText(t) {
+  const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+}
+async function renderTrade() {
+  const page = document.getElementById('page-trade');
+  const data = await call('trade:list');
+  const redraw = (d) => { if (currentPage === 'trade') draw(d); };
+  const draw = (d) => {
+    const nameIn = h('input', { placeholder: 'Name, e.g. Cheap 6-link chest', maxlength: 80, 'aria-label': 'Name for the search', style: { flex: '1 1 180px' } });
+    const urlIn = h('input', { placeholder: 'Paste a pathofexile.com/trade link (normal or live search)', 'aria-label': 'Trade search link', style: { flex: '3 1 320px' } });
+    const add = async () => {
+      try { const r = await call('trade:save', { name: nameIn.value, url: urlIn.value }); toast(`Saved "${r.list[r.list.length - 1].name}"`); redraw(r); } catch (e) { toast(cleanErr(e), true); }
+    };
+    urlIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+    const card = (s, i) => {
+      const save = async (patch, msg) => { try { const r = await call('trade:save', { key: s.key, ...patch }); if (msg) toast(msg); redraw(r); } catch (e) { toast(cleanErr(e), true); redraw(await call('trade:list')); } };
+      const kind = s.kind === 'exchange' ? 'Bulk exchange' : s.live ? 'Live search' : 'Search';
+      const amount = h('input', { type: 'number', min: 0, step: 'any', value: s.max?.amount ?? '', placeholder: 'Price', 'aria-label': `${s.name}: highest price`, style: { width: '90px' },
+        onchange: (e) => save({ max: { amount: Number(e.target.value), unit: unit.value } }, Number(e.target.value) > 0 ? `${s.name}: tells you at ${e.target.value} ${unit.value} or less` : `${s.name}: no price set`) });
+      const unit = h('select', { 'aria-label': `${s.name}: currency`, onchange: (e) => save({ max: { amount: Number(amount.value), unit: e.target.value } }) },
+        h('option', { value: 'chaos', selected: (s.max?.unit || 'chaos') === 'chaos' }, 'chaos'), h('option', { value: 'divine', selected: s.max?.unit === 'divine' }, 'divine'));
+      const every = h('select', { 'aria-label': `${s.name}: how often`, onchange: (e) => save({ everyMin: Number(e.target.value) }) },
+        TRADE_EVERY.map((m) => h('option', { value: m, selected: s.everyMin === m }, m < 60 ? `every ${m} min` : `every ${m / 60} h`)));
+      const watch = toggle(!!s.watch, (v) => {
+        if (v && !(Number(amount.value) > 0)) { toast('Type the most you want to pay first.', true); redraw(d); return; }
+        save({ watch: v, max: { amount: Number(amount.value), unit: unit.value } }, v ? `Watching "${s.name}"` : `Stopped watching "${s.name}"`);
+      }, 'Price watch');
+      const check = h('button', { class: 'sm', onclick: async () => {
+        check.disabled = true; check.textContent = 'Checking…';
+        try { const r = await call('trade:check', s.key); const c = r.entry.last?.cheapest; toast(c ? `${s.name}: cheapest ${c.amount} ${c.currency}${r.hits.length ? ' (at your price!)' : ''}` : `${s.name}: nothing listed`); } catch (e) { toast(cleanErr(e), true); }
+        redraw(await call('trade:list'));
+      } }, 'Check now');
+      const c = s.last?.cheapest;
+      const status = s.error ? h('span', { class: 'small bad' }, `Last check failed: ${s.error}`)
+        : s.last ? h('span', { class: 'small muted' }, c ? `Cheapest: ${c.amount} ${c.currency}${c.name ? ` · ${c.name}` : ''} · ${s.last.total} listed · ${agoText(s.last.at)}` : `Nothing listed · ${agoText(s.last.at)}`)
+          : h('span', { class: 'small faint' }, s.kind === 'exchange' ? 'Bulk exchange links can be opened, not price watched.' : 'Not checked yet.');
+      const nameEdit = h('input', { value: s.name, maxlength: 80, class: 'ts-name', 'aria-label': 'Search name', onchange: (e) => save({ name: e.target.value }, 'Renamed') });
+      return h('div', { class: 'panel stack ts-card' + (s.watch ? ' on' : '') },
+        h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } },
+          nameEdit, h('span', { class: 'pill' }, kind), h('span', { class: 'small faint' }, s.league), h('span', { class: 'spacer' }),
+          h('button', { class: 'primary sm', title: s.link, onclick: () => call('trade:open', s.key).catch((e) => toast(cleanErr(e), true)) }, s.live ? 'Open live search' : 'Open'),
+          s.kind !== 'exchange' ? check : null,
+          h('button', { class: 'quiet sm', title: 'Move up', 'aria-label': 'Move up', disabled: i === 0, onclick: async () => redraw(await call('trade:move', { key: s.key, dir: -1 })) }, '↑'),
+          h('button', { class: 'quiet sm', title: 'Move down', 'aria-label': 'Move down', disabled: i === d.list.length - 1, onclick: async () => redraw(await call('trade:move', { key: s.key, dir: 1 })) }, '↓'),
+          h('button', { class: 'quiet sm', onclick: async () => { if (!confirm(`Remove "${s.name}"?`)) return; redraw(await call('trade:remove', s.key)); toast('Removed'); } }, 'Remove')),
+        s.kind !== 'exchange' ? h('div', { class: 'row small', style: { gap: '8px', flexWrap: 'wrap' } }, watch, h('span', { class: 'muted' }, 'Tell me at'), amount, unit, h('span', { class: 'muted' }, 'or less,'), every) : null,
+        status);
+    };
+    const heavy = d.perDay > (d.budget || 0) * 0.6;
+    mount(page,
+      h('h1', {}, 'Trade searches'),
+      h('p', { class: 'muted' }, 'Save your trade searches and live searches with a name, and open them later in one click. Turn on the price watch and PoE Helper runs the search again every few minutes, cheapest first, and sends a Windows notification when something is at or under your price.'),
+      h('div', { class: 'panel stack', style: { gap: '8px' } },
+        h('b', {}, 'Add a search'),
+        h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, nameIn, urlIn, h('button', { class: 'primary', onclick: add }, 'Save')),
+        h('p', { class: 'small faint' }, 'Make the search on pathofexile.com/trade, then copy the link from the address bar. A live search link (ending in /live) is saved too.')),
+      d.list.length ? d.list.map(card) : h('p', { class: 'small muted' }, 'No saved searches yet.'),
+      h('p', { class: `small ${heavy ? 'warn' : 'faint'}` }, `The price watch uses up to ${d.perDay} pathofexile.com requests a day (1 or 2 per check), out of your daily limit of ${d.budget} (${d.usedToday} used today)${heavy ? ': that leaves little for net worth and snapshots, so check less often or raise the limit in Settings' : ''}. It only runs while PoE Helper is open (also in the tray). At most ${d.maxWatched} searches are watched at once.`));
+  };
+  draw(data);
+}
+window.poe.on('trade:watched', () => { if (currentPage === 'trade') renderTrade(); });
+
 function section(title, desc, ...content) {
   return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), desc ? h('p', {}, desc) : null), ...content);
 }
@@ -369,19 +437,31 @@ async function renderOverviewNow() {
   try { report = await call('networth:report', 24 * 3600 * 1000); } catch { /* none yet */ }
   const latest = report?.latest;
 
+  let bg = null;
+  try { bg = await call('overviewBg:get'); } catch { /* none */ }
+  const bgUrl = typeof bg === 'string' ? bg : bg?.url;
+  const bgButtons = h('div', { class: 'ov-hero-tools' },
+    h('button', { class: 'quiet sm', title: 'Pick a picture from your PC for this page', onclick: async () => { try { await call('overviewBg:pick'); renderOverviewNow(); } catch (e) { toast(cleanErr(e), true); } } }, bgUrl ? 'Change picture' : 'Add a background picture'),
+    bg ? h('button', { class: 'quiet sm', onclick: async () => { await call('overviewBg:reset'); renderOverviewNow(); } }, 'Remove') : null);
   mount(el,
-    pageHead('Overview', `Playing ${S.league}${S.divine ? `. A Divine Orb is worth ${fmt(S.divine)} chaos right now.` : '.'}`),
-    h('div', { class: 'panel' }, h('div', { class: 'figures' },
-      figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot', latest ? `Net worth, updated ${ago(Date.now() - latest.ts)}` : 'Net worth: take a snapshot on the WealthyExile page'),
-      figure(report?.perHourChaos != null ? `${report.perHourChaos >= 0 ? '+' : ''}${fmt(report.perHourChaos)}c` : '–', 'Per hour over the last day', report?.perHourChaos >= 0 ? 'good' : report?.perHourChaos < 0 ? 'bad' : ''),
-      figure(`${g.today.total} of ${g.dailyBudget}`, 'GGG requests used today'))),
+    // the top of the page: your background picture (if you picked one) behind the title and the main numbers
+    h('div', { class: 'ov-hero' + (bgUrl ? ' with-bg' : '') + (bg?.shipped ? ' shipped' : ''), style: bgUrl ? { backgroundImage: `url("${bgUrl}")` } : null },
+      h('div', { class: 'ov-hero-in' },
+        h('h1', {}, 'Overview'),
+        h('p', { class: 'ov-hero-sub' }, `Playing ${S.league}${S.divine ? `. A Divine Orb is worth ${fmt(S.divine)} chaos right now.` : '.'}`),
+        h('div', { class: 'figures ov-figures' },
+          figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot', latest ? `Net worth, updated ${ago(Date.now() - latest.ts)}` : 'Net worth: take a snapshot on the WealthyExile page'),
+          figure(report?.perHourChaos != null ? `${report.perHourChaos >= 0 ? '+' : ''}${fmt(report.perHourChaos)}c` : '–', 'Per hour over the last day', report?.perHourChaos >= 0 ? 'good' : report?.perHourChaos < 0 ? 'bad' : ''),
+          figure(`${g.today.total} of ${g.dailyBudget}`, 'GGG requests used today'))),
+      bgButtons,
+      bg?.credit ? h('span', { class: 'ov-hero-credit' }, bg.credit) : null),
     // net worth over the last day, from snapshots already taken (no new requests)
     (report?.series || []).length > 1 ? h('div', { style: { marginTop: '28px' } },
       h('div', { class: 'section-head' }, h('h2', {}, 'Net worth, last day'), h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => go('networth') }, 'Open WealthyExile')),
       h('div', { class: 'panel' }, window.lineChart(report.series.filter((p) => p.ts >= latest.ts - 24 * 3600 * 1000), { divine: latest.divine, height: 150 }))) : null,
     // the things people open most, one click away
     h('div', { class: 'ov-shortcuts', style: { marginTop: '28px' } },
-      [['pob', 'Snapshot my build', 'Path of Building: DPS, tree, upgrades'], ['lab', "Today's lab", 'The layout from poelab'], ['regex', 'Map regex', 'Copy a search for your stash'], ['farm', 'What to farm', 'What pays best right now'], ['filters', 'Loot filter', 'Your tiers and price changes']]
+      [['pob', 'Snapshot my build', 'Path of Building: DPS, tree, upgrades'], ['trade', 'Trade searches', 'Saved searches and price watch'], ['lab', "Today's lab", 'The layout from poelab'], ['regex', 'Map regex', 'Copy a search for your stash'], ['farm', 'What to farm', 'What pays best right now'], ['filters', 'Loot filter', 'Your tiers and price changes']]
         .map(([page, title, note]) => h('button', { class: 'ov-card', onclick: () => go(page) }, h('b', {}, title), h('span', { class: 'small muted' }, note)))),
     h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start' } },
       h('div', {},

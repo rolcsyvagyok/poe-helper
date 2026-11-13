@@ -3,6 +3,25 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.55 - 2026-11-13
+
+- Levelling guide: the list shows only your levelling guides now, not every Path of Building build.
+- Levelling guide: the paste box is hidden until you press **Add a new guide**. After importing, you can name the new guide straight away.
+- Levelling guide: a guide always opens at its first tree, gems and items (for example Level 1-12).
+- Levelling guide: **Save gems as a gem search** saves the gem setup shown. The choice of setups is gone.
+- **New page: Trade searches** (under Wealth). Save your pathofexile.com trade searches and live searches with a name, and open them in one click.
+  - **Price watch:** type the most you want to pay and how often to look. PoE Helper runs the search again, cheapest first, and sends a Windows notification when something is at or under your price. Click the notification to open the trade site.
+  - Each listing is only told once. A check takes 1 or 2 pathofexile.com requests, and the page shows how many a day your watches use. It runs while the app is open, also in the tray.
+- **Overview** has a new look: a banner with Caspar David Friedrich's painting *The Abbey in the Oakwood* (1810, public domain) behind the title and your numbers. Pick your own picture there with **Change picture**, or remove it.
+- Price check (Alt+E) with the build comparison is sturdier:
+  - If Path of Building gets stuck, it restarts by itself on the next press, so you no longer have to restart the app.
+  - If Path of Building is busy with a long job, the price still shows straight away and the comparison says so after 30 seconds, instead of waiting forever.
+  - Hotkeys come back by themselves if recording a new hotkey in Settings is left unfinished.
+- The app keeps a small log (poe-helper.log next to its settings) to help find problems. It never holds your POESESSID.
+- Loot filter, ready for the new 3.30 FilterBlade filters:
+  - **Viscera** and **Allflame embers** have their own pages under League mechanics. Allflame embers get poe.ninja prices and are part of the price review.
+  - The new **unidentified item tier** rules are on the **Base ranks** page: for each rank, pick the lowest item tier you want to see (for example S from tier 2, C only at tier 5). Leave it on "Filter decides" to keep FilterBlade's own rules.
+
 ## 1.0.54 - 2026-11-13
 
 - **Two levelling guides come with the app**: **Zerker** and **Minion slam** are imported into the Levelling guide by themselves a few seconds after the app starts (once; it needs Path of Building installed and an internet connection). If you already have them, nothing is added, and one you remove doesn't come back.

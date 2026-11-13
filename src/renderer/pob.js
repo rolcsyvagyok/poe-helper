@@ -26,7 +26,7 @@
     // the build you work with stays picked (until you pick another or save a new snapshot)
     if (!has(PB.file)) PB.file = (has(st.current) ? st.current : null) || (has(st.last?.file) ? st.last.file : null) || snaps[0]?.file || PB.builds[0]?.file || null;
     const LV = PB.lv || (PB.lv = {});
-    if (LV.file === undefined) LV.file = st.levelling || null;
+    if (LV.file === undefined) { LV.file = st.levelling || null; LV.fresh = LV.file; }
     if (!has(PB.b)) PB.b = PB.file;
     if (!has(PB.a) || PB.a === PB.b) {
       // the snapshot of the same character before the newest one
@@ -854,8 +854,9 @@
     const out = h('div', { class: 'stack' });
     const LV = PB.lv || (PB.lv = {});
     const builds = PB.builds || [];
-    const file = LV.file && builds.some((b) => b.file === LV.file) ? LV.file : null;
-    const pick = async (f) => { LV.file = f || null; await call('pob:setLevelling', LV.file).catch(() => {}); render(); };
+    const file = LV.file && builds.some((b) => b.file === LV.file && /(^|\/ )Levelling /.test(b.name)) ? LV.file : null;
+    const pick = async (f) => { LV.file = f || null; LV.fresh = f || null; // a guide opens at its first tree, gems and items
+      await call('pob:setLevelling', LV.file).catch(() => {}); render(); };
     const codeIn = h('input', { type: 'text', placeholder: 'Paste a Path of Building code or a pobb.in / poe.ninja / Maxroll link', style: { flex: 1, minWidth: '260px' }, 'aria-label': 'Levelling build code or link' });
     const importBtn = h('button', { class: 'primary sm', onclick: async () => {
       importBtn.disabled = true;
@@ -863,22 +864,22 @@
         const r = await call('pob:importCode', { text: codeIn.value, name: 'Levelling' });
         PB.builds = null; await loadBuilds(true);
         toast(`Imported${r.site ? ` from ${r.site}` : ''}: ${r.info?.skill || 'build'}`);
+        LV.adding = false; LV.renaming = true;
         await pick(r.file);
       } catch (e) { toast(errText(e), true); } finally { importBtn.disabled = false; }
     } }, 'Import');
     const top = h('div', { class: 'panel stack', style: { gap: '10px' } },
       h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('span', { class: 'muted small' }, 'Levelling guide'),
         (() => {
-          // your levelling guides first (imported here), then every other build
+          // only the levelling guides (imported here or built in)
           const isGuide = (b) => /(^|\/ )Levelling /.test(b.name);
           const opt = (b) => h('option', { value: b.file, selected: b.file === file }, b.name.replace(/^PoE Helper snapshots \/ /, '').replace(/^Levelling /, ''));
           const guides = builds.filter(isGuide);
-          const rest = builds.filter((b) => !isGuide(b));
-          return h('select', { 'aria-label': 'Levelling build', style: { flex: 1, minWidth: '220px' }, onchange: (e) => pick(e.target.value) },
-            h('option', { value: '', selected: !file }, guides.length ? 'Pick a levelling guide…' : 'Import a levelling build below, or pick a build…'),
-            guides.length ? h('optgroup', { label: 'Levelling guides' }, guides.map(opt)) : null,
-            rest.length ? h('optgroup', { label: 'Other builds' }, rest.map(opt)) : null);
+          return h('select', { 'aria-label': 'Levelling guide', style: { flex: 1, minWidth: '220px' }, onchange: (e) => pick(e.target.value) },
+            h('option', { value: '', selected: !file }, guides.length ? 'Pick a levelling guide…' : 'No guides yet: add one'),
+            guides.map(opt));
         })(),
+        h('button', { class: LV.adding ? 'sm' : 'primary sm', onclick: () => { LV.adding = !LV.adding; render(); } }, LV.adding ? 'Cancel' : 'Add a new guide'),
         file && builds.find((b) => b.file === file)?.snapshot ? h('button', { class: 'quiet sm', title: 'Give this guide a new name', onclick: () => { LV.renaming = !LV.renaming; render(); } }, 'Rename') : null,
         file && builds.find((b) => b.file === file)?.snapshot ? h('button', { class: 'quiet sm', title: 'Puts this guide in the Recycle Bin', onclick: async () => {
           if (!confirm('Put this levelling guide in the Recycle Bin? You can get it back from there.')) return;
@@ -897,10 +898,10 @@
         setTimeout(() => { inp.focus(); inp.select(); }, 0);
         return h('div', { class: 'row', style: { gap: '8px' } }, inp, h('button', { class: 'primary sm', onclick: save }, 'Save name'), h('button', { class: 'quiet sm', onclick: () => { LV.renaming = false; render(); } }, 'Cancel'));
       })() : null,
-      h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, codeIn, importBtn),
+      LV.adding ? h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, codeIn, importBtn) : null,
       h('p', { class: 'small faint' }, 'A levelling guide from Path of Building: pick its trees and see the gems that go with each. It is only for looking: upgrades, the item tester and the price check keep using the build at the top of the Build tab.'));
     out.append(top);
-    if (!file) { out.append(h('p', { class: 'small muted' }, 'Import a levelling build (paste its code or link), or pick one from the list.')); return [out]; }
+    if (!file) { out.append(h('p', { class: 'small muted' }, 'Pick a guide, or press Add a new guide and paste its Path of Building code or link.')); return [out]; }
 
     const statsKey = `stats|${file}`;
     const treeKey = `tree|${file}`;
@@ -941,7 +942,19 @@
         : h('p', { class: 'small muted' }, 'No gems in this skill set.'));
     async function draw() {
       try {
-        const st = PB.results[statsKey] || (PB.results[statsKey] = await call('pob:stats', file));
+        let st = PB.results[statsKey] || (PB.results[statsKey] = await call('pob:stats', file));
+        if (LV.fresh === file) {
+          LV.fresh = null;
+          const real = (list) => (list || []).find((x) => !/^[-=_~*.\s]{3,}$/.test(x.title))?.id;
+          const s0 = st.sets || {};
+          if ((s0.trees?.length || 0) > 1 && s0.tree !== 1) st = await call('pob:buildSet', { file, kind: 'tree', value: 1, link: true });
+          for (const [kind, list, cur] of [['skills', st.sets?.skills, st.sets?.skillsActive], ['items', st.sets?.items, st.sets?.itemsActive]]) {
+            const first = real(list);
+            if (first != null && first !== cur) st = await call('pob:buildSet', { file, kind, value: first });
+          }
+          PB.results[statsKey] = st;
+          delete PB.results[treeKey];
+        }
         const tr = PB.results[treeKey] || (PB.results[treeKey] = await call('pob:tree', file));
         const S2 = st.sets || {};
         const pickers = h('div', { class: 'panel row small', style: { gap: '14px', flexWrap: 'wrap' } },
@@ -951,23 +964,21 @@
         const treeOut = h('div', { class: 'stack' });
         const redraw = (r) => mount(treeOut, treeView(r, redraw, { file, readOnly: true }));
         redraw(tr);
-        // every gem of the build (all its gem setups) as a saved search on the Regex page's gem list
+        // the gems of the gem setup shown, as a saved search on the Regex page's gem list
         const nameIn = h('input', { placeholder: 'Name, e.g. Slam leveling', style: { flex: 1, minWidth: '140px' }, 'aria-label': 'Name for the gem search' });
         const saveGems = h('button', { class: 'sm', onclick: async () => {
           const name = nameIn.value.trim();
           if (!name) { nameIn.focus(); return toast('Type a name for the gem search first.', true); }
           try {
-            const sets = (st.sets?.skills || []).filter((x) => !/^[-=_~*.\s]{3,}$/.test(x.title));
-            const only = whichIn.value === 'all' ? null : sets.filter((x) => whichIn.value === 'cur' ? x.id === st.sets?.skillsActive : sets.indexOf(x) <= sets.findIndex((y) => y.id === st.sets?.skillsActive)).map((x) => x.title);
+            const cur = (st.sets?.skills || []).find((x) => x.id === st.sets?.skillsActive);
+            const only = cur ? [cur.title] : null;
             const g = await call('pob:buildGems', { file, only });
             if (!g.gems.length) return toast('No gems the gem regex knows in this build.', true);
             S.settings.regexPresets = await call('regex:savePreset', { name, kind: 'gems-0', choices: { picks: g.gems, cls: '', act: 0 } });
             toast(`Saved "${name}" with ${g.gems.length} gems: Regex page → Gems${g.unknown.length ? ` (${g.unknown.length} not in the gem list: ${g.unknown.slice(0, 3).join(', ')})` : ''}`);
           } catch (e) { toast(errText(e), true); }
         } }, 'Save gems as a gem search');
-        const whichIn = h('select', { 'aria-label': 'Which gem setups', class: 'sm' },
-          h('option', { value: 'all' }, 'All gem setups'), h('option', { value: 'upto' }, 'Gem setups up to the one shown'), h('option', { value: 'cur' }, 'Only the gem setup shown'));
-        const regexBox = h('div', { class: 'panel stack', style: { gap: '8px' } }, h('div', { class: 'small muted' }, 'Gem search for vendors: the gems of this build, saved on the Regex page.'), whichIn, h('div', { class: 'row', style: { gap: '8px' } }, nameIn, saveGems));
+        const regexBox = h('div', { class: 'panel stack', style: { gap: '8px' } }, h('div', { class: 'small muted' }, 'Gem search for vendors: the gems of the gem setup shown, saved on the Regex page.'), h('div', { class: 'row', style: { gap: '8px' } }, nameIn, saveGems));
         mount(body, pickers, h('div', { class: 'pob-buildcols' }, h('div', { style: { minWidth: 0 } }, treeOut), h('div', { class: 'pob-side stack', style: { gap: '12px' } }, gemsPanel(st), regexBox)));
       } catch (e) { mount(body, h('p', { class: 'small warn' }, errText(e))); }
     }

@@ -81,8 +81,16 @@ const secrets = {
   },
 };
 
+// a small log next to the settings (poe-helper.log), for finding out what went wrong; never holds the POESESSID
+let logFile = null;
 function log(...a) {
   console.log('[poe-helper]', ...a);
+  try {
+    if (!logFile) logFile = path.join(app.getPath('userData'), 'poe-helper.log');
+    const line = `${new Date().toISOString()} ${a.map((x) => (x instanceof Error ? x.message : typeof x === 'string' ? x : JSON.stringify(x))).join(' ')}`.replace(/POESESSID=?[0-9a-f]{20,}/gi, 'POESESSID=…').slice(0, 2000);
+    if ((fs.statSync(logFile, { throwIfNoEntry: false })?.size || 0) > 1024 * 1024) fs.renameSync(logFile, logFile + '.old');
+    fs.appendFileSync(logFile, line + '\n');
+  } catch { /* logging must never break the app */ }
 }
 
 // ---------------- windows ----------------
@@ -275,8 +283,10 @@ async function priceCheck({ advanced = false, accelerator = '', compare = false 
     overlay.hide();
     await new Promise((r) => setTimeout(r, 80));
   }
-  const text = await copyItemFromGame({ advanced, accelerator });
+  let text = null;
+  try { text = await copyItemFromGame({ advanced, accelerator }); } catch (e) { log('price check: copy failed', e.message); }
   if (!text) {
+    log('price check: no item copied', hasKeySender() ? '' : '(no key sender)');
     showOverlayAtCursor({ error: hasKeySender() ? 'Hover an item in game and press the hotkey again.' : 'Press Ctrl+C on an item first (automatic copy needs uiohook-napi).' });
     return;
   }
@@ -301,10 +311,15 @@ async function runPriceCheck(text, { compare = false } = {}) {
     showOverlayAtCursor({ ...result, text, league: await services.getLeague(), pob: wantPob ? { loading: true } : null });
     mainWin?.webContents.send('history:updated');
   } catch (e) {
+    log('price check failed', e.message);
     showOverlayAtCursor({ error: e.message });
     return;
   }
-  if (wantPob) overlay?.webContents.send('overlay:pob', await pobCompareFor(text));
+  if (wantPob) {
+    const r = await pobCompareFor(text);
+    if (r.error) log('price check compare', r.error);
+    overlay?.webContents.send('overlay:pob', r);
+  }
 }
 
 /** Path of Building's tooltip and comparison for an item, against the build you last used on the PoB page. */
@@ -313,7 +328,10 @@ async function pobCompareFor(text) {
   const file = [st.current, st.last?.file].find((f) => f && fs.existsSync(f));
   if (!file) return { error: 'Pick a build on the Path of Building page first, or save a snapshot.' };
   try {
-    const r = await pobWith(file, () => pob.timeless('itemTooltip', { item: String(text).slice(0, 20000) }));
+    // the price is already shown; PoB's part gives up after 30 s (PoB busy with a long job, or stuck)
+    let timer;
+    const late = new Promise((_, no) => { timer = setTimeout(() => no(new Error(`Path of Building is busy${pob?.lastOp ? ` (${pob.lastOp})` : ''}. Press the hotkey again in a moment.`)), 30000); });
+    const r = await Promise.race([pobWith(file, () => pob.timeless('itemTooltip', { item: String(text).slice(0, 20000) })), late]).finally(() => clearTimeout(timer));
     return { r, build: path.basename(file, '.xml') };
   } catch (e) { return { error: e.message }; }
 }
@@ -578,6 +596,35 @@ function applyAutoSnapshot() {
   });
 }
 
+// Price watch for saved trade searches: every minute the searches that are due are run again (each has its
+// own interval, 5 minutes at least); a listing at or under your price gives a notification, once per listing.
+let tradeWatchTimer = null;
+let tradeWatchBusy = false;
+function startTradeWatch() {
+  clearInterval(tradeWatchTimer);
+  const run = async () => {
+    if (tradeWatchBusy) return;
+    tradeWatchBusy = true;
+    try {
+      for (const r of await services.tradeWatchTick()) {
+        const best = r.hits[0];
+        const price = `${best.amount} ${best.currency}`;
+        const body = `${r.entry.name}: ${r.hits.length > 1 ? `${r.hits.length} listings, cheapest ` : ''}${price}${best.name ? ` (${best.name})` : ''}. Click to open the trade site.`;
+        log('trade watch hit', r.entry.name, price);
+        if (Notification.isSupported()) {
+          const n = new Notification({ title: 'PoE Helper: price reached', body });
+          n.on('click', () => shell.openExternal(r.url));
+          n.show();
+        }
+        mainWin?.webContents.send('toast', body);
+      }
+      mainWin?.webContents.send('trade:watched');
+    } catch (e) { log('trade watch', e.message); } finally { tradeWatchBusy = false; }
+  };
+  tradeWatchTimer = setInterval(run, 60 * 1000);
+  setTimeout(run, 30 * 1000);
+}
+
 // Automatic tiering: re-check prices hourly (poe.ninja refreshes about every 15 minutes, cached 20).
 let autoTierTimer = null;
 function applyAutoTier() {
@@ -767,8 +814,16 @@ function registerIpc() {
   });
   handle('session:login', () => loginForSession());
   // While you record a new hotkey in Settings, the current ones are switched off so they don't fire.
-  handle('hotkeys:pause', () => { hotkeysPaused = true; registerHotkeys({ quiet: true }); return true; });
-  handle('hotkeys:resume', () => { hotkeysPaused = false; return registerHotkeys({ quiet: true }); });
+  // recording a new hotkey in Settings: the hotkeys are off meanwhile, and come back by themselves after
+  // 30 s in case the recording never finishes (page left, window closed)
+  let pauseTimer = null;
+  handle('hotkeys:pause', () => {
+    hotkeysPaused = true; registerHotkeys({ quiet: true });
+    clearTimeout(pauseTimer);
+    pauseTimer = setTimeout(() => { if (hotkeysPaused) { hotkeysPaused = false; registerHotkeys({ quiet: true }); } }, 30000);
+    return true;
+  });
+  handle('hotkeys:resume', () => { clearTimeout(pauseTimer); hotkeysPaused = false; return registerHotkeys({ quiet: true }); });
 
   handle('trade:prepare', (text) => services.tradePrepare(text));
   handle('trade:search', (args) => services.tradeSearch(args));
@@ -1155,6 +1210,17 @@ function registerIpc() {
   handle('regex:beastBuild', (a) => services.regexBeastBuild(a || {}));
   handle('regex:mapTrade', async (a) => { const r = await services.regexMapTrade(a || {}); openExternal(r.url); return r; });
   handle('regex:savePreset', (a) => services.regexSavePreset(a || {}));
+  handle('trade:list', () => services.tradeSearchList());
+  handle('trade:save', (a) => services.tradeSearchSave(a || {}));
+  handle('trade:remove', (key) => services.tradeSearchRemove(String(key || '')));
+  handle('trade:move', (a) => services.tradeSearchMove(String(a?.key || ''), Number(a?.dir) || 1));
+  handle('trade:check', (key) => services.tradeSearchCheck(String(key || '')));
+  handle('trade:open', (key) => {
+    const s = services.tradeSearchList().list.find((x) => x.key === key);
+    if (!s) throw new Error('That search is gone.');
+    shell.openExternal(s.link); // always a pathofexile.com/trade link (built from the parsed link)
+    return true;
+  });
   handle('regex:deletePreset', (a) => services.regexDeletePreset(a || {}));
   handle('clipboard:write', (t) => { clipboard.writeText(String(t ?? '').slice(0, 5000)); return true; });
   handle('ranks:set', (a) => services.setBaseRanks(a || {}));
@@ -1191,6 +1257,35 @@ function registerIpc() {
     applyAppIcon();
     return appIconImage().resize({ width: 64, height: 64, quality: 'best' }).toDataURL();
   });
+  // the Overview's background picture: yours, kept in the app's folder (never shipped with the app)
+  const overviewBgPath = () => path.join(app.getPath('userData'), 'overview-bg.jpg');
+  // yours if you picked one, else the one that comes with the app (unless you removed it)
+  const overviewBgData = () => {
+    try {
+      const own = overviewBgPath();
+      const shipped = path.join(ASSETS, 'overview-bg.jpg');
+      const file = fs.existsSync(own) ? own : !s.get('overviewBgOff') && fs.existsSync(shipped) ? shipped : null;
+      if (!file) return null;
+      return { url: `data:image/jpeg;base64,${fs.readFileSync(file).toString('base64')}`, shipped: file === shipped, credit: file === shipped ? 'The Abbey in the Oakwood, Caspar David Friedrich (1810), public domain' : null };
+    } catch { return null; }
+  };
+  // 1.0.55: the test picture put in place by hand on the owner's PC before the painting came with the app
+  if (!s.get('overviewBgV1')) {
+    try { if (fs.statSync(overviewBgPath()).size === 186507) fs.unlinkSync(overviewBgPath()); } catch { /* none */ }
+    s.set('overviewBgV1', true);
+  }
+  handle('overviewBg:get', () => overviewBgData());
+  handle('overviewBg:pick', async () => {
+    const r = await dialog.showOpenDialog(mainWin, { title: 'Choose a background picture for the Overview', properties: ['openFile'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] }] });
+    if (r.canceled || !r.filePaths[0]) return overviewBgData();
+    const img = nativeImage.createFromPath(r.filePaths[0]);
+    if (img.isEmpty()) throw new Error('That picture could not be read. Try a .jpg or .png file.');
+    const { width } = img.getSize();
+    fs.writeFileSync(overviewBgPath(), (width > 2400 ? img.resize({ width: 2400, quality: 'best' }) : img).toJPEG(86));
+    s.set('overviewBgOff', false);
+    return overviewBgData();
+  });
+  handle('overviewBg:reset', () => { try { fs.unlinkSync(overviewBgPath()); } catch { /* none */ } s.set('overviewBgOff', true); return null; });
   handle('appIcon:style', (style) => {
     s.set('appIconStyle', style === 'classic' ? 'classic' : 'flask');
     s.set('customAppIcon', false);
@@ -1656,6 +1751,7 @@ app.whenReady().then(async () => {
   applyAutoSnapshot();
   applyFilterWatch();
   applyAutoTier();
+  startTradeWatch();
   // Warm only what every price check needs (league + currency): 2 small poe.ninja requests, cached.
   services.getLeague().then((l) => services.ninja.category(l, 'Currency')).catch((e) => log('warmup', e.message));
   // your Path of Building build, loaded in the background so item checks can compare against it
