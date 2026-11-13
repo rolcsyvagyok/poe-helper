@@ -19,6 +19,19 @@ function persist() {
   D.saveTimer = setTimeout(() => call('designer:draft', { levels: D.levels, presetId: D.presetId, lockTier1: D.lock, groups: D.groups }).catch(() => {}), 400);
 }
 
+// the theme sounds (same as the app's core/filter/designer.js): Tier 2 game sound 1, Tiers 3-6 game sound 2,
+// on tiers that have no sound of their own and weren't set to "No sound"
+const LEVEL_SOUNDS = { 2: 1, 3: 2, 4: 2, 5: 2, 6: 2 };
+function themeSounds(levels) {
+  for (const [k, id] of Object.entries(LEVEL_SOUNDS)) {
+    const st = levels?.[k];
+    if (!st || st.noSound || st.customSound || (st.sound?.id && !st.keepSound)) continue;
+    delete st.keepSound;
+    st.sound = { id, volume: 300 };
+  }
+  return levels;
+}
+
 function soundOf(st) {
   const id = window.UI.soundIdFromPath(st?.customSound);
   if (id) return id;
@@ -38,7 +51,7 @@ async function renderDesignerNow() {
   await refreshState();
   D.state = await call('designer:state');
   if (!D.levels) {
-    D.levels = clone(D.state.draft.levels);
+    D.levels = themeSounds(clone(D.state.draft.levels));
     D.presetId = D.state.draft.presetId;
     D.lock = true; // Tier 1 always keeps the white look (that's how FilterBlade marks the top drops)
     D.groups = D.state.draft.groups;
@@ -135,7 +148,7 @@ function randomCard() {
     try {
       const t = await call('designer:random');
       D.random = t;
-      D.levels = clone(t.levels); D.presetId = 'random'; D.level = 1; D.groups = null;
+      D.levels = themeSounds(clone(t.levels)); D.presetId = 'random'; D.level = 1; D.groups = null;
       persist(); draw(); applySoon(0);
     } catch { /* toast shown */ }
   };
@@ -154,7 +167,7 @@ function gallery() {
       h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, t.name), D.presetId === t.id ? h('span', { class: 'pill good' }, 'In use') : null),
       t.description ? h('p', { class: 'small muted' }, t.description) : null,
       h('div', { class: 'row', style: { marginTop: '6px' } },
-        h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = clone(t.levels); D.presetId = t.id; D.level = 1; D.groups = null; persist(); draw(); applySoon(0); } }, D.presetId === t.id ? 'Use it again' : 'Use this theme'),
+        h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = themeSounds(clone(t.levels)); D.presetId = t.id; D.level = 1; D.groups = null; persist(); draw(); applySoon(0); } }, D.presetId === t.id ? 'Use it again' : 'Use this theme'),
         own ? h('button', { class: 'danger sm', onclick: async () => { await call('designer:deleteTheme', t.id); D.state = await call('designer:state'); draw(); } }, 'Delete') : null)));
   return h('section', { class: 'section', style: { marginTop: 0 } },
     h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with FilterBlade\'s Divine sound. Tier 2 plays game sound 1 and Tiers 3 to 6 game sound 2, unless you pick another sound for a tier. Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
@@ -207,8 +220,9 @@ function editor() {
 
   const cur = soundOf(st);
   const soundSel = h('select', { disabled: locked, 'aria-label': 'Drop sound', onchange: (e) => {
-    delete st.customSound; delete st.customVolume; delete st.sound;
+    delete st.customSound; delete st.customVolume; delete st.sound; delete st.keepSound; delete st.noSound;
     const v = e.target.value;
+    if (v === 'none') st.noSound = true; // stays silent (the theme sounds don't fill it in)
     if (v.startsWith('game:')) st.sound = { id: +v.slice(5), volume: 300 };
     else if (v !== 'none') st.customSound = window.UI.soundPath(v);
     playSound(v);

@@ -132,7 +132,7 @@ function withLevelSound(st, level) {
   const id = LEVEL_SOUNDS[level];
   if (!id) return withFilterSound(st);
   const own = st.customSound && !/^poehelper-sounds\//.test(st.customSound);
-  if (own || (st.sound?.id && !st.keepSound)) return st; // a sound you picked for this tier stays
+  if (own || st.noSound || (st.sound?.id && !st.keepSound)) return st; // a sound you picked (or "No sound") stays
   const { sound: _s, customSound: _c, customVolume: _v, keepSound: _k, ...rest } = st;
   return { ...rest, sound: { id, volume: 300 } };
 }

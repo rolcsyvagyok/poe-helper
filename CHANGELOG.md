@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.58 - 2026-11-13
+
+- Tier designer: the theme sounds now show in the editor too (Tier 2: game sound 1, Tiers 3 to 6: game sound 2), for every theme you pick. Choosing "No sound" for a tier keeps it silent.
+
 ## 1.0.57 - 2026-11-13
 
 - Tier sounds in every theme: Tier 2 plays game sound 1 and Tiers 3 to 6 game sound 2. Tier 1 keeps the Divine sound (game sound 6). Tiers a theme already styled get the new sounds now; a sound you picked for a tier yourself stays.
