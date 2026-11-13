@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.57 - 2026-11-13
+
+- Tier sounds in every theme: Tier 2 plays game sound 1 and Tiers 3 to 6 game sound 2. Tier 1 keeps the Divine sound (game sound 6). Tiers a theme already styled get the new sounds now; a sound you picked for a tier yourself stays.
+- Path of Building: every gem shows its picture next to its name, on the Build tab and in the levelling guide. The pictures come from poe.ninja's gem lists.
+
 ## 1.0.56 - 2026-11-13
 
 - Loot filter: a new **Current league: Covens of Umbra** group with **Viscera**, **Allflame embers & map enchant currency** and **Fated items** (Fated rares, rings and amulets, belts, and the Fated gear look).

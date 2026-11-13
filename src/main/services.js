@@ -449,7 +449,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const out = {};
     const ok = (u) => /^https:\/\/web\.poecdn\.com\//.test(u); // the only image host the app loads from
     // pictures by name from every list the items could be in (priced right now or not)
-    for (const c of [...hinted, ...ART_DEFAULT.filter((x) => !hinted.includes(x))]) {
+    // every name says where it is ("name\tGem"): look only there, not in every other list
+    const onlyHinted = names.length && names.every((raw) => String(raw).includes('\t'));
+    for (const c of [...hinted, ...(onlyHinted ? [] : ART_DEFAULT.filter((x) => !hinted.includes(x)))]) {
       if (![...want].some((n) => !n.startsWith('*') && !out[n])) break;
       let icons = new Map();
       try { icons = await ninja.icons(league, c); } catch { /* the priced list below */ }
@@ -1846,6 +1848,27 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     }
     settings.set('fbSoundsV1', true);
     try { if (filters.basePath()) filters.write(); } catch (e) { log('filter sounds upgrade', e.message); }
+  }
+  // 1.0.57: themes give Tier 2 the game's sound 1 and Tiers 3-6 sound 2 (Tier 1 keeps the Divine sound);
+  // tiers a theme set (FilterBlade's sound kept) get them now. Sounds you set on a tier yourself stay.
+  if (!settings.get('levelSoundsV1')) {
+    const tp = settings.get('tierPatch');
+    if (tp?.styles) {
+      const styles = {};
+      for (const [k, st] of Object.entries(tp.styles)) {
+        const level = designer.tierLevel(String(k).split('|').pop());
+        styles[k] = st?.keepSound && level >= 2 && level <= 6 ? designer.withLevelSound(st, level) : st;
+      }
+      settings.set('tierPatch', { ...tp, styles });
+    }
+    const d = settings.get('designer');
+    if (d?.levels) {
+      const levels = {};
+      for (const [k, st] of Object.entries(d.levels)) levels[k] = designer.LEVEL_SOUNDS[k] ? designer.withLevelSound(st, Number(k)) : st;
+      settings.set('designer', { ...d, levels });
+    }
+    settings.set('levelSoundsV1', true);
+    try { if (filters.basePath()) filters.write(); } catch (e) { log('tier sounds upgrade', e.message); }
   }
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }

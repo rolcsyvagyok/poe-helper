@@ -122,6 +122,21 @@ function withFilterSound(st) {
   return { ...rest, keepSound: true };
 }
 
+/**
+ * The sound every theme gives each tier level: Tier 1 keeps FilterBlade's own (the Divine sound 6),
+ * Tier 2 the game's alert sound 1, Tiers 3 to 6 sound 2. A sound you picked for a tier yourself stays.
+ */
+const LEVEL_SOUNDS = { 2: 1, 3: 2, 4: 2, 5: 2, 6: 2 };
+function withLevelSound(st, level) {
+  if (!st) return st;
+  const id = LEVEL_SOUNDS[level];
+  if (!id) return withFilterSound(st);
+  const own = st.customSound && !/^poehelper-sounds\//.test(st.customSound);
+  if (own || (st.sound?.id && !st.keepSound)) return st; // a sound you picked for this tier stays
+  const { sound: _s, customSound: _c, customVolume: _v, keepSound: _k, ...rest } = st;
+  return { ...rest, sound: { id, volume: 300 } };
+}
+
 /** "t1", "t1exalted", "t3boss", "t4c" -> number; "restex", "tnew", "twisdom" -> null */
 function tierLevel(tierName) {
   const m = /^t(\d)(?!\d)/i.exec(String(tierName || ''));
@@ -131,6 +146,8 @@ function tierLevel(tierName) {
 /** Tier 1 is always the white look with FilterBlade's Divine sound; its text colour (the border too) and size are yours. */
 function lockTier1(levels) {
   const t1 = levels?.[1] || {};
+  // Tiers 2-6 without a sound of their own get the theme sounds (Tier 2: game sound 1, Tiers 3-6: 2)
+  levels = Object.fromEntries(Object.entries(levels || {}).map(([k, st]) => [k, LEVEL_SOUNDS[k] ? withLevelSound(st, Number(k)) : st]));
   return { ...levels, 1: { ...tier1((t1.text || [220, 0, 0]).slice(0, 3), t1.fontSize || 45), ...(t1.customVolume ? { customVolume: t1.customVolume } : {}) } };
 }
 
@@ -162,7 +179,7 @@ function applyDesign(view, patch, levels, { groups = null } = {}) {
   for (const t of targets) {
     const st = levels[t.level];
     if (!st) continue;
-    styles[t.key] = withFilterSound(JSON.parse(JSON.stringify(st)));
+    styles[t.key] = withLevelSound(JSON.parse(JSON.stringify(st)), t.level);
     count++;
   }
   return { patch: { ...patch, moves: { ...(patch.moves || {}) }, styles }, count, categories: new Set(targets.map((t) => t.type)).size };
@@ -223,4 +240,4 @@ function randomTheme(rnd = Math.random) {
 
 for (const p of PRESETS) p.levels.giga = gigaLook(p.levels[1]);
 
-module.exports = { withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

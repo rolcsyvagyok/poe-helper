@@ -5,6 +5,37 @@
    Uses helpers defined in app.js (S, call, h, mount, section, toast, pageHead, refreshState, hotkeyField, fmtNum, pobBox, cleanErr). */
 (() => {
   const PB = { recent: [], tab: 'snapshot', file: null, a: null, b: null, text: '', builds: null, results: {}, busy: {} };
+  // gem pictures from poe.ninja's gem lists (web.poecdn.com), asked for in one batch per page draw
+  const GEM_ART = {};
+  let gemWant = new Map(); // name -> [img]
+  let gemTimer = null;
+  function gemIcon(name, support) {
+    const img = h('img', { class: 'gem-ic', alt: '', width: 20, height: 20, loading: 'lazy' });
+    // poe.ninja names supports "... Support"; Path of Building leaves that off
+    const n = support && !/ Support$/.test(name) ? `${name} Support` : String(name || '');
+    if (GEM_ART[n]) img.src = GEM_ART[n];
+    else if (GEM_ART[n] === null) img.style.display = 'none';
+    else {
+      if (!gemWant.has(n)) gemWant.set(n, []);
+      gemWant.get(n).push(img);
+      clearTimeout(gemTimer);
+      gemTimer = setTimeout(() => {
+        const want = gemWant; gemWant = new Map();
+        const names = [...want.keys()];
+        for (let i = 0; i < names.length; i += 60) {
+          const part = names.slice(i, i + 60);
+          call('art:icons', part.map((x) => `${x}\tGem`)).then((map) => {
+            for (const x of part) {
+              GEM_ART[x] = map?.[x] || null;
+              for (const el of want.get(x) || []) { if (GEM_ART[x]) el.src = GEM_ART[x]; else el.style.display = 'none'; }
+            }
+          }).catch(() => {});
+        }
+      }, 30);
+    }
+    return img;
+  }
+  const gemText = (x, i) => [i ? h('span', { class: 'sup' }, ' · ') : null, h('span', { class: 'gem ' + (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, gemIcon(x.name, x.support), `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`)];
   const TABS = [['snapshot', 'Snapshot'], ['stats', 'Build'], ['tree', 'Tree'], ['calcs', 'Calcs'], ['config', 'Configuration'], ['upgrades', 'Upgrades'], ['gems', 'Support gems'], ['levelling', 'Levelling guide'], ['compare', 'Compare snapshots']];
 
   const num = (n, unit = '') => {
@@ -232,7 +263,7 @@
       h('td', { class: 'muted' }, g.slot), h('td', { class: `rar-${String(g.rarity || '').toLowerCase()}` }, g.title || g.name, g.title && g.base ? h('span', { class: 'faint' }, ` ${g.base}`) : null))))));
     const gems = h('div', { class: 'panel pob-stat' }, h('h3', {}, 'Gems'), (r.gems || []).map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') + (g.main ? ' main' : '') },
       h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.main ? ' · main skill' : '', g.enabled ? '' : ' · off'),
-      h('div', {}, g.gems.map((x, i) => h('span', { class: (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, i ? ' · ' : '', `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`))))));
+      h('div', {}, g.gems.map(gemText)))));
     // the item tester sits in its own column on the right, next to the stats
     return [head, h('div', { class: 'pob-buildcols' }, h('div', { class: 'stack', style: { gap: '12px', minWidth: 0 } }, h('div', { class: 'pob-grid' }, groups, skills), h('div', { class: 'pob-grid' }, gear, gems)), h('div', { class: 'pob-side' }, itemTester()))];
   }
@@ -938,7 +969,7 @@
       h('button', { class: 'sm', title: 'Copies a search for every gem in this gem setup: paste it in a vendor\'s search box (Ctrl+F) to highlight them', onclick: (e) => copyRegex(e.currentTarget, st) }, 'Copy gem search')),
       (st.gems || []).length ? st.gems.map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') },
         h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.enabled ? '' : ' · off'),
-        h('div', {}, g.gems.map((x, k) => h('span', { class: (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, k ? ' · ' : '', `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`)))))
+        h('div', {}, g.gems.map(gemText))))
         : h('p', { class: 'small muted' }, 'No gems in this skill set.'));
     async function draw() {
       try {

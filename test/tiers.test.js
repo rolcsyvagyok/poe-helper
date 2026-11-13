@@ -553,3 +553,17 @@ test('unidentified item tier: rules per rank and the filter\'s own tier rules sw
   assert.match(out, /^Show # \$type->gear->tiered \$tier->strandedfractured/m);
   assert.match(out, /^#Show # \$type->gear->tiered \$tier->any3/m);
 });
+
+test('theme sounds: Tier 2 game sound 1, Tiers 3-6 sound 2, Tier 1 keeps FilterBlade\'s, own files stay', () => {
+  const D = require('../src/core/filter/designer');
+  assert.deepEqual(D.withLevelSound({ fontSize: 40, keepSound: true }, 2), { fontSize: 40, sound: { id: 1, volume: 300 } });
+  assert.deepEqual(D.withLevelSound({ fontSize: 30 }, 6).sound, { id: 2, volume: 300 });
+  assert.equal(D.withLevelSound({ sound: { id: 6, volume: 300 } }, 1).keepSound, true);
+  const own = { customSound: 'my-loud.mp3' };
+  assert.equal(D.withLevelSound(own, 3), own);
+  const view = { types: [{ type: 'currency', tiers: [{ key: 'currency|t1', tier: 't1' }, { key: 'currency|t2', tier: 't2' }, { key: 'currency|t5', tier: 't5' }] }] };
+  const r = D.applyDesign(view, {}, D.lockTier1(D.PRESETS[0].levels));
+  assert.equal(r.patch.styles['currency|t1'].keepSound, true);
+  assert.equal(r.patch.styles['currency|t2'].sound.id, 1);
+  assert.equal(r.patch.styles['currency|t5'].sound.id, 2);
+});

@@ -157,7 +157,7 @@ function gallery() {
         h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = clone(t.levels); D.presetId = t.id; D.level = 1; D.groups = null; persist(); draw(); applySoon(0); } }, D.presetId === t.id ? 'Use it again' : 'Use this theme'),
         own ? h('button', { class: 'danger sm', onclick: async () => { await call('designer:deleteTheme', t.id); D.state = await call('designer:state'); draw(); } }, 'Delete') : null)));
   return h('section', { class: 'section', style: { marginTop: 0 } },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label, and every tier keeps FilterBlade\'s own sound for it. Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with FilterBlade\'s Divine sound. Tier 2 plays game sound 1 and Tiers 3 to 6 game sound 2, unless you pick another sound for a tier. Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
     h('div', { class: 'dz-gallery' }, randomCard(), D.state.presets.map((t) => card(t, false)), D.state.themes.map((t) => card(t, true))));
 }
 
