@@ -1752,6 +1752,10 @@ app.whenReady().then(async () => {
   applyFilterWatch();
   applyAutoTier();
   startTradeWatch();
+  // which league is running: GGG's list knows a new one at once (1 request now and every 3 hours)
+  const leagueCheck = () => services.refreshLeague().then((r) => { if (r.changed) { notify(`New league: PoE Helper now uses ${r.league}.`); } }).catch((e) => log('league check', e.message));
+  setTimeout(leagueCheck, 5000);
+  setInterval(leagueCheck, 3 * 3600 * 1000);
   // Warm only what every price check needs (league + currency): 2 small poe.ninja requests, cached.
   services.getLeague().then((l) => services.ninja.category(l, 'Currency')).catch((e) => log('warmup', e.message));
   // your Path of Building build, loaded in the background so item checks can compare against it

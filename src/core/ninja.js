@@ -28,7 +28,12 @@ const ITEM_TYPES = [
 ];
 
 const DEFAULT_TTL = 20 * 60 * 1000;
-const LEAGUES_TTL = 6 * 60 * 60 * 1000;
+const LEAGUES_TTL = 2 * 60 * 60 * 1000;
+/** A softcore trade league of the current challenge (not Standard, Hardcore, Solo Self-Found, Ruthless or private). */
+function isChallenge(id) {
+  const s = String(id || '');
+  return !!s && !/^(Standard|Hardcore)$/i.test(s) && !/\b(Hardcore|HC|SSF|Solo Self-Found|Ruthless)\b/i.test(s) && !/\(PL\d+\)/.test(s);
+}
 const MIN_SPACING_MS = 400;
 
 function norm(s) {
@@ -236,10 +241,11 @@ class NinjaClient {
     return Array.isArray(data) ? data : data.leagues || [];
   }
 
-  /** First entry is the current challenge league per poe.ninja docs. */
+  /** The current challenge league: poe.ninja lists it first, but never Standard, Hardcore, SSF or Ruthless. */
   async currentLeague() {
     const ls = await this.leagues();
-    return ls[0]?.id || 'Standard';
+    const ok = ls.find((l) => isChallenge(l.id || l.name));
+    return ok?.id || ok?.name || 'Standard';
   }
 
   async category(league, type) {
@@ -314,4 +320,4 @@ class NinjaClient {
   }
 }
 
-module.exports = { trendOf, isBigChange, slugify, unslug, NinjaClient, parseExchange, parseCurrency, parseItems, EXCHANGE_TYPES, ITEM_TYPES, norm };
+module.exports = { isChallenge, trendOf, isBigChange, slugify, unslug, NinjaClient, parseExchange, parseCurrency, parseItems, EXCHANGE_TYPES, ITEM_TYPES, norm };

@@ -147,6 +147,24 @@ class GggClient {
     return this._request('character', this._charUrl('get-passive-skills', { character: name }), { withSession: true });
   }
 
+  // ---------- Leagues ----------
+
+  /** GGG's own list of the main leagues (public, no login), cached 3 hours: has a new league from its first minute. */
+  async leagues() {
+    const key = 'ggg_leagues';
+    if (this.cache.isFresh(key, 3 * 60 * 60 * 1000)) return this.cache.get(key).data;
+    try {
+      const json = await this._request('leagues', `${WEB}/api/leagues?type=main&realm=pc`);
+      const list = Array.isArray(json) ? json : json?.leagues || [];
+      this.cache.set(key, list);
+      return list;
+    } catch (e) {
+      const stale = this.cache.get(key);
+      if (stale) return stale.data;
+      throw e;
+    }
+  }
+
   // ---------- Trade (rares, on demand) ----------
 
   async tradeStats() {
@@ -216,6 +234,19 @@ class GggClient {
   }
 }
 
+/**
+ * The running challenge league from GGG's list: started, not ended, not Standard / Hardcore / SSF / Ruthless,
+ * the newest first. null when there is none (between leagues).
+ */
+function pickChallengeLeague(list, now = Date.now()) {
+  const { isChallenge } = require('./ninja');
+  const t = (x) => (x ? Date.parse(x) : NaN);
+  return (list || [])
+    .filter((l) => isChallenge(l?.id) && !(l.rules || []).some((r) => /hardcore|solo|ruthless|noparties|hardmode/i.test(r?.id || r?.name || '')) && !l.event)
+    .filter((l) => !(t(l.startAt) > now) && !(t(l.endAt) <= now))
+    .sort((a, b) => (t(b.startAt) || 0) - (t(a.startAt) || 0))[0]?.id || null;
+}
+
 /** The search the trade page was opened with: its script has `"state":{...}` with the query. */
 function findTradeState(html) {
   const at = String(html || '').indexOf('"state":{');
@@ -233,4 +264,4 @@ function findTradeState(html) {
   try { return JSON.parse(html.slice(start, i + 1)); } catch { return null; }
 }
 
-module.exports = { GggClient, BudgetExceededError, AuthError, findTradeState };
+module.exports = { GggClient, BudgetExceededError, AuthError, findTradeState, pickChallengeLeague };

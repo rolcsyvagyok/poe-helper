@@ -472,7 +472,7 @@ async function renderOverviewNow() {
         h('div', { class: 'panel stack' },
           g.today.total ? h('div', { class: 'bar' }, h('i', { style: { width: Math.min(100, (100 * g.today.total) / g.dailyBudget) + '%' } })) : null,
           Object.keys(g.today.byKey || {}).length
-            ? h('table', {}, h('tbody', {}, Object.entries(g.today.byKey).map(([k, v]) => h('tr', {}, h('td', {}, { stash: 'Stash tabs', 'trade-search': 'Trade searches', 'trade-fetch': 'Trade listings', 'trade-data': 'Trade mod list' }[k] || k), h('td', { class: 'r' }, v)))))
+            ? h('table', {}, h('tbody', {}, Object.entries(g.today.byKey).map(([k, v]) => h('tr', {}, h('td', {}, { stash: 'Stash tabs', 'trade-search': 'Trade searches', 'trade-fetch': 'Trade listings', 'trade-data': 'Trade mod list', leagues: 'League list' }[k] || k), h('td', { class: 'r' }, v)))))
             : h('p', { class: 'small muted' }, 'None yet. Price checks only use poe.ninja, so they never count here.'),
           h('p', { class: 'small faint' }, `poe.ninja this session: ${n.requests} downloads, ${n.notModified} unchanged, ${n.cacheHits} answered from cache.`)),
         h('details', { style: { marginTop: '12px' } }, h('summary', {}, 'How requests are kept low'),
@@ -1145,7 +1145,7 @@ async function renderSettingsNow() {
           h('div', { class: 'panel' }, themePicker())),
         section('Price check', null,
           h('div', { class: 'panel stack' },
-            field('League', h('select', { onchange: set('leagueOverride') }, h('option', { value: '' }, `Follow the current league (${leagues[0]?.name || 'automatic'})`), leagues.map((l) => h('option', { value: l.id, selected: st.leagueOverride === l.id }, l.name || l.id)))),
+            field('League', h('select', { onchange: set('leagueOverride') }, h('option', { value: '' }, `Follow the current league (${st.leagueOverride ? 'automatic' : S.league || 'automatic'})`), leagues.map((l) => h('option', { value: l.id, selected: st.leagueOverride === l.id }, l.name || l.id)))),
             hotkeyField('hotkeyPrice', 'Price check hotkey', st, st.keySender ? 'Hover an item in game and press it. The price check pops up next to the item.' : 'Press Ctrl+C on the item first, then this hotkey.', 'Alt+E'),
             toggle(st.pobCompareOn !== false, (v) => call('settings:set', { pobCompareOn: v }).then(() => { toast(v ? 'The price check compares with your build' : 'The price check only prices'); renderSettings(); }), 'Show what the item does to my build in the price check (like the item tester). Off: Path of Building isn\'t run, so the price check is a little faster'),
             hotkeyField('hotkeyLab', 'Daily lab overlay', st, 'Opens today\'s Labyrinth layout from poelab in game: press it, pick 1-4. Press it again (or Esc) to hide.', 'Alt+L'),
