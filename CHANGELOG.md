@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.54 - 2026-11-13
+
+- **Two levelling guides come with the app**: **Zerker** and **Minion slam** are imported into the Levelling guide by themselves a few seconds after the app starts (once; it needs Path of Building installed and an internet connection). If you already have them, nothing is added, and one you remove doesn't come back.
+
 ## 1.0.53 - 2026-11-13
 
 - **Rename and Remove** on the Levelling guide, for guides you imported (and snapshots): Rename gives the guide a new name, Remove puts it in the Recycle Bin. Your own Path of Building builds can't be renamed or removed here.

@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   hotkeyPrice: 'Alt+E',
   hotkeySnapshot: '',
   hotkeyPobTest: '', // copy the item under the mouse and test it against your build on the Path of Building page (off until you pick one) // save a Path of Building snapshot of your character (off until you pick one)
+  defaultGuidesDone: [], // the built-in levelling guides already imported (by link)
   chatMacrosOn: true, // F1-F5 chat macros, only while Path of Exile is the active window
   chatMacros: [{ key: 'F1', text: '/exit', send: true }, { key: 'F2', text: '/hideout', send: true }, { key: 'F3', text: '', send: true }, { key: 'F4', text: '', send: true }, { key: 'F5', text: '', send: true }],
   pobCompareOn: true, // the price check also shows what the item does to your build (Path of Building); off: PoB isn't started for it

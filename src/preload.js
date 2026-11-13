@@ -8,7 +8,7 @@ const INVOKE = new Set([
   'font:get', 'font:pick', 'font:clear', 'tiers:view', 'tiers:prices', 'tiers:action', 'tiers:suggest', 'designer:state', 'designer:random', 'designer:draft', 'designer:apply', 'designer:undo', 'designer:saveTheme', 'designer:deleteTheme', 'review:run', 'farm:dashboard', 'review:apply', 'review:undo', 'review:log', 'review:config', 'tiers:move', 'tiers:style', 'tiers:reset', 'themes:list', 'themes:save', 'themes:apply', 'themes:delete', 'themes:export', 'themes:import',
   'lab:get', 'lab:favorite', 'lab:show', 'lab:hide', 'lab:opacity', 'overlay:hide', 'overlay:resize', 'overlay:keep', 'overlay:resetPos', 'shell:open', 'app:show',
 ]);
-const EVENTS = new Set(['pob:copied', 'prices:units', 'app:version', 'app:changelog', 'app:notesSeen', 'update:status', 'lab:pick', 'overlay:kept', 'overlay:show', 'overlay:pob', 'toast', 'networth:updated', 'filter:rebuilt', 'history:updated', 'gameSounds:changed', 'uiTheme:changed', 'app:goto', 'pob:changed']);
+const EVENTS = new Set(['pob:copied', 'prices:units', 'app:version', 'app:changelog', 'app:notesSeen', 'update:status', 'lab:pick', 'overlay:kept', 'overlay:show', 'overlay:pob', 'pob:buildsChanged', 'toast', 'networth:updated', 'filter:rebuilt', 'history:updated', 'gameSounds:changed', 'uiTheme:changed', 'app:goto', 'pob:changed']);
 
 contextBridge.exposeInMainWorld('poe', {
   async call(channel, ...args) {

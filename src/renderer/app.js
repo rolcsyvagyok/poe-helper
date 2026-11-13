@@ -1121,6 +1121,8 @@ window.poe.on('filter:rebuilt', () => { if (currentPage === 'filters') go('filte
 // "Show in app" from the price check: the Loot filter at the item's tier, the item picked
 window.poe.on('app:goto', (g) => { if (g?.page === 'filters') { window.showInFilter?.(g); go('filters'); } });
 window.poe.on('history:updated', () => { if (currentPage === 'dashboard') refreshState(); });
+// a levelling guide or build was added in the background (the default guides): the PoB page shows it
+window.poe.on('pob:buildsChanged', () => { if (currentPage === 'pob') window.PobView?.render(); });
 window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'designer') go('designer'); });
 
 go('dashboard');

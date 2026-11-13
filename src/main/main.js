@@ -1533,7 +1533,7 @@ async function webText(url, opts = {}) {
 }
 
 /** A Path of Building code or link (pobb.in, pob.codes, poe.ninja…) saved as a build in the snapshots folder. */
-async function importBuildCode({ text, name } = {}) {
+async function importBuildCode({ text, name, fileName } = {}) {
   const C = require('../core/pob-code');
   let code = String(text || '').trim();
   if (!code) throw new Error('Paste a Path of Building code or link first.');
@@ -1554,10 +1554,38 @@ async function importBuildCode({ text, name } = {}) {
   const what = [info.ascendancy || info.className, info.level, info.skill].filter(Boolean).join(' ');
   const base = String(name || '').trim() === 'Levelling' ? `Levelling ${what}` : String(name || '').trim() || `Imported ${what}`;
   const clean = base.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').slice(0, 80).trim() || 'Imported build';
-  let file = path.join(dir, `${clean} ${stamp}.xml`);
-  for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${clean} ${stamp} (${i}).xml`);
+  // fileName: an exact name (the default levelling guides), no date added
+  const exact = fileName ? String(fileName).replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').slice(0, 80).trim() : '';
+  let file = path.join(dir, exact ? `${exact}.xml` : `${clean} ${stamp}.xml`);
+  for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, exact ? `${exact} (${i}).xml` : `${clean} ${stamp} (${i}).xml`);
   fs.writeFileSync(file, xml, 'utf8');
   return { file, info, site };
+}
+
+// Levelling guides every copy of the app starts with: imported from their links once (in the background,
+// a few seconds after start), named "Levelling <name>". One you removed isn't brought back.
+const DEFAULT_GUIDES = [
+  { name: 'Zerker', url: 'https://pobb.in/ji8ZB1NskiTj' },
+  { name: 'Minion slam', url: 'https://pobb.in/K1f2lwixSrbW' },
+];
+function importDefaultGuides() {
+  const done = new Set(services.settings.get('defaultGuidesDone') || []);
+  const todo = DEFAULT_GUIDES.filter((g) => !done.has(g.url));
+  if (!todo.length || !pobState().buildsDir) return;
+  setTimeout(async () => {
+    for (const g of todo) {
+      try {
+        const dir = path.join(pobState().buildsDir, 'PoE Helper snapshots');
+        const have = fs.existsSync(path.join(dir, `Levelling ${g.name}.xml`));
+        if (!have) await importBuildCode({ text: g.url, fileName: `Levelling ${g.name}` });
+        done.add(g.url);
+        services.settings.set('defaultGuidesDone', [...done]);
+        const cur = services.settings.get('pob') || {};
+        if (!cur.levelling || !fs.existsSync(cur.levelling)) services.settings.set('pob', { ...cur, levelling: path.join(dir, `Levelling ${g.name}.xml`) });
+        mainWin?.webContents.send('pob:buildsChanged');
+      } catch (e) { log('default levelling guide', g.name, e.message); }
+    }
+  }, 5000);
 }
 
 /**
@@ -1598,6 +1626,7 @@ app.whenReady().then(async () => {
   services = createServices({ dataDir: app.getPath('userData'), secrets, log, labBrowser });
   applySetupFile();
   registerIpc();
+  importDefaultGuides();
   createMainWindow();
   createOverlay();
   createTray();
