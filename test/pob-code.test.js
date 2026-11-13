@@ -22,3 +22,15 @@ test('PoB links: the raw code of the sites PoB imports from', () => {
   assert.strictEqual(C.linkSource('https://example.com/x'), null);
   assert.ok(C.isLink(' https://x.y/z'));
 });
+
+test('a build code keeps every tree, skill set and item set', () => {
+  const C = require('../src/core/pob-code');
+  const xml = '<PathOfBuilding><Build level="90"/><Tree activeSpec="2"><Spec title="Leveling" nodes="1,2"/><Spec title="Endgame" nodes="1,2,3"/></Tree>'
+    + '<Skills activeSkillSet="1"><SkillSet id="1" title="Leveling"><Skill><Gem nameSpec="Ground Slam"/><Gem nameSpec="Ruthless"/></Skill></SkillSet><SkillSet id="2" title="Endgame"><Skill><Gem nameSpec="Earthshatter"/><Gem nameSpec="Fist of War"/></Skill></SkillSet></Skills>'
+    + '<Items activeItemSet="1"><ItemSet id="1" title="Leveling"/><ItemSet id="2" title="Endgame"/></Items></PathOfBuilding>';
+  const back = C.decode(C.encode(xml));
+  assert.equal(back, xml);
+  assert.equal((back.match(/<Spec /g) || []).length, 2);
+  assert.equal((back.match(/<SkillSet /g) || []).length, 2);
+  assert.equal((back.match(/<Gem /g) || []).length, 4);
+});

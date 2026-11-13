@@ -1925,6 +1925,8 @@ async function pasteLook(t) {
   renderFilters();
 }
 
+// what FilterBlade's filters use each of the game's alert sounds for
+const GAME_SOUND_USE = { 1: 'high value: Tier 2 currency, top gems', 2: 'good value: currency, cards, jewels', 3: 'uniques and special items', 4: 'maps up to tier 10', 5: 'maps tier 11 and up', 6: 'Tier 1: Divine and better' };
 function lookEditor(tier, redraw, onPreview, opts = {}) {
   const d = FB.draft;
   const hex = (a) => '#' + (a || [0, 0, 0]).slice(0, 3).map((n) => Math.max(0, Math.min(255, +n || 0)).toString(16).padStart(2, '0')).join('');
@@ -1957,7 +1959,7 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
   h('option', { value: 'none', selected: current === 'none' && !d.keepSound }, 'No sound'),
   h('optgroup', { label: 'PoE Helper tinks' }, S.sounds.filter((s) => !s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, `${s.name}, ${s.note}`))),
   S.sounds.some((s) => s.user) ? h('optgroup', { label: 'Your sounds' }, S.sounds.filter((s) => s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, s.name))) : null,
-  h('optgroup', { label: 'Game sounds (heard in game only)' }, Array.from({ length: 16 }, (_, i) => h('option', { value: `game:${i + 1}`, selected: current === `game:${i + 1}` }, `Game sound ${i + 1}`))));
+  h('optgroup', { label: 'Game sounds (heard in game only)' }, Array.from({ length: 16 }, (_, i) => h('option', { value: `game:${i + 1}`, selected: current === `game:${i + 1}` }, `Game sound ${i + 1}${GAME_SOUND_USE[i + 1] ? ` (FilterBlade: ${GAME_SOUND_USE[i + 1]})` : ''}`))));
   const vol = h('input', { type: 'range', min: 0, max: 300, value: d.sound?.volume ?? d.customVolume ?? 300, style: { width: '100px' }, 'aria-label': 'Volume', oninput: (e) => { if (d.sound) d.sound.volume = +e.target.value; else if (d.customSound) d.customVolume = +e.target.value; } });
 
   const beamSel = h('select', { 'aria-label': 'Light beam', onchange: (e) => { d.beam = e.target.value ? { color: e.target.value, temp: beamTemp.checked } : null; if (!e.target.value) delete d.beam; changed(); } },
@@ -1979,7 +1981,7 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
     const v = current;
     if (v === 'none') return 'No sound';
     if (v === 'own') return `Filter's sound (${ownCustom})`;
-    if (v.startsWith('game:')) return `Game sound ${v.slice(5)}`;
+    if (v.startsWith('game:')) return `Game sound ${v.slice(5)}${GAME_SOUND_USE[v.slice(5)] ? ` (${GAME_SOUND_USE[v.slice(5)]})` : ''}`;
     return S.sounds.find((x) => x.id === v)?.name || v;
   })();
   const soundOpen = FB.soundOpen === tier.key;

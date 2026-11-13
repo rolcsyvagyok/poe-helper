@@ -3,6 +3,17 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.52 - 2026-11-13
+
+- **FilterBlade's sounds everywhere**: every tier plays the sound FilterBlade gives it again: Tier 1 currency the Divine sound, uniques their own, maps by tier, and so on. Themes and the tier designer change looks only and keep each tier's FilterBlade sound (they used to put their own sounds on Tier 1-4 and none on Tier 5-6). Your filter gets this once on the update; sound files you added yourself stay. In the sound picker, each game sound now says what FilterBlade uses it for.
+- **Gem searches from a build**: the Levelling guide has "Save gems as a gem search": the gems of the build (all its gem setups, the ones up to the setup shown, or only that one) saved on the Regex page's gem list under the name you give it.
+- **Copy gem search** on the Levelling guide's Gems panel: copies a vendor search for every gem in the gem setup shown; paste it in a vendor's search box to light them up. When they don't fit in one search (250 characters), each press copies the next part.
+- A `setup.json` in PoE Helper's data folder is read once at start and then deleted: it can set the Levelling guide build, import levelling guides from links and add saved gem searches (handy for setting up a copy for a friend). The Levelling guide list shows your imported guides first.
+
+- **Levelling guide** replaces the levelling plan on the Path of Building page: import a levelling build (paste its Path of Building code, or a pobb.in, poe.ninja or Maxroll link) or pick one of your builds, then choose its trees and gem setups and see the tree and every gem with its supports. Picking a tree also picks the gem setup with the same name. It is only for looking: upgrades, the item tester and the price check never compare against it.
+- **Your build stays picked**: the build you pick at the top of the Path of Building page, or your newest snapshot, stays the one in use (also after a restart) until you pick another or save a new snapshot. Upgrades, the item tester and the price check comparison always use it, so looking at another build, like the levelling guide, doesn't change it.
+- The old levelling plan (tree order, gems per stage) is removed.
+
 ## 1.0.51 - 2026-11-11
 
 - **Every tree and setup of your own Path of Building builds**: the Tree, Items, Skills and Config pickers on the Build tab now work for your own PoB builds too (they used to be greyed out), so a build with a levelling tree, a mapping tree and an endgame tree, each with its own gems and supports, can be looked at and used in every tab. For your own builds the choice is kept by PoE Helper and your PoB file is never changed; snapshots and imported builds save it in the build as before. Divider sets like "-------" can't be picked. Switching the skill set or tree puts the main skill back to that setup's own.

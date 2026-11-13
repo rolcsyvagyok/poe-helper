@@ -5,7 +5,7 @@
    Uses helpers defined in app.js (S, call, h, mount, section, toast, pageHead, refreshState, hotkeyField, fmtNum, pobBox, cleanErr). */
 (() => {
   const PB = { recent: [], tab: 'snapshot', file: null, a: null, b: null, text: '', builds: null, results: {}, busy: {} };
-  const TABS = [['snapshot', 'Snapshot'], ['stats', 'Build'], ['tree', 'Tree'], ['calcs', 'Calcs'], ['config', 'Configuration'], ['upgrades', 'Upgrades'], ['gems', 'Support gems'], ['levelling', 'Levelling plan'], ['compare', 'Compare snapshots']];
+  const TABS = [['snapshot', 'Snapshot'], ['stats', 'Build'], ['tree', 'Tree'], ['calcs', 'Calcs'], ['config', 'Configuration'], ['upgrades', 'Upgrades'], ['gems', 'Support gems'], ['levelling', 'Levelling guide'], ['compare', 'Compare snapshots']];
 
   const num = (n, unit = '') => {
     if (n == null || !Number.isFinite(n)) return '–';
@@ -23,7 +23,10 @@
     const st = await call('pob:state').catch(() => ({}));
     const snaps = PB.builds.filter((b) => b.snapshot);
     const has = (f) => f && PB.builds.some((b) => b.file === f);
-    if (!has(PB.file)) PB.file = (has(st.last?.file) ? st.last.file : null) || snaps[0]?.file || PB.builds[0]?.file || null;
+    // the build you work with stays picked (until you pick another or save a new snapshot)
+    if (!has(PB.file)) PB.file = (has(st.current) ? st.current : null) || (has(st.last?.file) ? st.last.file : null) || snaps[0]?.file || PB.builds[0]?.file || null;
+    const LV = PB.lv || (PB.lv = {});
+    if (LV.file === undefined) LV.file = st.levelling || null;
     if (!has(PB.b)) PB.b = PB.file;
     if (!has(PB.a) || PB.a === PB.b) {
       // the snapshot of the same character before the newest one
@@ -44,7 +47,7 @@
       other.length ? h('optgroup', { label: 'Path of Building builds' }, other.map(opt)) : null);
   }
   const buildRow = (extra) => h('div', { class: 'row', style: { gap: '8px', marginBottom: '14px' } },
-    h('span', { class: 'muted small' }, 'Build'), buildSelect(PB.file, (v) => { PB.file = v; PB.results = {}; render(); }), extra || null,
+    h('span', { class: 'muted small' }, 'Build'), buildSelect(PB.file, (v) => { PB.file = v; PB.results = {}; call('pob:setCurrent', v).catch(() => {}); render(); }), extra || null,
     PB.file ? h('button', { class: 'sm', style: { whiteSpace: 'nowrap' }, title: 'Starts Path of Building with this build open', onclick: async (e) => {
       const b = e.currentTarget; b.disabled = true;
       try { await call('pob:openInPob', PB.file); toast('Path of Building is starting with this build'); } catch (err) { toast(errText(err)); } finally { setTimeout(() => { b.disabled = false; }, 3000); }
@@ -286,8 +289,11 @@
   let treeTipEl = null;
   const hideTreeTip = () => { treeTipEl?.remove(); treeTipEl = null; };
 
-  function treeView(r, redraw) {
-    const file = PB.file;
+  // o.file: a build other than the one picked at the top; o.readOnly: just look (the levelling guide)
+  function treeView(r, redraw, o = {}) {
+    const file = o.file || PB.file;
+    const ro = !!o.readOnly;
+    if (ro) r = { ...r, editable: false };
     const byId = new Map(r.nodes.map((n) => [n.i, n]));
     const F = PB.treeOpts || (PB.treeOpts = { q: '' });
     const diffKey = `nodes|${file}`;
@@ -468,8 +474,8 @@
         else if (O.startIds.has(a) && O.startIds.has(b) && (!isOn.get(a) || !isOn.get(b))) e.classList.add('gone');
       }
     }
-    const optPanel = optimiserPanel(r, file);
-    const tlPanel = timelessPanel(r, file);
+    const optPanel = ro ? null : optimiserPanel(r, file);
+    const tlPanel = ro ? null : timelessPanel(r, file);
     // the socket the timeless jewel search is about, with the jewel's radius
     const TL = PB.tl?.file === file ? PB.tl : null;
     const sock = TL && (TL.sockets || []).find((x) => x.id === TL.socket);
@@ -576,7 +582,7 @@
       const n = byId.get(id);
       showTip(n, lastAt);
       clearTimeout(timer);
-      if (n.t >= 4) return;
+      if (n.t >= 4 || ro) return;
       const ready = (dd) => { if (hoverId !== id) return; if (dd?.path?.length) markPath(dd.path); showTip(n, lastAt); };
       if (diffs[id]) return ready(diffs[id]);
       timer = setTimeout(async () => {
@@ -632,17 +638,17 @@
         h('span', { class: 'small' + (ascOver ? ' warn' : ' muted') }, ` · ${r.ascUsed || 0} / ${r.ascMax ?? 8} ascendancy`),
         h('span', { class: 'small muted' }, ` · ${notables} notables and keystones`)),
       h('span', { class: 'spacer' }),
-      h('label', { class: 'small row', style: { gap: '6px' } }, 'Heatmap',
+      ro ? null : h('label', { class: 'small row', style: { gap: '6px' } }, 'Heatmap',
         h('select', { 'aria-label': 'Heatmap', onchange: (e) => { F.heat = e.target.value || null; if (F.heat) runHeat(); else paintHeat(); } },
           h('option', { value: '', selected: !F.heat }, 'Off'), Object.entries(HEAT).map(([k, [label]]) => h('option', { value: k, selected: F.heat === k }, label)))),
       h('input', { type: 'search', placeholder: 'Search the tree', value: F.q, style: { width: '200px' }, oninput: (e) => { F.q = e.target.value; doSearch(); } }), hitBox,
       h('button', { class: 'sm', title: 'Zoom in', onclick: () => zoom(1 / 1.4) }, '+'), h('button', { class: 'sm', title: 'Zoom out', onclick: () => zoom(1.4) }, '−'),
       h('button', { class: 'sm', onclick: () => fit(true) }, 'Your nodes'), h('button', { class: 'sm', onclick: () => fit(false) }, 'Whole tree'),
       r.editable ? h('button', { class: 'sm' + (PB.optOpen ? ' primary' : ''), 'aria-expanded': PB.optOpen ? 'true' : 'false', onclick: () => { PB.optOpen = !PB.optOpen; redraw(r); } }, 'Optimise') : null,
-      h('button', { class: 'sm' + (PB.tlOpen ? ' primary' : ''), 'aria-expanded': PB.tlOpen ? 'true' : 'false', onclick: () => { PB.tlOpen = !PB.tlOpen; redraw(r); } }, 'Timeless jewel'));
+      ro ? null : h('button', { class: 'sm' + (PB.tlOpen ? ' primary' : ''), 'aria-expanded': PB.tlOpen ? 'true' : 'false', onclick: () => { PB.tlOpen = !PB.tlOpen; redraw(r); } }, 'Timeless jewel'));
     doSearch();
     showDiff();
-    if (F.heat) runHeat();
+    if (F.heat && !ro) runHeat();
     // full screen: the tree fills the window (button in its corner, Esc or the button again to leave)
     const FS_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
     const FS_EXIT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
@@ -661,6 +667,7 @@
     PB.treeEsc = (e) => { if (e.key === 'Escape' && PB.treeFull && treeBox.isConnected) setFull(false); };
     document.addEventListener('keydown', PB.treeEsc);
     setTimeout(() => setFull(!!PB.treeFull), 0);
+    if (ro) { diffBar.style.display = 'none'; return [head, treeBox, h('p', { class: 'small faint' }, 'Drag to move, scroll to zoom. Hover a node to read it.')]; }
     return [head, optPanel, tlPanel, heatBox, treeBox, diffBar,
       h('p', { class: 'small faint' }, `Hover a node to see what it does to your build (Path of Building works it out with the path to it). Drag to move, scroll to zoom.${r.editable ? ' Changes are saved into this snapshot.' : ''}`)];
   }
@@ -680,7 +687,7 @@
       try {
         const r = await call('pob:importCode', { text: ta.value, name: share.name });
         share.text = ''; ta.value = '';
-        PB.builds = null; PB.file = r.file; PB.results = {};
+        PB.builds = null; PB.file = r.file; PB.results = {}; call('pob:setCurrent', r.file).catch(() => {});
         const what = [r.info.ascendancy || r.info.className, r.info.level ? `level ${r.info.level}` : null, r.info.skill].filter(Boolean).join(' · ');
         toast(`Imported${r.site ? ` from ${r.site}` : ''}: ${what || 'build'}`);
         PB.tab = 'stats';
@@ -690,7 +697,7 @@
     return h('div', { class: 'panel stack', style: { marginTop: '16px' } },
       h('h3', { style: { margin: 0 } }, 'Share and import builds'),
       h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } },
-        buildSelect(PB.file, (v) => { PB.file = v; PB.results = {}; render(); }, 'Share'),
+        buildSelect(PB.file, (v) => { PB.file = v; PB.results = {}; call('pob:setCurrent', v).catch(() => {}); render(); }, 'Share'),
         h('button', { class: 'sm', disabled: !PB.file, onclick: async () => { try { const r = await call('pob:exportCode', PB.file); toast(`Build code copied (${r.length.toLocaleString()} characters): paste it in Path of Building's Import/Export tab`); } catch (e) { toast(errText(e)); } } }, 'Copy build code'),
         h('button', { class: 'sm', disabled: !PB.file, title: 'Uploads the build to pobb.in and gives you a link anyone can open', onclick: async (e) => {
           const b = e.currentTarget; b.disabled = true;
@@ -838,150 +845,117 @@
     ];
   }
 
-  // ---------------------------------------------------------------- levelling plan
-  // passive points from quests by level (Path of Building's table: the act you are in by then)
-  const QUEST = [[1, 0, 1], [12, 2, 2], [22, 4, 3], [32, 6, 4], [40, 7, 5], [44, 9, 6], [50, 12, 7], [54, 15, 8], [60, 18, 9], [64, 20, 10], [67, 23, 11]];
-  const pointsAt = (level, extra) => { let q = QUEST[0]; for (const a of QUEST) if (level >= a[0]) q = a; return Math.max(0, level - 1) + q[1] + (q[2] > 2 ? extra : 0); };
-  const ascAt = (level) => (level >= 75 ? 8 : level >= 68 ? 6 : level >= 55 ? 4 : level >= 33 ? 2 : 0);
-  const LAB = { 2: 'Normal labyrinth', 4: 'Cruel labyrinth', 6: 'Merciless labyrinth', 8: 'Uber labyrinth' };
-  const LP_STAGES = (final) => [...new Set([12, 22, 32, 40, 50, 60, 68, 75, 85, final].filter((l) => l <= final))].sort((a, b) => a - b);
   const LINKS_AT = (L) => (L < 12 ? 2 : L < 31 ? 3 : L < 60 ? 4 : 5);
+
+  // ---------------------------------------------------------------- levelling guide
+  // A build of its own (a guide imported from Path of Building), only to look at: its trees and the gems
+  // that go with each. It is never used for upgrades, the item tester or the price check comparison.
   function levellingTab() {
     const out = h('div', { class: 'stack' });
-    if (!PB.file) { mount(out, h('p', { class: 'small muted' }, 'Pick a build first, or save a snapshot.')); return [buildRow(), out]; }
-    const file = PB.file;
-    const key = `levelling|${file}`;
-    const LP = PB.lpSet || (PB.lpSet = { goal: 'dl', skill: '', switchAt: 'auto' });
-    const res = h('div', { class: 'stack' });
-    const ask = (op, o = {}) => call('pob:levelPlan', { file, op, ...o });
-    const skillsKey = `skills|${file}`;
-    const list = h('datalist', { id: 'pob-skill-list' });
-    const fillList = (sk) => mount(list, sk.map((x) => h('option', { value: x.name }, `${x.tags || ''}${x.req > 1 ? ` · level ${x.req}` : ''}`)));
-    if (PB.results[skillsKey]) fillList(PB.results[skillsKey]);
-    else ask('activeSkills').then((x) => { PB.results[skillsKey] = x.skills || []; fillList(PB.results[skillsKey]); }).catch(() => {});
-    const msg = (t) => mount(res, h('p', { class: 'small muted' }, h('span', { class: 'spin' }), ` ${t}`));
-    const run = async (btn) => {
-      btn.disabled = true;
+    const LV = PB.lv || (PB.lv = {});
+    const builds = PB.builds || [];
+    const file = LV.file && builds.some((b) => b.file === LV.file) ? LV.file : null;
+    const pick = async (f) => { LV.file = f || null; await call('pob:setLevelling', LV.file).catch(() => {}); render(); };
+    const codeIn = h('input', { type: 'text', placeholder: 'Paste a Path of Building code or a pobb.in / poe.ninja / Maxroll link', style: { flex: 1, minWidth: '260px' }, 'aria-label': 'Levelling build code or link' });
+    const importBtn = h('button', { class: 'primary sm', onclick: async () => {
+      importBtn.disabled = true;
       try {
-        const skills = PB.results[skillsKey] || [];
-        const lvSkill = LP.skill.trim() ? skills.find((x) => x.name.toLowerCase() === LP.skill.trim().toLowerCase()) : null;
-        if (LP.skill.trim() && !lvSkill) throw new Error(`"${LP.skill}" isn't a skill gem Path of Building knows. Pick one from the list.`);
-        const st0 = PB.results[`stats|${file}`] || await call('pob:stats', file);
-        PB.results[`stats|${file}`] = st0;
-        const final = st0.level || 90;
-        const stages = LP_STAGES(final);
-        const R = { plan: null, gems: {}, lv: {}, skill: lvSkill?.name || null, switchLevel: null };
-        let switchLevel = null;
-        if (lvSkill) {
-          // gems for both skills at every stage, to see when the build's skill takes over
-          for (const L of stages) {
-            msg(`Level ${L}: the best supports for ${lvSkill.name} and for your build's skill…`);
-            try { R.lv[L] = await ask('levelSkill', { skill: lvSkill.id, level: L, links: LINKS_AT(L), quality: L < 60 ? 0 : 20 }); } catch (e) { R.lv[L] = { error: errText(e) }; }
-            try { R.gems[L] = await call('pob:supportGems', { file, level: L, quality: L < 60 ? 0 : 20 }); } catch (e) { R.gems[L] = { error: errText(e) }; }
-          }
-          if (LP.switchAt === 'auto') {
-            switchLevel = stages.find((L) => { const m = R.gems[L]; const v = R.lv[L]; return m && !m.error && !(m.skillReq > L) && (!v || v.error || (m.finalValue || 0) >= (v.finalValue || 0)); }) || final;
-          } else switchLevel = Number(LP.switchAt);
-          R.switchLevel = switchLevel;
-        }
-        msg('Path of Building is working out the order to take your tree in…');
-        const before = stages.filter((L) => L < (switchLevel || 0));
-        const lastLv = before.length ? R.lv[before[before.length - 1]] : null;
-        const extra = 0;
-        const st = await ask('levelPlanStart', { goal: LP.goal, ...(lvSkill ? { skill: lvSkill.id, skillLevel: lastLv?.levelled?.find((x) => x.name === lvSkill.name)?.to || 10, supports: (lastLv?.final || []).filter((f) => !f.off).map((f) => ({ name: f.name, level: f.level, quality: f.quality })), switchPoints: pointsAt(switchLevel, extra) } : {}) });
-        if (st.error) throw new Error(st.error);
-        let x;
-        do {
-          x = await ask('levelPlanStep', { seconds: 3 });
-          if (x.error) throw new Error(x.error);
-          if (!x.done) msg(`${x.got} of ${x.total} points placed…`);
-        } while (!x.done);
-        R.plan = x;
-        PB.results[key] = R;
-        mount(res, levellingView(R, file));
-      } catch (e) { mount(res, h('p', { class: 'small warn' }, errText(e))); } finally { btn.disabled = false; }
+        const r = await call('pob:importCode', { text: codeIn.value, name: 'Levelling' });
+        PB.builds = null; await loadBuilds(true);
+        toast(`Imported${r.site ? ` from ${r.site}` : ''}: ${r.info?.skill || 'build'}`);
+        await pick(r.file);
+      } catch (e) { toast(errText(e), true); } finally { importBtn.disabled = false; }
+    } }, 'Import');
+    const top = h('div', { class: 'panel stack', style: { gap: '10px' } },
+      h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('span', { class: 'muted small' }, 'Levelling guide'),
+        (() => {
+          // your levelling guides first (imported here), then every other build
+          const isGuide = (b) => /(^|\/ )Levelling /.test(b.name);
+          const opt = (b) => h('option', { value: b.file, selected: b.file === file }, b.name.replace(/^PoE Helper snapshots \/ /, '').replace(/^Levelling /, ''));
+          const guides = builds.filter(isGuide);
+          const rest = builds.filter((b) => !isGuide(b));
+          return h('select', { 'aria-label': 'Levelling build', style: { flex: 1, minWidth: '220px' }, onchange: (e) => pick(e.target.value) },
+            h('option', { value: '', selected: !file }, guides.length ? 'Pick a levelling guide…' : 'Import a levelling build below, or pick a build…'),
+            guides.length ? h('optgroup', { label: 'Levelling guides' }, guides.map(opt)) : null,
+            rest.length ? h('optgroup', { label: 'Other builds' }, rest.map(opt)) : null);
+        })(),
+        file ? h('button', { class: 'quiet sm', onclick: () => pick(null) }, 'Clear') : null),
+      h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, codeIn, importBtn),
+      h('p', { class: 'small faint' }, 'A levelling guide from Path of Building: pick its trees and see the gems that go with each. It is only for looking: upgrades, the item tester and the price check keep using the build at the top of the Build tab.'));
+    out.append(top);
+    if (!file) { out.append(h('p', { class: 'small muted' }, 'Import a levelling build (paste its code or link), or pick one from the list.')); return [out]; }
+
+    const statsKey = `stats|${file}`;
+    const treeKey = `tree|${file}`;
+    const body = h('div', { class: 'stack' }, h('p', { class: 'small muted' }, h('span', { class: 'spin' }), ' Loading the build…'));
+    out.append(body);
+    const switchSet = async (kind, value) => {
+      try {
+        const st = await call('pob:buildSet', { file, kind, value, link: kind === 'tree' });
+        delete PB.results[treeKey];
+        PB.results[statsKey] = st;
+        draw();
+      } catch (e) { toast(errText(e), true); }
     };
-    if (PB.results[key]) mount(res, levellingView(PB.results[key], file));
-    const stagesNow = LP_STAGES(PB.results[`stats|${file}`]?.level || 90);
-    mount(out, h('div', { class: 'panel stack' },
-      h('p', { class: 'small muted', style: { margin: 0 } }, 'How to get to this build from level 1: the order to take its passive tree in (each time the path worth most per point, only through nodes of this tree), the ascendancy points by labyrinth, and the best support gems you can use at each stage. Pick a levelling skill to level with something else first: the tree is ordered for it until you switch to the build\'s skill, and it gets its own gems. It is worked out with the gear of this build, so read it as an order, not exact numbers.'),
-      h('div', { class: 'row', style: { gap: '12px', flexWrap: 'wrap' } },
-        h('label', { class: 'small row', style: { gap: '6px' } }, 'Levelling skill', list,
-          h('input', { type: 'text', list: 'pob-skill-list', placeholder: 'Your build\'s skill (or type: Rolling Magma, Splitting Steel…)', value: LP.skill, style: { width: '300px' }, oninput: (e) => { LP.skill = e.target.value; } })),
-        h('label', { class: 'small row', style: { gap: '6px' } }, 'Switch to the build\'s skill at', h('select', { 'aria-label': 'Switch at', onchange: (e) => { LP.switchAt = e.target.value; } },
-          [['auto', 'when it does more'], ...stagesNow.map((L) => [String(L), `level ${L}`])].map(([v, t]) => h('option', { value: v, selected: LP.switchAt === v }, t)))),
-        h('label', { class: 'small row', style: { gap: '6px' } }, 'Take first', h('select', { 'aria-label': 'Take first', onchange: (e) => { LP.goal = e.target.value; } },
-          [['dl', 'Damage and life'], ['d', 'Damage'], ['l', 'Life and defences']].map(([v, t]) => h('option', { value: v, selected: LP.goal === v }, t)))),
-        h('span', { class: 'spacer' }), h('button', { class: 'primary sm', onclick: (e) => run(e.currentTarget) }, PB.results[key] ? 'Work it out again' : 'Make the plan'))), res);
-    return [buildRow(), out];
-  }
-  function levellingView(R, file) {
-    const plan = R.plan;
-    const final = plan.level || 90;
-    const stages = [...new Set([12, 22, 32, 40, 50, 60, 68, 75, 85, final].filter((l) => l <= final))].sort((a, b) => a - b);
-    const extra = plan.extra || 0;
-    // walk the order: what is taken by each stage
-    let k = 0, used = 0, ka = 0, usedA = 0;
-    const cards = [];
-    for (const L of stages) {
-      const pts = pointsAt(L, extra);
-      const newNodes = [];
-      let last = null;
-      while (k < plan.order.length && used + plan.order[k].points <= pts) { used += plan.order[k].points; newNodes.push(...plan.order[k].nodes); last = plan.order[k]; k++; }
-      const apts = ascAt(L);
-      const newAsc = [];
-      while (ka < plan.ascOrder.length && usedA + plan.ascOrder[ka].nodes.length <= apts) { usedA += plan.ascOrder[ka].nodes.length; newAsc.push(...plan.ascOrder[ka].nodes); ka++; }
-      cards.push({ L, pts, used, newNodes, newAsc, apts, last });
+    const setPick = (label, kind, list, cur) => (list && list.length > 1 ? h('label', { class: 'row small', style: { gap: '6px' } }, h('span', { class: 'muted' }, label),
+      h('select', { 'aria-label': label, onchange: (e) => switchSet(kind, Number(e.target.value)) },
+        list.map((x, i) => { const t = kind === 'tree' ? x : x.title; const divider = /^[-=_~*.\s]{3,}$/.test(t); return h('option', { value: kind === 'tree' ? i + 1 : x.id, selected: kind === 'tree' ? i + 1 === cur : x.id === cur, disabled: divider }, divider ? '──────────' : t); }))) : null);
+    // copy a vendor search for the gems shown (more than one string when they don't fit in 250 characters:
+    // each press copies the next one)
+    const copyRegex = async (btn, st) => {
+      try {
+        const names = (st.gems || []).flatMap((g) => g.gems.map((x) => x.name));
+        const key = `${file}|${st.sets?.skillsActive || ''}`;
+        if (LV.rx?.key !== key) LV.rx = { key, r: await call('pob:gemRegex', names), i: 0 };
+        const { r } = LV.rx;
+        if (!r.strings.length) return toast('None of these gems can be searched for.', true);
+        const k = LV.rx.i % r.strings.length;
+        await call('clipboard:write', r.strings[k].text);
+        LV.rx.i = k + 1;
+        btn.textContent = r.strings.length > 1 ? `Copy gem search (${(k + 1) % r.strings.length + 1} of ${r.strings.length})` : 'Copy gem search';
+        toast(r.strings.length > 1 ? `Search ${k + 1} of ${r.strings.length} copied (${r.strings[k].count} gems): press again for the next` : `Gem search copied (${r.count} gems): paste it in a vendor's search box`);
+      } catch (e) { toast(errText(e), true); }
+    };
+    const gemsPanel = (st) => h('div', { class: 'panel pob-stat' }, h('div', { class: 'row', style: { gap: '8px' } }, h('h3', { style: { margin: 0 } }, 'Gems'), h('span', { class: 'spacer' }),
+      h('button', { class: 'sm', title: 'Copies a search for every gem in this gem setup: paste it in a vendor\'s search box (Ctrl+F) to highlight them', onclick: (e) => copyRegex(e.currentTarget, st) }, 'Copy gem search')),
+      (st.gems || []).length ? st.gems.map((g) => h('div', { class: 'pob-gems' + (g.enabled ? '' : ' off') },
+        h('div', { class: 'small muted' }, g.slot || 'No slot', g.label ? ` · ${g.label}` : '', g.enabled ? '' : ' · off'),
+        h('div', {}, g.gems.map((x, k) => h('span', { class: (x.support ? 'sup' : 'act') + (x.enabled ? '' : ' off') }, k ? ' · ' : '', `${x.name} ${x.level}${x.quality ? `/${x.quality}` : ''}`)))))
+        : h('p', { class: 'small muted' }, 'No gems in this skill set.'));
+    async function draw() {
+      try {
+        const st = PB.results[statsKey] || (PB.results[statsKey] = await call('pob:stats', file));
+        const tr = PB.results[treeKey] || (PB.results[treeKey] = await call('pob:tree', file));
+        const S2 = st.sets || {};
+        const pickers = h('div', { class: 'panel row small', style: { gap: '14px', flexWrap: 'wrap' } },
+          h('b', {}, `${st.ascendancy || st.class || ''}`), h('span', { class: 'muted' }, st.skill ? `${st.skill}` : ''), h('span', { class: 'spacer' }),
+          setPick('Tree', 'tree', S2.trees, S2.tree), setPick('Gems', 'skills', S2.skills, S2.skillsActive), setPick('Items', 'items', S2.items, S2.itemsActive),
+          !(S2.trees?.length > 1) && !(S2.skills?.length > 1) ? h('span', { class: 'faint' }, 'This build has one tree and one gem setup.') : null);
+        const treeOut = h('div', { class: 'stack' });
+        const redraw = (r) => mount(treeOut, treeView(r, redraw, { file, readOnly: true }));
+        redraw(tr);
+        // every gem of the build (all its gem setups) as a saved search on the Regex page's gem list
+        const nameIn = h('input', { placeholder: 'Name, e.g. Slam leveling', style: { flex: 1, minWidth: '140px' }, 'aria-label': 'Name for the gem search' });
+        const saveGems = h('button', { class: 'sm', onclick: async () => {
+          const name = nameIn.value.trim();
+          if (!name) { nameIn.focus(); return toast('Type a name for the gem search first.', true); }
+          try {
+            const sets = (st.sets?.skills || []).filter((x) => !/^[-=_~*.\s]{3,}$/.test(x.title));
+            const only = whichIn.value === 'all' ? null : sets.filter((x) => whichIn.value === 'cur' ? x.id === st.sets?.skillsActive : sets.indexOf(x) <= sets.findIndex((y) => y.id === st.sets?.skillsActive)).map((x) => x.title);
+            const g = await call('pob:buildGems', { file, only });
+            if (!g.gems.length) return toast('No gems the gem regex knows in this build.', true);
+            S.settings.regexPresets = await call('regex:savePreset', { name, kind: 'gems-0', choices: { picks: g.gems, cls: '', act: 0 } });
+            toast(`Saved "${name}" with ${g.gems.length} gems: Regex page → Gems${g.unknown.length ? ` (${g.unknown.length} not in the gem list: ${g.unknown.slice(0, 3).join(', ')})` : ''}`);
+          } catch (e) { toast(errText(e), true); }
+        } }, 'Save gems as a gem search');
+        const whichIn = h('select', { 'aria-label': 'Which gem setups', class: 'sm' },
+          h('option', { value: 'all' }, 'All gem setups'), h('option', { value: 'upto' }, 'Gem setups up to the one shown'), h('option', { value: 'cur' }, 'Only the gem setup shown'));
+        const regexBox = h('div', { class: 'panel stack', style: { gap: '8px' } }, h('div', { class: 'small muted' }, 'Gem search for vendors: the gems of this build, saved on the Regex page.'), whichIn, h('div', { class: 'row', style: { gap: '8px' } }, nameIn, saveGems));
+        mount(body, pickers, h('div', { class: 'pob-buildcols' }, h('div', { style: { minWidth: 0 } }, treeOut), h('div', { class: 'pob-side stack', style: { gap: '12px' } }, gemsPanel(st), regexBox)));
+      } catch (e) { mount(body, h('p', { class: 'small warn' }, errText(e))); }
     }
-    const lvBox = (L) => {
-      if (!R.skill || !R.switchLevel || L >= R.switchLevel) return null;
-      const g = R.lv?.[L];
-      if (!g) return null;
-      if (g.error) return h('div', { class: 'small warn' }, g.error);
-      const sk = g.levelled?.find((x) => x.name === R.skill);
-      const m = R.gems[L];
-      return h('div', { class: 'small' }, h('span', { class: 'muted' }, 'Level with: '), h('b', {}, `${R.skill} ${sk ? sk.to : 1}`), ' · ',
-        g.final.filter((f) => !f.off).map((f) => `${f.name} ${f.level}`).join(' · '), h('span', { class: 'faint' }, ` (${LINKS_AT(L)}-link) · ${num(g.finalValue)} DPS`),
-        g.weapon ? h('span', { class: 'faint' }, ` · with a plain ${g.weapon} (your weapon can't use ${R.skill})`) : null,
-        m && !m.error ? h('span', { class: 'faint' }, `; ${m.skill} would do ${num(m.finalValue)}`) : null);
-    };
-    const gemsBox = (L) => {
-      if (R.skill && R.switchLevel && L < R.switchLevel) return lvBox(L);
-      const g = R.gems[L];
-      if (!g) return null;
-      if (g.error) return h('div', { class: 'small warn' }, g.error);
-      if (g.skillReq && g.skillReq > L) return h('div', { class: 'small warn' }, `${g.skill} needs level ${g.skillReq}: use another skill until then.`);
-      const late = (g.unusable || []).filter((u) => u.support);
-      return h('div', { class: 'small' }, h('span', { class: 'muted' }, 'Gems: '),
-        g.levelled.find((x) => x.name === g.skill) ? `${g.skill} ${g.levelled.find((x) => x.name === g.skill).to}` : g.skill, ' · ',
-        g.final.map((f) => (f.off ? '(empty socket)' : `${f.name} ${f.level}`)).join(' · '),
-        late.length ? h('span', { class: 'faint' }, ` · not yet: ${late.map((u) => `${u.name} (level ${u.req})`).join(', ')}`) : null,
-        (() => { const now = new Set(g.final.map((f) => f.name)); const lateNames = new Set(late.map((u) => u.name)); const out = g.final.map((f) => f.was).filter((w) => !now.has(w) && !lateNames.has(w)); return out.length ? h('span', { class: 'faint' }, ` · better than your ${out.join(', ')} here`) : null; })());
-    };
-    const runGems = async (btn) => {
-      btn.disabled = true;
-      try {
-        for (const c of cards) {
-          mount(btn, h('span', { class: 'spin' }), ` level ${c.L}…`);
-          try { R.gems[c.L] = await call('pob:supportGems', { file, level: c.L, quality: c.L < 60 ? 0 : 20 }); } catch (e) { R.gems[c.L] = { error: errText(e) }; }
-        }
-      } finally { mount(wrap, levellingView(R, file)); }
-    };
-    const wrap = h('div', { class: 'stack' },
-      h('div', { class: 'row', style: { gap: '10px' } }, h('span', { class: 'small muted' }, `${plan.order.reduce((n, o) => n + o.points, 0)} passive points and ${plan.ascOrder.reduce((n, o) => n + o.nodes.length, 0)} ascendancy points, in ${stages.length} stages to level ${final}.`), h('span', { class: 'spacer' }),
-        h('button', { class: 'sm', title: 'The best supports you can use at each stage (quality 0 before level 60, 20 after)', onclick: (e) => runGems(e.currentTarget) }, Object.keys(R.gems).length ? 'Work out the gems again' : 'Add the best gems for each stage')),
-      h('ol', { class: 'pob-lp' }, cards.map((c) => h('li', { class: 'panel stack' },
-        R.skill && R.switchLevel === c.L ? h('div', { class: 'small good' }, `Switch from ${R.skill} to ${R.gems[c.L]?.skill || 'your build\'s skill'} here.`,
-          (R.lv?.[c.L]?.finalValue || 0) > (R.gems[c.L]?.finalValue || 0) ? h('span', { class: 'faint' }, ` (${R.skill} would still do more: ${num(R.lv[c.L].finalValue)} against ${num(R.gems[c.L].finalValue)} DPS with this gear)`) : null) : null,
-        h('div', { class: 'row', style: { gap: '12px', flexWrap: 'wrap' } }, h('b', {}, `Level ${c.L}`), h('span', { class: 'small muted' }, `${c.used} of ${c.pts} points`),
-          c.apts ? h('span', { class: 'small muted' }, `${c.apts} ascendancy (${LAB[c.apts]})`) : null,
-          c.last ? h('span', { class: 'small faint' }, `${num(c.last.life)} life with this gear`) : null),
-        c.newNodes.length ? h('div', { class: 'small' }, h('span', { class: 'muted' }, 'Take: '),
-          c.newNodes.filter((n) => n.type === 1 || n.type === 2 || n.type === 3).map((n, i) => h('span', {}, i ? ', ' : '', h('b', { class: n.type === 2 ? 'ks' : '' }, n.name || 'Jewel socket'))),
-          h('span', { class: 'faint' }, ` and ${c.newNodes.filter((n) => !(n.type === 1 || n.type === 2 || n.type === 3)).length} small passives on the way`)) : h('div', { class: 'small faint' }, 'Nothing new: save the points (or level up).'),
-        c.newAsc.length ? h('div', { class: 'small' }, h('span', { class: 'muted' }, 'Ascendancy: '), c.newAsc.filter((n) => n.type === 1).map((n) => n.name).join(', ') || c.newAsc.map((n) => n.name).join(', ')) : null,
-        gemsBox(c.L)))));
-    return wrap;
+    draw();
+    return [out];
   }
 
   // ---------------------------------------------------------------- timeless jewels
@@ -1758,6 +1732,6 @@
   });
 
   // a snapshot just saved: show it on the Build tab
-  const showBuild = (file) => { if (file) { PB.file = file; PB.lastSeen = file; } PB.tab = 'stats'; PB.results = {}; PB.builds = null; render(); };
+  const showBuild = (file) => { if (file) { PB.file = file; PB.lastSeen = file; call('pob:setCurrent', file).catch(() => {}); } PB.tab = 'stats'; PB.results = {}; PB.builds = null; render(); };
   window.PobView = { render, showBuild };
 })();

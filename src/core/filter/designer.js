@@ -110,6 +110,18 @@ const PRESETS = [
   },
 ];
 
+/**
+ * Every tier keeps FilterBlade's own sound for it (Currency Tier 1 the Divine sound 6, uniques 3, maps 4 and 5,
+ * and so on): a design changes the look, not the sound. A sound file you added yourself stays.
+ */
+function withFilterSound(st) {
+  if (!st) return st;
+  const own = st.customSound && !/^poehelper-sounds\//.test(st.customSound);
+  if (own) return st;
+  const { sound: _s, customSound: _c, customVolume: _v, ...rest } = st;
+  return { ...rest, keepSound: true };
+}
+
 /** "t1", "t1exalted", "t3boss", "t4c" -> number; "restex", "tnew", "twisdom" -> null */
 function tierLevel(tierName) {
   const m = /^t(\d)(?!\d)/i.exec(String(tierName || ''));
@@ -150,7 +162,7 @@ function applyDesign(view, patch, levels, { groups = null } = {}) {
   for (const t of targets) {
     const st = levels[t.level];
     if (!st) continue;
-    styles[t.key] = JSON.parse(JSON.stringify(st));
+    styles[t.key] = withFilterSound(JSON.parse(JSON.stringify(st)));
     count++;
   }
   return { patch: { ...patch, moves: { ...(patch.moves || {}) }, styles }, count, categories: new Set(targets.map((t) => t.type)).size };
@@ -211,4 +223,4 @@ function randomTheme(rnd = Math.random) {
 
 for (const p of PRESETS) p.levels.giga = gigaLook(p.levels[1]);
 
-module.exports = { randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

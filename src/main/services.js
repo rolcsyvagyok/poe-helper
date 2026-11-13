@@ -1724,6 +1724,24 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     }
     settings.set('gameSoundsV1', true);
   }
+  // 1.0.52: every tier plays FilterBlade's own sound for it again (themes used to set game sounds of their
+  // own and none at all on Tier 5-6). Sound files you added yourself stay.
+  if (!settings.get('fbSoundsV1')) {
+    const tp = settings.get('tierPatch');
+    if (tp?.styles) {
+      const styles = {};
+      for (const [k, st] of Object.entries(tp.styles)) styles[k] = designer.withFilterSound(st);
+      settings.set('tierPatch', { ...tp, styles });
+    }
+    const d = settings.get('designer');
+    if (d?.levels) {
+      const levels = {};
+      for (const [k, st] of Object.entries(d.levels)) levels[k] = k === 'giga' ? st : designer.withFilterSound(st);
+      settings.set('designer', { ...d, levels });
+    }
+    settings.set('fbSoundsV1', true);
+    try { if (filters.basePath()) filters.write(); } catch (e) { log('filter sounds upgrade', e.message); }
+  }
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 

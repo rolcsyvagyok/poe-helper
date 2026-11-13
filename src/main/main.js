@@ -835,6 +835,43 @@ function registerIpc() {
   handle('regex:gemView', () => services.regexGemView());
   handle('regex:gemBuild', (a) => services.regexGemBuild(a || {}));
   handle('pob:state', () => pobState());
+  // the build you work with (picked at the top of the PoB page, or your newest snapshot): kept until you pick
+  // another or save a new snapshot; upgrades, the item tester and the price check compare against it
+  const setPobKey = (k, file) => {
+    const v = file && typeof file === 'string' && fs.existsSync(file) && /\.xml$/i.test(file) ? file : null;
+    const cur = services.settings.get('pob') || {};
+    services.settings.set('pob', { ...cur, [k]: v });
+    return v;
+  };
+  handle('pob:setCurrent', (file) => setPobKey('current', file));
+  // the levelling guide's build: only looked at, never compared against
+  handle('pob:setLevelling', (file) => setPobKey('levelling', file));
+  // every gem of a build (all its skill sets), named as the gem regex knows them
+  // a vendor search for some gems (names as Path of Building shows them): the gem regex's strings, nothing saved
+  handle('pob:gemRegex', (names) => {
+    const G = require('../core/regex/gems');
+    const known = new Set(G.gemList().map((g) => g.name));
+    const picks = [...new Set((Array.isArray(names) ? names : []).map((n) => String(n).trim()).map((n) => (known.has(n) ? n : known.has(`${n} Support`) ? `${n} Support` : null)).filter(Boolean))];
+    return { ...G.buildGemRegex({ picks }), asked: Array.isArray(names) ? names.length : 0 };
+  });
+  // only: gem setup titles to take (e.g. the levelling ones); none = all of them
+  handle('pob:buildGems', (arg) => {
+    const { file, only } = typeof arg === 'string' ? { file: arg } : (arg || {});
+    if (!file || !/\.xml$/i.test(file) || !fs.existsSync(file)) throw new Error('Pick a build first.');
+    let xml = fs.readFileSync(file, 'utf8');
+    if (Array.isArray(only) && only.length) {
+      const want = new Set(only.map(String));
+      const parts = [...xml.matchAll(/<SkillSet\b([^>]*)>([\s\S]*?)<\/SkillSet>/g)].filter((m) => want.has((/\btitle="([^"]*)"/.exec(m[1]) || [])[1]?.replace(/&apos;/g, "'").replace(/&amp;/g, '&') || ''));
+      xml = parts.map((m) => m[2]).join('\n');
+    }
+    const dec = (t) => t.replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    const known = new Set(require('../core/regex/gems').gemList().map((g) => g.name));
+    const nameOf = (n) => (known.has(n) ? n : known.has(`${n} Support`) ? `${n} Support` : null);
+    const gems = new Set();
+    const unknown = new Set();
+    for (const m of xml.matchAll(/<Gem\b[^>]*\bnameSpec="([^"]+)"/g)) { const n = dec(m[1]).trim(); const k = nameOf(n); if (k) gems.add(k); else if (n) unknown.add(n); }
+    return { gems: [...gems], unknown: [...unknown] };
+  });
   // the icon of Path of Building.exe in your PoB folder, for the menu
   handle('pob:icon', async () => {
     const dir = pobState().dir;
@@ -852,12 +889,6 @@ function registerIpc() {
     if (!real.toLowerCase().endsWith('.xml') || !rel || rel.startsWith('..') || !fs.existsSync(real)) throw new Error('That build isn\'t in your Path of Building builds folder.');
     return real;
   };
-  const webText = async (url, opts = {}) => {
-    const r = await fetch(url, { ...opts, headers: { 'User-Agent': `PoE Helper/${app.getVersion()}`, ...(opts.headers || {}) }, signal: AbortSignal.timeout(20000) });
-    const t = await r.text();
-    if (!r.ok) throw new Error(`${new URL(url).hostname} said ${r.status}${t && t.length < 200 ? `: ${t.trim()}` : ''}`);
-    return t;
-  };
   // the code goes straight to the clipboard (codes are long)
   handle('pob:exportCode', (file) => { const code = require('../core/pob-code').encode(fs.readFileSync(pobBuildFile(file), 'utf8')); clipboard.writeText(code); return { length: code.length }; });
   handle('pob:sharePobb', async (file) => {
@@ -866,31 +897,7 @@ function registerIpc() {
     if (!/^[\w-]{3,64}$/.test(id)) throw new Error('pobb.in didn\'t send a link back.');
     return { url: `https://pobb.in/${id}` };
   });
-  handle('pob:importCode', async ({ text, name } = {}) => {
-    const C = require('../core/pob-code');
-    let code = String(text || '').trim();
-    if (!code) throw new Error('Paste a Path of Building code or link first.');
-    let site = null;
-    if (C.isLink(code)) {
-      const src = C.linkSource(code);
-      if (!src) throw new Error('Path of Building doesn\'t import from that site. Links from pobb.in, pob.codes, poe.ninja, Maxroll, Pastebin, Rentry and poedb work.');
-      site = src.site;
-      code = (await webText(src.raw)).trim();
-    }
-    const xml = C.decode(code);
-    const info = C.infoFromXml(xml);
-    const st = pobState();
-    const dir = path.join(st.buildsDir, 'PoE Helper snapshots');
-    fs.mkdirSync(dir, { recursive: true });
-    const d = new Date();
-    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}`;
-    const base = String(name || '').trim() || `Imported ${[info.ascendancy || info.className, info.level, info.skill].filter(Boolean).join(' ')}`;
-    const clean = base.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').slice(0, 80).trim() || 'Imported build';
-    let file = path.join(dir, `${clean} ${stamp}.xml`);
-    for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${clean} ${stamp} (${i}).xml`);
-    fs.writeFileSync(file, xml, 'utf8');
-    return { file, info, site };
-  });
+  handle('pob:importCode', (o = {}) => importBuildCode(o));
   // open a build in Path of Building itself: PoB starts with the build it had open last, so that is set first
   handle('pob:openInPob', (file) => {
     const st = pobState();
@@ -1069,7 +1076,7 @@ function registerIpc() {
   });
   // the levelling plan: the order to take the tree in (gems per level come from pob:supportGems)
   handle('pob:levelPlan', ({ file, op, ...o } = {}) => {
-    if (!['levelPlanStart', 'levelPlanStep', 'activeSkills', 'levelSkill'].includes(op)) throw new Error('Unknown levelling plan request.');
+    if (!['activeSkills', 'levelSkill'].includes(op)) throw new Error('Unknown levelling plan request.');
     return pobWith(file, () => pob.timeless(op, o));
   });
   // timeless jewels: every seed in one of your sockets, scored by PoB; "keep" puts the chosen one in the snapshot
@@ -1304,6 +1311,7 @@ function pobState() {
   const buildsDir = st.buildsDir && fs.existsSync(st.buildsDir) ? st.buildsDir : dirs.find((d) => fs.existsSync(d)) || dirs[dirs.length - 1];
   return {
     dir, dirFound: !!dir, buildsDir, character: st.character || null, charView: st.charView || {}, watchClipboard: st.watchClipboard !== false, find: st.find || null, last: st.last || null,
+    current: st.current && fs.existsSync(st.current) ? st.current : null, levelling: st.levelling && fs.existsSync(st.levelling) ? st.levelling : null,
     state: pob?.state || 'off', error: pob?.error || null, platform: process.platform,
   };
 }
@@ -1406,8 +1414,6 @@ function pobIdleLater() {
 }
 /** Runs fn with that build loaded in PoB; calls wait their turn. */
 function pobWith(file, fn) {
-  // the build in use, for the compare hotkey
-  try { const cur = services.settings.get('pob') || {}; if (file && cur.current !== file) services.settings.set('pob', { ...cur, current: file }); } catch { /* not important */ }
   const job = pobQueue.then(async () => {
     const st = pobState();
     if (!st.dir) throw new Error('Path of Building (Community) wasn\'t found. Choose its folder on the Path of Building page.');
@@ -1473,7 +1479,7 @@ async function pobSnapshotNow() {
     fs.writeFileSync(file, r.xml, 'utf8');
     delete r.xml;
     delete r.id;
-    services.settings.set('pob', { ...(services.settings.get('pob') || {}), last: { file, at: Date.now(), character: character.name, summary: r } });
+    services.settings.set('pob', { ...(services.settings.get('pob') || {}), current: file, last: { file, at: Date.now(), character: character.name, summary: r } });
     log('pob snapshot', file);
     mainWin?.webContents.send('pob:changed');
     return { file, character: character.name, summary: r };
@@ -1492,8 +1498,79 @@ async function pobSnapshotNotify() {
   }
 }
 
+/** A page's text (build code sites), with the app's name as the user agent. */
+async function webText(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { 'User-Agent': `PoE Helper/${app.getVersion()}`, ...(opts.headers || {}) }, signal: AbortSignal.timeout(20000) });
+  const t = await r.text();
+  if (!r.ok) throw new Error(`${new URL(url).hostname} said ${r.status}${t && t.length < 200 ? `: ${t.trim()}` : ''}`);
+  return t;
+}
+
+/** A Path of Building code or link (pobb.in, pob.codes, poe.ninja…) saved as a build in the snapshots folder. */
+async function importBuildCode({ text, name } = {}) {
+  const C = require('../core/pob-code');
+  let code = String(text || '').trim();
+  if (!code) throw new Error('Paste a Path of Building code or link first.');
+  let site = null;
+  if (C.isLink(code)) {
+    const src = C.linkSource(code);
+    if (!src) throw new Error('Path of Building doesn\'t import from that site. Links from pobb.in, pob.codes, poe.ninja, Maxroll, Pastebin, Rentry and poedb work.');
+    site = src.site;
+    code = (await webText(src.raw)).trim();
+  }
+  const xml = C.decode(code);
+  const info = C.infoFromXml(xml);
+  const st = pobState();
+  const dir = path.join(st.buildsDir, 'PoE Helper snapshots');
+  fs.mkdirSync(dir, { recursive: true });
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}`;
+  const what = [info.ascendancy || info.className, info.level, info.skill].filter(Boolean).join(' ');
+  const base = String(name || '').trim() === 'Levelling' ? `Levelling ${what}` : String(name || '').trim() || `Imported ${what}`;
+  const clean = base.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').slice(0, 80).trim() || 'Imported build';
+  let file = path.join(dir, `${clean} ${stamp}.xml`);
+  for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${clean} ${stamp} (${i}).xml`);
+  fs.writeFileSync(file, xml, 'utf8');
+  return { file, info, site };
+}
+
+/**
+ * setup.json in the app's data folder, read once at start and then deleted: a levelling guide build and saved
+ * gem searches to add (handy for setting up a friend's copy). Anything that doesn't check out is skipped.
+ * { "levelling": "C:\\...\\build.xml", "gemSearches": [{ "name": "Slam leveling", "gems": ["Ground Slam", ...] }] }
+ */
+function applySetupFile() {
+  const f = path.join(app.getPath('userData'), 'setup.json');
+  if (!fs.existsSync(f)) return;
+  try {
+    const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+    const cur = services.settings.get('pob') || {};
+    if (typeof j.levelling === 'string' && /\.xml$/i.test(j.levelling) && fs.existsSync(j.levelling)) services.settings.set('pob', { ...cur, levelling: j.levelling });
+    const known = new Set(require('../core/regex/gems').gemList().map((g) => g.name));
+    for (const g of Array.isArray(j.gemSearches) ? j.gemSearches.slice(0, 20) : []) {
+      const picks = (Array.isArray(g?.gems) ? g.gems : []).map(String).filter((n) => known.has(n));
+      if (g?.name && picks.length) services.regexSavePreset({ name: String(g.name).slice(0, 60), kind: 'gems-0', choices: { picks, cls: '', act: 0 } });
+    }
+    // levelling guides from links: imported once the app is up (the last one is shown, unless "levelling" picked one)
+    const keepGuide = typeof j.levelling === 'string' && fs.existsSync(j.levelling);
+    const links = (Array.isArray(j.levellingImports) ? j.levellingImports : []).map(String).filter((u) => /^https:\/\//.test(u)).slice(0, 10);
+    if (links.length) setTimeout(async () => {
+      for (const u of links) {
+        try {
+          const r = await importBuildCode({ text: u, name: 'Levelling' });
+          if (!keepGuide) services.settings.set('pob', { ...(services.settings.get('pob') || {}), levelling: r.file });
+          log('levelling guide imported', r.file);
+        } catch (e) { log('levelling guide import failed', u, e.message); }
+      }
+    }, 3000);
+    log('setup.json applied');
+  } catch (e) { log('setup.json skipped', e.message); }
+  try { fs.unlinkSync(f); } catch { /* ignore */ }
+}
+
 app.whenReady().then(async () => {
   services = createServices({ dataDir: app.getPath('userData'), secrets, log, labBrowser });
+  applySetupFile();
   registerIpc();
   createMainWindow();
   createOverlay();
