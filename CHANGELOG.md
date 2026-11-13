@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.53 - 2026-11-13
+
+- **Rename and Remove** on the Levelling guide, for guides you imported (and snapshots): Rename gives the guide a new name, Remove puts it in the Recycle Bin. Your own Path of Building builds can't be renamed or removed here.
+- The build lists on the Path of Building page are read again each time you open a tab, so a levelling guide or snapshot made in the background shows up without restarting the app.
+
 ## 1.0.52 - 2026-11-13
 
 - **FilterBlade's sounds everywhere**: every tier plays the sound FilterBlade gives it again: Tier 1 currency the Divine sound, uniques their own, maps by tier, and so on. Themes and the tier designer change looks only and keep each tier's FilterBlade sound (they used to put their own sounds on Tier 1-4 and none on Tier 5-6). Your filter gets this once on the update; sound files you added yourself stay. In the sound picker, each game sound now says what FilterBlade uses it for.

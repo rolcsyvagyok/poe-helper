@@ -879,7 +879,24 @@
             guides.length ? h('optgroup', { label: 'Levelling guides' }, guides.map(opt)) : null,
             rest.length ? h('optgroup', { label: 'Other builds' }, rest.map(opt)) : null);
         })(),
+        file && builds.find((b) => b.file === file)?.snapshot ? h('button', { class: 'quiet sm', title: 'Give this guide a new name', onclick: () => { LV.renaming = !LV.renaming; render(); } }, 'Rename') : null,
+        file && builds.find((b) => b.file === file)?.snapshot ? h('button', { class: 'quiet sm', title: 'Puts this guide in the Recycle Bin', onclick: async () => {
+          if (!confirm('Put this levelling guide in the Recycle Bin? You can get it back from there.')) return;
+          try { await call('pob:trashBuild', file); LV.file = null; PB.builds = null; await loadBuilds(true); toast('Moved to the Recycle Bin'); render(); } catch (e) { toast(errText(e), true); }
+        } }, 'Remove') : null,
         file ? h('button', { class: 'quiet sm', onclick: () => pick(null) }, 'Clear') : null),
+      LV.renaming && file ? (() => {
+        const cur = builds.find((b) => b.file === file)?.name.replace(/^PoE Helper snapshots \/ /, '').replace(/^Levelling /, '') || '';
+        const inp = h('input', { type: 'text', value: cur, style: { flex: 1, minWidth: '200px' }, 'aria-label': 'New name for this levelling guide' });
+        const save = async () => {
+          const name = inp.value.trim();
+          if (!name) return inp.focus();
+          try { const r = await call('pob:renameBuild', { file, name: `Levelling ${name}` }); LV.renaming = false; LV.file = r.file; for (const k of Object.keys(PB.results)) if (k.endsWith(`|${file}`)) delete PB.results[k]; toast(`Renamed to ${name}`); render(); } catch (e) { toast(errText(e), true); }
+        };
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { LV.renaming = false; render(); } });
+        setTimeout(() => { inp.focus(); inp.select(); }, 0);
+        return h('div', { class: 'row', style: { gap: '8px' } }, inp, h('button', { class: 'primary sm', onclick: save }, 'Save name'), h('button', { class: 'quiet sm', onclick: () => { LV.renaming = false; render(); } }, 'Cancel'));
+      })() : null,
       h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, codeIn, importBtn),
       h('p', { class: 'small faint' }, 'A levelling guide from Path of Building: pick its trees and see the gems that go with each. It is only for looking: upgrades, the item tester and the price check keep using the build at the top of the Build tab.'));
     out.append(top);
@@ -1686,7 +1703,8 @@
   async function render() {
     await refreshState();
     const el = document.getElementById('page-pob');
-    const st = await loadBuilds();
+    // the build list is read again each time (a guide or snapshot made in the background shows up)
+    const st = await loadBuilds(true);
     PB.st = st;
     const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, TABS.map(([id, label]) =>
       h('button', { role: 'tab', 'aria-selected': PB.tab === id ? 'true' : 'false', class: PB.tab === id ? 'active' : '', onclick: () => { PB.tab = id; render(); } }, label)));

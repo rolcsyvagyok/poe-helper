@@ -846,6 +846,32 @@ function registerIpc() {
   handle('pob:setCurrent', (file) => setPobKey('current', file));
   // the levelling guide's build: only looked at, never compared against
   handle('pob:setLevelling', (file) => setPobKey('levelling', file));
+  // your snapshots and imported guides (never your own PoB builds): give one a new name, or put it in the Recycle Bin
+  const fixPointers = (from, to) => {
+    const cur = services.settings.get('pob') || {};
+    const next = { ...cur };
+    for (const k of ['current', 'levelling']) if (cur[k] === from) next[k] = to;
+    if (cur.last?.file === from) next.last = { ...cur.last, file: to };
+    services.settings.set('pob', next);
+  };
+  handle('pob:renameBuild', ({ file, name } = {}) => {
+    if (!pobIsSnapshot(file) || !fs.existsSync(file)) throw new Error('Only snapshots and imported builds can be renamed here.');
+    const clean = String(name || '').replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').trim().slice(0, 80);
+    if (!clean) throw new Error('Type a name first.');
+    const to = path.join(path.dirname(file), `${clean}.xml`);
+    if (to.toLowerCase() !== file.toLowerCase() && fs.existsSync(to)) throw new Error('A build with that name already exists.');
+    fs.renameSync(file, to);
+    fixPointers(file, to);
+    if (pob?.loaded?.file === file) pob.loaded = null;
+    return { file: to };
+  });
+  handle('pob:trashBuild', async (file) => {
+    if (!pobIsSnapshot(file) || !fs.existsSync(file)) throw new Error('Only snapshots and imported builds can be removed here.');
+    await shell.trashItem(file);
+    fixPointers(file, null);
+    if (pob?.loaded?.file === file) pob.loaded = null;
+    return true;
+  });
   // every gem of a build (all its skill sets), named as the gem regex knows them
   // a vendor search for some gems (names as Path of Building shows them): the gem regex's strings, nothing saved
   handle('pob:gemRegex', (names) => {
