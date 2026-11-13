@@ -72,6 +72,12 @@ const TIER_SPLITS = [
   { type: 'jewels->leveling', tier: 'abyss', key: 'jewels->abyss#leveling', label: 'Levelling' },
   { type: 'divination', tier: 'excustomstack', key: 'divination#stacks', label: 'Stacked cards' },
   { type: 'divination', tier: 'exstack', key: 'divination#stacks', label: 'Stacked cards' },
+  // 3.30 Fated items: NeverSink keeps them with the vendor recipe rares and the decorators
+  ...[['rr', 't1f'], ['rr', 't2f'], ['rr', 'fatedoverride'], ['rr', 'fatedspecial']].map(([type, tier]) => ({ type, tier, key: 'rr#fated', label: 'Fated rares' })),
+  ...['t1f', 't2f'].map((tier) => ({ type: 'rr->amuring', tier, key: 'rr->amuring#fated', label: 'Fated rings and amulets' })),
+  ...['t1f', 't2f'].map((tier) => ({ type: 'rr->belts', tier, key: 'rr->belts#fated', label: 'Fated belts' })),
+  { type: 'decorators->rareeg', tier: 'fatedgear', key: 'decorators->rareeg#fated', label: 'Fated gear look (maps)' },
+  { type: 'decorators->leveling->rare', tier: 'fatedgear', key: 'decorators->leveling->rare#fated', label: 'Fated gear look (levelling)' },
 ];
 // Several filter categories shown as one subcategory, with a switch between them on its page.
 const TYPE_MERGES = [
@@ -1427,10 +1433,12 @@ const CATEGORIES = [
     { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['Stacked Deck', 'The Doctor'], icon: 'card' },
     { id: 'gems', name: 'Gems', match: ['gems'], order: ['gems->generic', 'gems->special', 'gems->exceptional'], art: "Gemcutter's Prism", icon: 'gem' },
   ]],
-  ['League mechanics', [
-    { id: 'league', name: 'Current league', match: ['event', 'currency->ducats', 'currency->deadmansulphur', 'currency->leagueexclusive'], art: null, icon: 'star' },
+  ['Current league: Covens of Umbra', [
     { id: 'viscera', name: 'Viscera', match: ['viscera'], art: null, icon: 'skull' },
-    { id: 'allflames', name: 'Allflame embers', match: ['mapenchantments'], art: ['Allflame Ember of Kulemak'], icon: 'flame' },
+    { id: 'allflames', name: 'Allflame embers & map enchant currency', match: ['mapenchantments'], art: ['Allflame Ember of Kulemak'], icon: 'flame' },
+    { id: 'fated', name: 'Fated items', match: ['rr#fated', 'rr->amuring#fated', 'rr->belts#fated', 'decorators->rareeg#fated', 'decorators->leveling->rare#fated'], order: ['rr#fated', 'rr->amuring#fated', 'rr->belts#fated', 'decorators->rareeg#fated', 'decorators->leveling->rare#fated'], art: null, icon: 'star' },
+  ]],
+  ['League mechanics', [
     { id: 'delirium', name: 'Delirium', match: ['currency->deliriumorbs', 'delirium'], art: ['Fine Delirium Orb', '*DeliriumOrb'], icon: 'orb' },
     { id: 'harvest', name: 'Harvest', match: ['currency->harvest', 'harvest'], art: ['Vivid Crystallised Lifeforce', 'Primal Crystallised Lifeforce'], icon: 'leaf' },
     { id: 'blight', name: 'Blight', match: ['currency->oil', 'oil'], art: ['Golden Oil', '*Oil'], icon: 'drop' },
@@ -1473,6 +1481,7 @@ const CATEGORIES = [
     { id: 'campaignhide', name: 'Hide item types', match: [], special: 'campaignhide', art: 'Scroll of Wisdom', icon: 'eye' },
   ]],
   ['Miscellaneous', [
+    { id: 'league', name: 'Earlier leagues: idols, coins, sulphur, ducats', match: ['event', 'currency->ducats', 'currency->deadmansulphur', 'currency->leagueexclusive'], art: null, icon: 'star' },
     { id: 'leaguespecific', name: 'League-specific items and mods', match: ['vials', 'enshrouded', 'artefact'], art: 'Vaal Orb', icon: 'bolt' },
     { id: 'quest', name: 'Quest items', match: ['questlike', 'questlikeexception', 'heisttarget'], art: null, icon: 'book' },
     { id: 'rares', name: 'Rares', match: ['rare', 'rareid', 'rareblendid', 'rareoptional', 'corruptedid', 'influenced', 'animatedweapons'], art: 'Orb of Alchemy', icon: 'sword' },
@@ -1505,6 +1514,8 @@ function categoryOf(type) {
   const assign = layout().assign || {};
   // a page split off a category ("divination#stacks") lives with that category unless you moved it
   if (type.includes('#') && assign[type]) { const c = cats.find((x) => x.id === assign[type]); if (c) return c; }
+  // a split page a category names itself ("rr#fated" under Fated items)
+  if (type.includes('#')) { const c = cats.find((x) => x.match.includes(type)); if (c) return c; }
   type = type.split('#')[0];
   const parts = type.split('->');
   for (let i = parts.length; i > (type.includes('@') ? parts.length - 1 : 0); i--) {

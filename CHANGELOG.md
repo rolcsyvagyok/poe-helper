@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.56 - 2026-11-13
+
+- Loot filter: a new **Current league: Covens of Umbra** group with **Viscera**, **Allflame embers & map enchant currency** and **Fated items** (Fated rares, rings and amulets, belts, and the Fated gear look).
+- Idols, coins, sulphur and ducats from earlier leagues moved to **Miscellaneous**.
+
 ## 1.0.55 - 2026-11-13
 
 - Levelling guide: the list shows only your levelling guides now, not every Path of Building build.
