@@ -243,7 +243,8 @@ function defaultProps(item) {
     quality: { on: kind === 'gem' && !!item.quality, min: item.quality || null, show: item.quality != null || kind === 'gem' },
     gemLevel: { on: kind === 'gem' && !!item.gemLevel, min: item.gemLevel || null, show: kind === 'gem' },
     mapTier: { on: !!item.mapTier, min: item.mapTier || null, show: item.mapTier != null },
-    corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' ? 'no' : 'any',
+    // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
+    corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' ? 'no' : 'any',
     // unidentified items are compared with other unidentified ones
     identified: item.flags?.unidentified ? 'no' : 'any',
     influences: Object.fromEntries((item.influences || []).map((i) => [i, true])),
@@ -298,6 +299,9 @@ function buildQuery(item, mods, opts = {}) {
 
   for (const m of mods) {
     if (!m.enabled || !m.id) continue;
+    // a stat with options ("Added Small Passive Skills grant: …" is "enchant.stat_3948993189" option 13)
+    const opt = /^(.+)\|(\d+)$/.exec(m.id);
+    if (opt) { q.query.stats[0].filters.push({ id: opt[1], disabled: false, value: { option: Number(opt[2]) } }); continue; }
     const f = { id: m.id, disabled: false };
     if ('min' in m || 'max' in m) {
       const v = statRange(m);
@@ -328,9 +332,19 @@ function buildQuery(item, mods, opts = {}) {
     for (const [inf, on] of Object.entries(props.influences || {})) if (on) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };
     if (props.fractured) misc.fractured_item = { option: 'true' };
     if (props.synthesised) misc.synthesised_item = { option: 'true' };
+    // armour / evasion / energy shield / ward (at 20% quality, as the trade site counts them)
+    const def = {};
+    for (const d of props.defence || []) if (d.on && Number(d.min) > 0) def[d.key] = { min: Number(d.min) };
+    if (Object.keys(def).length) q.query.filters.armour_filters = { filters: def };
+    // maps: quantity / rarity / pack size; heist: the job level and a priceless target
+    const mf = {};
+    for (const m of props.mapStats || []) if (m.on && Number(m.min) > 0) mf[`map_${m.key}`] = { min: Number(m.min) };
+    if (Object.keys(mf).length) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), ...mf } };
+    if (props.heist?.on && props.heist.min) q.query.filters.heist_filters = { filters: { [props.heist.key]: { min: Number(props.heist.min) } } };
+    if (props.priceless) q.query.filters.heist_filters = { filters: { ...(q.query.filters.heist_filters?.filters || {}), heist_objective_value: { option: 'priceless' } } };
     if (props.dps?.on && DPS_FILTERS[props.dps.mode] && Number(props.dps.min) > 0) q.query.filters.weapon_filters = { filters: { [DPS_FILTERS[props.dps.mode]]: { min: Number(props.dps.min) } } };
     if (props.links?.on && range(props.links)) q.query.filters.socket_filters = { filters: { links: range(props.links) } };
-    if (props.mapTier?.on && range(props.mapTier)) q.query.filters.map_filters = { filters: { map_tier: range(props.mapTier) } };
+    if (props.mapTier?.on && range(props.mapTier)) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), map_tier: range(props.mapTier) } };
     if (!useBase && props.category) q.query.filters.type_filters = { filters: { category: { option: props.category } } };
   } else {
     if (opts.useIlvl !== false && item.itemLevel && kind !== 'unique' && kind !== 'gem') misc.ilvl = { min: item.itemLevel };
@@ -354,20 +368,194 @@ function buildQuery(item, mods, opts = {}) {
   return q;
 }
 
-/** Summarize fetched listings: price list in chaos using a divine rate. */
-function summarizeListings(fetchJson, divineChaos) {
-  const prices = [];
+// ---------- the price check's search, after Awakened PoE Trade (see price-filters.js) ----------
+const MELEE = /^(one|two) hand (axes|swords|maces)$|^thrusting one hand swords$|^(staves|warstaves|claws|daggers)$/i;
+const PDPS_TYPES = /^(one|two) hand (axes|swords)$|^bows$|^warstaves$/i; // physical DPS matters most (Awakened's list)
+
+/** Every mod of the item as a search row, with its tier/range info (Ctrl+Alt+C) and template; nothing ticked. */
+function itemRows(idx, item, tol) {
+  const PF = require('./price-filters');
+  const out = [];
+  const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible'];
+  for (const kind of kinds) {
+    (item.mods[kind] || []).forEach((m, i) => {
+      const opts = { unique: item.rarity === 'Unique' };
+      const hit = matchMod(idx, m, kind, item.itemClass, opts) || (kind === 'fractured' ? matchMod(idx, m, 'explicit', item.itemClass, opts) : null);
+      const meta = item.modMeta?.[kind]?.[i] || null;
+      const row = hit ? { ...hit, group: kind, enabled: false } : { id: null, text: m, type: kind, group: kind, enabled: false, unmatched: true };
+      row.meta = meta;
+      row.tpl = PF.tplOf(m);
+      if (row.display != null) { row.min = PF.minOf(row.display, tol); row.max = null; }
+      out.push(row);
+    });
+  }
+  return out;
+}
+
+// item level brackets that matter for cluster jewels (which notables can roll)
+const floorTo = (v, list) => list.filter((x) => x <= v).pop() ?? list[0];
+const ceilTo = (v, list) => [...list].sort((a, b) => a - b).find((x) => x >= v) ?? null;
+const HEIST_JOBS = { Lockpicking: 'heist_lockpicking', 'Brute Force': 'heist_brute_force', Perception: 'heist_perception', Demolition: 'heist_demolition', 'Counter-Thaumaturgy': 'heist_counter_thaumaturgy', 'Trap Disarmament': 'heist_trap_disarmament', Agility: 'heist_agility', Deception: 'heist_deception', Engineering: 'heist_engineering' };
+
+/** Awakened's rules for cluster jewels, flasks, maps and heist contracts. Returns the mods (props changed in place). */
+function specialRules(mods, item, props, kind, tol) {
+  const cls = String(item.itemClass || '');
+  const base = String(item.baseType || '');
+  // cluster jewels: the passive count (in its useful brackets), the small passives' bonus, item level brackets
+  if (/cluster jewel/i.test(base)) {
+    props.base.on = true;
+    for (const m of mods) {
+      if (m.group !== 'enchant') continue;
+      if (/Added Passive Skills are Jewel Sockets/i.test(m.text)) { m.hidden = true; m.enabled = false; continue; }
+      if (/^Adds \d+ Passive Skills$/i.test(m.text)) {
+        const n = m.display;
+        m.enabled = true;
+        // 4: at most 5; 5: exactly 5 (at most 5 on a rare); 3, 6, 10-12: at least; 2, 8, 9: at most
+        if (n === 4) { m.min = null; m.max = 5; } else if (n === 5) { m.min = kind === 'rare' ? null : 5; m.max = 5; }
+        else if ([3, 6, 10, 11, 12].includes(n)) { m.min = n; m.max = null; } else { m.min = null; m.max = n; }
+        continue;
+      }
+      if (/^Added Small Passive Skills grant/i.test(m.text)) { m.enabled = true; m.min = m.display; m.max = null; }
+    }
+    // notables ("1 Added Passive Skill is Smoking Remains"): there or not, no number to type
+    for (const m of mods) if (/^1 Added Passive Skill is /i.test(m.text)) { m.min = null; m.max = null; m.display = null; }
+    if (props.ilvl && item.itemLevel) { props.ilvl.min = floorTo(item.itemLevel, [1, 50, 68, 75, 84]); props.ilvl.max = ceilTo(item.itemLevel, [49, 67, 74, 100]); props.ilvl.on = false; }
+    return mods;
+  }
+  // flasks: the exact base; top-tier mods ticked; enchantments (harvest, instilling) hidden; no totals
+  if (/flask/i.test(cls)) {
+    props.base.on = true;
+    if (props.ilvl) props.ilvl.on = false;
+    if (props.quality) { props.quality.on = (item.quality || 0) > 20; props.quality.min = item.quality || null; props.quality.show = true; }
+    const enkindled = mods.some((m) => /Gains no Charges during Flask Effect/i.test(m.text));
+    return mods.filter((m) => m.group !== 'pseudo').map((m) => {
+      if (m.group === 'enchant' && !enkindled) return { ...m, hidden: true, enabled: false };
+      if (m.group === 'explicit' || m.group === 'crafted') return { ...m, enabled: item.advanced ? (m.meta?.tier != null && m.meta.tier <= 2) : !m.unmatched };
+      return m;
+    });
+  }
+  // maps: quantity, rarity, pack size and the "more scarabs / currency / cards / maps" numbers
+  if (kind === 'map') {
+    const p = item.properties || {};
+    const n = (k) => { const v = /(\d+)/.exec(String(p[k] || '')); return v ? Number(v[1]) : null; };
+    const more = ['More Scarabs', 'More Currency', 'More Divination Cards'].some((k) => n(k));
+    props.mapStats = [
+      ['iiq', 'Item Quantity', true], ['iir', 'Item Rarity', !more], ['packsize', 'Monster Pack Size', true],
+    ].filter(([, k]) => n(k)).map(([key, label, on]) => ({ key, label, value: n(label), on, min: Math.floor(n(label) * (1 - tol)) }));
+    const ids = { 'More Scarabs': 'pseudo.pseudo_map_more_scarab_drops', 'More Currency': 'pseudo.pseudo_map_more_currency_drops', 'More Divination Cards': 'pseudo.pseudo_map_more_card_drops', 'More Maps': 'pseudo.pseudo_map_more_map_drops' };
+    const extra = Object.entries(ids).filter(([k]) => n(k)).map(([k, id]) => ({ id, text: `${k}: +${n(k)}%`, statText: `${k}: #%`, value: n(k), display: n(k), min: Math.floor(n(k) * (1 - tol)), max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: k !== 'More Maps' }));
+    return [...extra, ...mods];
+  }
+  // heist contracts: the job and its level, and whether the target is priceless
+  if (/heist contract/i.test(cls)) {
+    const j = (item.heistJobs || [])[0];
+    if (j && HEIST_JOBS[j.job]) props.heist = { key: HEIST_JOBS[j.job], label: `${j.job} level`, min: j.level, on: true };
+    props.priceless = /\(Priceless\)/.test(String(item.properties?.['Heist Target'] || ''));
+    if (props.ilvl) props.ilvl.on = false;
+    props.base.on = false;
+    return mods;
+  }
+  return mods;
+}
+
+/**
+ * The price check's search for an item: { mods, props, presets }.
+ *  presets.base (when offered): the "crafting base" search (exact base, item level, influences, implicits,
+ *  fractured mods and top-tier mods), next to the default "finished item" search.
+ */
+function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
+  const PF = require('./price-filters');
+  const kind = classify(item);
+  const props = defaultProps(item);
+  if (kind === 'gem') return { mods: [], props, presets: null };
+  const idx = indexStats(statsJson);
+  const rows = itemRows(idx, item, tolerance);
+  const plain = kind === 'rare' || kind === 'magic' || kind === 'normal';
+  const cls = String(item.itemClass || '');
+
+  // the item's own numbers: defences and weapon DPS at 20% quality (their local mods fold into them)
+  if (plain) {
+    const def = PF.defenceProps(item, rows);
+    if (def.length) props.defence = def;
+    const w = PF.weaponProps(item, rows, weaponDps(item));
+    if (w && props.dps?.show) {
+      props.dps.values = w;
+      const both = w.phys > 0 && w.ele > 0;
+      props.dps.mode = MELEE.test(cls) ? 'phys' // melee weapons: physical DPS only (the owner's choice)
+        : PDPS_TYPES.test(cls) && w.phys / w.total >= 0.67 ? 'phys' : w.ele / w.total >= 0.67 ? 'ele' : both ? 'total' : w.phys ? 'phys' : 'ele';
+      props.dps.min = Math.floor(w[props.dps.mode] * 0.9);
+      props.dps.on = true;
+    }
+  }
+  // totals instead of the mods that add up to them
+  const { pseudo, consumed } = PF.pseudoTotals(rows, item, idx.pseudo || {}, normTemplate, tolerance);
+  let mods = [...pseudo, ...rows.filter((r) => !consumed.has(r) && !r.folded)];
+  // what is ticked to start
+  if (kind === 'unique') {
+    PF.uniqueRolls(mods, item, tolerance);
+    for (const m of mods) if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; m.hidden = false; }
+  }
+  // an open prefix or suffix (5 mods, or 6 with a crafted one): can be searched for
+  const open = PF.emptyAffix(item);
+  if (open) {
+    const id = open === 'prefix' ? 'pseudo.pseudo_number_of_empty_prefix_mods' : 'pseudo.pseudo_number_of_empty_suffix_mods';
+    mods.push({ id, text: `Has an open ${open}`, statText: `# Empty ${open === 'prefix' ? 'Prefix' : 'Suffix'} Modifiers`, value: 1, display: 1, min: 1, max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: false });
+  }
+  // a rare or magic item: any base of its kind, any item level (the totals and the item's own numbers decide)
+  if (plain && props.category && kind !== 'normal') {
+    props.base.on = false;
+    if (props.ilvl) props.ilvl.on = false;
+    // influences matter to a crafter (the crafting-base search ticks them), not to a finished item
+    for (const k of Object.keys(props.influences || {})) props.influences[k] = false;
+  }
+  if (MELEE.test(cls) && props.dps?.show) for (const k of ['ilvl', 'links', 'quality']) if (props[k]) props[k].on = false;
+  mods = specialRules(mods, item, props, kind, tolerance);
+  for (const m of mods) { delete m.sources; delete m.rule; }
+
+  // the crafting-base search, for an unfinished item worth crafting on
+  let presets = null;
+  if (PF.craftingBase(item)) {
+    const inf = (item.influences || []).length || item.flags?.fractured;
+    const baseRows = rows.filter((r) => !r.unmatched && r.id && (
+      r.group === 'fractured' || r.group === 'enchant' || (r.group === 'implicit' && !inf) || (r.group === 'explicit' && kind === 'magic')
+    )).map((r) => ({ ...r, folded: undefined, enabled: r.group === 'explicit' ? (r.meta?.tier != null && r.meta.tier <= 2) : true }));
+    const bp = defaultProps(item);
+    bp.base.on = true;
+    if (bp.ilvl) { bp.ilvl.on = true; bp.ilvl.min = Math.min(item.itemLevel || 1, 86); }
+    for (const k of Object.keys(bp.influences || {})) bp.influences[k] = true;
+    if (bp.dps) bp.dps.on = false;
+    let bRows = baseRows;
+    if (/cluster jewel/i.test(item.baseType || '')) { bRows = specialRules(baseRows, item, bp, kind, tolerance); if (bp.ilvl) bp.ilvl.on = true; }
+    presets = { active: 'finished', base: { mods: bRows, props: bp } };
+  }
+  return { mods, props, presets };
+}
+
+/**
+ * Fetched listings, cheapest first, as Awakened PoE Trade shows them: the same seller at the same price (or
+ * right after their own listing) grouped as one row with a count; each with when it was listed and whether the
+ * seller is online or AFK. { prices, min, median } (min/median in chaos, counting each listing once).
+ */
+function summarizeListings(fetchJson, divineChaos, { me = '' } = {}) {
+  const rows = [];
+  const flat = [];
   for (const r of fetchJson?.result || []) {
     const p = r?.listing?.price;
     if (!p) continue;
     let chaos = null;
     if (p.currency === 'chaos') chaos = p.amount;
     else if (p.currency === 'divine' && divineChaos) chaos = p.amount * divineChaos;
-    prices.push({ amount: p.amount, currency: p.currency, chaos, seller: r.listing.account?.name, indexed: r.listing.indexed });
+    const acc = r.listing.account || {};
+    const status = r.listing.fee != null ? 'merchant' : acc.online ? (acc.online.status === 'afk' ? 'afk' : 'online') : 'offline';
+    const x = { amount: p.amount, currency: p.currency, chaos, seller: acc.name, ign: acc.lastCharacterName || null, indexed: r.listing.indexed, status, mine: !!me && acc.name === me, times: 1 };
+    flat.push(x);
+    const same = rows.findIndex((y, i) => y.seller === x.seller && ((y.amount === x.amount && y.currency === x.currency) || rows.length - i <= 2));
+    if (rows.length && same >= 0 && status !== 'merchant') rows[same].times += 1;
+    else rows.push(x);
   }
-  const chaosVals = prices.map((p) => p.chaos).filter((x) => x != null).sort((a, b) => a - b);
+  const chaosVals = flat.map((p) => p.chaos).filter((x) => x != null).sort((a, b) => a - b);
   const median = chaosVals.length ? chaosVals[Math.floor(chaosVals.length / 2)] : null;
-  return { prices, min: chaosVals[0] ?? null, median };
+  return { prices: rows, min: chaosVals[0] ?? null, median, count: flat.length };
 }
 
-module.exports = { weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };
+module.exports = { prepareSearch, weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };

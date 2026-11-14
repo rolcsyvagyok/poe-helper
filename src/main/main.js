@@ -171,7 +171,7 @@ function lockNavigation(win) {
 function openExternal(url) {
   try {
     const u = new URL(url);
-    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com|pobb\.in|pob\.codes)$/.test(u.hostname);
+    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com|pobb\.in|pob\.codes|poeprices\.info)$/.test(u.hostname);
     if (ok) shell.openExternal(u.toString());
   } catch { /* ignore */ }
 }
@@ -324,6 +324,7 @@ async function runPriceCheck(text, { compare = false } = {}) {
 
 /** Path of Building's tooltip and comparison for an item, against the build you last used on the PoB page. */
 async function pobCompareFor(text) {
+  text = require('../core/item-parser').plainItemText(text); // Path of Building reads the plain copy
   const st = services.settings.get('pob') || {};
   const file = [st.current, st.last?.file].find((f) => f && fs.existsSync(f));
   if (!file) return { error: 'Pick a build on the Path of Building page first, or save a snapshot.' };
@@ -397,7 +398,8 @@ function registerHotkeys({ quiet = false } = {}) {
     }
   };
   // one price check hotkey; with "Compare items with my build" on it also shows what the item does to your build
-  tryReg('hotkeyPrice', (acc) => priceCheck({ accelerator: acc, compare: services.settings.get('pobCompareOn') !== false }));
+  // copied with Ctrl+Alt+C (mod tiers, prefix/suffix, roll ranges), as Awakened PoE Trade does: the defaults use them
+  tryReg('hotkeyPrice', (acc) => priceCheck({ advanced: true, accelerator: acc, compare: services.settings.get('pobCompareOn') !== false }));
   tryReg('hotkeyLab', () => toggleLab());
   tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
   tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
@@ -827,6 +829,8 @@ function registerIpc() {
 
   handle('trade:prepare', (text) => services.tradePrepare(text));
   handle('trade:search', (args) => services.tradeSearch(args));
+  handle('trade:bulk', (args) => services.tradeBulk(args || {}));
+  handle('price:guess', (args) => services.pricePredict(args || {}));
 
   handle('networth:tabs', async (force) => services.ggg.stashTabs(await services.getLeague(), { force: !!force }));
   handle('networth:select', (indices) => { s.set('selectedTabs', (indices || []).map(Number).filter(Number.isInteger)); return s.get('selectedTabs'); });

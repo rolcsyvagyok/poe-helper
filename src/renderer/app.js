@@ -472,7 +472,7 @@ async function renderOverviewNow() {
         h('div', { class: 'panel stack' },
           g.today.total ? h('div', { class: 'bar' }, h('i', { style: { width: Math.min(100, (100 * g.today.total) / g.dailyBudget) + '%' } })) : null,
           Object.keys(g.today.byKey || {}).length
-            ? h('table', {}, h('tbody', {}, Object.entries(g.today.byKey).map(([k, v]) => h('tr', {}, h('td', {}, { stash: 'Stash tabs', 'trade-search': 'Trade searches', 'trade-fetch': 'Trade listings', 'trade-data': 'Trade mod list', leagues: 'League list' }[k] || k), h('td', { class: 'r' }, v)))))
+            ? h('table', {}, h('tbody', {}, Object.entries(g.today.byKey).map(([k, v]) => h('tr', {}, h('td', {}, { stash: 'Stash tabs', 'trade-search': 'Trade searches', 'trade-fetch': 'Trade listings', 'trade-data': 'Trade mod list', 'trade-exchange': 'Bulk exchange', leagues: 'League list' }[k] || k), h('td', { class: 'r' }, v)))))
             : h('p', { class: 'small muted' }, 'None yet. Price checks only use poe.ninja, so they never count here.'),
           h('p', { class: 'small faint' }, `poe.ninja this session: ${n.requests} downloads, ${n.notModified} unchanged, ${n.cacheHits} answered from cache.`)),
         h('details', { style: { marginTop: '12px' } }, h('summary', {}, 'How requests are kept low'),
@@ -1156,7 +1156,9 @@ async function renderSettingsNow() {
             toggle(st.restoreClipboard, (v) => call('settings:set', { restoreClipboard: v }).then(() => toast('Saved')), 'Put my clipboard back after a hotkey check'),
             field('Trade listings', h('select', { onchange: set('tradeStatus') }, [['securable', 'Instant buyout only'], ['available', 'Instant buyout and in person'], ['online', 'In person, online sellers'], ['any', 'Any listing']].map(([v, l]) => h('option', { value: v, selected: (st.tradeStatus || 'securable') === v }, l))), 'Instant buyout listings come from merchant tabs and can be bought straight away from your hideout.'),
             field('Trade search range', h('select', { onchange: set('tradeTolerance', Number) }, [[0, 'Exact values'], [0.05, '5% below my values'], [0.1, '10% below my values'], [0.2, '20% below my values']].map(([v, l]) => h('option', { value: v, selected: Number(st.tradeTolerance) === v }, l)))),
-            toggle(st.tradeFetchListings, (v) => call('settings:set', { tradeFetchListings: v }).then(() => toast('Saved')), 'Show the cheapest listings after a search (1 extra request)'),
+            toggle(st.tradeFetchListings, (v) => call('settings:set', { tradeFetchListings: v }).then(() => toast('Saved')), 'Show the 20 cheapest listings after a search (1 to 2 extra requests)'),
+            toggle(st.tradeAutoSearch !== false, (v) => call('settings:set', { tradeAutoSearch: v }).then(() => toast('Saved')), 'Search uniques, unidentified items and the bulk exchange at once (rares wait for Search)'),
+            toggle(st.poepricesOn !== false, (v) => call('settings:set', { poepricesOn: v }).then(() => toast('Saved')), 'Price guess for rares from poeprices.info (sends the item text there)'),
             field('Item label font', h('div', { class: 'row' },
               h('span', { class: 'small', style: { flex: 1 } }, st.labelFontPath ? `Using ${st.labelFontPath.split(/[\\/]/).pop()}` : 'Using the bundled look-alike (Marcellus SC)'),
               h('button', { class: 'sm', onclick: async () => { const n = await call('font:pick'); if (n) { await window.UI.loadUserFont(); toast(`Item labels now use ${n}`); renderSettings(); } } }, 'Choose font file'),

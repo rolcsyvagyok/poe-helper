@@ -235,6 +235,12 @@ function render(p) {
       onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in app' : 'App'));
   if (tierControls) body.append(tierControls);
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });
+  // currency, fragments, cards…: the live bulk exchange; rares: a price guess from poeprices.info
+  const bulkBox = h('div', { class: 'ov-block' });
+  const guessBox = h('div', { class: 'ov-block' });
+  if (p.bulk) { if (p.autoBulk) bulkSection(bulkBox); else mount(bulkBox, h('button', { class: 'sm', onclick: () => bulkSection(bulkBox) }, 'Check the live exchange')); }
+  if (p.guess) guessSection(guessBox);
+  body.append(...(p.bulk ? [bulkBox] : []), ...(p.guess ? [guessBox] : []));
   body.append(actions, quickBox, tradeBox);
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
   if (p.tradeable) openTrade(tradeBox);
@@ -379,6 +385,63 @@ async function quick(kind) {
     const r = await call('filter:quick', { kind, text: current.text });
     toast(r.target ? `${r.rule.label}: saved. Zone or reload the filter in game.` : `${r.rule.label}: saved. Pick a base filter in the app to write it.`);
   } catch { /* toast shown */ }
+}
+
+const STATUS_TXT = { online: '● online', afk: '◑ AFK', offline: '○ offline' };
+const agoShort = (iso) => { const t = Date.parse(iso || ''); if (!Number.isFinite(t)) return ''; const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 60 ? `${m}m` : m < 2880 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`; };
+const each = (x) => (x >= 100 ? Math.round(x) : x >= 10 ? Math.round(x * 10) / 10 : Math.round(x * 100) / 100);
+
+/** The live bulk exchange for this item: sellers' prices for one, paid in chaos or divines (1 request). */
+async function bulkSection(box) {
+  mount(box, h('div', { class: 'small muted' }, h('span', { class: 'spin' }), ' Asking the trade site\'s bulk exchange…'));
+  fit();
+  let r;
+  try { r = await call('trade:bulk', { text: current.text }); } catch (e) {
+    mount(box, h('div', { class: 'small muted' }, String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')));
+    return fit();
+  }
+  if (!r) { box.style.display = 'none'; return fit(); }
+  let tab = r.chaos.length ? 'chaos' : 'divine';
+  const list = h('div', { class: 'tp-listings' });
+  const tabs = h('div', { class: 'row', style: { gap: '4px' } });
+  const draw = () => {
+    mount(tabs, ['chaos', 'divine'].map((c) => h('button', { class: 'sm' + (tab === c ? ' primary' : ''), disabled: !r[c].length, onclick: () => { tab = c; draw(); } }, `Pay ${c} (${r[c].length})`)));
+    mount(list, r[tab].length ? r[tab].map((x) => h('div', { class: 'tp-li' + (x.mine ? ' mine' : '') },
+      h('span', { class: 'tp-price' }, `${each(x.each)} ${tab}`, h('span', { class: 'faint' }, ' each')),
+      h('span', { class: 'faint', title: `Pays ${x.pay} ${tab} for ${x.get}` }, `${x.pay}:${x.get}`),
+      h('span', { class: 'faint tp-ago' }, agoShort(x.indexed)),
+      h('span', { class: 'spacer' }),
+      h('span', { class: 'faint' }, `stock ${x.stock ?? '?'}`),
+      x.mine ? h('span', { class: 'tp-you' }, 'You') : h('span', { class: 'faint tp-seller' }, x.seller || ''),
+      h('span', { class: `tp-st ${x.status}` }, STATUS_TXT[x.status] || ''))) : h('div', { class: 'small muted' }, 'Nobody sells it for this currency right now.'));
+    fit();
+  };
+  const best = (c) => (r[c][0] ? `${each(r[c][0].each)} ${c}` : null);
+  mount(box,
+    h('div', { class: 'row', style: { gap: '8px' } }, h('span', { class: 't' }, 'Live exchange'),
+      h('span', { class: 'small' }, [best('chaos'), best('divine')].filter(Boolean).map((t) => `from ${t}`).join(' · ') || 'no sellers online'),
+      h('span', { class: 'spacer' }), h('button', { class: 'sm', onclick: () => call('shell:open', r.url) }, 'Open on trade site')),
+    tabs, list, h('div', { class: 'small faint' }, 'Sellers online now, cheapest first; 1 trade request, none again within 3 minutes.'));
+  draw();
+}
+
+/** poeprices.info's guess for a rare (a third-party estimate from the item's mods). */
+async function guessSection(box) {
+  mount(box, h('div', { class: 'small muted' }, h('span', { class: 'spin' }), ' Asking poeprices.info for a price guess…'));
+  fit();
+  let g;
+  try { g = await call('price:guess', { text: current.text }); } catch (e) {
+    mount(box, h('div', { class: 'small faint' }, `poeprices.info: ${String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')}`));
+    return fit();
+  }
+  if (!g) { box.style.display = 'none'; return fit(); }
+  mount(box,
+    h('div', { class: 'row', style: { gap: '8px' } }, h('span', { class: 't' }, 'Price guess'),
+      h('b', {}, `${g.min}–${g.max} ${g.currency}`), h('span', { class: 'faint small' }, `confidence ${g.confidence}%`),
+      h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => call('shell:open', g.url) }, 'poeprices.info')),
+    g.why.length ? h('div', { class: 'small muted' }, 'Mostly from: ', g.why.map((w) => `${w.name} (${w.pct}%)`).join(', ')) : null,
+    h('div', { class: 'small faint' }, 'A guess from poeprices.info, made from the item\'s mods. Check it with a trade search.'));
+  fit();
 }
 
 async function openTrade(box) {

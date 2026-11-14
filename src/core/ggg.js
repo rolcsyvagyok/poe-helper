@@ -181,8 +181,52 @@ class GggClient {
     }
   }
 
-  async tradeSearch(league, query, { login = false } = {}) {
-    return this._request('trade-search', `${WEB}/api/trade/search/${encodeURIComponent(league)}`, { method: 'POST', body: query, withSession: login ? 'optional' : false });
+  /** The trade site's item names and their exchange tags ("Chaos Orb" -> "chaos"), cached like the stats. */
+  async tradeStatic() {
+    const key = 'ggg_trade_static';
+    if (this.cache.isFresh(key, STATS_TTL)) return this.cache.get(key).data;
+    try {
+      const json = await this._request('trade-data', `${WEB}/api/trade/data/static`);
+      this.cache.set(key, json);
+      return json;
+    } catch (e) {
+      const stale = this.cache.get(key);
+      if (stale) return stale.data;
+      throw e;
+    }
+  }
+
+  /** Bulk exchange (currency and other stackables): the listings come with the answer, no fetch. */
+  async tradeExchange(league, body, { maxWaitMs = null } = {}) {
+    const key = `${league}|${JSON.stringify(body)}`;
+    const hit = this._exchangeCache?.get(key);
+    if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.res;
+    const wait = this.limiter?.waitTime?.('trade-exchange') || 0;
+    if (maxWaitMs != null && wait > maxWaitMs) throw new Error(`The trade site asks to wait ${Math.ceil(wait / 1000)} seconds before the next exchange search. Try again then.`);
+    const res = await this._request('trade-exchange', `${WEB}/api/trade/exchange/${encodeURIComponent(league)}`, { method: 'POST', body });
+    if (!this._exchangeCache) this._exchangeCache = new Map();
+    this._exchangeCache.set(key, { at: Date.now(), res });
+    if (this._exchangeCache.size > 50) this._exchangeCache.delete(this._exchangeCache.keys().next().value);
+    return res;
+  }
+
+  exchangeUrl(league, queryId) {
+    return `${WEB}/trade/exchange/${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
+  }
+
+  async tradeSearch(league, query, { login = false, maxWaitMs = null } = {}) {
+    // the same search again within 3 minutes (price checking the same item twice): the answer we have, no request
+    const key = `${league}|${JSON.stringify(query)}`;
+    const hit = this._searchCache?.get(key);
+    if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.res;
+    // a price check shouldn't sit in a queue for long: say how long the trade site wants us to wait instead
+    const wait = this.limiter?.waitTime?.('trade-search') || 0;
+    if (maxWaitMs != null && wait > maxWaitMs) throw new Error(`The trade site asks to wait ${Math.ceil(wait / 1000)} seconds before the next search. Try again then.`);
+    const res = await this._request('trade-search', `${WEB}/api/trade/search/${encodeURIComponent(league)}`, { method: 'POST', body: query, withSession: login ? 'optional' : false });
+    if (!this._searchCache) this._searchCache = new Map();
+    this._searchCache.set(key, { at: Date.now(), res });
+    if (this._searchCache.size > 50) this._searchCache.delete(this._searchCache.keys().next().value);
+    return res;
   }
 
   /** Whether a POESESSID is set (searches made logged in may use more filters). */
@@ -191,7 +235,15 @@ class GggClient {
   async tradeFetch(queryId, ids) {
     const slice = ids.slice(0, 10);
     if (!slice.length) return { result: [] };
-    return this._request('trade-fetch', `${WEB}/api/trade/fetch/${slice.join(',')}?query=${encodeURIComponent(queryId)}`);
+    // the same listings again within 3 minutes: no request
+    const key = `${queryId}|${slice.join(',')}`;
+    const hit = this._fetchCache?.get(key);
+    if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.res;
+    const res = await this._request('trade-fetch', `${WEB}/api/trade/fetch/${slice.join(',')}?query=${encodeURIComponent(queryId)}`);
+    if (!this._fetchCache) this._fetchCache = new Map();
+    this._fetchCache.set(key, { at: Date.now(), res });
+    if (this._fetchCache.size > 100) this._fetchCache.delete(this._fetchCache.keys().next().value);
+    return res;
   }
 
   /**

@@ -110,6 +110,9 @@ function parseItem(rawText) {
     note: null,
     transfigured: false,
     modNames: [],
+    // Ctrl+Alt+C: per mod line (same index as item.mods[kind]) its tier, prefix/suffix and roll ranges
+    modMeta: { enchant: [], implicit: [], explicit: [], crafted: [], fractured: [], scourge: [], crucible: [] },
+    advanced: false,
   };
 
   // --- Header section ---
@@ -172,8 +175,13 @@ function parseItem(rawText) {
       continue;
     }
 
+    // a section of mod lines ("Added Small Passive Skills grant: … (enchant)" has a colon but is a mod)
+    if (nonFlag.some((l) => /\((enchant|implicit|crafted|fractured)\)$/.test(l))) { modSections.push(nonFlag); continue; }
     let consumed = false;
     for (const line of nonFlag) {
+      // heist contracts: "Requires Lockpicking (Level 5)"
+      const job = /^Requires (.+?) \(Level (\d+)\)$/.exec(line);
+      if (job) { (item.heistJobs ||= []).push({ job: job[1], level: Number(job[2]) }); consumed = true; continue; }
       const kv = /^([^:]+):\s*(.+)$/.exec(line);
       if (!kv) continue;
       const [, key, valRaw] = kv;
@@ -216,10 +224,12 @@ function parseItem(rawText) {
     modSections.length = 0;
   }
 
+  let headerN = 0; // one per mod (a hybrid mod has two lines under one header)
   for (const sec of modSections) {
     // Ctrl+Alt+C: the header says what the lines below it are ("{ Corruption Implicit Modifier }"),
     // and those lines carry no "(implicit)" suffix
     let headerKind = null;
+    let header = null;
     for (const line of sec) {
       // Reminder text like "(Lucky things are rolled twice and the best result used)" isn't a mod
       if (/^\(.*\)$/.test(line.trim())) continue;
@@ -227,6 +237,10 @@ function parseItem(rawText) {
         // { Prefix Modifier "Hale" (Tier: 3) — Life }  -> "Hale"
         const nm = /Modifier\s+"([^"]+)"/.exec(line);
         if (nm) item.modNames.push(nm[1]);
+        item.advanced = true;
+        const tierM = /\((?:Tier|Rank):\s*(\d+)\)/.exec(line);
+        headerN += 1;
+        header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line) };
         headerKind = /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'
           : /\bMaster Crafted\b|\bCrafted\b/i.test(line) ? 'crafted' : /\bScourge\b/i.test(line) ? 'scourge' : null;
         continue;
@@ -241,6 +255,12 @@ function parseItem(rawText) {
       // Skip help text that appears on currency/div cards/maps
       if (/^(Right click|Place into|Travel to (?:this|a) Map|Maps can only be used|Shift click|Can be used|Use this|This is a)/i.test(modText)) continue;
       item.mods[type].push(modText);
+      // the rolls with their ranges: "Adds 40(29-40) to 68(58-68)" -> [{value 40, min 29, max 40}, {68, 58, 68}]
+      const rolls = [];
+      const re = /(-?\d+(?:\.\d+)?)\((-?\d+(?:\.\d+)?)(?:-(-?\d+(?:\.\d+)?))?\)/g;
+      let rm;
+      while ((rm = re.exec(line))) rolls.push({ value: Number(rm[1]), min: Number(rm[2]), max: rm[3] != null ? Number(rm[3]) : Number(rm[2]) });
+      item.modMeta[type][item.mods[type].length - 1] = header ? { ...header, rolls } : (rolls.length ? { tier: null, gen: null, rolls } : null);
     }
   }
 
@@ -286,4 +306,12 @@ function modValues(mod) {
   return (mod.match(/[+-]?\d+(?:\.\d+)?/g) || []).map(Number);
 }
 
-module.exports = { parseItem, isPoeItemText, classify, modTemplate, modValues, parseSockets, SEP, RARITIES };
+/** Ctrl+Alt+C text as a plain copy: no "{ Prefix Modifier … }" lines, no roll ranges ("45(40-49)" -> "45"). */
+function plainItemText(text) {
+  return String(text || '').replace(/\r/g, '').split('\n')
+    .filter((l) => !isAdvancedHeader(l))
+    .map((l) => l.replace(/(\d)\((?:-?\d+(?:\.\d+)?)(?:-(?:-?\d+(?:\.\d+)?))?\)/g, '$1').replace(/\s*—\s*Unscalable Value$/, ''))
+    .join('\n');
+}
+
+module.exports = { plainItemText, parseItem, isPoeItemText, classify, modTemplate, modValues, parseSockets, SEP, RARITIES };

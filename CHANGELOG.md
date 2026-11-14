@@ -3,6 +3,25 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.63 - 2026-11-14
+
+Price check works like Awakened PoE Trade now:
+- **Copies with mod tiers** (Ctrl+Alt+C), so it knows each mod's tier, prefix or suffix, and roll range.
+- **Totals instead of single mods**: elemental resistance, chaos resistance, life (Strength counts half), mana, attributes, attack and cast speed, crit, damage, life regeneration. The mods they add up from leave the list.
+- **Armour, evasion and energy shield at 20% quality**, ticked on bases with one defence; weapon physical DPS at 20% quality too. The local mods that make them up are counted in.
+- **What starts ticked**: on a rare, the life and resistance totals plus the defences or DPS, for any base of that type. On a unique, only the rolls that can change, with a min a tenth of the roll's range under yours (a perfect roll exactly); all of them when there are three or fewer.
+- **Has an open prefix / suffix**: can be searched on a rare with five mods.
+- **Crafting base**: an unfinished item worth crafting on (item level 82+, influenced, fractured or synthesised) can also be searched as a base: exact base, item level, influences, implicits and fractured mods.
+- **Results**: the 20 cheapest, the same seller at the same price as one row with ×count, how long ago it was listed, and whether the seller is online, AFK or a merchant tab.
+- **Uniques and unidentified items are searched at once**; rares wait for Search. Turn this off in Settings.
+- Fewer requests: the next 10 listings are only fetched when the first 10 are mostly the same few sellers; the same search or listings again within 3 minutes cost nothing; and a search the trade site would make you wait more than 10 seconds for says so instead of hanging.
+- A not corrupted rare or magic item is compared with not corrupted ones; influences are only ticked in the crafting-base search.
+- **Live exchange** for currency, fragments, scarabs, divination cards and other stackables: what sellers online ask for one, paid in chaos or in divines, with stock, seller and how long ago (1 request).
+- **Price guess for rares** from poeprices.info: a low-high range, how sure it is, and which mods count most. Turn it off in Settings (it sends the item's text to poeprices.info).
+- **Cluster jewels**: the passive count searched the useful way (4 = at most 5, 3 / 6 / 10–12 = at least…), the small passives' bonus, item level brackets, jewel sockets hidden.
+- **Flasks**: the exact base, top-tier mods ticked, harvest / instilling enchantments hidden. **Maps**: quantity, pack size, rarity (not when the map drops more scarabs, currency or cards) and "More Scarabs / Currency / Cards". **Heist contracts**: the job level and a priceless target.
+- Fixed: stats with choices (like a cluster jewel's "Added Small Passive Skills grant") were searched wrong.
+
 ## 1.0.62 - 2026-11-14
 
 - Find a better item on the trade site: the page now says what it's doing (working out stat weights, waiting for the trade site's rate limit, searching, testing listing 3 of 10…) instead of one message the whole time.

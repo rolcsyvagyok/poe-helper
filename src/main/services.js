@@ -111,6 +111,8 @@ const DEFAULT_SETTINGS = {
   tradeTolerance: 0.1,
   tradeStatus: 'securable', // Instant Buyout only
   tradeFetchListings: true,
+  tradeAutoSearch: true,
+  poepricesOn: true, // a price guess for rares from poeprices.info (sends the item text there) // uniques and unidentified items are searched at once (Awakened PoE Trade's "smart" first search)
   overviewBgOff: false, // you removed the Overview picture that comes with the app
   tradeSearches: [], // saved trade searches and live searches (Trade searches page), with the price watch
   filterDir: '',
@@ -266,27 +268,22 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     settings.set('history', hist);
     const tierInfo = tierInfoFor(item, filterHit);
     const weapon = require('../core/trade').weaponDps(item);
-    return { item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon };
+    // bulk items get the live exchange; identified rares a poeprices.info guess (both as Awakened shows them)
+    const bulk = ['currency', 'divination', 'fragment'].includes(kind);
+    const guess = settings.get('poepricesOn') !== false && kind === 'rare' && !item.flags?.unidentified;
+    return { item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
   }
 
+  let bulkTag = async () => null;
   async function tradePrepare(text) {
     const item = readItem(text);
     if (!item) throw new Error('Not an item.');
     const stats = await ggg.tradeStats(); // 1 request per week at most
-    const mods = matchItemMods(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 });
-    const props = defaultProps(item);
-    // a weapon searched by DPS: its damage and attack speed mods are already in that number
-    if (props.dps?.on) { const { DPS_MOD } = require('../core/trade'); for (const m of mods) if (m.group !== 'pseudo' && DPS_MOD.test(m.text)) m.enabled = false; }
-    // melee weapons (axes, swords, maces, staves, claws, daggers): only the physical DPS to start with; tick more yourself
-    if (props.dps?.show && /^(one|two) hand (axes|swords|maces)$|^thrusting one hand swords$|^(staves|warstaves|claws|daggers)$/i.test(String(item.itemClass || ''))) {
-      for (const m of mods) m.enabled = false;
-      props.dps.on = true;
-      props.dps.mode = 'phys';
-      props.dps.min = Math.floor(props.dps.values.phys * 0.9);
-      if (props.base && props.category) props.base.on = false; // any base of this weapon type
-      for (const k of ['ilvl', 'links', 'quality']) if (props[k]) props[k].on = false;
-    }
-    return { mods, props, kind: classify(item), status: settings.get('tradeStatus') || 'securable' };
+    // the search Awakened PoE Trade would make: totals, the item's own numbers at 20% quality, what to tick
+    const { mods, props, presets } = require('../core/trade').prepareSearch(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 });
+    const kind = classify(item);
+    const autoSearch = settings.get('tradeAutoSearch') !== false && ((kind === 'unique' && !item.flags?.unidentified) || !!item.flags?.unidentified);
+    return { mods, props, presets, kind, autoSearch, status: settings.get('tradeStatus') || 'securable' };
   }
 
   async function tradeSearch({ text, mods, props = null, opts = {} }) {
@@ -295,14 +292,53 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const league = await getLeague();
     const status = opts.status || settings.get('tradeStatus') || 'securable';
     const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}) });
-    const res = await ggg.tradeSearch(league, query);
+    const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 });
     const out = { url: ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, listings: null };
     if ((opts.fetchListings ?? settings.get('tradeFetchListings')) && res.result?.length) {
-      const fetched = await ggg.tradeFetch(res.id, res.result.slice(0, 10));
+      // the 20 cheapest (two fetches of 10, as Awakened PoE Trade does): the first 10 are often one seller
+      const first = await ggg.tradeFetch(res.id, res.result.slice(0, 10));
+      // the next 10 only when the first 10 are mostly the same few sellers (as Awakened fetches more)
+      const sellers = summarizeListings(first, null).prices.length;
+      const more = res.result.length > 10 && sellers < 6 ? await ggg.tradeFetch(res.id, res.result.slice(10, 20)).catch(() => ({ result: [] })) : { result: [] };
       const divine = await ninja.divinePrice(league).catch(() => null);
-      out.listings = summarizeListings(fetched, divine);
+      out.listings = summarizeListings({ result: [...(first.result || []), ...(more.result || [])] }, divine, { me: settings.get('accountName') || '' });
     }
     return out;
+  }
+
+  // ---------- bulk exchange and poeprices.info, as Awakened PoE Trade ----------
+  const PF = require('../core/price-filters');
+  /** Live exchange listings for a stackable item (currency, fragments, cards…): 1 request. null when it has no tag. */
+  async function tradeBulk({ text, status } = {}) {
+    const item = readItem(text);
+    if (!item) throw new Error('Not an item.');
+    const tag = PF.exchangeTag(await ggg.tradeStatic(), item.typeLine || item.baseType || item.name);
+    if (!tag) return null;
+    const league = await getLeague();
+    const res = await ggg.tradeExchange(league, PF.exchangeQuery(tag, { status: status === 'any' ? 'any' : 'online' }), { maxWaitMs: 10000 });
+    const divine = await ninja.divinePrice(league).catch(() => null);
+    return { tag, total: res.total ?? Object.keys(res.result || {}).length, url: ggg.exchangeUrl(league, res.id), divineChaos: divine, ...PF.exchangeListings(res, { me: settings.get('accountName') || '' }) };
+  }
+  bulkTag = async (text) => { try { const it = readItem(text); return it ? PF.exchangeTag(await ggg.tradeStatic(), it.typeLine || it.baseType || it.name) : null; } catch { return null; } };
+
+  // poeprices.info: its guess for a rare, cached 5 minutes (the same item checked twice costs nothing)
+  const guessCache = new Map();
+  async function pricePredict({ text } = {}) {
+    if (settings.get('poepricesOn') === false) return null;
+    const item = readItem(text);
+    if (!item || item.rarity !== 'Rare' || item.flags?.unidentified) return null;
+    const league = await getLeague();
+    const q = PF.poepricesQuery(require('../core/item-parser').plainItemText(text), league);
+    const hit = guessCache.get(q);
+    if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.r;
+    const res = await (fetchImpl || globalThis.fetch)(`https://www.poeprices.info/api?${q}`, { headers: { 'User-Agent': userAgent() } });
+    let json;
+    try { json = await res.json(); } catch { throw new Error(`poeprices.info is busy or down (${res.status}).`); }
+    const cur = await ninja.category(league, 'Currency').catch(() => []);
+    const r = { ...PF.poepricesResult(json, { exaltChaos: cur.find((c) => /^exalted orb$/i.test(c.name))?.chaos || null, divineChaos: cur.find((c) => /^divine orb$/i.test(c.name))?.chaos || null }), url: `https://www.poeprices.info/api?${q}&w=1` };
+    guessCache.set(q, { at: Date.now(), r });
+    if (guessCache.size > 50) guessCache.delete(guessCache.keys().next().value);
+    return r;
   }
 
   // ---------- saved trade searches and the price watch ----------
@@ -1912,7 +1948,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

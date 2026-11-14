@@ -1291,3 +1291,17 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 /* overlay: a weapon's own DPS */
 .ov-dps { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); margin: 4px 0 2px; }
 .ov-dps b { color: var(--text); font-weight: 650; }
+
+/* trade results, Awakened style: price ×count, listed ago, seller, online */
+.tp-listings { display: flex; flex-direction: column; gap: 1px; max-height: 260px; overflow: auto; }
+.tp-li { display: flex; align-items: baseline; gap: 8px; padding: 3px 6px; border-radius: 6px; font-size: 13px; }
+.tp-li:nth-child(odd) { background: #ffffff08; }
+.tp-li.mine { outline: 1px dashed var(--muted); }
+.tp-price { font-weight: 650; min-width: 92px; }
+.tp-times { margin-left: 5px; font-size: 11px; padding: 0 4px; border-radius: 4px; background: var(--raised); color: var(--muted); font-weight: 500; }
+.tp-ago { min-width: 30px; }
+.tp-seller { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-you { font-size: 11px; padding: 0 5px; border-radius: 4px; background: var(--raised); }
+.tp-st { font-size: 11px; white-space: nowrap; color: var(--muted); }
+.tp-st.online { color: var(--good); }
+.tp-st.afk { color: var(--bad); }

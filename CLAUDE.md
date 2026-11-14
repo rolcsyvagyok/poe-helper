@@ -17,6 +17,7 @@ the release steps, CHANGELOG.md what each version changed (written for players),
   - `pob.js`: the whole Path of Building page (Snapshot, Build, Tree, Calcs, Configuration, Upgrades, Support gems, Levelling plan, Compare).
   - `styles.css`: all styles.
 - `src/core/` — pure logic, unit-tested: item parser, pricer, trade, filter engine, regex, lab, pob-code (build codes), pob-trade (weighted trade queries).
+  - `price-filters.js` + `trade.prepareSearch`: the price check's search, modelled on Awakened PoE Trade (MIT): pseudo totals, Q20 defences/DPS, starting ticks, crafting-base preset. The hotkey copies with Ctrl+Alt+C; `item.modMeta` holds tier / prefix-suffix / roll ranges, and `plainItemText` gives Path of Building the plain copy.
 - `src/pob/` — Lua run inside the user's own Path of Building install.
   - `SimpleGraphic.lua`: stubs for PoB's graphics host.
   - `host.lua`: the headless PoB host, one op per request.
