@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.70 - 2026-11-14
+
+- Magic items of a high item level keep your filter's own look, like rares. Base ranks only hide the ranks below your choice. Normal (white) high item level bases still get the rank colours.
+
 ## 1.0.69 - 2026-11-14
 
 - New theme in the Tier designer: Bubblegum, hot pink with soft lilac.

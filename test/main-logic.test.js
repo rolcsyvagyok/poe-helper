@@ -677,3 +677,12 @@ test('rares keep the filter look: base ranks only hide the ranks below your choi
   const hide = rules.find((r) => r.id === 'rank-rares-hide');
   assert.deepEqual(hide.conditions.find((c) => c.keyword === 'BaseType').values, ['Silk Robe']);
 });
+
+test('magic high ilvl bases keep the filter look; normal ones get the rank look; low ranks of both hide', () => {
+  const { rankRules } = require('../src/core/filter/manager');
+  const rules = rankRules({ 'Praetor Crown': 'A', 'Iron Hat': 'D' }, { crafting: 'B' }, ['Praetor Crown', 'Iron Hat']);
+  const show = rules.find((r) => r.id === 'rank-crafting-A');
+  assert.deepEqual(show.conditions.find((c) => c.keyword === 'Rarity').values, ['Normal']);
+  const hide = rules.find((r) => r.id === 'rank-crafting-hide');
+  assert.deepEqual(hide.conditions.find((c) => c.keyword === 'Rarity').values, ['Normal', 'Magic']);
+});
