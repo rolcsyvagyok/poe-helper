@@ -440,12 +440,14 @@ function specialRules(mods, item, props, kind, tol) {
   if (kind === 'map') {
     const p = item.properties || {};
     const n = (k) => { const v = /(\d+)/.exec(String(p[k] || '')); return v ? Number(v[1]) : null; };
-    const more = ['More Scarabs', 'More Currency', 'More Divination Cards'].some((k) => n(k));
+    // a map is searched by its tier and influence: everything else starts unticked
     props.mapStats = [
-      ['iiq', 'Item Quantity', true], ['iir', 'Item Rarity', !more], ['packsize', 'Monster Pack Size', true],
+      ['iiq', 'Item Quantity', false], ['iir', 'Item Rarity', false], ['packsize', 'Monster Pack Size', false],
     ].filter(([, k]) => n(k)).map(([key, label, on]) => ({ key, label, value: n(label), on, min: Math.floor(n(label) * (1 - tol)) }));
     const ids = { 'More Scarabs': 'pseudo.pseudo_map_more_scarab_drops', 'More Currency': 'pseudo.pseudo_map_more_currency_drops', 'More Divination Cards': 'pseudo.pseudo_map_more_card_drops', 'More Maps': 'pseudo.pseudo_map_more_map_drops' };
-    const extra = Object.entries(ids).filter(([k]) => n(k)).map(([k, id]) => ({ id, text: `${k}: +${n(k)}%`, statText: `${k}: #%`, value: n(k), display: n(k), min: Math.floor(n(k) * (1 - tol)), max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: k !== 'More Maps' }));
+    const extra = Object.entries(ids).filter(([k]) => n(k)).map(([k, id]) => ({ id, text: `${k}: +${n(k)}%`, statText: `${k}: #%`, value: n(k), display: n(k), min: Math.floor(n(k) * (1 - tol)), max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: false }));
+    if (props.mapTier) props.mapTier.on = true;
+    for (const m of mods) m.enabled = /^Area is influenced by/i.test(m.text || '');
     return [...extra, ...mods];
   }
   // heist contracts: the job and its level, and whether the target is priceless
@@ -498,7 +500,7 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     for (const m of mods) if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; m.hidden = false; }
   }
   // open prefixes and suffixes: searchable as "at least this many empty" (unticked to start)
-  const open = PF.emptyAffix(item);
+  const open = kind === 'map' ? null : PF.emptyAffix(item); // a map's open slots don't change its price
   for (const side of ['prefix', 'suffix']) {
     const n = open?.[side];
     if (!n) continue;

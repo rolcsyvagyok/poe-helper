@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.68 - 2026-11-14
+
+- Map price check: only the map tier and the influence ("Area is influenced by The Elder") start ticked. Quantity, rarity, pack size and the map's mods start unticked, and maps no longer show open prefix / suffix rows.
+- Maps no longer list "Close matches".
+
 ## 1.0.67 - 2026-11-14
 
 - Rares in maps keep your filter's own tiers and look. Base ranks only hide the bases below the lowest rank you pick for rares.

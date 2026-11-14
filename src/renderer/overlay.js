@@ -150,7 +150,7 @@ function render(p) {
       conf[1] ? h('span', { class: `pill ${conf[0]}` }, conf[1]) : null));
     if (price.stackSize > 1) body.append(h('div', { class: 'small' }, `Your stack of ${price.stackSize} is worth `, h('b', {}, chaosDiv(price.totalChaos, divine))));
     if (price.range) body.append(h('div', { class: 'small muted' }, `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Check the mods.`));
-    if (price.matches?.length > 1) {
+    if (price.matches?.length > 1 && !/Map$/i.test(price.category || '')) { // maps: the tier decides, the list only repeats it
       body.append(h('div', { class: 'ov-block' }, h('div', { class: 't' }, 'Close matches'),
         h('div', { class: 'ov-list' }, price.matches.slice(0, 4).map((m) => h('div', { class: 'li' },
           h('span', { class: 'muted' }, [m.variant, m.links ? `${m.links}-link` : null, m.gemLevel ? `${m.gemLevel}/${m.gemQuality || 0}%` : null, m.corrupted ? 'corrupted' : null, m.levelRequired && price.category === 'BaseType' ? `ilvl ${m.levelRequired}+` : null].filter(Boolean).join(', ') || m.name),

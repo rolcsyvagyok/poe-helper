@@ -148,8 +148,9 @@ test('maps: quantity, pack size and more scarabs; heist: the job level and a pri
   const map = parseItem('Item Class: Maps\nRarity: Rare\nGrim Vault\nStrand Map (Tier 16)\n--------\nMap Tier: 16\nItem Quantity: +87% (augmented)\nItem Rarity: +45% (augmented)\nMonster Pack Size: +30% (augmented)\nMore Scarabs: +20% (augmented)\n--------\nItem Level: 83\n--------\nArea has patches of Burning Ground');
   const m = T.prepareSearch(STATS, map);
   const q = T.buildQuery(map, m.mods, { props: m.props });
-  assert.deepEqual(q.query.filters.map_filters.filters, { map_iiq: { min: 78 }, map_packsize: { min: 27 }, map_tier: { min: 16 } }, 'rarity left out when the map drops more scarabs');
-  assert.ok(m.mods.find((x) => x.id === 'pseudo.pseudo_map_more_scarab_drops').enabled);
+  assert.deepEqual(q.query.filters.map_filters.filters, { map_tier: { min: 16 } }, 'a map is searched by its tier (and influence); the rest starts unticked');
+  assert.equal(m.mods.find((x) => x.id === 'pseudo.pseudo_map_more_scarab_drops').enabled, false);
+  assert.ok(!m.mods.some((x) => /empty_(prefix|suffix)/.test(x.id)), 'no open prefix/suffix rows on maps');
   const c = parseItem('Item Class: Heist Contracts\nRarity: Normal\nContract: Death to Darnaw\n--------\nClient: Tullina, the Catburglar\nHeist Target: Box of Jewelled Rings (Priceless)\nArea Level: 83\nRequires Lockpicking (Level 5)\n--------\nItem Level: 83');
   const h = T.prepareSearch(STATS, c);
   assert.deepEqual(T.buildQuery(c, h.mods, { props: h.props }).query.filters.heist_filters.filters, { heist_lockpicking: { min: 5 }, heist_objective_value: { option: 'priceless' } });
