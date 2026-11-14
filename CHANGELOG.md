@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.64 - 2026-11-14
+
+- Fixed: trade search for transfigured gems ("Unknown item base type"). They are now searched as their base gem with the transfigured version, the way the trade site lists them.
+- Price check in the Labyrinth's Divine Font and other windows that only allow a plain copy: when the copy with mod tiers gives nothing, the app tries a plain copy.
+- The price guess for rares is gone: poeprices.info has shut down (its address now points to a domain sale page).
+
 ## 1.0.63 - 2026-11-14
 
 Price check works like Awakened PoE Trade now:

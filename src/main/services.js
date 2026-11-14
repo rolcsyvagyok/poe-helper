@@ -112,7 +112,7 @@ const DEFAULT_SETTINGS = {
   tradeStatus: 'securable', // Instant Buyout only
   tradeFetchListings: true,
   tradeAutoSearch: true,
-  poepricesOn: true, // a price guess for rares from poeprices.info (sends the item text there) // uniques and unidentified items are searched at once (Awakened PoE Trade's "smart" first search)
+  poepricesOn: false, // poeprices.info is gone (the domain is for sale since late 2026): the price guess is off // uniques and unidentified items are searched at once (Awakened PoE Trade's "smart" first search)
   overviewBgOff: false, // you removed the Overview picture that comes with the app
   tradeSearches: [], // saved trade searches and live searches (Trade searches page), with the price watch
   filterDir: '',
@@ -270,7 +270,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const weapon = require('../core/trade').weaponDps(item);
     // bulk items get the live exchange; identified rares a poeprices.info guess (both as Awakened shows them)
     const bulk = ['currency', 'divination', 'fragment'].includes(kind);
-    const guess = settings.get('poepricesOn') !== false && kind === 'rare' && !item.flags?.unidentified;
+    const guess = false; // poeprices.info is gone: no price guess
     return { item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
   }
 
@@ -291,7 +291,12 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (!item) throw new Error('Not an item.');
     const league = await getLeague();
     const status = opts.status || settings.get('tradeStatus') || 'securable';
-    const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}) });
+    // transfigured gems are searched as their base gem plus a discriminator (the trade site's item list says which)
+    let gemType = null;
+    if (classify(item) === 'gem' && / of /.test(item.typeLine || '')) {
+      try { gemType = require('../core/trade').gemTradeType(await ggg.tradeItems(), item.typeLine); } catch (e) { log('trade item list', e.message); }
+    }
+    const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}) });
     const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 });
     const out = { url: ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, listings: null };
     if ((opts.fetchListings ?? settings.get('tradeFetchListings')) && res.result?.length) {
@@ -324,7 +329,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // poeprices.info: its guess for a rare, cached 5 minutes (the same item checked twice costs nothing)
   const guessCache = new Map();
   async function pricePredict({ text } = {}) {
-    if (settings.get('poepricesOn') === false) return null;
+    return null; // poeprices.info is gone (the domain now points to a sale page)
     const item = readItem(text);
     if (!item || item.rarity !== 'Rare' || item.flags?.unidentified) return null;
     const league = await getLeague();

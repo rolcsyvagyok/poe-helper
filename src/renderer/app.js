@@ -1158,7 +1158,6 @@ async function renderSettingsNow() {
             field('Trade search range', h('select', { onchange: set('tradeTolerance', Number) }, [[0, 'Exact values'], [0.05, '5% below my values'], [0.1, '10% below my values'], [0.2, '20% below my values']].map(([v, l]) => h('option', { value: v, selected: Number(st.tradeTolerance) === v }, l)))),
             toggle(st.tradeFetchListings, (v) => call('settings:set', { tradeFetchListings: v }).then(() => toast('Saved')), 'Show the 20 cheapest listings after a search (1 to 2 extra requests)'),
             toggle(st.tradeAutoSearch !== false, (v) => call('settings:set', { tradeAutoSearch: v }).then(() => toast('Saved')), 'Search uniques, unidentified items and the bulk exchange at once (rares wait for Search)'),
-            toggle(st.poepricesOn !== false, (v) => call('settings:set', { poepricesOn: v }).then(() => toast('Saved')), 'Price guess for rares from poeprices.info (sends the item text there)'),
             field('Item label font', h('div', { class: 'row' },
               h('span', { class: 'small', style: { flex: 1 } }, st.labelFontPath ? `Using ${st.labelFontPath.split(/[\\/]/).pop()}` : 'Using the bundled look-alike (Marcellus SC)'),
               h('button', { class: 'sm', onclick: async () => { const n = await call('font:pick'); if (n) { await window.UI.loadUserFont(); toast(`Item labels now use ${n}`); renderSettings(); } } }, 'Choose font file'),

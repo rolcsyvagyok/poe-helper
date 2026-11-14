@@ -292,7 +292,9 @@ function buildQuery(item, mods, opts = {}) {
     q.query.name = item.name;
     q.query.type = item.baseType;
   } else if (kind === 'gem') {
-    q.query.type = item.typeLine;
+    // a transfigured gem is its base gem with a "discriminator" ("Ethereal Knives of the Massacre" ->
+    // { option: 'Ethereal Knives', discriminator: 'alt_x' }), from the trade site's item list
+    q.query.type = opts.gemType || item.typeLine;
   } else if (useBase && item.baseType && kind !== 'magic') {
     q.query.type = item.baseType;
   }
@@ -558,4 +560,17 @@ function summarizeListings(fetchJson, divineChaos, { me = '' } = {}) {
   return { prices: rows, min: chaosVals[0] ?? null, median, count: flat.length };
 }
 
-module.exports = { prepareSearch, weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };
+/** The trade site's type for a gem: a transfigured one as { option, discriminator }; null when the list doesn't know it. */
+function gemTradeType(itemsJson, name) {
+  const want = String(name || '').toLowerCase();
+  for (const g of itemsJson?.result || []) {
+    if (g.id !== 'gem' && !/gem/i.test(g.label || '')) continue;
+    for (const e of g.entries || []) {
+      if (String(e.text || e.type || '').toLowerCase() !== want) continue;
+      return e.disc ? { option: e.type, discriminator: e.disc } : e.type;
+    }
+  }
+  return null;
+}
+
+module.exports = { gemTradeType, prepareSearch, weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };

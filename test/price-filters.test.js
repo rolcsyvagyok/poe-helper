@@ -170,3 +170,11 @@ test('bulk exchange listings and the poeprices.info guess', () => {
   assert.throws(() => PF.poepricesResult({ error: 1, error_msg: 'Unable to price' }), /Unable to price/);
   assert.match(PF.poepricesQuery('Rarity: Rare', 'Covens of Umbra'), /^i=UmFyaXR5OiBSYXJl&l=Covens%20of%20Umbra&s=poe-helper$/);
 });
+
+test('transfigured gems: searched as the base gem with its discriminator', () => {
+  const items = { result: [{ id: 'gem', label: 'Gems', entries: [{ type: 'Ethereal Knives', text: 'Ethereal Knives' }, { type: 'Ethereal Knives', text: 'Ethereal Knives of the Massacre', disc: 'alt_x' }] }] };
+  assert.deepEqual(T.gemTradeType(items, 'Ethereal Knives of the Massacre'), { option: 'Ethereal Knives', discriminator: 'alt_x' });
+  assert.equal(T.gemTradeType(items, 'Ethereal Knives'), 'Ethereal Knives');
+  const gem = parseItem('Item Class: Skill Gems\nRarity: Gem\nEthereal Knives of the Massacre\n--------\nLevel: 1\nQuality: +11% (augmented)\n--------\nRequirements:\nLevel: 1');
+  assert.deepEqual(T.buildQuery(gem, [], { gemType: { option: 'Ethereal Knives', discriminator: 'alt_x' } }).query.type, { option: 'Ethereal Knives', discriminator: 'alt_x' });
+});

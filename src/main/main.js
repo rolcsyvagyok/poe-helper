@@ -262,14 +262,20 @@ async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
   if (hasKeySender()) {
     clipboard.writeText('');
     suppressClipboardUntil = Date.now() + 1000;
-    await sendCopy({ advanced, held: Hotkey.parse(accelerator).mods });
-    // Poll for the game to fill the clipboard (usually < 100ms)
-    const start = Date.now();
-    while (Date.now() - start < 500) {
-      const t = clipboard.readText();
-      if (t && isPoeItemText(t)) { text = t; break; }
-      await new Promise((r) => setTimeout(r, 20));
-    }
+    const tryCopy = async (adv) => {
+      await sendCopy({ advanced: adv, held: Hotkey.parse(accelerator).mods });
+      // Poll for the game to fill the clipboard (usually < 100ms)
+      const start = Date.now();
+      while (Date.now() - start < 500) {
+        const t = clipboard.readText();
+        if (t && isPoeItemText(t)) return t;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return null;
+    };
+    text = await tryCopy(advanced);
+    // some windows (the Divine Font in the Labyrinth, vendors' previews) only take a plain Ctrl+C
+    if (!text && advanced) { suppressClipboardUntil = Date.now() + 1000; text = await tryCopy(false); }
     if (services.settings.get('restoreClipboard')) clipboard.writeText(text && before === '' ? text : before);
     lastClipboard = clipboard.readText();
   }

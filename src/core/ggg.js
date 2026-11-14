@@ -196,6 +196,21 @@ class GggClient {
     }
   }
 
+  /** The trade site's list of item names (bases, uniques, gems with their transfigured "discriminator"), cached like the stats. */
+  async tradeItems() {
+    const key = 'ggg_trade_items';
+    if (this.cache.isFresh(key, STATS_TTL)) return this.cache.get(key).data;
+    try {
+      const json = await this._request('trade-data', `${WEB}/api/trade/data/items`);
+      this.cache.set(key, json);
+      return json;
+    } catch (e) {
+      const stale = this.cache.get(key);
+      if (stale) return stale.data;
+      throw e;
+    }
+  }
+
   /** Bulk exchange (currency and other stackables): the listings come with the answer, no fetch. */
   async tradeExchange(league, body, { maxWaitMs = null } = {}) {
     const key = `${league}|${JSON.stringify(body)}`;
