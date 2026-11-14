@@ -1102,6 +1102,7 @@ function appIconBox(st) {
 async function renderSettingsNow() {
   const filterInfo = await call('filter:list').catch(() => ({ files: [], base: null }));
   const shareUndo = await call('filterShare:canUndo').catch(() => false);
+  const appShareUndo = await call('appShare:canUndo').catch(() => false);
   await refreshState();
   const st = S.settings;
   const el = $('page-settings');
@@ -1182,6 +1183,14 @@ async function renderSettingsNow() {
           try { const r = await call('filterShare:import'); if (r) { toast(`Imported${r.from ? ` (made with PoE Helper ${r.from})` : ''}. Your filter is rewritten; zone or reload it in game.`); renderSettings(); } } catch { /* toast */ }
         } }, 'Import…'),
         shareUndo ? h('button', { class: 'quiet', onclick: async () => { await call('filterShare:undo'); toast('Your own settings are back'); renderSettings(); } }, 'Undo import') : null)),
+    section('Share your app settings', 'Your hotkeys, chat macros, price check and overlay choices, the Regex page, saved trade searches and the lab overlay, in one file. Your account, login, league, folders, history and net worth are never in it.',
+      h('div', { class: 'panel row', style: { gap: '10px' } },
+        h('button', { class: 'primary', onclick: async () => { const p = await call('appShare:export'); if (p) toast(`Saved to ${p.split(/[\\/]/).pop()}`); } }, 'Export…'),
+        h('button', { onclick: async () => {
+          if (!confirm('Importing replaces your app settings with the ones in the file. You can undo it afterwards. Go on?')) return;
+          try { const r = await call('appShare:import'); if (r) { toast(`Imported ${r.count} settings${r.from ? ` (made with PoE Helper ${r.from})` : ''}`); renderSettings(); } } catch { /* toast */ }
+        } }, 'Import…'),
+        appShareUndo ? h('button', { class: 'quiet', onclick: async () => { await call('appShare:undo'); toast('Your own app settings are back'); renderSettings(); } }, 'Undo import') : null)),
     notesSection(await call('app:changelog').catch(() => [])),
     section('Tray and app icon', 'The picture in the tray, the taskbar and the window title bar.',
       h('div', { class: 'panel row', style: { gap: '16px' } }, appIconBox(st))),

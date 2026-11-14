@@ -57,7 +57,7 @@ test('rare: resistances and life as totals (Strength counts half for life), the 
   assert.equal(by('pseudo.pseudo_total_elemental_resistance').enabled, true);
   assert.equal(by('pseudo.pseudo_total_life').value, 72 + 14);
   assert.equal(by('pseudo.pseudo_total_life').enabled, true);
-  assert.ok(!by('explicit.fire') && !by('explicit.life') && !by('implicit.firecold'), 'folded into the totals');
+  assert.ok(['explicit.fire', 'explicit.life', 'implicit.firecold'].every((id) => by(id).hidden && !by(id).enabled), 'counted in the totals: hidden and unticked, shown on request');
   assert.equal(by('explicit.phys_att').enabled, false, 'single mods start unticked on a rare');
   assert.equal(by('pseudo.pseudo_number_of_empty_prefix_mods').text, 'Has an open prefix');
   assert.equal(props.base.on, false, 'any ring, not only Two-Stone Rings');
@@ -82,7 +82,7 @@ Item Level: 85
 56(43-55)% increased Armour`);
   const { mods, props } = T.prepareSearch(STATS, it);
   assert.deepEqual(props.defence, [{ key: 'ar', label: 'Armour', value: Math.round(1062 * 176 / 156), on: true, min: Math.floor(Math.round(1062 * 176 / 156) * 0.9) }]);
-  assert.ok(!mods.some((m) => /Armour/.test(m.text)), 'the armour mods are in the number');
+  assert.ok(mods.filter((m) => /Armour/.test(m.text)).every((m) => m.hidden && !m.enabled), 'the armour mods are in the number: hidden, unticked');
   const q = T.buildQuery(it, mods, { props });
   assert.deepEqual(q.query.filters.armour_filters, { filters: { ar: { min: props.defence[0].min } } });
 });
@@ -217,4 +217,12 @@ test('Wickerman parts (no rarity line) are read and searched by name and buff', 
   assert.equal(q.query.type, 'Templar Skull');
   assert.equal(q.query.filters.misc_filters, undefined, 'item level left out');
   assert.ok(!isPoeItemText('Item Class: Viscera\nsome note'), 'needs the separator');
+});
+
+test('"Chain 2 additional times" finds the trade site\'s "Chain an additional time" stat', () => {
+  const stats = { result: [{ label: 'Explicit', entries: [{ id: 'explicit.stat_2999750998', text: 'Skills used by your Traps and Mines Chain an additional time', type: 'explicit' }] }] };
+  const idx = T.indexStats(stats);
+  const m = T.matchMod(idx, 'Skills used by your Traps and Mines Chain 2 additional times', 'explicit', 'Rings');
+  assert.equal(m.id, 'explicit.stat_2999750998');
+  assert.equal(m.value, 2);
 });

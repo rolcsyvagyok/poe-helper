@@ -703,6 +703,53 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     for (const f of used) { try { sounds[f] = fs.readFileSync(path.join(userSoundsDir, path.basename(f))).toString('base64'); } catch { /* gone */ } }
     return JSON.stringify({ kind: SHARE_KIND, version: 1, app: VERSION, exportedAt: new Date().toISOString(), settings: values, sounds }, null, 1);
   }
+  // ---------- share the app's own settings (not the loot filter, not anything private) ----------
+  // Only these go in the file: hotkeys, chat macros, overlay and price check choices, the Regex page,
+  // saved trade searches, the lab overlay. Never your account, login (POESESSID), league, folders on
+  // your PC (Path of Exile, Path of Building, the filter), history, net worth or caches.
+  const APP_KEYS = ['uiTheme', 'hotkeyPrice', 'hotkeySnapshot', 'hotkeyPobTest', 'chatMacrosOn', 'chatMacros', 'pobCompareOn',
+    'hotkeyLab', 'labFavorite', 'labOpacity', 'clipboardMode', 'restoreClipboard', 'overlayCloseOnMouseAway', 'minimizeToTray',
+    'appIconStyle', 'regexMaps', 'regexGems', 'regexGemClass', 'regexCampaign', 'regexItems', 'regexBeasts', 'regexFavMods',
+    'regexTrade', 'regexPresets', 'dailyGggBudget', 'ninjaTtlMin', 'autoSnapshotMin', 'minItemChaos', 'tradeTolerance',
+    'tradeStatus', 'tradeFetchListings', 'tradeAutoSearch', 'tradeSearches', 'overviewBgOff', 'fbSideMini', 'fbSideWidth', 'filterPins', 'autoWatchFilter'];
+  const APP_SHARE_KIND = 'poe-helper-app-settings';
+  function exportAppSettings() {
+    const values = Object.fromEntries(APP_KEYS.filter((k) => settings.get(k) !== undefined).map((k) => [k, settings.get(k)]));
+    // saved trade searches go without their last results and notifications (yours, not theirs)
+    if (Array.isArray(values.tradeSearches)) values.tradeSearches = values.tradeSearches.map(({ last, lastCheck, lastListings, lastTop, told, error, ...t }) => t);
+    return JSON.stringify({ kind: APP_SHARE_KIND, version: 1, app: VERSION, exportedAt: new Date().toISOString(), settings: values }, null, 1);
+  }
+  /** Someone else's app settings replace yours (yours are kept for Undo); keys the file doesn't have stay yours. */
+  function importAppSettings(text) {
+    const fs = require('fs');
+    let data;
+    try { data = JSON.parse(String(text)); } catch { throw new Error('That isn\'t a PoE Helper app settings file.'); }
+    if (data?.kind === SHARE_KIND) throw new Error('That is a loot filter settings file: import it under "Share your loot filter settings".');
+    if (data?.kind !== APP_SHARE_KIND || typeof data.settings !== 'object' || !data.settings) throw new Error('That isn\'t a PoE Helper app settings file.');
+    fs.writeFileSync(path.join(dataDir, 'settings-before-app-import.json'), JSON.stringify(Object.fromEntries(APP_KEYS.map((k) => [k, settings.data[k] ?? null]))));
+    let n = 0;
+    const ok = (k, v) => (k === 'chatMacros' || k === 'tradeSearches' || k === 'regexPresets' || k === 'regexFavMods' || k === 'filterPins' ? Array.isArray(v)
+      : DEFAULT_SETTINGS[k] == null || v == null || typeof v === typeof DEFAULT_SETTINGS[k]);
+    for (const k of APP_KEYS) if (k in data.settings && ok(k, data.settings[k])) { settings.data[k] = data.settings[k]; n++; }
+    // chat macros type into your game chat: keep them to a key and one line of text each
+    if (Array.isArray(settings.data.chatMacros)) settings.data.chatMacros = settings.data.chatMacros.slice(0, 12).map((m) => ({ key: String(m?.key || ''), text: String(m?.text || '').replace(/[\r\n]+/g, ' ').slice(0, 250), send: m?.send !== false })).filter((m) => m.key);
+    settings.save();
+    return { count: n, from: data.app || null, at: data.exportedAt || null };
+  }
+  function undoImportAppSettings() {
+    const fs = require('fs');
+    const f = path.join(dataDir, 'settings-before-app-import.json');
+    if (!fs.existsSync(f)) throw new Error('There is no import to undo.');
+    const before = JSON.parse(fs.readFileSync(f, 'utf8'));
+    for (const [k, v] of Object.entries(before)) { if (!APP_KEYS.includes(k)) continue; if (v === null) delete settings.data[k]; else settings.data[k] = v; }
+    settings.save();
+    fs.unlinkSync(f);
+    return true;
+  }
+  function canUndoAppImport() {
+    try { return require('fs').existsSync(path.join(dataDir, 'settings-before-app-import.json')); } catch { return false; }
+  }
+
   /** Someone else's loot filter settings replace yours (yours are kept for Undo). */
   function importFilterSettings(text) {
     const fs = require('fs');
@@ -2076,7 +2123,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

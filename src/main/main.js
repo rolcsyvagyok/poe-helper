@@ -1390,6 +1390,28 @@ function registerIpc() {
     return services.importFilterSettings(require('fs').readFileSync(r.filePaths[0], 'utf8'));
   });
   handle('filterShare:undo', () => services.undoImportFilterSettings());
+  // the app's own settings (hotkeys, macros, price check, regex, trade searches): never the login or folders
+  const afterAppImport = () => {
+    services.applySettings();
+    hotkeysPaused = false; registerHotkeys();
+    startClipboardWatcher();
+    for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
+  };
+  handle('appShare:export', async () => {
+    const r = await dialog.showSaveDialog(mainWin, { title: 'Export your app settings', defaultPath: 'app-settings.poehelper.json', filters: [{ name: 'PoE Helper app settings', extensions: ['json'] }] });
+    if (r.canceled || !r.filePath) return null;
+    require('fs').writeFileSync(r.filePath, services.exportAppSettings(), 'utf8');
+    return r.filePath;
+  });
+  handle('appShare:import', async () => {
+    const r = await dialog.showOpenDialog(mainWin, { title: 'Import app settings', properties: ['openFile'], filters: [{ name: 'PoE Helper app settings', extensions: ['json'] }] });
+    if (r.canceled || !r.filePaths?.[0]) return null;
+    const out = services.importAppSettings(require('fs').readFileSync(r.filePaths[0], 'utf8'));
+    afterAppImport();
+    return out;
+  });
+  handle('appShare:undo', () => { services.undoImportAppSettings(); afterAppImport(); return true; });
+  handle('appShare:canUndo', () => services.canUndoAppImport());
   handle('filterShare:canUndo', () => services.canUndoImport());
   handle('themes:export', async (id) => {
     const json = services.exportTheme(id);

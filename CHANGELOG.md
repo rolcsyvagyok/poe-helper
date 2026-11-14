@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.73 - 2026-11-15
+
+- Settings → Share your app settings: export your hotkeys, chat macros, price check and overlay choices, Regex page, saved trade searches and lab overlay to one file, and import someone else's (with Undo). Your account, login, league, folders, history and net worth are never in it.
+- Price check: mods counted in a total, the weapon DPS or the defences (attack speed, critical strike chance, added damage, single resistances...) are no longer left out. "+ Show more mods" lists them, so you can tick them yourself.
+- Price check: mods the trade site writes in the singular ("Chain an additional time") are found when your item has a number ("Chain 2 additional times").
+
 ## 1.0.72 - 2026-11-14
 
 - Wickerman parts (Viscera) can be price checked: the trade search looks for the same part with its buff at your roll or better. If the trade site doesn't list them, the price check says so.

@@ -47,6 +47,11 @@ function indexStats(statsJson) {
       (idx[type][key] = idx[type][key] || []).push(entry);
       const lk = `~${looseKey(key)}`;
       (idx[type][lk] = idx[type][lk] || []).push(entry);
+      // "Chain an additional time" on trade, "Chain 2 additional times" on the item
+      if (/\ban additional\b/.test(key)) {
+        const nk = `~${looseKey(key.replace(/\ban additional\b/, '# additional'))}`;
+        (idx[type][nk] = idx[type][nk] || []).push({ ...entry, countsAn: true });
+      }
     }
   }
   return idx;
@@ -56,6 +61,13 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   const table = idx[type] || {};
   let key = normTemplate(modTemplate(modText));
   let hits = table[key] || table[`~${looseKey(key)}`];
+  // the item says "an additional time", the trade site "# additional times": the number is 1
+  let one = false;
+  if (!hits && /\ban additional\b/i.test(modText)) {
+    const k1 = key.replace(/\ban additional\b/, '# additional');
+    hits = table[k1] || table[`~${looseKey(k1)}`];
+    one = !!hits;
+  }
   // "reduced X" is stored as negative "increased X" on trade
   let negate = false;
   if (!hits && /\breduced\b/i.test(modText)) {
@@ -70,7 +82,7 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   const wantLocal = LOCAL_CLASSES.test(itemClass || '');
   // random-support uniques (Forbidden Shako...) are searched by the trade site's "support" stats
   const entry = (unique && hits.find((h) => /indexable_support/.test(h.id))) || hits.find((h) => h.local === wantLocal && !/indexable_support/.test(h.id)) || hits.find((h) => !/indexable_support/.test(h.id)) || hits[0];
-  const vals = modValues(modText);
+  const vals = one ? [1] : modValues(modText);
   // "Adds 10 to 20 Fire Damage" is searched by its average on trade
   const display = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
   const value = display != null && negate ? -display : display;
@@ -499,7 +511,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   }
   // totals instead of the mods that add up to them
   const { pseudo, consumed } = PF.pseudoTotals(rows, item, idx.pseudo || {}, normTemplate, tolerance);
-  let mods = [...pseudo, ...rows.filter((r) => !consumed.has(r) && !r.folded)];
+  // mods counted in a total or in the DPS / defence numbers start hidden and unticked; the panel can show them
+  let mods = [...pseudo, ...rows.map((r) => (consumed.has(r) || r.folded ? { ...r, enabled: false, hidden: true, counted: r.folded ? 'item' : 'total' } : r))];
   // what is ticked to start
   if (kind === 'unique') {
     PF.uniqueRolls(mods, item, tolerance);

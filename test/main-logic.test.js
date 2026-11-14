@@ -685,3 +685,23 @@ test('high ilvl bases (normal and magic) keep the filter look; low ranks hide', 
   const hide = rules.find((r) => r.id === 'rank-crafting-hide');
   assert.deepEqual(hide.conditions.find((c) => c.keyword === 'Rarity').values, ['Normal', 'Magic']);
 });
+
+test('app settings share: hotkeys and choices go, login, account, folders and history never do', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-app-share-'));
+  const a = createServices({ dataDir: path.join(dir, 'a'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  a.settings.patch({ hotkeyPrice: 'Alt+Q', accountName: 'Me#1234', sessionEnc: 'secret', gameDir: 'C:\\Games\\PoE', tradeSearches: [{ id: 's1', name: 'x', league: 'L', lastCheck: 5, told: ['a'] }] });
+  const json = a.exportAppSettings();
+  assert.ok(!/Me#1234|secret|Games/.test(json), 'nothing private in the file');
+  const data = JSON.parse(json);
+  assert.equal(data.settings.hotkeyPrice, 'Alt+Q');
+  assert.deepEqual(data.settings.tradeSearches, [{ id: 's1', name: 'x', league: 'L' }]);
+  const b = createServices({ dataDir: path.join(dir, 'b'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  b.settings.patch({ accountName: 'Friend#1' });
+  b.importAppSettings(json);
+  assert.equal(b.settings.get('hotkeyPrice'), 'Alt+Q');
+  assert.equal(b.settings.get('accountName'), 'Friend#1');
+  assert.ok(b.canUndoAppImport());
+  b.undoImportAppSettings();
+  assert.equal(b.settings.get('hotkeyPrice'), 'Alt+E');
+  assert.throws(() => b.importAppSettings(a.exportFilterSettings()), /loot filter settings file/);
+});

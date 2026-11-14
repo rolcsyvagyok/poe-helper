@@ -76,13 +76,22 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     return row;
   }
 
-  const groups = GROUPS.map(([g, label]) => {
-    const rows = mods.filter((m) => m.group === g && !m.hidden);
+  // hidden mods (counted in a total, the DPS or the defences): shown on request, to tick one yourself
+  let showHidden = mods.some((m) => m.hidden && m.enabled);
+  const hiddenCount = mods.filter((m) => m.hidden && !m.unmatched).length;
+  const groupsBox = h('div', {});
+  const drawGroups = () => mount(groupsBox, GROUPS.map(([g, label]) => {
+    const rows = mods.filter((m) => m.group === g && (!m.hidden || showHidden));
     if (!rows.length) return null;
     return h('div', { class: 'tp-group' },
       h('div', { class: 'tp-ghead' }, label, g === 'pseudo' ? h('span', { class: 'faint' }, ' (summed from all mods)') : null),
       rows.map(modRow));
-  });
+  }));
+  drawGroups();
+  const hiddenToggle = hiddenCount ? h('button', { class: 'quiet sm', style: { margin: '2px 0 6px' }, 'aria-expanded': String(showHidden), onclick: (e) => { showHidden = !showHidden; e.target.setAttribute('aria-expanded', String(showHidden)); e.target.textContent = toggleText(); drawGroups(); } }, '') : null;
+  const toggleText = () => (showHidden ? `− Hide the ${hiddenCount} counted-in mods` : `+ Show ${hiddenCount} more mod${hiddenCount === 1 ? '' : 's'} (counted in the totals, DPS or defences)`);
+  if (hiddenToggle) hiddenToggle.textContent = toggleText();
+  const groups = [groupsBox, hiddenToggle];
 
   // ---------- item properties ----------
   const propRows = [];
@@ -210,7 +219,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       h('div', { class: 'row tp-top' },
         h('span', { class: 't' }, prep.kind === 'gem' ? 'Searches this gem by level, quality and whether it is corrupted.' : prep.kind === 'unique' ? 'Searches this unique by name. Tick mods to narrow it down.' : 'Tick the mods to search for. Values are min and max.'),
         h('span', { class: 'spacer' }),
-        mods.length ? h('button', { class: 'quiet sm', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id) m.enabled = on; }); mountAgain(); } }, 'All / none') : null),
+        mods.length ? h('button', { class: 'quiet sm', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden)) m.enabled = on; }); mountAgain(); } }, 'All / none') : null),
       groups,
       propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'Item'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
       h('div', { class: 'row tp-go' }, go, statusSel, countEl),
