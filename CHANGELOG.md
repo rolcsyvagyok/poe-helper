@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.67 - 2026-11-14
+
+- Rares in maps keep your filter's own tiers and look. Base ranks only hide the bases below the lowest rank you pick for rares.
+- Other items FilterBlade draws in one of its tier colours (Dead Man's Sulphur stacks, Lifeforce, Simulacrum splinters, cluster jewels, relic keys and more) now take that tier's colours from your design, in every theme.
+- Stacked currency (stacks of 3 and 6, supplies, splinters) now uses your tier design's colours. Its size, sound, beam and icon stay as FilterBlade has them.
+
 ## 1.0.66 - 2026-11-14
 
 - Strictness, like FilterBlade's: Loot filter has a row from Soft to Uber Plus Strict. Each step hides more low value items. Your own tier changes stay on top, and each filter remembers its own strictness (yours and a friend's). Shared filter settings take it along.

@@ -184,7 +184,7 @@ function targetsFor(view, groups = null) {
 }
 
 /** Returns a new patch with the design's styles written into every target tier. */
-function applyDesign(view, patch, levels, { groups = null } = {}) {
+function applyDesign(view, patch, levels, { groups = null, origView = null } = {}) {
   const styles = { ...(patch.styles || {}) };
   const targets = targetsFor(view, groups);
   let count = 0;
@@ -194,7 +194,34 @@ function applyDesign(view, patch, levels, { groups = null } = {}) {
     styles[t.key] = fullLook(withLevelSound(JSON.parse(JSON.stringify(st)), t.level));
     count++;
   }
+  count += stackedColours(view, styles, levels);
+  if (origView) count += paletteColours(origView, styles, levels);
   return { patch: { ...patch, moves: { ...(patch.moves || {}) }, styles }, count, categories: new Set(targets.map((t) => t.type)).size };
+}
+
+/**
+ * Stacked currency (Tier 1-7 by stack size) takes the design's colours only: text, border and
+ * background of the same tier level (Tier 7 uses Tier 6's). Size, sound, beam and icon stay as the
+ * filter has them. Writes into `styles`; returns how many tiers it coloured.
+ */
+function stackedColours(view, styles, levels) {
+  let n = 0;
+  for (const t of view.types) {
+    if (!/->stacked/.test(t.type)) continue;
+    for (const tier of t.tiers) {
+      if (tier.generated || !(tier.conditions || []).every((c) => /^(Class|Rarity|StackSize)\b/.test(c))) continue;
+      const level = Math.min(6, tierLevel(tier.tier) || 0);
+      const look = levels?.[level];
+      if (!level || !look) continue;
+      const own = styles[tier.key] || tier.style || {};
+      const next = { ...own };
+      for (const k of ['text', 'border', 'background']) { if (look[k]) next[k] = [...look[k].slice(0, 3), 255]; else delete next[k]; }
+      if (!own.sound && !own.customSound) next.keepSound = true; // the filter's own sound lines stay
+      styles[tier.key] = next;
+      n++;
+    }
+  }
+  return n;
 }
 
 // ---------- themes made from two hues (the extra presets and "Random") ----------
@@ -256,4 +283,49 @@ function fullLevels(levels) {
 }
 for (const p of PRESETS) { p.levels.giga = gigaLook(p.levels[1]); p.levels = fullLevels(p.levels); }
 
-module.exports = { fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+/**
+ * Other items that look like one of the filter's tier levels (a special case drawn in Tier 2's orange,
+ * say) take that level's colours from your design, so nothing keeps FilterBlade's old palette.
+ * origView: the tier view of the filter as FilterBlade made it (its own colours). The palette is
+ * learnt from the design's own tiers there: each colour set used by at least 3 of them belongs to
+ * the level most of them have. Only colours change; size, sound, beam and icon stay.
+ */
+const COLOUR_KEYS = ['text', 'border', 'background'];
+const near = (a, b) => (!a && !b) || (a && b && Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) <= 40);
+function paletteColours(origView, styles, levels) {
+  const targets = targetsFor(origView);
+  const targetKeys = new Set(targets.map((t) => t.key));
+  const byKey = new Map(origView.types.flatMap((t) => t.tiers.map((x) => [x.key, x])));
+  const votes = new Map(); // colour set -> { style, levels: {level: n}, n }
+  const sig = (st) => COLOUR_KEYS.map((k) => (st?.[k] ? st[k].slice(0, 3).join(',') : '-')).join('/');
+  for (const t of targets) {
+    const x = byKey.get(t.key);
+    if (!x || x.action !== 'Show' || x.off) continue;
+    const k = sig(x.style);
+    if (k === '-/-/-') continue;
+    const v = votes.get(k) || { style: x.style, levels: {}, n: 0 };
+    v.levels[t.level] = (v.levels[t.level] || 0) + 1;
+    v.n++;
+    votes.set(k, v);
+  }
+  const palette = [...votes.values()].filter((v) => v.n >= 3).map((v) => ({ style: v.style, level: Number(Object.entries(v.levels).sort((a, b) => b[1] - a[1])[0][0]) }));
+  let n = 0;
+  for (const t of origView.types) {
+    if (/->stacked/.test(t.type)) continue; // stackedColours does those
+    for (const x of t.tiers) {
+      if (targetKeys.has(x.key) || x.generated || x.own || x.action !== 'Show' || x.off) continue;
+      const hit = palette.find((p) => COLOUR_KEYS.every((k) => near(p.style[k], x.style?.[k])));
+      const look = hit && levels?.[hit.level];
+      if (!look) continue;
+      const own = styles[x.key] || x.style || {};
+      const next = { ...own };
+      for (const k of COLOUR_KEYS) { if (look[k]) next[k] = [...look[k].slice(0, 3), 255]; else delete next[k]; }
+      if (!own.sound && !own.customSound) next.keepSound = true;
+      styles[x.key] = next;
+      n++;
+    }
+  }
+  return n;
+}
+
+module.exports = { paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

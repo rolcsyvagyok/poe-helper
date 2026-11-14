@@ -347,7 +347,7 @@ const RANK_LOOKS = {
 };
 const NO_FLAGS = [{ keyword: 'Mirrored', values: ['False'] }, { keyword: 'Corrupted', values: ['False'] }];
 const RANK_KINDS = [ // in the order the page lists them; synthesised items are left to the filter
-  { id: 'rares', name: 'Rares', about: 'Plain rares (not fractured, synthesised or influenced)', conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
+  { id: 'rares', name: 'Rares', about: 'Plain rares (not fractured, synthesised or influenced). They keep your filter\'s look; ranks below your choice are hidden', filterLook: true, conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
   { id: 'crafting', name: 'High ilvl bases', about: 'Normal and magic items of a high item level', ilvl: true, conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
   { id: 'fractured', name: 'Fractured', about: 'Any fractured item of the base', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'FracturedItem', values: ['True'] }] },
   { id: 'influenced', name: 'Influenced', about: 'Shaper, Elder and Conqueror bases', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'HasInfluence', values: ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }] },
@@ -403,7 +403,8 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
     for (const r of keep) {
       const list = bases.filter((b) => rankOf(ranks, b) === r).sort();
       // the rank looks are for maps only: in the campaign bases keep FilterBlade's own look
-      if (list.length) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...conds, ...endgame, { keyword: 'BaseType', op: '==', values: list }], style: RANK_LOOKS[r] });
+      // rares keep FilterBlade's own tiers and looks: the rank only decides what is hidden
+      if (list.length && !k.filterLook) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...conds, ...endgame, { keyword: 'BaseType', op: '==', values: list }], style: RANK_LOOKS[r] });
     }
     const drop = bases.filter((b) => !keep.includes(rankOf(ranks, b))).sort();
     if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });

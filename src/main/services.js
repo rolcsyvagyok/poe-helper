@@ -656,7 +656,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -1735,7 +1735,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const lv = designer.lockTier1(levels); // Tier 1 always keeps the white look
     const patch = settings.get('tierPatch') || {};
     settings.set('designerUndo', { styles: patch.styles || {}, at: Date.now() });
-    const r = designer.applyDesign(view, patch, lv, { groups });
+    let origView = null;
+    try { origView = tiers.tierView(filters.readBase(), {}); } catch { /* colours of the other items stay */ }
+    const r = designer.applyDesign(view, patch, lv, { groups, origView });
     const { target } = savePatch(r.patch);
     return { count: r.count, categories: r.categories, target };
   }
@@ -2007,6 +2009,21 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       }
       if (changed && filters.basePath()) filters.write();
     } catch (e) { log('filter visibility', e.message); }
+  }
+  // 1.0.67: stacked currency, and other items drawn in one of the tier colours, take your design's colours (only the colours); put on once
+  if (!settings.get('stackedDesignV1')) {
+    settings.set('stackedDesignV1', true);
+    try {
+      const d = settings.get('designer');
+      const view = d?.levels && filters.basePath() ? tierViewNow() : null;
+      if (view) {
+        const tp = settings.get('tierPatch') || {};
+        const styles = { ...(tp.styles || {}) };
+        const lv = designer.lockTier1(d.levels);
+        const n = designer.stackedColours(view, styles, lv) + designer.paletteColours(tiers.tierView(filters.readBase(), {}), styles, lv);
+        if (n) savePatch({ ...tp, styles });
+      }
+    } catch (e) { log('stacked colours', e.message); }
   }
   // 1.0.66: plain rares are left to FilterBlade again, so it hides the poor ones in maps (showing
   // every ranked rare showed them all). Unidentified item tiers by rank and the other kinds stay.

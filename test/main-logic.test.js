@@ -668,3 +668,12 @@ test('loot filter settings: export from one app, import in another, undo', () =>
   assert.ok(!b.canUndoImport());
   assert.throws(() => b.importFilterSettings('{"kind":"other"}'), /isn't a PoE Helper/);
 });
+
+test('rares keep the filter look: base ranks only hide the ranks below your choice', () => {
+  const { rankRules } = require('../src/core/filter/manager');
+  if (!rankRules) return;
+  const rules = rankRules({ 'Vaal Regalia': 'S', 'Silk Robe': 'D' }, { rares: 'B' }, ['Vaal Regalia', 'Silk Robe']);
+  assert.ok(!rules.some((r) => r.action === 'Show' && /^rank-rares/.test(r.id)), 'no rank look on rares');
+  const hide = rules.find((r) => r.id === 'rank-rares-hide');
+  assert.deepEqual(hide.conditions.find((c) => c.keyword === 'BaseType').values, ['Silk Robe']);
+});
