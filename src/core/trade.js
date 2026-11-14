@@ -424,6 +424,12 @@ function specialRules(mods, item, props, kind, tol) {
     if (props.ilvl && item.itemLevel) { props.ilvl.min = floorTo(item.itemLevel, [1, 50, 68, 75, 84]); props.ilvl.max = ceilTo(item.itemLevel, [49, 67, 74, 100]); props.ilvl.on = false; }
     return mods;
   }
+  // Wickerman parts (Viscera): the exact part, its buff ticked at your roll or better; item level doesn't matter
+  if (cls === 'Viscera') {
+    props.base.on = true;
+    if (props.ilvl) props.ilvl.on = false;
+    return mods.filter((m) => m.group !== 'pseudo').map((m) => (m.group === 'implicit' && !m.unmatched ? { ...m, enabled: true } : m));
+  }
   // flasks: the exact base; top-tier mods ticked; enchantments (harvest, instilling) hidden; no totals
   if (/flask/i.test(cls)) {
     props.base.on = true;

@@ -38,7 +38,10 @@ const MOD_SUFFIX_TYPES = [
 function isPoeItemText(text) {
   if (typeof text !== 'string') return false;
   const t = text.replace(/\r/g, '');
-  return /^(Item Class: .+\n)?Rarity: .+\n/m.test(t) && t.includes(SEP);
+  if (!t.includes(SEP)) return false;
+  if (/^(Item Class: .+\n)?Rarity: .+\n/m.test(t)) return true;
+  // a few items have no rarity line (Wickerman parts: "Item Class: Viscera", then the name)
+  return /^Item Class: .+\n[^\n-][^\n]*\n-{8}/.test(t);
 }
 
 function toNumber(s) {
@@ -126,6 +129,7 @@ function parseItem(rawText) {
     item.rarity = header[hi].slice('Rarity:'.length).trim();
     hi++;
   }
+  if (!item.rarity && item.itemClass) item.rarity = 'Normal'; // no rarity line (Viscera)
   const names = header.slice(hi);
   if (names.length >= 2) {
     item.name = names[0];
@@ -274,6 +278,20 @@ function parseItem(rawText) {
   if (item.rarity === 'Gem' && /\bof\b/.test(item.typeLine || '')) item.transfigured = true;
 
   if (item.rarity === 'Magic' && !item.baseType) item.baseType = item.typeLine;
+  // Wickerman parts: the slot line ("Head") and the "Take this to the Wickerman" line aren't mods
+  if (item.itemClass === 'Viscera') {
+    const keep = (m) => !/^(Head|Torso|Body|Arms?|Legs?|Upper Limb|Lower Limb|Left Arm|Right Arm|Left Leg|Right Leg)$/i.test(m) && !/Wickerman/i.test(m);
+    for (const kind of Object.keys(item.mods || {})) {
+      const list = item.mods[kind];
+      if (!Array.isArray(list)) continue;
+      const meta = item.modMeta?.[kind] || [];
+      const idx = list.map((m, i) => i).filter((i) => keep(list[i]));
+      if (idx.length === list.length) continue;
+      if (kind === 'explicit') item.visceraSlot = list.find((m) => !keep(m) && !/Wickerman/i.test(m)) || null;
+      item.mods[kind] = idx.map((i) => list[i]);
+      if (item.modMeta?.[kind]) item.modMeta[kind] = idx.map((i) => meta[i]);
+    }
+  }
   return item;
 }
 

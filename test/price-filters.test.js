@@ -201,3 +201,20 @@ Item Level: 77
   assert.equal(by('pseudo.pseudo_number_of_empty_suffix_mods').text, 'Has an open suffix');
   assert.equal(by('pseudo.pseudo_number_of_empty_suffix_mods').enabled, false);
 });
+
+test('Wickerman parts (no rarity line) are read and searched by name and buff', () => {
+  const { isPoeItemText } = require('../src/core/item-parser');
+  const text = 'Item Class: Viscera\nTemplar Skull\n--------\nHead\n--------\nItem Level: 77\n--------\n{ Implicit Modifier }\n15(15-20)% increased Light Radius\n--------\nTake this to the Wickerman in a town or hideout to attach it.';
+  assert.ok(isPoeItemText(text));
+  const item = parseItem(text);
+  assert.equal(item.name, 'Templar Skull');
+  assert.equal(item.visceraSlot, 'Head');
+  assert.deepEqual(item.mods.explicit, []);
+  const stats = { result: [{ label: 'Implicit', entries: [{ id: 'implicit.stat_1263695895', text: '#% increased Light Radius', type: 'implicit' }] }] };
+  const { mods, props } = T.prepareSearch(stats, item);
+  assert.deepEqual(mods.map((m) => [m.id, m.enabled]), [['implicit.stat_1263695895', true]]);
+  const q = T.buildQuery(item, mods, { props });
+  assert.equal(q.query.type, 'Templar Skull');
+  assert.equal(q.query.filters.misc_filters, undefined, 'item level left out');
+  assert.ok(!isPoeItemText('Item Class: Viscera\nsome note'), 'needs the separator');
+});

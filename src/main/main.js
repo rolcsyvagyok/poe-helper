@@ -255,7 +255,7 @@ function watchMouseForOverlay() {
 
 // ---------------- price check ----------------
 
-/** Copies the item under the mouse in game (Ctrl+C, or Ctrl+Alt+C for mod tiers); falls back to what you copied yourself. */
+/** Copies the item under the mouse in game (Ctrl+C, or Ctrl+Alt+C for mod tiers); without the key sender, uses what you copied yourself. */
 async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
   const before = clipboard.readText();
   let text = null;
@@ -281,7 +281,9 @@ async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
     if (services.settings.get('restoreClipboard')) clipboard.writeText(text && before === '' ? text : before);
     lastClipboard = clipboard.readText();
   }
-  if (!text && isPoeItemText(before)) text = before; // you pressed Ctrl+C yourself
+  // Without the key sender, the item you copied yourself is used. With it, an old copy is never used:
+  // it would price the last item you copied, not the one under the mouse (Wickerman parts can't be copied).
+  if (!text && !hasKeySender() && isPoeItemText(before)) text = before;
   return text;
 }
 
@@ -295,7 +297,7 @@ async function priceCheck({ advanced = false, accelerator = '', compare = false 
   try { text = await copyItemFromGame({ advanced, accelerator }); } catch (e) { log('price check: copy failed', e.message); }
   if (!text) {
     log('price check: no item copied', hasKeySender() ? '' : '(no key sender)');
-    showOverlayAtCursor({ error: hasKeySender() ? 'Hover an item in game and press the hotkey again.' : 'Press Ctrl+C on an item first (automatic copy needs uiohook-napi).' });
+    showOverlayAtCursor({ error: hasKeySender() ? 'The game didn\'t copy an item. Hover it and press the hotkey again. Some items can\'t be copied at all.' : 'Press Ctrl+C on an item first (automatic copy needs uiohook-napi).' });
     return;
   }
   await runPriceCheck(text, { compare });

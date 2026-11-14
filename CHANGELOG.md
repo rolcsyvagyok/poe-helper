@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.72 - 2026-11-14
+
+- Wickerman parts (Viscera) can be price checked: the trade search looks for the same part with its buff at your roll or better. If the trade site doesn't list them, the price check says so.
+- Fixed: the price check showed the last item you copied when the game didn't copy the one under the mouse. It now says the game didn't copy an item.
+
 ## 1.0.71 - 2026-11-14
 
 - Normal (white) items of a high item level keep your filter's own look too. Base ranks only hide the ranks below your choice.

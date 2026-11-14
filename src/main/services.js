@@ -299,7 +299,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       try { gemType = require('../core/trade').gemTradeType(await ggg.tradeItems(), item.typeLine); } catch (e) { log('trade item list', e.message); }
     }
     const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}) });
-    const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 });
+    const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 }).catch((e) => {
+      // the trade site doesn't know this item (new league items it doesn't list yet, like Wickerman parts)
+      if (/Unknown item base type/i.test(e.message)) throw new Error(`The trade site doesn't list ${item.typeLine || 'this item'}, so it can't be price checked there.`);
+      throw e;
+    });
     const out = { url: ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, listings: null };
     if ((opts.fetchListings ?? settings.get('tradeFetchListings')) && res.result?.length) {
       // the 20 cheapest (two fetches of 10, as Awakened PoE Trade does): the first 10 are often one seller
