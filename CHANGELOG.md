@@ -3,6 +3,17 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.66 - 2026-11-14
+
+- Strictness, like FilterBlade's: Loot filter has a row from Soft to Uber Plus Strict. Each step hides more low value items. Your own tier changes stay on top, and each filter remembers its own strictness (yours and a friend's). Shared filter settings take it along.
+- What your FilterBlade filter hides now stays hidden:
+  - The price review no longer moves hidden items into shown tiers. Items it moved before are hidden again.
+  - Folding currency Tier 7 and lower into Tier 6 no longer shows hidden tiers.
+  - "Show all currency" is switched off once. You can switch it back on.
+- Plain rares in maps are left to FilterBlade again, so it hides the poor ones. Showing every ranked rare showed them all. Your unidentified item tiers by rank and the other base rank kinds stay.
+- Price check: open prefixes and suffixes are offered whenever a rare or magic item has room ("2 open prefixes"), not only when one slot is left.
+- Tier designer: every look is full size and solid. Themes only change colours, sounds, beams and icons. Your current looks were updated to match.
+
 ## 1.0.65 - 2026-11-14
 
 - Fixed: the price review could fill your own tiers (a "Giga" tier, say) with hundreds of items, cheap ones included. Your own tiers are now only filled by you. Items the review put there go back to their FilterBlade tier when you start the app.

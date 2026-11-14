@@ -216,7 +216,7 @@ test('auto-tier plan: suggested floors, user floors, hysteresis, few listings, n
   assert.deepEqual(plan.tiers.map((t) => t.tier), ['t1', 't4', 't5'], 'special and "new" tiers are not targets');
   assert.equal(plan.tiers[0].min, Math.round(Math.sqrt(21.25 * 6) * 100) / 100, 'halfway between typical t1 (21.25c) and t4 (6c)');
   const m = Object.fromEntries(plan.moves.map((x) => [x.base, x.to]));
-  assert.equal(m.Spiked, 't1');
+  assert.equal(m.Spiked, undefined, 'hidden by the filter: stays hidden, whatever its price');
   assert.equal(m.Crashed, 't5');
   assert.equal(m.NewThing, undefined, 'items in the "new" tier are left to the user');
   assert.equal(m.Thin, undefined, 'few listings: skipped');

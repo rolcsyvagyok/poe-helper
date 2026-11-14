@@ -258,6 +258,7 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 
 /* ---------- FilterBlade-style filter page ---------- */
 .fb-filebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-panel); }
+.fb-strict { margin-top: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-panel); }
 .fb-tabs { display: flex; gap: 2px; margin: 18px 0 16px; border-bottom: 1px solid var(--line-soft); }
 .fb-tabs button { all: unset; cursor: pointer; padding: 9px 14px; color: var(--muted); font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .fb-tabs button:hover { color: var(--text); }

@@ -21,6 +21,7 @@ const path = require('path');
 const os = require('os');
 const { parse, renderBlock, serialize, blocks } = require('./parser');
 const { applyTierPatch, tierView, HIDDEN_TIER, HIDE } = require('./tiers');
+const { withStrictness, levelFor } = require('./strictness');
 const { BASES, GROUPS } = require('../base-data');
 const cluster = require('../cluster');
 
@@ -661,7 +662,8 @@ class FilterManager {
       const ok = fix(b);
       if (ok) moves[`${type}\t${ok}`] = to;
     }
-    const patch = { ...patch0, moves };
+    // the strictness you picked in the app goes under your own tier changes
+    const patch = withStrictness(baseText, { ...patch0, moves }, levelFor(this.store.get('strictness'), baseText, base));
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
     let text = applyTierPatch(baseText, patch);
     if (this.store.get('showAllCurrency')) text = showAllCurrency(text);

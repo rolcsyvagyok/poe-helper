@@ -41,6 +41,18 @@ function gigaLook(t1 = {}) {
   return { fontSize: 45, text: [255, 215, 0, 255], border: [255, 215, 0, 255], background: [...base, 255], sound: { id: 6, volume: 300 }, beam: { color: beam }, icon: { size: 0, color: beam, shape: 'Star' } };
 }
 
+/**
+ * Every look the designer makes is full size (45, the game's biggest) and fully solid: themes differ
+ * only in colours, sounds, beams and icons.
+ */
+const FULL_SIZE = 45;
+function fullLook(st) {
+  if (!st || typeof st !== 'object') return st;
+  const out = { ...st, fontSize: FULL_SIZE };
+  for (const k of ['text', 'border', 'background']) if (Array.isArray(out[k])) out[k] = [...out[k].slice(0, 3), 255];
+  return out;
+}
+
 const PRESETS = [
   {
     id: 'classic', name: 'Classic', description: 'Warm reds and oranges, close to NeverSink\'s default.',
@@ -148,7 +160,7 @@ function lockTier1(levels) {
   const t1 = levels?.[1] || {};
   // Tiers 2-6 without a sound of their own get the theme sounds (Tier 2: game sound 1, Tiers 3-6: 2)
   levels = Object.fromEntries(Object.entries(levels || {}).map(([k, st]) => [k, LEVEL_SOUNDS[k] ? withLevelSound(st, Number(k)) : st]));
-  return { ...levels, 1: { ...tier1((t1.text || [220, 0, 0]).slice(0, 3), t1.fontSize || 45), ...(t1.customVolume ? { customVolume: t1.customVolume } : {}) } };
+  return { ...levels, 1: { ...tier1((t1.text || [220, 0, 0]).slice(0, 3), FULL_SIZE), ...(t1.customVolume ? { customVolume: t1.customVolume } : {}) } };
 }
 
 /**
@@ -179,7 +191,7 @@ function applyDesign(view, patch, levels, { groups = null } = {}) {
   for (const t of targets) {
     const st = levels[t.level];
     if (!st) continue;
-    styles[t.key] = withLevelSound(JSON.parse(JSON.stringify(st)), t.level);
+    styles[t.key] = fullLook(withLevelSound(JSON.parse(JSON.stringify(st)), t.level));
     count++;
   }
   return { patch: { ...patch, moves: { ...(patch.moves || {}) }, styles }, count, categories: new Set(targets.map((t) => t.type)).size };
@@ -235,9 +247,13 @@ function randomTheme(rnd = Math.random) {
   const pick = () => SHAPES[Math.floor(rnd() * SHAPES.length)];
   const t = paletteTheme({ id: 'random', name: 'Random', description: 'A random colour palette.', hue, accent, sat: 65 + Math.floor(rnd() * 35), shapes: [pick(), pick(), 'Circle'] });
   t.levels.giga = gigaLook(t.levels[1]);
+  t.levels = fullLevels(t.levels);
   return t;
 }
 
-for (const p of PRESETS) p.levels.giga = gigaLook(p.levels[1]);
+function fullLevels(levels) {
+  return Object.fromEntries(Object.entries(levels || {}).map(([k, st]) => [k, fullLook(st)]));
+}
+for (const p of PRESETS) { p.levels.giga = gigaLook(p.levels[1]); p.levels = fullLevels(p.levels); }
 
-module.exports = { withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

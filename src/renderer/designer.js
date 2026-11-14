@@ -71,27 +71,6 @@ function draw() {
 }
 
 // your changes go into the filter by themselves, a moment after you stop changing things
-// Text size of every tier but Tier 1 (Tier 1 keeps its own): 2 points a press, within the game's 18-45
-const SIZE_STEP = 2;
-function sizeControl() {
-  const sizes = [2, 3, 4, 5, 6].map((lv) => D.levels?.[lv]?.fontSize).filter((n) => Number.isFinite(n));
-  const shift = (dir) => {
-    for (const lv of [2, 3, 4, 5, 6]) {
-      const st = D.levels?.[lv];
-      if (!st) continue;
-      st.fontSize = Math.max(18, Math.min(45, (Number(st.fontSize) || 32) + dir * SIZE_STEP));
-    }
-    persist(); draw(); applySoon();
-  };
-  const min = Math.min(...sizes);
-  const max = Math.max(...sizes);
-  return h('div', { class: 'row small', role: 'group', 'aria-label': 'Text size of Tier 2 to Tier 6', style: { gap: '6px' } },
-    h('span', { class: 'muted' }, 'Text size, Tier 2 to 6'),
-    h('button', { class: 'sm', disabled: !sizes.length || max <= 18, title: 'Every tier but Tier 1 smaller', onclick: () => shift(-1) }, 'Smaller'),
-    h('span', { class: 'faint', style: { minWidth: '92px', textAlign: 'center' } }, sizes.join(' · ')),
-    h('button', { class: 'sm', disabled: !sizes.length || min >= 45, title: 'Every tier but Tier 1 bigger', onclick: () => shift(1) }, 'Bigger'));
-}
-
 function applySoon(delay = 700) {
   clearTimeout(D.applyTimer);
   if (!D.state?.hasFilter) return;
@@ -118,7 +97,7 @@ function drawNow() {
       h('button', { class: 'primary sm', onclick: () => document.querySelector('button[data-page="filters"]')?.click() }, 'Open Loot filter')) : null,
     gallery(),
     h('section', { class: 'section' },
-      h('div', { class: 'section-head' }, h('h2', {}, 'Design'), h('p', {}, 'Click a drop in the preview or a tier below to edit it.'), h('span', { class: 'spacer' }), sizeControl()),
+      h('div', { class: 'section-head' }, h('h2', {}, 'Design'), h('p', {}, 'Click a drop in the preview or a tier below to edit it.'), h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, 'Every tier is full size and solid: pick the colours.')),
       h('div', { class: 'dz' }, pile(), editor())),
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', {}, 'Game sound previews'), h('p', {}, 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.')),
@@ -198,7 +177,7 @@ function pile() {
 // ---------------------------------------------------------------- level editor
 function editor() {
   const lv = D.level;
-  const st = D.levels[lv] = D.levels[lv] || { fontSize: 32, text: [200, 200, 200, 255] };
+  const st = D.levels[lv] = D.levels[lv] || { fontSize: 45, text: [200, 200, 200, 255] };
   const locked = D.lock && lv === 1;
   const changed = () => { D.presetId = null; persist(); draw(); applySoon(); };
   const hex = (a) => '#' + (a || [0, 0, 0]).slice(0, 3).map((n) => Math.max(0, Math.min(255, +n || 0)).toString(16).padStart(2, '0')).join('');
@@ -206,17 +185,14 @@ function editor() {
 
   function colour(label, key, optional, disabled) {
     const on = h('input', { type: 'checkbox', checked: !!st[key], disabled: disabled || !optional, onchange: (e) => { if (e.target.checked) st[key] = st[key] || [255, 255, 255, 255]; else delete st[key]; changed(); } });
-    const col = h('input', { type: 'color', value: hex(st[key] || [255, 255, 255]), disabled, 'aria-label': `${label} colour`, onchange: (e) => { st[key] = fromHex(e.target.value, st[key]?.[3] ?? 255); changed(); } });
-    const alpha = h('input', { type: 'range', min: 0, max: 255, value: st[key]?.[3] ?? 255, disabled, 'aria-label': `${label} opacity`, style: { width: '110px' }, onchange: (e) => { st[key] = [...(st[key] || [255, 255, 255]).slice(0, 3), +e.target.value]; changed(); } });
+    const col = h('input', { type: 'color', value: hex(st[key] || [255, 255, 255]), disabled, 'aria-label': `${label} colour`, onchange: (e) => { st[key] = fromHex(e.target.value, 255); changed(); } });
     // quick swatches for fast picking
-    const sw = ['#ffffff', '#000000', '#ff2a2a', '#ff9a1f', '#ffd426', '#3ddc6b', '#38d6f2', '#4f7dff', '#b062ff', '#ff79b8'].map((c) => h('button', { class: 'dz-sw', disabled, title: c, style: { background: c }, 'aria-label': `${label} ${c}`, onclick: () => { st[key] = fromHex(c, st[key]?.[3] ?? 255); changed(); } }));
+    const sw = ['#ffffff', '#000000', '#ff2a2a', '#ff9a1f', '#ffd426', '#3ddc6b', '#38d6f2', '#4f7dff', '#b062ff', '#ff79b8'].map((c) => h('button', { class: 'dz-sw', disabled, title: c, style: { background: c }, 'aria-label': `${label} ${c}`, onclick: () => { st[key] = fromHex(c, 255); changed(); } }));
     return h('div', { class: 'dz-row' + (disabled ? ' locked' : '') },
       h('label', { class: 'check' }, optional ? on : null, h('span', {}, label)),
-      h('div', { class: 'stack', style: { gap: '6px' } }, h('div', { class: 'row', style: { gap: '8px' } }, col, h('span', { class: 'small faint' }, 'Opacity'), alpha), h('div', { class: 'row', style: { gap: '4px' } }, sw)));
+      h('div', { class: 'stack', style: { gap: '6px' } }, h('div', { class: 'row', style: { gap: '8px' } }, col), h('div', { class: 'row', style: { gap: '4px' } }, sw)));
   }
 
-  const size = h('input', { type: 'range', min: 18, max: 45, value: st.fontSize || 32, style: { width: '200px' }, 'aria-label': 'Text size', onchange: (e) => { st.fontSize = +e.target.value; changed(); }, oninput: (e) => { out.textContent = e.target.value; } });
-  const out = h('span', { class: 'small' }, String(st.fontSize || 32));
 
   const cur = soundOf(st);
   const soundSel = h('select', { disabled: locked, 'aria-label': 'Drop sound', onchange: (e) => {
@@ -249,13 +225,12 @@ function editor() {
       h('h2', { style: { margin: 0 } }, `Tier ${lv}`), h('span', { class: 'small muted' }, LEVEL_NOTE[lv]),
       h('span', { class: 'spacer' }),
       null),
-    locked ? h('p', { class: 'small muted' }, 'Tier 1 stays a white label with a white beam and a white star, and keeps FilterBlade\'s own sound. You can still change its text colour and size, or switch the lock off.') : null,
+    locked ? h('p', { class: 'small muted' }, 'Tier 1 stays a white label with a white beam and a white star, and keeps FilterBlade\'s own sound. You can still change its text colour, or switch the lock off.') : null,
     h('div', { class: 'ground stage', style: { minHeight: '110px', padding: '22px' } },
       h('div', { class: 'row', style: { gap: '10px' } }, dropLabel(SAMPLE[lv], st, { rarity: 'Currency' }), soundButton(soundOf(st)))),
     colour('Text', 'text', false, false),
     colour('Border', 'border', true, locked),
     colour('Background', 'background', true, locked),
-    h('div', { class: 'dz-row' }, h('span', {}, 'Size'), h('div', { class: 'row' }, size, out, h('span', { class: 'small faint' }, 'The game uses one font; filters can change its size only.'))),
     h('div', { class: 'dz-row' + (locked ? ' locked' : '') }, h('span', {}, 'Sound'), h('div', { class: 'stack', style: { gap: '6px' } }, h('div', { class: 'row' }, soundSel, soundButton(cur !== 'none' && !cur.startsWith('game:') ? cur : null)),
       locked ? null : window.UI.soundDropZone((snd) => {
         S.sounds = [...(S.sounds || []).filter((x) => x.id !== snd.id), snd];
@@ -268,7 +243,7 @@ function editor() {
     h('div', { class: 'dz-row' + (locked ? ' locked' : '') }, h('span', {}, 'Beam'), h('div', { class: 'row' }, beam, h('label', { class: 'check small' }, temp, 'Only when it drops'))),
     h('div', { class: 'dz-row' + (locked ? ' locked' : '') }, h('span', {}, 'Minimap'), h('div', { class: 'row' }, iconC, iconS, iconZ)),
     h('div', { class: 'row', style: { marginTop: '6px' } },
-      lv > 1 ? h('button', { class: 'quiet sm', onclick: () => { D.levels[lv] = clone(D.levels[lv - 1]); D.levels[lv].fontSize = Math.max(18, (D.levels[lv].fontSize || 32) - 3); changed(); } }, `Copy Tier ${lv - 1}, a bit smaller`) : null,
+      lv > 1 ? h('button', { class: 'quiet sm', onclick: () => { D.levels[lv] = clone(D.levels[lv - 1]); changed(); } }, `Copy Tier ${lv - 1}`) : null,
       h('span', { class: 'spacer' }),
       lv < 6 ? h('button', { class: 'sm', onclick: () => { D.level = lv + 1; draw(); } }, `Next: Tier ${lv + 1}`) : null));
 }

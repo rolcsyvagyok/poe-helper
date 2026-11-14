@@ -18,6 +18,7 @@ the release steps, CHANGELOG.md what each version changed (written for players),
   - `styles.css`: all styles.
 - `src/core/` — pure logic, unit-tested: item parser, pricer, trade, filter engine, regex, lab, pob-code (build codes), pob-trade (weighted trade queries).
   - `price-filters.js` + `trade.prepareSearch`: the price check's search, modelled on Awakened PoE Trade (MIT): pseudo totals, Q20 defences/DPS, starting ticks, crafting-base preset. The hotkey copies with Ctrl+Alt+C; `item.modMeta` holds tier / prefix-suffix / roll ranges, and `plainItemText` gives Path of Building the plain copy.
+- `src/core/filter/strictness.js` + `strictness.json`: FilterBlade's strictness levels done in the app. Rebuild the JSON with `node scripts/build-strictness.js <7 FilterBlade downloads, Soft first>` when NeverSink changes them. Only the change from the download's own level ("# TYPE: 2-…") is applied, under the owner's own tier actions; stored per filter name in `settings.strictness`.
 - `src/pob/` — Lua run inside the user's own Path of Building install.
   - `SimpleGraphic.lua`: stubs for PoB's graphics host.
   - `host.lua`: the headless PoB host, one op per request.

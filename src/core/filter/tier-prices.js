@@ -213,6 +213,8 @@ function autoTierPlan(typeView, index, cfg = {}) {
         if (!r) continue;
         // hidden -> hidden changes nothing you'd see in game: skip the noise
         if ((t.action === 'Hide' || t.generated) && target.action === 'Hide') continue;
+        // what your filter hides stays hidden: the review only re-tiers items you can see
+        if (t.action === 'Hide' && target.action !== 'Hide') continue;
         if (p.chaos >= r.lo / margin && p.chaos < r.hi * margin) continue; // close enough to its own tier
         moves.push({ base: b, from: t.tier, to: target.tier, toAction: target.action, chaos: p.chaos, listings: p.listings ?? null, direction: p.chaos >= r.hi ? 'up' : 'down', trend: p.trend || null, big: !!p.big });
       }

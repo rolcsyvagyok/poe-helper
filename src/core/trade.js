@@ -497,11 +497,13 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     PF.uniqueRolls(mods, item, tolerance);
     for (const m of mods) if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; m.hidden = false; }
   }
-  // an open prefix or suffix (5 mods, or 6 with a crafted one): can be searched for
+  // open prefixes and suffixes: searchable as "at least this many empty" (unticked to start)
   const open = PF.emptyAffix(item);
-  if (open) {
-    const id = open === 'prefix' ? 'pseudo.pseudo_number_of_empty_prefix_mods' : 'pseudo.pseudo_number_of_empty_suffix_mods';
-    mods.push({ id, text: `Has an open ${open}`, statText: `# Empty ${open === 'prefix' ? 'Prefix' : 'Suffix'} Modifiers`, value: 1, display: 1, min: 1, max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: false });
+  for (const side of ['prefix', 'suffix']) {
+    const n = open?.[side];
+    if (!n) continue;
+    const Side = side === 'prefix' ? 'Prefix' : 'Suffix';
+    mods.push({ id: `pseudo.pseudo_number_of_empty_${side}_mods`, text: n === 1 ? `Has an open ${side}` : `${n} open ${side}es`, statText: `# Empty ${Side} Modifiers`, value: n, display: n, min: n, max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: false });
   }
   // a rare or magic item: any base of its kind, any item level (the totals and the item's own numbers decide)
   if (plain && props.category && kind !== 'normal') {

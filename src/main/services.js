@@ -16,6 +16,7 @@ const { NetWorthTracker } = require('../core/networth');
 const { FilterManager, economyRules, quickRule, SOUNDS, DEFAULT_TIER_SOUNDS, MY_BASES_STYLE } = require('../core/filter/manager');
 const { explain } = require('../core/filter/matcher');
 const tiers = require('../core/filter/tiers');
+const strictness = require('../core/filter/strictness');
 const tierPricing = require('../core/filter/tier-prices');
 const designer = require('../core/filter/designer');
 
@@ -66,6 +67,7 @@ const DEFAULT_SETTINGS = {
   baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
   regexMaps: { kind: 'regular', avoid: [], want: [], mapTypes: { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' } }, // the Regex page's map choices
   campaignHide: { classes: [], rares: false, untilLevel: 67, keepLinks: 4 },
+  strictness: {}, // FilterBlade's strictness done in the app, per filter: { "<filter name>": 0..6 }; missing = as FilterBlade made it
   showAllCurrency: false, // league start: every currency tier shows (Loot filter → Currency) // Campaign → Hide item types
   hiddenGroups: {}, // Base ranks → Hide whole groups: { label: { before: { base: rank } } }
   pob: { dir: null, buildsDir: null, character: null, last: null }, // Path of Building: your install, builds folder, the character to snapshot and the last snapshot
@@ -78,7 +80,7 @@ const DEFAULT_SETTINGS = {
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
   regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]
   baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
-  rankKinds: { rares: 'D', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks)
+  rankKinds: { rares: 'off', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks, 'off' = FilterBlade decides)
   rankCraftIlvl: 82,
   rankUnidTier: null, // 3.30 unidentified item tier per rank: { S: 2, A: 3 } (null = the filter decides)
   rankIlvl: {}, // lowest item level per kind of drop: { fractured: 68 } (crafting bases: rankCraftIlvl)
@@ -654,7 +656,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -684,7 +686,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
   // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
-  const FILTER_KEYS = ['tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
+  const FILTER_KEYS = ['strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
@@ -849,8 +851,21 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     let mtime;
     try { mtime = require('fs').statSync(base).mtimeMs; } catch { return null; }
     const patch = settings.get('tierPatch') || {};
-    const sig = `${base}|${mtime}|${JSON.stringify(patch)}`;
-    if (viewCache?.sig !== sig) viewCache = { sig, view: tiers.tierView(filters.readBase(), patch) };
+    let head = '';
+    try { const fd = require('fs').openSync(base, 'r'); const buf = Buffer.alloc(2048); require('fs').readSync(fd, buf, 0, 2048, 0); require('fs').closeSync(fd); head = buf.toString('utf8'); } catch { /* read below */ }
+    const level = strictness.levelFor(settings.get('strictness'), head, base);
+    const sig = `${base}|${mtime}|${level}|${JSON.stringify(patch)}`;
+    if (viewCache?.sig !== sig) {
+      const text = filters.readBase();
+      // tiers show what the game will do (with your strictness); "by you" marks only your own changes
+      const view = tiers.tierView(text, strictness.withStrictness(text, patch, level));
+      view.editedActions = patch.actions || {};
+      // "what FilterBlade has" for a tier is its state at your strictness
+      const sa = strictness.strictnessActions(text, level);
+      for (const t of view.types) for (const x of t.tiers) if (sa[x.key]) x.origState = sa[x.key];
+      view.strictness = { level, own: strictness.levelOf(text), levels: strictness.LEVELS, notes: strictness.NOTES };
+      viewCache = { sig, view };
+    }
     // 1.0.10: resetting a category used to drop the Giga tier for good; bring it back once
     if (!settings.get('gigaRestoreV1')) {
       settings.set('gigaRestoreV1', true);
@@ -1466,6 +1481,20 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (filters.basePath()) filters.write();
     return cur;
   }
+  /** FilterBlade's strictness done in the app: null = as your FilterBlade download, 0 Soft ... 6 Uber Plus Strict. */
+  function setStrictness(level) {
+    const base = filters.basePath();
+    if (!base) throw new Error('Choose your filter first.');
+    const n = level == null || level === '' ? null : Math.max(0, Math.min(strictness.LEVELS.length - 1, Math.round(Number(level))));
+    const saved = settings.get('strictness');
+    const map = saved && typeof saved === 'object' ? { ...saved } : {};
+    const key = strictness.filterKey(filters.readBase(), base);
+    if (Number.isFinite(n)) map[key] = n; else delete map[key];
+    settings.set('strictness', map);
+    viewCache = null;
+    const target = filters.write();
+    return { level: Number.isFinite(n) ? n : null, target, view: tierViewNow() };
+  }
   function setShowAllCurrency(on) {
     settings.set('showAllCurrency', !!on);
     if (filters.basePath()) filters.write();
@@ -1671,7 +1700,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   function designerState() {
     const d = settings.get('designer') || {};
     const preset = designer.PRESETS.find((p) => p.id === (d.presetId || 'classic')) || designer.PRESETS[0];
-    const levels = d.levels || preset.levels;
+    const levels = designer.fullLevels(d.levels || preset.levels);
     const view = (() => { try { return tierViewNow(); } catch { return null; } })();
     // categories (top-level groups) with how many tiers a design would restyle
     const groups = [];
@@ -1686,7 +1715,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return {
       missing: filters.missing(),
       presets: designer.PRESETS,
-      themes: settings.get('designerThemes') || [],
+      themes: (settings.get('designerThemes') || []).map((t) => ({ ...t, levels: designer.fullLevels(t.levels) })),
       draft: { levels: designer.lockTier1(levels), presetId: d.presetId || null, lockTier1: true, groups: d.groups || null },
       groups,
       canUndo: !!settings.get('designerUndo'),
@@ -1721,7 +1750,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   }
 
   function designerSaveTheme(name, levels) {
-    const t = { id: `d_${Date.now()}`, name: String(name || 'My design').slice(0, 60), levels };
+    const t = { id: `d_${Date.now()}`, name: String(name || 'My design').slice(0, 60), levels: designer.fullLevels(levels) };
     settings.set('designerThemes', [t, ...(settings.get('designerThemes') || []).filter((x) => x.name !== t.name)]);
     return t;
   }
@@ -1950,6 +1979,56 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     settings.set('levelSoundsV1', true);
     try { if (filters.basePath()) filters.write(); } catch (e) { log('tier sounds upgrade', e.message); }
   }
+  // 1.0.66: what FilterBlade hides stays hidden. The price review had moved hidden items (cheap cards
+  // like The Twins) into shown tiers, and "Show all currency" showed every hidden currency tier.
+  if (!settings.get('fbVisibilityV1')) {
+    settings.set('fbVisibilityV1', true);
+    try {
+      let changed = false;
+      if (settings.get('showAllCurrency')) { settings.set('showAllCurrency', false); changed = true; }
+      const base = filters.basePath() ? filters.readBase() : null;
+      const logList = settings.get('priceReviewLog') || [];
+      let tp = settings.get('tierPatch') || {};
+      if (base && logList.length) {
+        const view = tiers.tierView(base, strictness.withStrictness(base, {}, strictness.levelFor(settings.get('strictness'), base, filters.basePath())));
+        const stateOf = new Map(view.types.flatMap((t) => t.tiers.map((x) => [`${t.type}|${x.tier}`, x.state])));
+        let n = 0;
+        for (const entry of logList) {
+          const keep = [];
+          for (const m of entry.moves || []) {
+            const hiddenFrom = m.from && stateOf.get(`${m.type}|${m.from}`) !== 'Show';
+            const shownTo = stateOf.get(`${m.type}|${m.to}`) === 'Show';
+            if (hiddenFrom && shownTo && tp.moves?.[`${m.type}\t${m.base}`] === m.to) { tp = tiers.withoutMove(tp, m.type, m.base); n++; continue; }
+            keep.push(m);
+          }
+          entry.moves = keep;
+        }
+        if (n) { settings.set('tierPatch', tp); settings.set('priceReviewLog', logList.filter((e) => e.moves.length)); changed = true; log('filter visibility', `${n} hidden item(s) hidden again`); }
+      }
+      if (changed && filters.basePath()) filters.write();
+    } catch (e) { log('filter visibility', e.message); }
+  }
+  // 1.0.66: plain rares are left to FilterBlade again, so it hides the poor ones in maps (showing
+  // every ranked rare showed them all). Unidentified item tiers by rank and the other kinds stay.
+  if (!settings.get('rareRanksFbV1')) {
+    settings.set('rareRanksFbV1', true);
+    const kinds = settings.get('rankKinds') || {};
+    if (kinds.rares && kinds.rares !== 'off' && kinds.rares !== 'none') {
+      settings.set('rankKinds', { ...kinds, rares: 'off' });
+      try { if (filters.basePath()) filters.write(); } catch (e) { log('rare ranks', e.message); }
+    }
+  }
+  // 1.0.66: every tier look is full size and solid (no see-through colours); only the colours differ
+  if (!settings.get('fullLooksV1')) {
+    const tp = settings.get('tierPatch');
+    if (tp?.styles) settings.set('tierPatch', { ...tp, styles: Object.fromEntries(Object.entries(tp.styles).map(([k, st]) => [k, designer.fullLook(st)])) });
+    const d = settings.get('designer');
+    if (d?.levels) settings.set('designer', { ...d, levels: designer.fullLevels(d.levels) });
+    const th = settings.get('designerThemes');
+    if (Array.isArray(th)) settings.set('designerThemes', th.map((t) => ({ ...t, levels: designer.fullLevels(t.levels) })));
+    settings.set('fullLooksV1', true);
+    try { if (tp?.styles && filters.basePath()) filters.write(); } catch (e) { log('full looks', e.message); }
+  }
   // 1.0.65: the price review used your own tiers ("Giga") as price bands and could fill one with
   // hundreds of items. Items it put there go back to FilterBlade's tier; items you put there stay.
   if (!settings.get('ownTierFixV1')) {
@@ -1976,7 +2055,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

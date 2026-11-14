@@ -1248,6 +1248,7 @@ function registerIpc() {
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('campaignHide:set', (a) => services.setCampaignHide(a || {}));
   handle('currency:showAll', (on) => services.setShowAllCurrency(on));
+  handle('filter:strictness', (level) => services.setStrictness(level));
   handle('bases:add', (a) => services.addMyBase(a || {}));
   handle('bases:update', ({ id, patch }) => services.updateMyBase(String(id), patch || {}));
   handle('bases:remove', (id) => services.removeMyBase(String(id)));

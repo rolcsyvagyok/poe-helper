@@ -188,11 +188,30 @@ async function renderFiltersNow() {
     edits ? h('span', { class: 'pill' }, `${edits} ${edits === 1 ? 'change' : 'changes'}`) : null,
     edits ? h('button', { class: 'quiet sm', onclick: async () => { if (confirm('Undo all tier moves and look changes?')) { await call('tiers:reset', { all: true }); toast('All changes undone'); renderFilters(); } } }, 'Undo all') : null);
 
+  // FilterBlade's strictness, done here: each step hides another layer of low value items
+  const strictBar = (() => {
+    const st = view?.strictness;
+    if (!st) return null;
+    const own = st.own;
+    const cur = st.level ?? own;
+    const pick = async (lv) => {
+      const level = lv === own ? null : lv; // your download's own level: nothing to change
+      await call('filter:strictness', level);
+      toast(`Strictness: ${st.levels[lv]}. Select the filter in game again`);
+      renderFilters();
+    };
+    return h('div', { class: 'fb-strict' },
+      h('div', { class: 'row', role: 'group', 'aria-label': 'Strictness', style: { gap: '4px', flexWrap: 'wrap' } },
+        h('span', { class: 'muted', style: { marginRight: '6px' } }, 'Strictness'),
+        st.levels.map((name, i) => h('button', { class: i === cur ? 'primary sm' : 'sm', 'aria-pressed': i === cur ? 'true' : 'false', title: st.notes[i], onclick: () => pick(i) }, `${i === cur ? '● ' : ''}${name}${i === own ? ' (FilterBlade)' : ''}`))),
+      h('p', { class: 'small muted', style: { margin: '4px 0 0' } }, cur != null ? `${st.levels[cur]}: ${st.notes[cur]} ` : '', 'Each step hides more low value items. Your own tier changes stay on top.'));
+  })();
+
   const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['check', 'Check an item']].map(([id, label]) =>
     h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)));
 
   const body = h('div', { class: 'fb-body' });
-  const show = () => mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, tabs, body);
+  const show = () => mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, body);
   // the tier pages are built first and put on screen in one go: showing an empty page while the
   // cluster or base data loads made the page collapse, which threw you back to the top
   if (FB.tab === 'tiers' && info.base && !info.missing && view?.types?.length) {

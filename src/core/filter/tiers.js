@@ -216,13 +216,16 @@ function typeLabel(type) {
 const FOLD_TYPES = new Set(['currency']);
 const FOLD_KEEP = new Set(['Portal Scroll', 'Scroll of Wisdom', 'Scroll Fragment']);
 const tierNum = (name) => { const m = /^t(\d+)(?!\d)/i.exec(String(name || '')); return m ? Number(m[1]) : null; };
-function foldInfo(types) {
+function foldInfo(types, actions = {}) {
   const info = new Map(); // type -> { six, folded: Set of tier names }
+  // only tiers in the same state as Tier 6 are folded (shown into shown, hidden into hidden), so folding
+  // never shows items your filter (or your strictness) hides, and never hides what it shows
+  const stateOf = (type, x) => actions[`${type}|${x.tier}`] || (x.off ? 'Off' : x.action);
   for (const t of types) {
     if (!FOLD_TYPES.has(t.type)) continue;
     const six = t.tiers.find((x) => tierNum(x.tier) === 6 && !x.special);
     if (!six) continue;
-    const folded = new Set(t.tiers.filter((x) => tierNum(x.tier) > 6 && !x.special).map((x) => x.tier));
+    const folded = new Set(t.tiers.filter((x) => tierNum(x.tier) > 6 && !x.special && stateOf(t.type, x) === stateOf(t.type, six)).map((x) => x.tier));
     if (folded.size) info.set(t.type, { six: six.tier, folded, tiers: t.tiers });
   }
   return info;
@@ -234,17 +237,20 @@ function foldInfo(types) {
 const SUPPLY_TYPES = ['currency->stackedsupplieshigh', 'currency->stackedsupplieslow'];
 const SMALL_STACKS = 'currency->stackedthree';
 const GONE = '__folded__'; // a tier that doesn't exist: the base leaves every tier of that type
-function supplyMoves(types) {
+function supplyMoves(types, actions = {}) {
   const small = types.find((t) => t.type === SMALL_STACKS);
   if (!small) return {};
+  const stateOf = (type, x) => actions[`${type}|${x.tier}`] || (x.off ? 'Off' : x.action);
   // the lowest tier of Small stacks that is switched on and has bases (Tier 6 on FilterBlade's filters)
-  const shown = small.tiers.filter((x) => !x.off && x.bases.length && x.action !== 'Hide');
+  const shown = small.tiers.filter((x) => x.bases.length && stateOf(SMALL_STACKS, x) === 'Show');
   const low = shown[shown.length - 1];
   if (!low) return {};
   const moves = {};
   for (const type of SUPPLY_TYPES) {
     const t = types.find((x) => x.type === type);
-    for (const tier of t?.tiers || []) for (const b of tier.bases) { moves[`${type}\t${b}`] = GONE; moves[`${SMALL_STACKS}\t${b}`] = low.tier; }
+    // only when your strictness shows every stack tier of them: otherwise they stay as FilterBlade has them
+    if (!t || t.tiers.some((tier) => tier.bases.length && stateOf(type, tier) !== 'Show')) continue;
+    for (const tier of t.tiers) for (const b of tier.bases) { moves[`${type}\t${b}`] = GONE; moves[`${SMALL_STACKS}\t${b}`] = low.tier; }
   }
   return moves;
 }
@@ -252,8 +258,8 @@ function supplyMoves(types) {
 /** The patch with Tier 7+ folded into Tier 6 and the stacked supplies folded into Small stacks (automatic moves first, then yours, yours into Tier 7+ redirected). */
 function foldedPatch(text, patch = {}) {
   const types = extractTiers(parse(text));
-  const info = foldInfo(types);
-  const supply = supplyMoves(types);
+  const info = foldInfo(types, patch.actions || {});
+  const supply = supplyMoves(types, patch.actions || {});
   if (!info.size && !Object.keys(supply).length) return patch;
   const moves = { ...supply };
   for (const [type, f] of info) {
@@ -512,7 +518,7 @@ function tierView(text, patch = {}) {
     if (x) { x.customName = nt.name; x.mine = true; x.copyFrom = nt.copyFrom; }
   }
   // the tiers folded into Tier 6 aren't shown
-  const folds = foldInfo(original);
+  const folds = foldInfo(original, patch.actions || {});
   for (const t of patched) { const f = folds.get(t.type); if (f) for (const x of t.tiers) if (f.folded.has(x.tier) && !x.bases.length) x.folded = true; }
   return { types: patched, moved, editedStyles: Object.keys(patch.styles || {}), editedActions: patch.actions || {} };
 }

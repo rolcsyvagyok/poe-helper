@@ -178,3 +178,25 @@ test('transfigured gems: searched as the base gem with its discriminator', () =>
   const gem = parseItem('Item Class: Skill Gems\nRarity: Gem\nEthereal Knives of the Massacre\n--------\nLevel: 1\nQuality: +11% (augmented)\n--------\nRequirements:\nLevel: 1');
   assert.deepEqual(T.buildQuery(gem, [], { gemType: { option: 'Ethereal Knives', discriminator: 'alt_x' } }).query.type, { option: 'Ethereal Knives', discriminator: 'alt_x' });
 });
+
+test('open prefixes and suffixes are offered whenever the item has room', () => {
+  const boots = parseItem(`Item Class: Boots
+Rarity: Rare
+Torment Dash
+Assassin's Boots
+--------
+Item Level: 77
+--------
+{ Suffix Modifier "of the Volcano" (Tier: 3) — Elemental, Fire, Resistance }
++38(36-41)% to Fire Resistance
+{ Suffix Modifier "of Ephij" (Tier: 4) — Chaos, Resistance }
++23(21-25)% to Chaos Resistance
+{ Prefix Modifier "Runner's" (Tier: 5) — Speed }
+15% increased Movement Speed`);
+  const { mods } = T.prepareSearch(STATS, boots);
+  const by = (id) => mods.find((m) => m.id === id);
+  assert.equal(by('pseudo.pseudo_number_of_empty_prefix_mods').min, 2);
+  assert.equal(by('pseudo.pseudo_number_of_empty_prefix_mods').text, '2 open prefixes');
+  assert.equal(by('pseudo.pseudo_number_of_empty_suffix_mods').text, 'Has an open suffix');
+  assert.equal(by('pseudo.pseudo_number_of_empty_suffix_mods').enabled, false);
+});

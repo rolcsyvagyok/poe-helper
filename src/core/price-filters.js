@@ -193,15 +193,16 @@ function uniqueRolls(rows, item, tol) {
 
 /** An open prefix or suffix on a rare with five mods (six with a crafted one): 'prefix' | 'suffix' | null. */
 function emptyAffix(item) {
-  if (item.rarity !== 'Rare' || item.flags?.corrupted || item.flags?.mirrored || !item.advanced) return null;
+  if (!['Rare', 'Magic'].includes(item.rarity) || item.flags?.corrupted || item.flags?.mirrored || item.flags?.unidentified || !item.advanced) return null;
   const metas = ['explicit', 'fractured', 'crafted'].flatMap((k) => (item.modMeta?.[k] || []).map((m) => (m ? { ...m, crafted: k === 'crafted' } : null))).filter(Boolean);
   const mods = [...new Map(metas.map((m) => [m.n, m])).values()]; // one per header (a hybrid mod has two lines)
-  const crafted = mods.find((m) => m.crafted);
-  if (!((mods.length === 5 && !crafted) || (mods.length === 6 && crafted))) return null;
-  let pre = mods.filter((m) => m.gen === 'prefix').length;
-  let suf = mods.filter((m) => m.gen === 'suffix').length;
-  if (crafted) { if (crafted.gen === 'prefix') pre -= 1; else suf -= 1; }
-  return pre === 2 ? 'prefix' : suf === 2 ? 'suffix' : null;
+  // a mod the copy doesn't say is a prefix or suffix (a unique-style or veiled one): can't count
+  if (mods.some((m) => m.gen !== 'prefix' && m.gen !== 'suffix')) return null;
+  // how many each side can have: 1 on magic items, 2 on jewels, 3 on other rares
+  const cap = item.rarity === 'Magic' ? 1 : /jewel/i.test(`${item.itemClass || ''} ${item.baseType || ''}`) ? 2 : 3;
+  const prefix = Math.max(0, cap - mods.filter((m) => m.gen === 'prefix').length);
+  const suffix = Math.max(0, cap - mods.filter((m) => m.gen === 'suffix').length);
+  return prefix || suffix ? { prefix, suffix } : null;
 }
 
 /** Worth offering a "crafting base" search: an unfinished item with crafting value. */
