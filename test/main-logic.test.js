@@ -250,7 +250,7 @@ test('tier designer: apply a preset to the whole filter, Tier 1 locked white + t
   fs.writeFileSync(path.join(filterDir, 'FilterBlade.filter'), F.nsFilter);
   svc.settings.patch({ filterDir, baseFilter: 'FilterBlade.filter' });
   const st = svc.designerState();
-  assert.equal(st.presets.length, 14);
+  assert.equal(st.presets.length, 15);
   assert.deepEqual(st.groups.map((g) => g.id).sort(), ['currency', 'divination', 'uniques']);
   // a design that tries to make Tier 1 black gets locked back to white with FilterBlade's Divine sound
   const levels = { ...st.presets[2].levels, 1: { fontSize: 40, text: [255, 0, 0, 255], background: [0, 0, 0, 255] } };

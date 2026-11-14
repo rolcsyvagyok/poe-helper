@@ -261,12 +261,12 @@ async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
   let text = null;
   if (hasKeySender()) {
     clipboard.writeText('');
-    suppressClipboardUntil = Date.now() + 1000;
+    suppressClipboardUntil = Date.now() + 1500;
     const tryCopy = async (adv) => {
       await sendCopy({ advanced: adv, held: Hotkey.parse(accelerator).mods });
       // Poll for the game to fill the clipboard (usually < 100ms)
       const start = Date.now();
-      while (Date.now() - start < 500) {
+      while (Date.now() - start < 800) { // a slow frame can delay the game's copy
         const t = clipboard.readText();
         if (t && isPoeItemText(t)) return t;
         await new Promise((r) => setTimeout(r, 20));
@@ -275,7 +275,9 @@ async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
     };
     text = await tryCopy(advanced);
     // some windows (the Divine Font in the Labyrinth, vendors' previews) only take a plain Ctrl+C
-    if (!text && advanced) { suppressClipboardUntil = Date.now() + 1000; text = await tryCopy(false); }
+    if (!text && advanced) { suppressClipboardUntil = Date.now() + 1500; text = await tryCopy(false); }
+    // one more go: the game may have missed the keys during a slow frame or a loading hitch
+    if (!text) { suppressClipboardUntil = Date.now() + 1500; text = await tryCopy(advanced); if (text) log('price check: copied on the second try'); }
     if (services.settings.get('restoreClipboard')) clipboard.writeText(text && before === '' ? text : before);
     lastClipboard = clipboard.readText();
   }

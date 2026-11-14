@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.69 - 2026-11-14
+
+- New theme in the Tier designer: Bubblegum, hot pink with soft lilac.
+- Price check copies items more reliably when the game runs slow (busy maps): the copy keys are held for a moment instead of tapped, the app waits a little longer for the game, and tries once more before saying "Hover an item".
+
 ## 1.0.68 - 2026-11-14
 
 - Map price check: only the map tier and the influence ("Area is influenced by The Elder") start ticked. Quantity, rarity, pack size and the map's mods start unticked, and maps no longer show open prefix / suffix rows.

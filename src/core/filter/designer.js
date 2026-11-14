@@ -264,6 +264,7 @@ PRESETS.push(
   paletteTheme({ id: 'royal', name: 'Royal gold', description: 'Gold and amber, rich and warm.', hue: 42, accent: 25, sat: 90, shapes: ['Star', 'Pentagon', 'Circle'] }),
   paletteTheme({ id: 'crimson', name: 'Crimson night', description: 'Blood red with dusky purple.', hue: 355, accent: 285, sat: 80, shapes: ['Moon', 'Diamond', 'Circle'] }),
   paletteTheme({ id: 'sunset', name: 'Sunset', description: 'Orange to magenta, like the evening sky.', hue: 18, accent: 320, sat: 85, shapes: ['Star', 'Kite', 'Circle'] }),
+  paletteTheme({ id: 'bubblegum', name: 'Bubblegum', description: 'Hot pink with soft lilac, sweet and bright.', hue: 325, accent: 295, sat: 92, shapes: ['Star', 'Kite', 'Circle'] }),
   paletteTheme({ id: 'cyber', name: 'Cyber', description: 'Electric cyan with hot pink.', hue: 185, accent: 315, sat: 95, shapes: ['Hexagon', 'Square', 'Circle'] }),
 );
 

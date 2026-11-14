@@ -17,6 +17,7 @@ function hasKeySender() {
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const HOLD_MS = 40; // about two frames at 50 fps
 
 /**
  * @param advanced  Ctrl+Alt+C (mod tiers and names) instead of Ctrl+C
@@ -33,7 +34,20 @@ async function sendCopy({ advanced = false, held = [] } = {}) {
     if (k != null) { try { uIOhook.keyToggle(k, 'up'); } catch { /* ignore */ } }
   }
   if (release.size) await wait(15); // let the game see the release before the copy
-  uIOhook.keyTap(UiohookKey.C, advanced ? [UiohookKey.Ctrl, UiohookKey.Alt] : [UiohookKey.Ctrl]);
+  // Keys are held for a few frames, like a person does: the game reads the keyboard once a frame, and
+  // an instant tap can fall between two frames when the game runs slow (a busy Tier 16 map, say).
+  const mods = advanced ? [UiohookKey.Ctrl, UiohookKey.Alt] : [UiohookKey.Ctrl];
+  try {
+    for (const m of mods) uIOhook.keyToggle(m, 'down');
+    await wait(HOLD_MS);
+    uIOhook.keyToggle(UiohookKey.C, 'down');
+    await wait(HOLD_MS);
+    uIOhook.keyToggle(UiohookKey.C, 'up');
+    await wait(10);
+  } finally {
+    // let go of everything (as a key tap does), so no key is left stuck down
+    for (const m of mods) { try { uIOhook.keyToggle(m, 'up'); } catch { /* ignore */ } }
+  }
   return true;
 }
 
