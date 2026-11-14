@@ -27,6 +27,8 @@ const NEVER = 'PoE Helper: moved to another tier';
 const EMPTY = 'PoE Helper: empty tier';
 const isMarker = (v) => v === NEVER || v === EMPTY;
 const STYLE_SET = new Set(STYLE_KEYWORDS);
+// an exception block: conditions beyond Class and Rarity (StackSize, LinkedSockets, HasInfluence...)
+const isSpecialBlock = (b) => b.lines.some((l) => l.keyword && !['Class', 'Rarity', 'BaseType', 'Continue'].includes(l.keyword) && !STYLE_SET.has(l.keyword));
 
 function tagsOf(block) {
   const c = block.headerComment || '';
@@ -89,6 +91,8 @@ function extractTiers(doc) {
         blockCount: 0,
         offCount: 0,
         generated: tags.tier === HIDDEN_TIER,
+        // a tier you made in PoE Helper ("Giga" above Tier 1): only you put items in it
+        own: tags.tier !== HIDDEN_TIER && tags.tier.startsWith('poehelper-'),
         // Exception tiers add extra conditions (StackSize >= 3, LinkedSockets 6, Sockets < 1...).
         // Moving a base into one would silently add those, so they aren't move targets.
         special: false,
@@ -282,7 +286,8 @@ function applyTierPatch(text, patch = {}) {
   for (const typeBlocks of byType.values()) {
     if (!typeBlocks.some((b) => baseLines(b).length)) continue; // a category without base lists
     for (const b of typeBlocks) {
-      if (baseLines(b).length || !/^t\d+[a-z]*$/i.test(b._tags.tier)) continue;
+      // only tiers FilterBlade switched off: a switched-on tier without bases is a catch-all ("any Heist gear")
+      if (!b.disabled || baseLines(b).length || !/^t\d+[a-z]*$/i.test(b._tags.tier)) continue;
       if (condOnly(b).some((l) => !/^(Class|Rarity)$/.test(l.keyword))) continue; // a special case, not a tier
       const ind = indentOf(b);
       const cr = crOf(b.lines.find((l) => l.keyword)?.raw || '');
@@ -328,8 +333,11 @@ function applyTierPatch(text, patch = {}) {
     const typeBlocks = byType.get(type);
     if (!typeBlocks || !base) continue;
     let firstSource = null;
-    // remove from every tier of this type
+    // Remove it from every tier of this type, except exception blocks ("6-link Tabula", "Shaper +
+    // Elder influenced"...) when the base also has a plain tier: those keep catching their special case.
+    const plain = typeBlocks.some((b) => !isSpecialBlock(b) && baseLines(b).some((l) => l.values.includes(base)));
     for (const b of typeBlocks) {
+      if (plain && isSpecialBlock(b) && b._tags.tier !== to) continue;
       for (const l of baseLines(b)) {
         if (!l.values.includes(base)) continue;
         if (!firstSource) firstSource = b;
@@ -351,6 +359,9 @@ function applyTierPatch(text, patch = {}) {
     }
     const target = typeBlocks.find((b) => b._tags.tier === to && baseLines(b).length);
     if (!target) continue;
+    // A tier FilterBlade left empty is commented out there. With your base in it, it is switched
+    // on, or the base would fall through to the loud "anything else" rule at the end of its section.
+    if (target.disabled && baseLines(target).every((x) => x.values.every((v) => v === EMPTY))) target.disabled = false;
     const l = baseLines(target)[0];
     if (!l.values.includes(base)) {
       const ind = /^[ \t]*/.exec(l.raw)[0];

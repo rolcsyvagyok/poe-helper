@@ -567,3 +567,64 @@ test('theme sounds: Tier 2 game sound 1, Tiers 3-6 sound 2, Tier 1 keeps FilterB
   assert.equal(r.patch.styles['currency|t2'].sound.id, 1);
   assert.equal(r.patch.styles['currency|t5'].sound.id, 2);
 });
+
+const MINI = [
+  'Show # $type->uniques $tier->extabula',
+  '\tLinkedSockets 6',
+  '\tRarity Unique',
+  '\tBaseType == "Simple Robe"',
+  '\tSetFontSize 45',
+  '',
+  'Show # $type->uniques $tier->t1',
+  '\tRarity Unique',
+  '\tBaseType == "Heavy Belt" "Leather Belt"',
+  '\tSetFontSize 45',
+  '',
+  'Show # $type->uniques $tier->t3',
+  '\tRarity Unique',
+  '\tBaseType == "Simple Robe" "Iron Ring"',
+  '\tSetFontSize 40',
+  '',
+  '#Show # $type->currency->ducats $tier->t2',
+  '#\tClass == "Stackable Currency"',
+  '#\tSetFontSize 45',
+  '',
+  'Show # $type->currency->ducats $tier->t3',
+  '\tClass == "Stackable Currency"',
+  '\tBaseType == "Katakohi\'s Ducat" "Tzamoto\'s Ducat"',
+  '\tSetFontSize 40',
+  '',
+].join('\n');
+
+test('a move keeps the base in exception blocks (6-link Tabula) when it has a plain tier', () => {
+  const out = T.applyTierPatch(MINI, { moves: { 'uniques\tSimple Robe': 't1' } });
+  assert.match(out, /extabula\n\tLinkedSockets 6\n\tRarity Unique\n\tBaseType == "Simple Robe"/);
+  assert.match(out, /BaseType == "Heavy Belt" "Leather Belt" "Simple Robe"/);
+  assert.match(out, /BaseType == "Iron Ring"/);
+});
+
+test('moving a base into a tier FilterBlade left empty switches that tier on', () => {
+  const out = T.applyTierPatch(MINI, { moves: { "currency->ducats\tKatakohi's Ducat": 't2' } });
+  assert.match(out, /^Show # \$type->currency->ducats \$tier->t2\n\tClass == "Stackable Currency"\n\tBaseType == "Katakohi's Ducat"/m);
+  // switched off by you: stays off
+  const off = T.applyTierPatch(MINI, { moves: { "currency->ducats\tKatakohi's Ducat": 't2' }, actions: { 'currency->ducats|t2': 'Off' } });
+  assert.match(off, /^#Show # \$type->currency->ducats \$tier->t2/m);
+});
+
+test('the price review never fills your own tiers', () => {
+  const { autoTierPlan } = require('../src/core/filter/tier-prices');
+  const [p, tid] = T.withNewTier({}, { type: 'uniques', name: 'Giga', copyFrom: 't1', before: 't1' });
+  p.moves = { 'uniques\tLeather Belt': tid };
+  const view = T.tierView(MINI, p).types.find((t) => t.type === 'uniques');
+  assert.ok(view.tiers.find((t) => t.tier === tid).own);
+  const index = new Map([['heavy belt', { chaos: 500, listings: 50 }], ['leather belt', { chaos: 1, listings: 50 }], ['iron ring', { chaos: 400, listings: 50 }], ['simple robe', { chaos: 1, listings: 50 }]]);
+  const plan = autoTierPlan(view, index, {});
+  assert.ok(plan.moves.every((m) => m.to !== tid && m.base !== 'Leather Belt'));
+  assert.ok(plan.tiers.every((t) => t.tier !== tid));
+});
+
+test('a switched-on tier without a base list (any Heist gear) stays a catch-all', () => {
+  const src = 'Show # $type->heist->gear $tier->t1\n\tClass == "Heist Gear"\n\tBaseType == "Foo"\n\tSetFontSize 45\n\nShow # $type->heist->gear $tier->t3any\n\tRarity Normal Magic Rare\n\tClass == "Heist Gear"\n\tSetFontSize 40\n';
+  const out = T.applyTierPatch(src, { moves: { 'heist->gear\tFoo': 't1' } });
+  assert.match(out, /^Show # \$type->heist->gear \$tier->t3any\n\tRarity Normal Magic Rare\n\tClass == "Heist Gear"\n\tSetFontSize 40/m);
+});

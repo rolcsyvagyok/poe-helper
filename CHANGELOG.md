@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.65 - 2026-11-14
+
+- Fixed: the price review could fill your own tiers (a "Giga" tier, say) with hundreds of items, cheap ones included. Your own tiers are now only filled by you. Items the review put there go back to their FilterBlade tier when you start the app.
+- Fixed: moving an item to another tier also took it out of special cases like 6-link Tabula, Shaper + Elder uniques and big Dead Man's Sulphur stacks. Those stay now.
+- Fixed: items moved into a tier FilterBlade left empty were shown by the loud "anything else" rule. That tier now switches on.
+- Fixed: the "any Heist gear / brooch / tool" tiers were switched off in your filter. They are back.
+
 ## 1.0.64 - 2026-11-14
 
 - Fixed: trade search for transfigured gems ("Unknown item base type"). They are now searched as their base gem with the transfigured version, the way the trade site lists them.

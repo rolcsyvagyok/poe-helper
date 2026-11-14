@@ -1950,6 +1950,29 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     settings.set('levelSoundsV1', true);
     try { if (filters.basePath()) filters.write(); } catch (e) { log('tier sounds upgrade', e.message); }
   }
+  // 1.0.65: the price review used your own tiers ("Giga") as price bands and could fill one with
+  // hundreds of items. Items it put there go back to FilterBlade's tier; items you put there stay.
+  if (!settings.get('ownTierFixV1')) {
+    const logList = settings.get('priceReviewLog') || [];
+    let tp = settings.get('tierPatch') || {};
+    let n = 0;
+    for (const entry of logList) {
+      for (const m of entry.moves || []) {
+        if (!/^poehelper-/.test(m.to || '') || m.to === 'poehelper-hidden') continue;
+        if (tp.moves?.[`${m.type}\t${m.base}`] !== m.to) continue;
+        tp = tiers.withoutMove(tp, m.type, m.base);
+        n++;
+      }
+      entry.moves = (entry.moves || []).filter((m) => !/^poehelper-/.test(m.to || '') || m.to === 'poehelper-hidden');
+    }
+    if (n) {
+      settings.set('tierPatch', tp);
+      settings.set('priceReviewLog', logList.filter((e) => e.moves.length));
+      log('own tier fix', `${n} item(s) back to their FilterBlade tier`);
+    }
+    settings.set('ownTierFixV1', true);
+    try { if (n && filters.basePath()) filters.write(); } catch (e) { log('own tier fix', e.message); }
+  }
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 

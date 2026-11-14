@@ -85,12 +85,12 @@ function analyse(typeView, index, { factor = 3 } = {}) {
     }
     const med = median(vals);
     tiers[t.key] = { median: med, priced: vals.length, total: t.bases.length };
-    if (t.hasBaseList && !t.special && !t.generated && med != null && vals.length >= 2) ranked.push({ tier: t.tier, key: t.key, median: med, action: t.action });
+    if (t.hasBaseList && !t.special && !t.generated && !t.own && med != null && vals.length >= 2) ranked.push({ tier: t.tier, key: t.key, median: med, action: t.action });
   }
   const suggestions = [];
   if (ranked.length >= 2) {
     for (const t of typeView.tiers) {
-      if (!t.hasBaseList || t.special || t.generated) continue;
+      if (!t.hasBaseList || t.special || t.generated || t.own) continue;
       const own = tiers[t.key]?.median;
       for (const b of t.bases) {
         const p = prices[b];
@@ -113,7 +113,7 @@ function analyse(typeView, index, { factor = 3 } = {}) {
   const counts = { good: 0, warn: 0, bad: 0, none: 0 };
   for (const t of typeView.tiers) {
     const med = tiers[t.key]?.median;
-    const band = t.hasBaseList && !t.special && !t.generated && med != null && tiers[t.key].priced >= 2;
+    const band = t.hasBaseList && !t.special && !t.generated && !t.own && med != null && tiers[t.key].priced >= 2;
     for (const b of t.bases) {
       const p = prices[b];
       let level = 'none';
@@ -160,7 +160,8 @@ function autoTierPlan(typeView, index, cfg = {}) {
   const a = analyse(typeView, index, { factor: Infinity });
   // Single-item tiers (NeverSink's "twisdom", "scrollfragments", ...) are purpose-built, not price bands.
   // Switched-off tiers are skipped too: an item moved there would fall through to later rules.
-  const eligible = typeView.tiers.filter((t) => t.hasBaseList && !t.special && !t.generated && !t.off && !NOT_TARGET.test(t.tier) && t.bases.length > 1);
+  // Your own tiers ("Giga") are yours: never filled by prices, and what you put there stays.
+  const eligible = typeView.tiers.filter((t) => t.hasBaseList && !t.special && !t.generated && !t.own && !t.off && !NOT_TARGET.test(t.tier) && t.bases.length > 1);
   const userOf = (t) => (user[t.tier] !== '' && user[t.tier] != null && Number.isFinite(+user[t.tier]) ? +user[t.tier] : null);
   const rows = eligible.map((t) => ({ tier: t.tier, key: t.key, action: t.action, median: a.tiers[t.key]?.median ?? null, user: userOf(t), included: include[t.tier] !== false }));
   // Keep the filter's own order (FilterBlade lists tiers from most to least valuable). Typical prices
