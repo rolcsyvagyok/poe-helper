@@ -655,6 +655,13 @@ function applyAutoTier() {
   setTimeout(run, 60 * 1000);
   autoTierTimer = setInterval(run, 60 * 60 * 1000);
 }
+// 3.30 threads: put into the fragment tiers by price once, a little after start (needs poe.ninja)
+setTimeout(async () => {
+  try {
+    const moves = await services.tierThreads();
+    if (moves.length) mainWin?.webContents.send('filter:rebuilt');
+  } catch (e) { log('threads', e.message); }
+}, 90 * 1000);
 
 function applyFilterWatch() {
   if (services.settings.get('autoWatchFilter') && services.filters.basePath()) {

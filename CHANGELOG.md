@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.77 - 2026-11-15
+
+- Base ranks → Unid item tier: unidentified items now use FilterBlade's own item tier rules and looks, with your ranks. Your S bases go in FilterBlade's best row, A in the second, B in the third; for each rank you pick the lowest item tier you want to see. C and D bases share one choice (FilterBlade's "any base" rules).
+- Loot filter: "Other fragments" is now "Fragments", with a new "Threads" page under it listing every thread (Abyss Thread, Breach Thread...) in the fragment tiers.
+- Threads are put into the fragment tiers by their poe.ninja price once (FilterBlade had them all in one tier). The price review keeps them right after.
+
 ## 1.0.76 - 2026-11-15
 
 - Price check: the app waited far longer than the trade site needs. Searches seen from your browser or other tools counted as if they were all just made, so the 5-minute limit looked full for 5 minutes. A price check you click may now use most of GGG's allowance; the price watch and other background work still keep to half.

@@ -86,7 +86,9 @@ const TYPE_MERGES = [
 // Some league mechanics have no category of their own in the filter: their items sit in the shared
 // currency tiers. A base view shows only those items (key "type@id"); moving one still moves it in the real tiers.
 const EXPEDITION = ['Astragali', 'Exotic Coinage', 'Scrap Metal', 'Burial Medallion'];
+const isThread = (b) => /\bThread$/.test(b); // 3.30 threads (Abyss Thread, Breach Thread...)
 const BASE_VIEWS = [
+  { type: 'fragments', key: 'fragments@threads', label: 'Threads', test: isThread },
   { type: 'currency', key: 'currency@expedition', label: 'Expedition currency', bases: EXPEDITION },
   { type: 'currency->stackedsix', key: 'currency->stackedsix@expedition', label: 'Big stacks', bases: EXPEDITION },
   { type: 'currency->stackedthree', key: 'currency->stackedthree@expedition', label: 'Small stacks', bases: EXPEDITION },
@@ -95,8 +97,10 @@ function baseViews(types) {
   const out = [];
   for (const bv of BASE_VIEWS) {
     const t = types.find((x) => x.key === bv.type);
-    if (!t || !t.tiers.some((y) => y.bases.some((b) => bv.bases.includes(b)))) continue;
-    out.push({ ...t, key: bv.key, label: bv.label, subLabel: bv.label, baseView: bv.bases, tiers: t.tiers.map((y) => ({ ...y, bases: y.bases.filter((b) => bv.bases.includes(b)) })) });
+    const has = bv.test || ((b) => bv.bases.includes(b));
+    if (!t || !t.tiers.some((y) => y.bases.some(has))) continue;
+    const bases = [...new Set(t.tiers.flatMap((y) => y.bases.filter(has)))];
+    out.push({ ...t, key: bv.key, label: bv.label, subLabel: bv.label, baseView: bases, tiers: t.tiers.map((y) => ({ ...y, bases: y.bases.filter(has) })) });
   }
   return out;
 }
@@ -1238,21 +1242,22 @@ async function renderBaseMatrix(body, view) {
     return h('div', { class: 'bm-kind' }, h('b', {}, k.name), h('span', { class: 'small muted' }, k.about), sel, ilvl, note);
   });
 
-  // 3.30: unidentified items show their item tier. Per rank, the lowest tier you want to see.
+  // 3.30: unidentified items show their item tier. FilterBlade's own rules (and looks) with your ranks:
+  // per rank, the lowest item tier you want to see. C and D bases share FilterBlade's "any base" rules.
   let unidTiers = data.unidTiers || null;
   const unidRow = (data.hasUnidTiers || unidTiers) ? (() => {
-    const DEFAULT_UNID = { S: 2, A: 3, B: 4, C: 5 }; // close to NeverSink's own
+    const DEFAULT_UNID = { S: 2, A: 2, B: 2, C: 3 }; // what FilterBlade shows at Semi-Strict
     const save = async (v) => { const r = await call('ranks:kind', { unidTiers: v }); unidTiers = r.unidTiers; S.settings.rankUnidTier = unidTiers; renderFilters(); };
     const mode = h('select', { 'aria-label': 'Unidentified item tier: who decides', onchange: (e) => save(e.target.value === 'off' ? null : { ...DEFAULT_UNID }) },
       h('option', { value: 'off', selected: !unidTiers }, 'Filter decides'), h('option', { value: 'mine', selected: !!unidTiers }, 'By rank (below)'));
-    const per = unidTiers ? h('div', { class: 'row small bm-unid', style: { gap: '14px', flexWrap: 'wrap' } }, RANKS.map((r) => h('label', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
-      dressRank(h('span', { class: 'bm-cell sample' }, r), r),
-      h('select', { 'aria-label': `Rank ${r}: lowest unidentified item tier shown`, onchange: (e) => save({ ...unidTiers, [r]: e.target.value === '' ? undefined : Number(e.target.value) }) },
+    const ROWS = [['S', 'S'], ['A', 'A'], ['B', 'B'], ['C', 'C and D']];
+    const per = unidTiers ? h('div', { class: 'row small bm-unid', style: { gap: '14px', flexWrap: 'wrap' } }, ROWS.map(([r, label]) => h('label', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
+      dressRank(h('span', { class: 'bm-cell sample' }, label), r),
+      h('select', { 'aria-label': `Rank ${label}: lowest unidentified item tier shown`, onchange: (e) => save({ ...unidTiers, [r]: e.target.value === '' ? undefined : Number(e.target.value) }) },
         h('option', { value: '', selected: !unidTiers[r] }, 'Not shown'),
-        [1, 2, 3, 4, 5].map((t) => h('option', { value: t, selected: unidTiers[r] === t }, t === 5 ? 'Tier 5' : `Tier ${t}+`)))))) : null;
-    const shown = unidTiers ? RANKS.filter((r) => unidTiers[r]).length : 0;
-    return h('div', { class: 'bm-kind' }, h('b', {}, 'Unid item tier'), h('span', { class: 'small muted' }, 'Unidentified items by their item tier, item level 68+. Pick the lowest tier for each rank.'), mode, per,
-      h('span', { class: 'small faint' }, unidTiers ? `${shown} of ${RANKS.length} ranks shown` : ''));
+        [2, 3, 4, 5].map((t) => h('option', { value: t, selected: unidTiers[r] === t }, t === 5 ? 'Tier 5' : `Tier ${t}+`)))))) : null;
+    return h('div', { class: 'bm-kind' }, h('b', {}, 'Unid item tier'),
+      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+, by their item tier. Pick the lowest tier you want to see for each rank; FilterBlade\'s looks stay. C and D bases share one choice.'), mode, per);
   })() : null;
 
   // ---------- a whole group at once: every shield, every staff, every pure armour base… ----------
@@ -1446,7 +1451,7 @@ const CATEGORIES = [
     { id: 'stacked', name: 'Stacked', match: ['currency->stackedthree', 'currency->stackedsix', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], order: ['currency->stackedthree', 'currency->stackedsix', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom'], art: ['Chaos Orb'], icon: 'coins' },
   ]],
   ['Fragments', [
-    { id: 'fragments', name: 'Other fragments', match: ['fragments', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
+    { id: 'fragments', name: 'Fragments', match: ['fragments', 'fragments@threads', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
   ]],
   ['Cards & gems', [
     { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['Stacked Deck', 'The Doctor'], icon: 'card' },

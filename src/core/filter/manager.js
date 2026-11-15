@@ -370,6 +370,52 @@ function unidTierRules(ranks = {}, tiers = {}, bases = []) {
   }
   return out;
 }
+/**
+ * FilterBlade's own "High Unid-ItemTier bases" rules, set by your base ranks, keeping FilterBlade's looks.
+ * They are a grid: "$tier->t4r2" = item tier 4 and up, base row 2. Your S bases go into row 1, A into
+ * row 2, B into row 3; each row shows from the lowest item tier you pick for that rank (blocks below it
+ * are switched off). C and D bases have no row: FilterBlade's "any base" rules (any2..any5) take them,
+ * from the lowest tier you pick for C. tiers: { S: 2, A: 3, B: 4, C: 5 } (missing = not shown).
+ */
+const UNID_ROW = { S: 1, A: 2, B: 3 };
+function rankUnidTiers(text, ranks = {}, tiers = {}, names = []) {
+  const known = new Set(names);
+  const rowBases = { 1: [], 2: [], 3: [] };
+  for (const b of names) { const row = UNID_ROW[rankOf(ranks, b)]; if (row) rowBases[row].push(b); }
+  const lines = text.split(/\r?\n/);
+  const head = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  for (let i = 0; i < lines.length; i += 1) {
+    const m = /^#?\s*(?:Show|Hide|Minimal)\b.*\$type->gear->tiered\s+\$tier->(?:t(\d)r(\d)|any(\d))\b/.exec(lines[i]);
+    if (!m) continue;
+    let end = i + 1;
+    while (end < lines.length && lines[end].trim() !== '' && !head(lines[end])) end += 1;
+    // the block's own tier condition decides (FilterBlade's names don't always match it: "any3" is tier 2+)
+    const cond = lines.slice(i + 1, end).map((l) => /UnidentifiedItemTier\s*>=?\s*(\d)/.exec(l)).find(Boolean);
+    const tier = cond ? Number(cond[1]) : Number(m[1] || m[3]);
+    let on;
+    if (m[2]) {
+      const row = Number(m[2]);
+      const rank = Object.keys(UNID_ROW).find((r) => UNID_ROW[r] === row);
+      const min = rank ? Number(tiers[rank]) : NaN;
+      // the row's bases: yours by rank, plus any the ranking doesn't cover that FilterBlade put there
+      const bl = lines.slice(i + 1, end).findIndex((l) => /^#?\s*BaseType\b/.test(l));
+      const keep = bl >= 0 ? [...lines[i + 1 + bl].matchAll(/"([^"]+)"/g)].map((x) => x[1]).filter((b) => !known.has(b)) : [];
+      const list = [...new Set([...(rowBases[row] || []), ...keep])].sort();
+      if (bl >= 0) lines[i + 1 + bl] = list.length ? `\tBaseType == ${list.map((b) => `"${b}"`).join(' ')}` : '\tBaseType == "PoE Helper: no bases of this rank"';
+      on = !!rank && Number.isFinite(min) && tier >= min && list.length > 0;
+    } else {
+      const min = Number(tiers.C);
+      on = Number.isFinite(min) && tier >= min;
+    }
+    for (let k = i; k < end; k += 1) {
+      const bare = lines[k].startsWith('#') ? lines[k].slice(1) : lines[k];
+      lines[k] = on ? bare : `#${bare}`;
+    }
+    i = end - 1;
+  }
+  return lines.join('\n');
+}
+
 /** Switches off the filter's own "High Unid-ItemTier bases" rules by base and by class (Base ranks decides those). */
 function disableUnidTiers(text) {
   const lines = text.split(/\r?\n/);
@@ -706,8 +752,9 @@ class FilterManager {
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
     let text = applyTierPatch(baseText, patch);
     if (this.store.get('showAllCurrency')) text = showAllCurrency(text);
+    // unidentified items by item tier: FilterBlade's own rules, with your ranks and lowest tiers
     const unidTiers = this.store.get('rankUnidTier');
-    if (unidTiers) text = disableUnidTiers(text);
+    if (unidTiers) text = rankUnidTiers(text, this.store.get('baseRanks') || {}, unidTiers, RANKED_NAMES);
     // Synced filters start with metadata the game keeps for online filters; the local copy doesn't need it.
     if (text.startsWith('#Online Item Filter')) text = text.replace(/^(#(Online Item Filter|[a-zA-Z]+:[^\n]*)\r?\n)+/, '');
     const eco = (this.store.get('economy')?.enabled ? this.lastEconomy : []).map((r) => cleanRule(r, fix)).filter(Boolean);
@@ -716,7 +763,7 @@ class FilterManager {
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
     const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {} });
-    const unid = unidTiers ? unidTierRules(this.store.get('baseRanks') || {}, unidTiers, RANKED_NAMES) : [];
+    const unid = []; // (unidentified item tiers are FilterBlade's own rules now, see rankUnidTiers)
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
     if (Object.keys(clusterState).length) {
@@ -812,4 +859,4 @@ class FilterManager {
   }
 }
 
-module.exports = { rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
