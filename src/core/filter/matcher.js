@@ -67,6 +67,9 @@ function evalCondition(c, item, assumed) {
     case 'ItemLevel': return numCond(c.op, v, item.itemLevel);
     // 3.30: only on unidentified items; when the copy doesn't show the tier, the filter's choice is assumed
     case 'UnidentifiedItemTier': {
+      // normal items have an item tier too (FilterBlade's tier rules take "Rarity Normal Magic Rare"), but their
+      // copy never says it: decided per tier like an unidentified item whose copy doesn't show it
+      if (rarityOf(item) === 'Normal' && item.unidTier == null) return 'tier';
       if (!item.flags?.unidentified) return false;
       if (item.unidTier == null) return 'tier'; // the copy doesn't say the tier: explain() reports both ways
       return numCond(c.op, v, item.unidTier);
@@ -84,7 +87,8 @@ function evalCondition(c, item, assumed) {
     case 'GemLevel': return numCond(c.op, v, item.gemLevel);
     case 'MapTier': return numCond(c.op, v, item.mapTier);
     case 'Corrupted': return boolCond(v, item.flags?.corrupted);
-    case 'Identified': return boolCond(v, !item.flags?.unidentified);
+    // 3.30: normal items have an unidentified item tier, and the game doesn't count them as identified
+    case 'Identified': return boolCond(v, !item.flags?.unidentified && rarityOf(item) !== 'Normal');
     case 'Mirrored': return boolCond(v, item.flags?.mirrored);
     case 'FracturedItem': return boolCond(v, item.flags?.fractured);
     case 'SynthesisedItem': return boolCond(v, item.flags?.synthesised);

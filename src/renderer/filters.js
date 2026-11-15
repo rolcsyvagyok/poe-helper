@@ -271,6 +271,7 @@ function renderTiers(body, view) {
   if (FB.type === BASE_MATRIX) return renderBaseMatrix(body, view);
   if (FB.type === CLUSTER_GRID) return renderClusterGrid(body, view);
   if (FB.type === CAMPAIGN_HIDE) return renderCampaignHide(body, view);
+  if (FB.type === RARE_LOOKS) return renderRareLooks(body, view);
   if (!FB.type || !view.types.some((t) => t.key === FB.type)) FB.type = view.types[0].key;
   // a merged subcategory opens its last-used part (Cloaks, Brooches, ...)
   const merge = mergeOf(FB.type);
@@ -337,7 +338,13 @@ function renderTiers(body, view) {
         e.dataTransfer.effectAllowed = 'move';
       },
     }, base,
-      price ? h('span', { class: 'fb-price', title: price.max && price.max > price.chaos ? `Uniques on this base: ${fmtC(price.chaos)} to ${fmtC(price.max)}` : 'Current poe.ninja price' }, price.max && price.max > price.chaos * 2 ? `${fmtC(price.chaos)}–${fmtC(price.max)}` : fmtC(price.chaos)) : null,
+      price ? (() => {
+        // uniques: the range of its versions; prices from fewer than 5 listings don't count for the top
+        const top = price.maxSure ?? price.max;
+        const vers = (price.versions || []).map((v) => `${v.name}${v.variant ? ` (${v.variant})` : ''}: ${fmtC(v.chaos)}${v.listings != null && v.listings < 5 ? ` (only ${v.listings} listed)` : ''}`);
+        const title = vers.length ? `Uniques on this base, most valuable first:\n${vers.join('\n')}` : price.max && price.max > price.chaos ? `Uniques on this base: ${fmtC(price.chaos)} to ${fmtC(price.max)}` : 'Current poe.ninja price';
+        return h('span', { class: 'fb-price', title }, top && top > price.chaos * 2 ? `${fmtC(price.chaos)}–${fmtC(top)}` : fmtC(price.chaos));
+      })() : null,
       price?.big ? h('span', { class: `fb-spike ${price.trend.change > 0 ? 'up' : 'down'}`, title: `${window.Farm.pct(price.trend.change)} this week: ${fmtC(price.trend.old)} → ${fmtC(price.chaos)}. See "Big price changes" above for its graph.` }, window.Farm.pct(price.trend.change)) : null,
       sugg ? h('span', { class: `fb-sugg ${sugg.direction}`, title: `Worth ${fmtC(sugg.chaos)} now. Typical for ${tierName({ tier: sugg.to })} (${fmtC(sugg.typicalTo)}), not ${tierName({ tier: sugg.from })} (${fmtC(sugg.typicalFrom)}).` }, sugg.direction === 'up' ? '▲' : '▼') : null,
       from !== undefined ? h('span', { class: 'fb-moved', 'aria-label': 'moved by you' }) : null);
@@ -455,7 +462,7 @@ function renderTiers(body, view) {
       delete FB.prices[type.type];
       renderFilters();
     };
-    const visSwitch = t.generated ? null : h('div', { class: 'fb-vis', role: 'group', 'aria-label': `${tierName(t)} in game` },
+    const visSwitch = t.generated || /^gear->(tiered|memorystrand)$/.test(type.type) ? null : h('div', { class: 'fb-vis', role: 'group', 'aria-label': `${tierName(t)} in game` },
       [['Show', 'Shown', 'Items in this tier show with this look'], ['Hide', 'Hidden', 'Items in this tier are hidden'], ['Off', 'Off', 'Switched off, like FilterBlade\'s strictness does: the game skips this tier and the items fall through to the rules below it']].map(([v, label, tip]) =>
         h('button', { class: state === v ? `on${v === 'Hide' ? ' hide' : v === 'Off' ? ' off' : ''}` : '', title: tip, 'aria-pressed': state === v ? 'true' : 'false', onclick: () => setAction(v) }, label)));
     const head = h('div', { class: 'fb-tier-head ground' },
@@ -480,10 +487,14 @@ function renderTiers(body, view) {
         h('button', { class: 'quiet sm', title: `Copy the look of ${tierName(t)}`, onclick: () => { copyLook(t.style, `${type.label}, ${tierName(t)}`); drawList(); } }, 'Copy look'),
         copiedLook() ? h('button', { class: 'quiet sm', title: `Give ${tierName(t)} the look of ${copiedLook().from}`, onclick: () => pasteLook(t) }, 'Paste look') : null),
       t.generated ? null : h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) { FB.editing = null; } else { FB.editing = t.key; FB.draft = structuredClone(t.style || {}); } drawList(); } }, isEditing ? 'Close' : 'Edit look'));
-    const canAdd = (t.hasBaseList && !t.special) || t.generated;
-    const conds = !folded && hasCondEditor(t);
+    // unidentified item tiers and Memory Strand gear: Base ranks decides the bases and what shows; here only the look
+    const lookOnly = /^gear->(tiered|memorystrand)$/.test(type.type);
+    const canAdd = !lookOnly && ((t.hasBaseList && !t.special) || t.generated);
+    const conds = !folded && !lookOnly && hasCondEditor(t);
     const card = h('div', { class: 'fb-tier' + (t.generated ? ' generated' : '') + (hidden ? ' is-hidden' : '') + (state === 'Off' ? ' is-off' : ''), 'data-key': t.key }, head,
       conds ? condEditor(t) : null,
+      lookOnly && !folded ? h('div', { class: 'fb-chips small faint' }, 'Which bases and tiers show is set on Base ranks (Unid item tier, Memory Strands). Here you change the look. ',
+        h('button', { class: 'quiet sm', onclick: () => { window.showInFilter({ special: 'basematrix' }); renderFilters(); } }, 'Open Base ranks')) :
       folded || (conds && checkBases(t)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, t.stackSize ? 'Empty: your filter has no cards here right now. (Items can\'t be moved in: they would leave their own tier.)' : canAdd ? 'Empty. Drag bases here or add one below.' : 'Empty.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
       folded || !canAdd ? null : addBox(t),
       isEditing && !folded ? lookEditor(t, () => drawList(), drawPreview) : null);
@@ -832,6 +843,39 @@ const MY_BASES = '__mybases__';
 const BASE_MATRIX = '__basematrix__';
 const CLUSTER_GRID = '__clustergrid__';
 const CAMPAIGN_HIDE = '__campaignhide__';
+const RARE_LOOKS = '__rarelooks__';
+// Loot filter → Rare looks: one look per kind of rare / gear drop, set on every FilterBlade rule of that kind
+// (the base lists stay FilterBlade's and Base ranks'). [id, name, about, [[type regex, tier regex], ...]]
+const RARE_LOOK_GROUPS = [
+  ['Unidentified (item tier)', [
+    ['unid5', 'Item tier 5', 'Unidentified gear of item tier 5, any rank you show', [[/^gear->tiered$/, /^t5r\d$/]]],
+    ['unid4', 'Item tier 4', 'Unidentified gear of item tier 4', [[/^gear->tiered$/, /^t4r\d$/]]],
+    ['unid3', 'Item tier 3', 'Unidentified gear of item tier 3', [[/^gear->tiered$/, /^t3r\d$/]]],
+    ['unid2', 'Item tier 2 (and 1)', 'Unidentified gear of item tier 2, and Tier 1 if you show it', [[/^gear->tiered$/, /^t2r\d$/]]],
+    ['unidany', 'Any base', 'FilterBlade\'s "any base" item tier rules', [[/^gear->tiered$/, /^(any\d|specialclasses)$/]]],
+  ]],
+  ['Rares without an item tier (Tier 0)', [
+    ['rr1', 'Rares by base: Tier 1', 'Your rank S bases (Fated ones too)', [[/^rr(->|$)/, /^t1f?$/]]],
+    ['rr2', 'Rares by base: Tier 2', 'Your rank A bases', [[/^rr(->|$)/, /^t2f?$/]]],
+    ['rr3', 'Rares by base: Tier 3', 'Your rank B bases', [[/^rr(->|$)/, /^t3$/]]],
+    ['rr4', 'Rares by base: Tier 4', 'Your rank C bases', [[/^rr(->|$)/, /^t[45]$/]]],
+  ]],
+  ['Special kinds', [
+    ['strands', 'Memory Strands', 'Gear with Memory Strands', [[/^gear->memorystrand$/, /^(t\d|any)$/]]],
+    ['strandshigh', 'Memory Strands: many', 'Gear with a lot of Memory Strands', [[/^gear->memorystrand$/, /^(t\dhigh|anyhigh)$/]]],
+    ['strandedspecial', 'Fractured or veiled, with strands', '', [[/^gear->(memorystrand|tiered)$/, /^stranded/]]],
+    ['influenced', 'Influenced', 'Shaper, Elder and Conqueror bases', [[/^influenced/, /./]]],
+    ['fractured', 'Fractured', 'Fractured bases', [[/^exotic->fractured$/, /./]]],
+    ['veiled', 'Veiled', 'Veiled rares', [[/^rare->exotic->veiled$/, /./]]],
+    ['exarch', 'Searing Exarch / Eater of Worlds', 'Eldritch implicits', [[/^rare->(exarch|eater)$/, /./]]],
+    ['quality', 'Quality and overquality', 'Crafting bases with quality, overquality', [[/^crafting->qualityperfection$/, /./]]],
+    ['craftilvl', 'Crafting bases by item level', 'FilterBlade\'s high item level crafting bases', [[/^crafting->generalgear$/, /./]]],
+    ['special', 'Special bases', 'Exotic and special bases', [[/^exoticbases$/, /./]]],
+    ['corrupted', 'Corrupted and enchanted', '', [[/^exotic->(corruptions|enchanted|crucible|sockets)$/, /./]]],
+    ['idmods', 'Identified with good mods', 'Rares and magic items FilterBlade keeps for their mods', [[/^(rareid|rareblendid|corruptedid|magicid)$/, /./]]],
+    ['links', '6-links and sockets', '', [[/^(6l|socketslinks)$/, /./]]],
+  ]],
+];
 /** Rules from the price check's "Hide…" (and older extra rules), with on/off and delete. */
 async function extraRulesPanel() {
   const rules = await call('filter:overrides').catch(() => []);
@@ -879,6 +923,48 @@ const CAMPAIGN_SETS = [
 const CAMPAIGN_LABELS = { 'One Hand Swords': 'One Hand Swords & Rapiers' };
 // what each type looks like in game, so it's clear which button an item is under
 const CAMPAIGN_EXAMPLES = { 'One Hand Swords': 'Rusted Sword, Cutlass… and the rapiers: Rusted Spike, Estoc…', Claws: 'Nailed Fist, Sharktooth Claw…', Daggers: 'Glass Shank, Skinning Knife…', 'Rune Daggers': 'Carving Knife, Boot Knife…', Staves: 'Gnarled Branch, Quarterstaff…', Warstaves: 'Long Staff, Iron Staff…' };
+function renderRareLooks(body, view) {
+  const cats = sidebar(view, new Set());
+  const edited = new Set(Object.keys(S.settings.tierPatch?.styles || {}));
+  const SAMPLE = { unid5: 'Vaal Regalia', unid4: 'Vaal Regalia', unid3: 'Vaal Regalia', unid2: 'Vaal Regalia', unidany: 'Vaal Regalia', quality: 'Titan Plate', craftilvl: 'Titan Plate', special: 'Stygian Vise', links: 'Vaal Regalia' };
+  const sections = RARE_LOOK_GROUPS.map(([title, groups]) => {
+    const cards = groups.map(([id, name, about, sel]) => {
+      // every FilterBlade rule of this kind (switched off ones too: they get the look when you show them)
+      const tiersOf = view.types.flatMap((ty) => ty.tiers.filter((t) => !t.generated && sel.some(([tr, xr]) => tr.test(ty.type) && xr.test(t.tier))).map((t) => ({ ...t, typeKey: ty.type })));
+      if (!tiersOf.length) return null;
+      const first = tiersOf.find((t) => !t.off) || tiersOf[0];
+      const looks = new Set(tiersOf.map((t) => JSON.stringify(t.style || {})));
+      const mine = tiersOf.some((t) => edited.has(t.key));
+      const key = `rarelooks|${id}`;
+      const isEditing = FB.editing === key;
+      const fake = { key, tier: id, type: 'rarelooks', customName: name, style: first.style };
+      const preview = h('div', { class: 'fb-preview' });
+      const draw = () => mount(preview, dropLabel(SAMPLE[id] || 'Vaal Regalia', isEditing ? FB.draft : first.style, { rarity: id === 'craftilvl' || id === 'quality' ? 'Normal' : 'Rare', game: true, scale: 0.8 }), soundButton(window.UI.normalizeStyle(isEditing ? FB.draft : first.style).sound));
+      draw();
+      const keys = tiersOf.map((t) => t.key);
+      return h('div', { class: 'fb-tier' },
+        h('div', { class: 'fb-tier-head ground' }, preview,
+          h('div', { class: 'fb-tier-meta' },
+            h('div', { class: 'fb-tier-name' }, name, mine ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null,
+              looks.size > 1 ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade gives these rules different looks; saving a look here gives them all the same one' }, `${looks.size} looks now`) : null),
+            h('div', { class: 'small', style: { color: '#9a9f8c' } }, `${about ? `${about}. ` : ''}${keys.length} rule${keys.length === 1 ? '' : 's'} in your filter`)),
+          h('span', { class: 'spacer' }),
+          h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) FB.editing = null; else { FB.editing = key; FB.draft = structuredClone(first.style || {}); } renderFilters(); } }, isEditing ? 'Close' : 'Edit look')),
+        isEditing ? lookEditor(fake, () => renderFilters(), draw, {
+          onSave: async (d) => { await call('tiers:styles', { keys, style: d }); },
+          onReset: async () => { await call('tiers:styles', { keys, style: null }); },
+        }) : null);
+    }).filter(Boolean);
+    return cards.length ? h('div', {}, h('h3', { class: 'fb-sec-title', style: { margin: '18px 0 8px' } }, title), cards) : null;
+  });
+  mount(body, h('div', { class: 'fb' },
+    h('aside', {}, cats),
+    h('div', {},
+      h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('sparkle', { size: 22 })), h('h2', {}, 'Rare looks'),
+        h('span', { class: 'small muted' }, 'One look for each kind of rare and gear drop. A look here goes on every FilterBlade rule of that kind; which bases show stays with Base ranks and your filter.')),
+      sections)));
+}
+
 function renderCampaignHide(body, view) {
   const cats = sidebar(view, new Set());
   const o = { classes: [], rares: false, untilLevel: 67, keepLinks: 4, ...(S.settings.campaignHide || {}) };
@@ -1581,6 +1667,8 @@ const CATEGORIES = [
     { id: 'basevis', name: 'Base ranks', match: [], special: 'matrix', art: 'Fracturing Orb', icon: 'eye' },
     { id: 'chancing', name: 'Chancing bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
     { id: 'raretiers', name: 'Rares by base', match: ['rr'], art: 'Chaos Orb', icon: 'sword' },
+    { id: 'rarelooks', name: 'Rare looks', match: [], special: 'rarelooks', art: 'Orb of Alchemy', icon: 'sparkle' },
+    { id: 'unidgear', name: 'Unidentified & stranded gear', match: ['gear->tiered', 'gear->memorystrand'], art: 'Scroll of Wisdom', icon: 'sword' },
     { id: 'recipes', name: 'Vendor recipes', match: ['6l', 'socketslinks', 'endgamergb'], art: 'Chromatic Orb', icon: 'link' },
     { id: 'flasks', name: 'Flasks & tinctures', match: ['endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
     { id: 'highlight', name: 'Highlight specific bases', match: ['decorators'], art: 'Orb of Annulment', icon: 'sparkle' },
@@ -1659,7 +1747,7 @@ async function saveLayout(next) {
 // Shown another way: NeverSink's economy cluster tiers are the Cluster enchantments grid.
 // Cluster jewels opens the enchantment grid; the size tiers ("Large: the rest", ...) are edited from there
 // stackedsupplies high/low (Transmutes, Augmentations): folded into Small stacks when the filter is written
-const HIDDEN_TYPES = new Set(['gear->tiered', 'jewels->clustereco', 'jewels->cluster', 'exotic->fractured', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow']); // fractured and unid item tiers: Base ranks decides those
+const HIDDEN_TYPES = new Set(['jewels->clustereco', 'jewels->cluster', 'exotic->fractured', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow']); // fractured and unid item tiers: Base ranks decides those
 // scarabs leave the game, so their pages aren't listed (the filter's own scarab rules stay as FilterBlade wrote them)
 const GONE = (key) => /^(fragments->scarabs|scarabs)(->|#|@|$)/.test(String(key));
 const CLUSTER_SIZE_TYPE = 'jewels->cluster';
@@ -1937,6 +2025,12 @@ function sidebar(view, changedTypes) {
         h('span', { class: 'n' }, cat.name),
         h('span', { class: 'c small faint' }, String(Object.keys(S.settings.baseRanks || {}).length || '')))));
 
+  const rareLooksRow = (cat) => h('div', { class: 'fb-cat' + (FB.type === RARE_LOOKS ? ' current' : '') },
+    h('div', { class: 'fb-cat-bar' + (FB.type === RARE_LOOKS ? ' active' : '') },
+      h('button', { class: 'fb-cat-main', title: cat.name, onclick: () => select(RARE_LOOKS) },
+        h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
+        h('span', { class: 'n' }, cat.name))));
+
   const campaignRow = (cat) => h('div', { class: 'fb-cat' + (FB.type === CAMPAIGN_HIDE ? ' current' : '') },
     h('div', { class: 'fb-cat-bar' + (FB.type === CAMPAIGN_HIDE ? ' active' : '') },
       h('button', { class: 'fb-cat-main', title: cat.name, onclick: () => select(CAMPAIGN_HIDE) },
@@ -2031,7 +2125,7 @@ function sidebar(view, changedTypes) {
         const present = cats.filter((c) => byCat.has(c.id) || c.special);
         if (!present.length) return null;
         return h('div', { class: 'fb-sec', title }, h('div', { class: 'fb-sec-title' }),
-          h('div', { class: 'fb-sec-body' }, present.map((c) => (c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : catRow(c, byCat.get(c.id))))));
+          h('div', { class: 'fb-sec-body' }, present.map((c) => (c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : catRow(c, byCat.get(c.id))))));
       })));
   }
   return withResizer(h('nav', { class: 'fb-cats fb-cats-v2' + (editing ? ' edit' : ''), 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, h('div', { class: 'fb-search-row' }, searchBox(), miniBtn), editBar,
@@ -2041,7 +2135,7 @@ function sidebar(view, changedTypes) {
       const present = editing ? cats : cats.filter((c) => byCat.has(c.id) || c.special);
       if (!present.length) return null;
       return h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-title' }, title),
-        h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : catRow(c, byCat.get(c.id))))),
+        h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : catRow(c, byCat.get(c.id))))),
         editing ? addBox(title) : null);
     })));
 

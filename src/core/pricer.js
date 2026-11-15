@@ -122,7 +122,9 @@ function pickUnique(lines, item) {
   const modsText = item.mods.explicit.join('\n').toLowerCase();
   const variantHit = usable.find((l) => l.variant && modsText.includes(String(l.variant).toLowerCase()));
   const best = variantHit || (usable.length > 1 ? null : usable[0]);
-  return { best, cands: usable.slice(0, 8), range: usable.length > 1 ? [usable[0].chaos, usable[usable.length - 1].chaos] : null };
+  // unidentified: which unique it is isn't known, so the list is every unique on the base, most valuable first
+  const list = unid ? [...usable].reverse() : usable;
+  return { best, cands: list.slice(0, 8), range: usable.length > 1 ? [usable[0].chaos, usable[usable.length - 1].chaos] : null };
 }
 
 function pickMap(lines, item) {

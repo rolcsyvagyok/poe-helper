@@ -777,3 +777,20 @@ test('regular maps: hide white, yellow, below Tier 16 (never blighted maps or un
   assert.ok(r[1].conditions.some((c) => c.keyword === 'MapTier' && c.op === '<' && c.values[0] === '16'));
   assert.ok(r.every((x) => x.action === 'Hide' && x.conditions.some((c) => c.keyword === 'BlightedMap')));
 });
+
+test('normal items have an item tier too: the filter check reports it per tier', () => {
+  const { explain } = require('../src/core/filter/matcher');
+  const { parse } = require('../src/core/filter/parser');
+  const { parseItem } = require('../src/core/item-parser');
+  const doc = parse('Show # $type->gear->tiered $tier->t2r1\n\tUnidentifiedItemTier >= 1\n\tRarity Normal Magic Rare\n\tBaseType == "Two-Stone Ring"\n\nHide # $type->hidelayer $tier->x\n\tRarity Normal\n');
+  const r = explain(doc, parseItem('Item Class: Rings\nRarity: Normal\nTwo-Stone Ring\n--------\nItem Level: 83\n'));
+  assert.ok(r.byTier.every((x) => x.action === 'Show'));
+});
+
+test('3.30: "Identified True" does not take normal items (the game counts them as having an unidentified tier)', () => {
+  const { explain } = require('../src/core/filter/matcher');
+  const { parse } = require('../src/core/filter/parser');
+  const { parseItem } = require('../src/core/item-parser');
+  const doc = parse('Hide # ranks\n\tRarity Normal Magic\n\tIdentified True\n\tBaseType == "Topaz Ring"\n\nShow # rest\n\tRarity Normal\n');
+  assert.equal(explain(doc, parseItem('Item Class: Rings\nRarity: Normal\nTopaz Ring\n--------\nItem Level: 84\n')).comment, 'rest');
+});

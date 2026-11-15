@@ -667,3 +667,23 @@ test('Memory Strands by rank: rows get your rank bases, numbers and on/off', () 
   assert.match(out, /^Show # %D2 \$type->gear->memorystrand \$tier->t3 !x\n\tMemoryStrands >= 10\n\tBaseType == "Silk Robe"/m);
   assert.match(out, /^#Show # %D2 \$type->gear->memorystrand \$tier->any/m);
 });
+
+test('High variety uniques: a base stays only while one version (5+ listed) is worth it; otherwise it goes back to FilterBlade\'s tier', () => {
+  const TP = require('../src/core/filter/tier-prices');
+  const tier = (t, bases, action = 'Show') => ({ tier: t, key: `uniques|${t}`, bases, hasBaseList: true, action });
+  const view = { type: 'uniques', tiers: [tier('t1', ['A1', 'A2']), tier('t2', ['B1', 'B2']), tier('multispecialhigh', ['Short Bow', 'Cloth Belt', 'Reaver Helmet']), tier('t3', ['C1', 'C2']), tier('hideable', ['D1', 'D2'], 'Hide')] };
+  const L = (name, baseType, chaos, listingCount) => ({ name, baseType, chaos, listingCount });
+  const idx = TP.priceIndex('uniques', { UniqueWeapon: [
+    L('a', 'A1', 500, 50), L('a', 'A2', 400, 50), L('b', 'B1', 60, 50), L('b', 'B2', 50, 50), L('c', 'C1', 2, 50), L('c', 'C2', 1, 50), L('d', 'D1', 1, 50), L('d', 'D2', 1, 50),
+    L('Quill Rain', 'Short Bow', 1, 2000), L('Foulborn Quill Rain', 'Short Bow', 800, 3),
+    L('Headhunter', 'Cloth Belt', 1255, 40), L('Perseverance', 'Cloth Belt', 1, 900),
+    L('Blood Price', 'Reaver Helmet', 1, 1500),
+  ] });
+  const plan = TP.autoTierPlan(view, idx, { movedFrom: { 'Reaver Helmet': 'hideable' } });
+  const by = Object.fromEntries(plan.moves.map((m) => [m.base, m.to]));
+  assert.equal(by['Cloth Belt'], undefined); // Headhunter keeps it
+  assert.equal(by['Reaver Helmet'], 'hideable'); // back where FilterBlade had it
+  assert.equal(by['Short Bow'], 't3'); // the 800c roll has 3 listings: not enough
+  assert.ok(!plan.moves.some((m) => m.to === 'multispecialhigh'));
+  assert.equal(idx.get('short bow').versions[0].name, 'Foulborn Quill Rain');
+});

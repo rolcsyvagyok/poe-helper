@@ -1315,3 +1315,9 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 .pob-anoint th, .pob-anoint td { padding: 4px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; }
 .pob-anoint .r { text-align: right; white-space: nowrap; }
 .pob-anoint-cur td { background: var(--surface-2, rgba(255,255,255,.04)); font-weight: 600; }
+
+/* price check header: your base rank and the item tier */
+.ov-rank { display: inline-flex; align-items: center; gap: 8px; margin-left: 10px; flex: none; }
+.ov-ground:has(.ov-rank) { flex-wrap: wrap; row-gap: 6px; }
+.ov-rank-box { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid; border-radius: 4px; font: 700 13px/1 var(--item, inherit); flex: none; }
+.ov-rank-tier { font-weight: 700; font-size: 15px; white-space: nowrap; }

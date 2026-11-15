@@ -39,11 +39,14 @@ function priceIndex(type, catData) {
         // Uniques are tiered by base type: the cheapest unique on a base decides how safe it is to show.
         if (!l.baseType || l.links) continue;
         const k = norm(l.baseType);
-        const e = out.get(k) || { chaos: Infinity, max: 0, listings: 0, names: [] };
+        const e = out.get(k) || { chaos: Infinity, max: 0, maxSure: 0, listings: 0, names: [], versions: [] };
         e.chaos = Math.min(e.chaos, l.chaos);
         e.max = Math.max(e.max, l.chaos);
+        // a price from a handful of listings (a 3-listing Foulborn roll at 800c) doesn't make a base valuable
+        if ((l.listingCount ?? 0) >= SURE_LISTINGS) e.maxSure = Math.max(e.maxSure, l.chaos);
         e.listings += l.listingCount || 0;
         if (e.names.length < 4) e.names.push(l.name);
+        e.versions.push({ name: l.name, variant: l.variant || null, chaos: l.chaos, listings: l.listingCount ?? null });
         out.set(k, e);
       } else {
         const k = norm(l.name);
@@ -55,8 +58,16 @@ function priceIndex(type, catData) {
       }
     }
   }
+  // each base's versions, most valuable first (shown on the Loot filter page and in the price check)
+  if (isUniques) for (const e of out.values()) e.versions = e.versions.sort((a, b) => b.chaos - a.chaos).slice(0, 8);
   return out;
 }
+
+const SURE_LISTINGS = 5;
+// "High variety" unique tiers hold bases where one version is worth a lot even if the usual one isn't.
+// They are never filled by the cheapest price; a base stays while a version is worth at least this much.
+const VARIETY_FLOOR = { multispecialhigh: 20, multispecial: 5 };
+const VARIETY = /^(multi|t3boss|exdust|earlyleague)/;
 
 const median = (xs) => {
   if (!xs.length) return null;
@@ -85,12 +96,12 @@ function analyse(typeView, index, { factor = 3 } = {}) {
     }
     const med = median(vals);
     tiers[t.key] = { median: med, priced: vals.length, total: t.bases.length };
-    if (t.hasBaseList && !t.special && !t.generated && !t.own && med != null && vals.length >= 2) ranked.push({ tier: t.tier, key: t.key, median: med, action: t.action });
+    if (t.hasBaseList && !t.special && !t.generated && !t.own && !VARIETY.test(t.tier) && med != null && vals.length >= 2) ranked.push({ tier: t.tier, key: t.key, median: med, action: t.action });
   }
   const suggestions = [];
   if (ranked.length >= 2) {
     for (const t of typeView.tiers) {
-      if (!t.hasBaseList || t.special || t.generated || t.own) continue;
+      if (!t.hasBaseList || t.special || t.generated || t.own || VARIETY.test(t.tier)) continue;
       const own = tiers[t.key]?.median;
       for (const b of t.bases) {
         const p = prices[b];
@@ -113,11 +124,18 @@ function analyse(typeView, index, { factor = 3 } = {}) {
   const counts = { good: 0, warn: 0, bad: 0, none: 0 };
   for (const t of typeView.tiers) {
     const med = tiers[t.key]?.median;
-    const band = t.hasBaseList && !t.special && !t.generated && !t.own && med != null && tiers[t.key].priced >= 2;
+    const band = t.hasBaseList && !t.special && !t.generated && !t.own && !VARIETY.test(t.tier) && med != null && tiers[t.key].priced >= 2;
+    const floor = VARIETY_FLOOR[t.tier];
     for (const b of t.bases) {
       const p = prices[b];
       let level = 'none';
       let dir = null;
+      // High variety: fits while one version (5+ listed) is worth the tier
+      if (floor != null && p) {
+        const top = p.maxSure ?? p.max ?? p.chaos;
+        level = top >= floor ? 'good' : top >= floor / 2 ? 'warn' : 'bad';
+        dir = top >= floor ? null : 'down';
+      }
       if (band && p) {
         const r = (p.chaos + 0.1) / (med + 0.1);
         const off = Math.max(r, 1 / r);
@@ -132,7 +150,7 @@ function analyse(typeView, index, { factor = 3 } = {}) {
 }
 
 // Tiers that must never be auto-tiered into: new/unknown items, exceptions, catch-alls.
-const NOT_TARGET = /^(tnew|new|ex|restex|rest$|hide$|exhide)/i;
+const NOT_TARGET = /^(tnew|new|ex|restex|rest$|hide$|exhide|multi|t3boss|earlyleague)/i;
 
 /**
  * Auto-tier plan for one FilterBlade category.
@@ -206,6 +224,21 @@ function autoTierPlan(typeView, index, cfg = {}) {
         const p = index.get(norm(b));
         if (!p || !Number.isFinite(p.chaos)) { skipped.unpriced++; continue; }
         if (p.listings != null && p.listings < minListings) { skipped.fewListings.push(b); continue; }
+        // High variety: keep the base while one of its versions is worth the tier; else back to where
+        // FilterBlade had it (when you or a review moved it here), or where its price puts it
+        const floor = VARIETY_FLOOR[t.tier];
+        if (floor != null) {
+          if ((p.maxSure ?? p.max ?? 0) >= floor) continue;
+          const back = cfg.movedFrom?.[b];
+          const home = back && !VARIETY.test(back) ? typeView.tiers.find((x) => x.tier === back) : null;
+          // not moved by anyone: the shown tier its price fits (never hidden by this)
+          const shown = placed.filter((x) => x.action !== 'Hide');
+          const target = home || shown.find((x) => p.chaos >= x.min) || shown[shown.length - 1];
+          if (!target || target.tier === t.tier || target === hideTier) continue;
+          moves.push({ base: b, from: t.tier, to: target.tier, toAction: target.action, chaos: p.chaos, best: p.maxSure ?? p.max ?? null, listings: p.listings ?? null, direction: 'down', variety: true, trend: p.trend || null, big: !!p.big });
+          continue;
+        }
+        if (VARIETY.test(t.tier)) continue; // other variety tiers (boss drops, early league…) stay as they are
         const target = targetFor(p.chaos);
         if (!target || target.tier === t.tier || (t.generated && target === hideTier)) continue;
         const r = rangeOf(t.tier);
@@ -244,4 +277,4 @@ function autoTierPlan(typeView, index, cfg = {}) {
   };
 }
 
-module.exports = { categoriesForType, priceIndex, analyse, autoTierPlan, median, NOT_TARGET };
+module.exports = { VARIETY_FLOOR, SURE_LISTINGS, categoriesForType, priceIndex, analyse, autoTierPlan, median, NOT_TARGET };

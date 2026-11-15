@@ -24,7 +24,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 /** Top of the overlay: the item drawn the way your filter draws it on the ground. */
-function header(item, filterHit) { // eslint-disable-line no-param-reassign
+function header(item, filterHit, br = null) { // eslint-disable-line no-param-reassign
   const name = item ? (item.rarity === 'Unique' || item.rarity === 'Rare' ? item.name : item.typeLine) : 'Price check';
   // an unidentified item whose tier the copy doesn't show: drawn with the best look it can get
   const shownAtSomeTier = item?.unidTier == null && filterHit?.byTier?.find((x) => x.action === 'Show');
@@ -34,9 +34,26 @@ function header(item, filterHit) { // eslint-disable-line no-param-reassign
   return h('div', { class: 'ground ov-ground ov-drag', title: 'Drag to move. The next popup opens where you leave it.' },
     dropLabel(name, filterHit?.style, { rarity: item?.rarity, scale: 0.85, hidden }),
     filterHit ? soundButton(normalizeStyle(filterHit.style).sound) : null,
+    rankBadge(item, br),
     h('span', { class: 'spacer' }),
     pinButton(),
     h('button', { class: 'ov-x', title: 'Close (Esc)', 'aria-label': 'Close', onclick: close }, '✕'));
+}
+
+/** Your base rank as a badge in its rank colours, and the item tier ("Tier 5 - Unidentified", "Tier 0 - Normal item"). */
+function rankBadge(item, br) {
+  if (!item || !br) return null;
+  const rgb = (a) => (a ? `rgb(${a[0]},${a[1]},${a[2]})` : '');
+  const lk = br.look || {};
+  const bg = lk.background || [80, 80, 80];
+  const light = (a) => 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2] > 90;
+  const tier = item.unidTier ?? 0;
+  const what = item.flags?.unidentified ? 'Unidentified' : `${item.rarity} item`;
+  const unidNote = br.unid?.min != null ? ` Unidentified rank ${br.rank} shows from Tier ${br.unid.min} up.` : '';
+  const rareNote = br.rareTier ? ` Rares of it go into the filter's rare Tier ${br.rareTier.tier.replace(/^t/, '')}${br.rareTier.state === 'Off' ? ' (switched off at your strictness)' : ''}.` : '';
+  return h('span', { class: 'ov-rank', title: `Base rank ${br.rank} for ${br.base}${br.group ? ` (${br.group})` : ''}.${unidNote}${rareNote}` },
+    h('span', { class: 'ov-rank-box', style: { background: rgb(bg), color: rgb(lk.text), borderColor: rgb(lk.border) } }, br.rank),
+    h('span', { class: 'ov-rank-tier', style: { color: light(bg) ? rgb(bg) : rgb(lk.text) } }, `Tier ${tier} - ${what}`));
 }
 
 let kept = false;
@@ -160,11 +177,13 @@ function render(p) {
       h('span', { class: 'spacer' }),
       conf[1] ? h('span', { class: `pill ${conf[0]}` }, conf[1]) : null));
     if (price.stackSize > 1) body.append(h('div', { class: 'small' }, `Your stack of ${price.stackSize} is worth `, h('b', {}, chaosDiv(price.totalChaos, divine))));
-    if (price.range) body.append(h('div', { class: 'small muted' }, `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Check the mods.`));
+    if (price.range) body.append(h('div', { class: 'small muted' }, item.flags?.unidentified ? `Uniques on this base sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Identify it to know which one it is.` : `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Check the mods.`));
+    // an unidentified unique: every unique on its base, most valuable first (thin listings marked)
+    const unidUnique = item.rarity === 'Unique' && item.flags?.unidentified;
     if (price.matches?.length > 1 && !/Map$/i.test(price.category || '')) { // maps: the tier decides, the list only repeats it
-      body.append(h('div', { class: 'ov-block' }, h('div', { class: 't' }, 'Close matches'),
-        h('div', { class: 'ov-list' }, price.matches.slice(0, 4).map((m) => h('div', { class: 'li' },
-          h('span', { class: 'muted' }, [m.variant, m.links ? `${m.links}-link` : null, m.gemLevel ? `${m.gemLevel}/${m.gemQuality || 0}%` : null, m.corrupted ? 'corrupted' : null, m.levelRequired && price.category === 'BaseType' ? `ilvl ${m.levelRequired}+` : null].filter(Boolean).join(', ') || m.name),
+      body.append(h('div', { class: 'ov-block' }, h('div', { class: 't' }, unidUnique ? 'Uniques on this base, most valuable first' : 'Close matches'),
+        h('div', { class: 'ov-list' }, price.matches.slice(0, unidUnique ? 8 : 4).map((m) => h('div', { class: 'li' },
+          h('span', { class: 'muted', title: m.listingCount != null ? `${m.listingCount} listed` : '' }, unidUnique ? `${m.name}${m.variant ? ` (${m.variant})` : ''}${m.links ? `, ${m.links}-link` : ''}${m.listingCount != null && m.listingCount < 5 ? ` · only ${m.listingCount} listed` : ''}` : [m.variant, m.links ? `${m.links}-link` : null, m.gemLevel ? `${m.gemLevel}/${m.gemQuality || 0}%` : null, m.corrupted ? 'corrupted' : null, m.levelRequired && price.category === 'BaseType' ? `ilvl ${m.levelRequired}+` : null].filter(Boolean).join(', ') || m.name),
           h('span', { class: 'spacer' }),
           h('span', {}, chaosDiv(m.chaos, divine)))))));
     }
@@ -191,19 +210,17 @@ function render(p) {
     body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter${gearRarity ? ` (as a ${gearRarity} item)` : ''}${whereText ? `: ${whereText}` : ''}.`));
   }
 
-  // your base rank for this base (Loot filter → Base ranks), and the rare tier it puts this rare in
-  const br = p.baseRank;
-  if (br) {
-    const tierText = br.unid ? `. Unidentified${br.unid.tier != null ? `, Tier ${br.unid.tier}` : ''}${br.unid.min != null ? `: rank ${br.rank} shows from Tier ${br.unid.min} up` : ''}` : br.rareTier ? `, so rares of it go into the filter's rare Tier ${br.rareTier.tier.replace(/^t/, '')}${br.rareTier.state === 'Off' ? ' (switched off at your strictness)' : ''}` : item.rarity === 'Rare' && br.rank === 'D' ? ', so rares of it are left to the rest of your filter' : '';
-    body.append(h('div', { class: 'small' }, h('span', { class: 'muted' }, 'Base rank: '), h('b', {}, br.rank), h('span', { class: 'muted' }, ` for ${br.base}${br.group ? ` (${br.group})` : ''}${tierText}.`)));
-  }
+  // your base rank: the badge in the header (its tooltip has the details)
 
   // --- Path of Building: what this item does to your build (the compare hotkey only) ---
   if (p.pob) body.append(pobSection(p.pob));
 
   // --- actions ---
   const tradeBox = h('div', { class: 'ov-block', style: { display: 'none' } });
-  const ti = p.tierInfo;
+  // an unidentified (or white) item decided by the item tier rules: those are set on Base ranks, so the
+  // "move to another tier" controls (for identified rares) don't apply to it
+  const byUnidTier = /gear->(tiered|memorystrand)/.test(filterHit?.comment || '') || (item.unidTier == null && filterHit?.byTier?.some((x) => /gear->tiered/.test(x.comment || '')));
+  const ti = byUnidTier && p.baseRank ? null : p.tierInfo;
   // the same names as on the Loot filter page
   const nameOf = (type, o) => window.TierNames.tierName({ tier: o.tier, type, customName: o.name });
   const tierLabel = (t, type = ti?.type) => nameOf(type, (ti?.options || []).find((o) => o.tier === t) || { tier: t });
@@ -275,7 +292,7 @@ function render(p) {
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
   if (p.tradeable) openTrade(tradeBox);
 
-  mount(root, header(item, filterHit), body);
+  mount(root, header(item, filterHit, p.baseRank), body);
   fit();
 }
 
@@ -284,7 +301,7 @@ function previewLook(o) {
   const head = root.querySelector('.ov-ground');
   if (!head || !current) return;
   const hit = o ? { action: o.action === 'Hide' || o.state === 'Hide' ? 'Hide' : 'Show', style: o.style || {} } : current.filterHit;
-  head.replaceWith(header(current.item, hit));
+  head.replaceWith(header(current.item, hit, current.baseRank));
 }
 
 async function moveTier(type, base, to, option) {

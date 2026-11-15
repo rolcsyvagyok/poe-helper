@@ -174,6 +174,20 @@
     if (tier === HIDDEN_TIER) return 'Hidden by you';
     if (/^poehelper-/.test(tier)) return cap(tier.slice(10).replace(/\d+$/, '')) || 'Your tier';
     if (TIER_WORDS[tier]) return TIER_WORDS[tier];
+    // unidentified item tiers and Memory Strand gear (3.30): "t5r2" = item tier 5+, rank A bases
+    if (/^gear->(tiered|memorystrand)$/.test(t.type || '')) {
+      const RK = { 1: 'rank S', 2: 'rank A', 3: 'rank B' };
+      let m = /^t(\d)r(\d)$/.exec(tier);
+      if (m) return `Tier ${m[1]}+, ${RK[m[2]]} bases`;
+      m = /^any(\d)$/.exec(tier);
+      if (m) return `Tier ${m[1]}+, any base`;
+      m = /^t(\d)(high)?$/.exec(tier);
+      if (m && /memorystrand/.test(t.type)) return `${cap(RK[m[1]])} bases${m[2] ? ', many strands' : ''}`;
+      if (/^anyhigh$/.test(tier)) return 'Any base, many strands';
+      if (tier === 'strandedfractured') return 'Fractured, with strands';
+      if (tier === 'strandedveiled') return 'Veiled, with strands';
+      if (tier === 'specialclasses') return 'Special item classes';
+    }
     const p = fromPattern(tier, t.type);
     if (p) return p;
     if (/^ex/.test(tier) && tier.length > 2) return `Special: ${splitWords(tier.slice(2)) || tier.slice(2)}`;

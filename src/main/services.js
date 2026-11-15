@@ -291,7 +291,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         // unidentified (3.30): the item tier decides, not the rare tiers
         const unid = item.flags?.unidentified ? { tier: item.unidTier ?? null, min: (settings.get('rankUnidTier') || {})[rank] ?? null } : null;
         if (unid) rareTier = null;
-        baseRank = { base: b, rank, rareTier, unid, group: M.rankGroupOf ? M.rankGroupOf(b) : null };
+        baseRank = { base: b, rank, rareTier, unid, look: (M.RANK_LOOKS || {})[rank] || null, group: M.rankGroupOf ? M.rankGroupOf(b) : null };
       }
     } catch { /* no ranks */ }
     return { baseRank, item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
@@ -1199,6 +1199,13 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return savePatch(tiers.withStyle(settings.get('tierPatch') || {}, key, style));
   }
 
+  /** One look for several tiers at once (Loot filter → Rare looks); null = back to FilterBlade's looks. */
+  function setTierStyles(keys = [], style = null) {
+    let patch = settings.get('tierPatch') || {};
+    for (const k of keys) patch = tiers.withStyle(patch, String(k), style || null);
+    return savePatch(patch);
+  }
+
   function resetTiers({ key, type, types = null, base, all } = {}) {
     let patch = settings.get('tierPatch') || {};
     // the default tiers (Giga, Big belts) come back after a reset of their category or of everything
@@ -1732,6 +1739,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         // names the filter already lists anywhere are never "new"; uniques are priced by base so they never add names
         includeNew: !!cfg.includeNew,
         knownNames: knownAll,
+        // where FilterBlade had each moved base (High variety bases that don't fit go back there)
+        movedFrom: Object.fromEntries(Object.entries(view.moved || {}).filter(([k, v]) => v && k.startsWith(`${t.type}\t`)).map(([k, v]) => [k.slice(t.type.length + 1), v])),
       });
       if (plan.tiers.length < 2) continue; // nothing to tier (all special or unpriced)
       const ages = cats.map((c) => ninja.cachedAge(league, c)).filter((x) => x != null);
@@ -2205,7 +2214,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

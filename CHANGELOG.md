@@ -3,6 +3,17 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.86 - 2026-11-15
+
+- Uniques → High variety: the price review had filled "top multi-bases" with bases whose uniques are all about 1c (it went by the cheapest unique). High variety tiers now keep a base only while one of its versions is worth it (20c+ for top multi-bases, 5c+ for multi-bases), counting only prices with 5 or more listings. The next price review moves the others back to where FilterBlade had them.
+- Unique bases on the Loot filter page: hover the price to see every unique on that base, most valuable first, with thin listings marked. The range uses prices with 5+ listings.
+- Price check on an unidentified unique lists the uniques on its base, most valuable first.
+- Filter check on normal (white) items: they have an item tier too, which the copy doesn't show, so the check now says what your filter does at each tier instead of "hidden".
+- Filter check: rules for identified items no longer count white items (the game doesn't either), so white bases you show by item tier no longer say "hidden".
+- Price check header: your base rank as a coloured badge and the item tier ("A  Tier 5 - Unidentified"). Hover it for the details.
+- Loot filter → Rare items → "Unidentified & stranded gear": the looks of the unidentified item tier rules and the Memory Strand rules (the green look unidentified rares get). Edit them there; which bases and tiers show stays on Base ranks.
+- Loot filter → Rare items → **Rare looks**: one card per kind of rare and gear drop: unidentified item tiers 5 / 4 / 3 / 2, any base, rares by base Tier 1–4, Memory Strands (and many strands), influenced, fractured, veiled, Exarch / Eater, quality and overquality, crafting bases by item level, special bases, corrupted and enchanted, identified with good mods, 6-links. Edit a look once and it goes on every FilterBlade rule of that kind; no base lists to wade through. "Use the FilterBlade look" puts them back.
+
 ## 1.0.85 - 2026-11-15
 
 - Price check: unidentified rares with quality ("Superior Phantom Mitts") are read as their base, so the filter check, base rank and Show in app work for them.
