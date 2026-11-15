@@ -447,7 +447,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       const top = (res.result || []).slice(0, 10);
       const sameTop = top.length && s.lastTop === top.join(',') && Array.isArray(s.lastListings);
       const listings = sameTop ? s.lastListings.map((l) => ({ ...l, chaos: TW.chaosOf(l, divine) }))
-        : TW.listingsOf(top.length ? await ggg.tradeFetch(res.id, top) : { result: [] }, divine);
+        : TW.listingsOf(top.length ? await ggg.tradeFetch(res.id, top, { interactive: false }) : { result: [] }, divine);
       const { hits, cheapest } = TW.priceHits(listings, s.max, divine, s.told || []);
       const told = [...new Set([...(s.told || []), ...hits.map((x) => x.id)])].slice(-200);
       update({ lastCheck: Date.now(), error: null, told, lastTop: top.join(','), lastListings: listings.map(({ chaos, ...l }) => l), last: { total: res.total ?? res.result?.length ?? 0, cheapest, at: Date.now(), url: ggg.tradeUrl(s.league, res.id) } });

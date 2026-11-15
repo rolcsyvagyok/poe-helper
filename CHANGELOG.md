@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.76 - 2026-11-15
+
+- Price check: the app waited far longer than the trade site needs. Searches seen from your browser or other tools counted as if they were all just made, so the 5-minute limit looked full for 5 minutes. A price check you click may now use most of GGG's allowance; the price watch and other background work still keep to half.
+- Price check: the "wait" message no longer pops up over the buttons, so "Open on trade site" can be clicked straight away.
+
 ## 1.0.75 - 2026-11-15
 
 - Rares go into FilterBlade's rare tiers by your base ranks: S bases Tier 1, A Tier 2, B Tier 3, C Tier 4, D left to the rest of the filter. They keep FilterBlade's look for that tier.

@@ -57,7 +57,7 @@ class RateLimiter {
   }
 
   /** Milliseconds to wait before the next request on `key` is allowed. */
-  waitTime(key) {
+  waitTime(key, { safety = this.safety } = {}) {
     const b = this.bucket(key);
     const t = this.now();
     let wait = Math.max(0, b.blockedUntil - t);
@@ -68,7 +68,7 @@ class RateLimiter {
       return Math.max(wait, last + 1000 - t);
     }
     for (const r of b.rules) {
-      const allowed = Math.max(1, Math.floor(r.maxHits * this.safety));
+      const allowed = Math.max(1, Math.floor(r.maxHits * safety));
       const windowStart = t - r.period * 1000;
       const inWindow = b.hits.filter((h) => h > windowStart).sort((x, y) => x - y);
       if (inWindow.length + b.inFlight >= allowed) {
@@ -85,13 +85,14 @@ class RateLimiter {
    * under the limiter. `fn` must return an object with `headers` and `status`.
    * Requests are serialized per limiter so waits are predictable.
    */
-  schedule(key, fn) {
+  schedule(key, fn, { safety } = {}) {
+    const opts = safety != null ? { safety } : {};
     const run = async () => {
-      let w = this.waitTime(key);
+      let w = this.waitTime(key, opts);
       while (w > 0) {
         this.stats.throttledMs += w;
         await this.sleep(w);
-        w = this.waitTime(key);
+        w = this.waitTime(key, opts);
       }
       const b = this.bucket(key);
       b.inFlight++;
@@ -125,6 +126,7 @@ class RateLimiter {
     if (rulesHeader) {
       const rules = [];
       let maxServerHits = 0;
+      let spreadOver = 60;
       for (const name of String(rulesHeader).split(',').map((s) => s.trim()).filter(Boolean)) {
         const limits = parseRuleList(getHeader(headers, `X-Rate-Limit-${name}`));
         const state = parseRuleList(getHeader(headers, `X-Rate-Limit-${name}-State`));
@@ -136,11 +138,13 @@ class RateLimiter {
             // Server knows about hits from other tools/browser tabs: mirror them.
             const windowStart = t - l.period * 1000;
             const known = b.hits.filter((h) => h > windowStart).length;
-            if (s.a > known) maxServerHits = Math.max(maxServerHits, s.a - known);
+            if (s.a - known > maxServerHits) { maxServerHits = s.a - known; spreadOver = l.period; }
           }
         });
       }
-      for (let i = 0; i < maxServerHits; i++) b.hits.push(t);
+      // when those hits were isn't sent: spread them over the window rather than all "now", which made
+      // a long window (60 searches in 5 minutes) look full for its whole length
+      for (let i = 0; i < maxServerHits; i++) b.hits.push(t - Math.round(((i + 1) / (maxServerHits + 1)) * spreadOver * 1000));
       if (rules.length) {
         b.rules = rules;
         b.learned = true;

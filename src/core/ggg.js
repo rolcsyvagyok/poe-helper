@@ -16,6 +16,7 @@
 
 const { RateLimiter } = require('./rate-limiter');
 
+const INTERACTIVE_SAFETY = 0.85; // a search you clicked; GGG's own limit is still never crossed
 const WEB = 'https://www.pathofexile.com';
 const STATS_TTL = 7 * 24 * 60 * 60 * 1000;
 const TAB_LIST_TTL = 6 * 60 * 60 * 1000;
@@ -52,7 +53,7 @@ class GggClient {
     this.usage?.set('gggUsage', u);
   }
 
-  async _request(key, url, { method = 'GET', body, withSession = false } = {}) {
+  async _request(key, url, { method = 'GET', body, withSession = false, safety } = {}) {
     if (this.usageToday().total >= this.dailyBudget) {
       throw new BudgetExceededError(`Daily GGG request budget (${this.dailyBudget}) reached. Change it in Settings if you really need more.`);
     }
@@ -71,7 +72,7 @@ class GggClient {
       this._count(key);
       const r = await this.fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
       return { status: r.status, headers: r.headers, response: r };
-    });
+    }, safety != null ? { safety } : {});
     const r = res.response;
     if (r.status === 401 || r.status === 403) throw new AuthError(`GGG returned ${r.status}. Your POESESSID may have expired, or the account name is wrong.`);
     if (r.status === 429) throw new Error('Rate limited by GGG. The helper will wait automatically before the next request.');
@@ -216,9 +217,10 @@ class GggClient {
     const key = `${league}|${JSON.stringify(body)}`;
     const hit = this._exchangeCache?.get(key);
     if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.res;
-    const wait = this.limiter?.waitTime?.('trade-exchange') || 0;
+    const safety = maxWaitMs != null ? INTERACTIVE_SAFETY : undefined;
+    const wait = this.limiter?.waitTime?.('trade-exchange', safety != null ? { safety } : {}) || 0;
     if (maxWaitMs != null && wait > maxWaitMs) throw new Error(`The trade site asks to wait ${Math.ceil(wait / 1000)} seconds before the next exchange search. Try again then.`);
-    const res = await this._request('trade-exchange', `${WEB}/api/trade/exchange/${encodeURIComponent(league)}`, { method: 'POST', body });
+    const res = await this._request('trade-exchange', `${WEB}/api/trade/exchange/${encodeURIComponent(league)}`, { method: 'POST', body, safety });
     if (!this._exchangeCache) this._exchangeCache = new Map();
     this._exchangeCache.set(key, { at: Date.now(), res });
     if (this._exchangeCache.size > 50) this._exchangeCache.delete(this._exchangeCache.keys().next().value);
@@ -235,9 +237,11 @@ class GggClient {
     const hit = this._searchCache?.get(key);
     if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.res;
     // a price check shouldn't sit in a queue for long: say how long the trade site wants us to wait instead
-    const wait = this.limiter?.waitTime?.('trade-search') || 0;
+    // a search you clicked (maxWaitMs set) may use up to 85% of GGG's allowance; background work keeps to the safety setting
+    const safety = maxWaitMs != null ? INTERACTIVE_SAFETY : undefined;
+    const wait = this.limiter?.waitTime?.('trade-search', safety != null ? { safety } : {}) || 0;
     if (maxWaitMs != null && wait > maxWaitMs) throw new Error(`The trade site asks to wait ${Math.ceil(wait / 1000)} seconds before the next search. Try again then.`);
-    const res = await this._request('trade-search', `${WEB}/api/trade/search/${encodeURIComponent(league)}`, { method: 'POST', body: query, withSession: login ? 'optional' : false });
+    const res = await this._request('trade-search', `${WEB}/api/trade/search/${encodeURIComponent(league)}`, { method: 'POST', body: query, withSession: login ? 'optional' : false, safety });
     if (!this._searchCache) this._searchCache = new Map();
     this._searchCache.set(key, { at: Date.now(), res });
     if (this._searchCache.size > 50) this._searchCache.delete(this._searchCache.keys().next().value);
@@ -247,14 +251,14 @@ class GggClient {
   /** Whether a POESESSID is set (searches made logged in may use more filters). */
   hasSession() { return !!this.getSessionId(); }
 
-  async tradeFetch(queryId, ids) {
+  async tradeFetch(queryId, ids, { interactive = true } = {}) {
     const slice = ids.slice(0, 10);
     if (!slice.length) return { result: [] };
     // the same listings again within 3 minutes: no request
     const key = `${queryId}|${slice.join(',')}`;
     const hit = this._fetchCache?.get(key);
     if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.res;
-    const res = await this._request('trade-fetch', `${WEB}/api/trade/fetch/${slice.join(',')}?query=${encodeURIComponent(queryId)}`);
+    const res = await this._request('trade-fetch', `${WEB}/api/trade/fetch/${slice.join(',')}?query=${encodeURIComponent(queryId)}`, interactive ? { safety: INTERACTIVE_SAFETY } : {});
     if (!this._fetchCache) this._fetchCache = new Map();
     this._fetchCache.set(key, { at: Date.now(), res });
     if (this._fetchCache.size > 100) this._fetchCache.delete(this._fetchCache.keys().next().value);

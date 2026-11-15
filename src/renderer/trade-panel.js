@@ -176,7 +176,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     onFit();
     try {
       prep.status = status;
-      const r = await call('trade:search', { text, mods, props, opts: { status } });
+      const r = await window.poe.call('trade:search', { text, mods, props, opts: { status } }); // errors shown below, not as a toast over the buttons
       const l = r.listings;
       mount(results,
         h('div', { class: 'row', style: { gap: '8px' } },
@@ -197,7 +197,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       // the app can't search now: the same search still opens on the trade site (your browser, not the app's limit)
       mount(results, h('div', { class: 'stack', style: { gap: '6px' } },
         h('span', { class: 'small muted' }, /wait \d+ seconds|doesn't list/.test(why) ? why : 'The search failed. Your GGG request budget or rate limit may be used up; try again in a minute.'),
-        h('div', {}, h('button', { class: 'sm', onclick: () => call('trade:openSite', { text, mods, props, opts: { status } }).catch(() => {}) }, 'Open on trade site'))));
+        h('div', {}, h('button', { class: 'sm', onclick: () => window.poe.call('trade:openSite', { text, mods, props, opts: { status } }).catch(() => {}) }, 'Open on trade site'))));
     }
     go.disabled = false;
     onFit();
