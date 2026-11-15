@@ -5,6 +5,10 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.102 - 2026-11-15
+
+- My collection: "Tick from my Unique stash tab" finds your PoE Ladder ladder when the league's names differ ("Covens" on poe.ninja is "Covens of Umbra" on PoE Ladder).
+
 ## 1.0.101 - 2026-11-15
 
 * Price check: conqueror maps (Al-Hezmin's, Baran's, Drox's, Veritania's Citadel) search by their citadel

@@ -1688,7 +1688,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const ladders = await get(`https://poeladder.com/api/v1/users/${user}/stashfound`);
     if (!Array.isArray(ladders) || !ladders.length) return { league, notJoined: true, note: 'PoE Ladder doesn\'t know your account yet. Join it once at poeladder.com, then try again.' };
     const norm = (x) => String(x || '').toLowerCase().replace(/^ssf\s+/, '').trim();
-    const mine = ladders.filter((l) => !l.isPoe2 && norm(l.name) === norm(league));
+    // poe.ninja calls the league "Covens", PoE Ladder "Covens of Umbra": the same league when one starts with the other
+    const same = (a, b) => a === b || a.startsWith(`${b} `) || b.startsWith(`${a} `);
+    const mine = ladders.filter((l) => !l.isPoe2 && same(norm(l.name), norm(league)));
     if (!mine.length) return { league, ladders: ladders.filter((l) => !l.isPoe2).map((l) => l.name), note: `PoE Ladder has no ${league} ladder for you yet. Join it there (Ladder → your league), then try again.` };
     const names = new Set();
     for (const l of mine) for (const u of (await get(l.url || `https://poeladder.com/api/v1/users/${user}/leagues/${encodeURIComponent(l.identifier)}/stashfound`)) || []) if (u?.name) names.add(u.name);

@@ -804,7 +804,7 @@ test('My collection: ticks the uniques PoE Ladder lists for your league, never u
     seen.push(url);
     const ok = (b) => ({ status: 200, ok: true, headers: new Map(), json: async () => b });
     if (url.includes('/economy/leagues')) return ok([{ id: 'Test', name: 'Test' }]);
-    if (url.endsWith('/users/Me-12/stashfound')) return ok([{ name: 'SSF Test', identifier: 'SSF_Test', isPoe2: false, url: 'https://poeladder.com/api/v1/users/Me-12/leagues/SSF_Test/stashfound' }, { name: 'Standard', identifier: 'Standard', isPoe2: false }]);
+    if (url.endsWith('/users/Me-12/stashfound')) return ok([{ name: 'SSF Test of Umbra', identifier: 'SSF_Test', isPoe2: false, url: 'https://poeladder.com/api/v1/users/Me-12/leagues/SSF_Test/stashfound' }, { name: 'Standard', identifier: 'Standard', isPoe2: false }]);
     if (url.includes('/leagues/SSF_Test/stashfound')) return ok([{ name: 'Headhunter' }, { name: 'Quill Rain' }]);
     if (url.includes('poeladder')) return { status: 404, ok: false, json: async () => ({}) };
     return ok({ core: { items: [] }, lines: [] });
