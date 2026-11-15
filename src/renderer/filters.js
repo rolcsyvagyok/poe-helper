@@ -639,7 +639,8 @@ function renderTiers(body, view) {
         legend),
       n ? h('button', { class: FB.showSuggestions ? 'primary sm' : 'sm', onclick: () => { FB.showSuggestions = !FB.showSuggestions; drawList(); } }, FB.showSuggestions ? 'Hide suggestions' : 'Review suggestions') : null);
     const big = Object.entries(pricing.prices || {}).filter(([, p]) => p.big).sort((a, b) => Math.abs(b[1].trend.change) - Math.abs(a[1].trend.change));
-    const bigBox = big.length ? h('div', { class: 'fb-pricebar fb-bigchanges' },
+    // the week's big price changes aren't listed here: the tiers follow prices anyway (Price review, auto-tier)
+    const bigBox = false && big.length ? h('div', { class: 'fb-pricebar fb-bigchanges' },
       h('div', { class: 'small' }, h('b', {}, `${big.length} big price ${big.length === 1 ? 'change' : 'changes'} this week`), h('span', { class: 'faint' }, ' (doubled or halved on poe.ninja; marked in the tiers below)')),
       h('div', { class: 'fb-bigrows' }, big.slice(0, 12).map(([name, p]) => h('span', { class: 'fb-bigrow' },
         h('span', {}, name), h('span', { class: 'small muted' }, `${fmtC(p.trend.old)} → ${fmtC(p.chaos)}`), window.Farm.trendBadge(p.trend.change),
@@ -1236,7 +1237,7 @@ async function renderBaseMatrix(body, view) {
   // per kind of drop: the lowest rank you still want to see
   const MIN_OPTS = [['off', 'Filter decides'], ['S', 'S only'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'C and up'], ['D', 'All ranks'], ['none', 'Hide all']];
   const kindCount = (k) => { const m = kinds[k.id]; if (!m || m === 'off') return ''; if (m === 'none') return 'all hidden'; const n = scope.filter((b) => RANKS.indexOf(rankOf(b.name)) <= RANKS.indexOf(m)).length; return `${n} of ${scope.length} here shown`; };
-  const kindRows = (data.rankKinds || []).map((k) => {
+  const kindRows = (data.rankKinds || []).filter((k) => !(k.id === 'rares' && (data.hasUnidTiers || data.unidTiers))).map((k) => {
     const note = h('span', { class: 'small faint' }, kindCount(k));
     const sel = h('select', { 'aria-label': `${k.name}: lowest rank shown`, onchange: async (e) => {
       const r = await call('ranks:kind', { kind: k.id, min: e.target.value });
@@ -1276,13 +1277,18 @@ async function renderBaseMatrix(body, view) {
       for (const t of [3, 4, 5]) { const lower = next[t - 1]; if (lower && (!next[t] || order.indexOf(next[t]) < order.indexOf(lower))) next[t] = lower; }
       save(toRanks(next));
     };
-    const per = unidTiers ? h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } }, TIERS.map((t) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
+    // Tier 0: plain rares without an item tier (identified, or from before 3.30): the "Rares" rank choice
+    const R0 = [['off', 'Filter decides'], ['D', 'Every base'], ['C', 'C and up'], ['B', 'B and up'], ['A', 'A and up'], ['S', 'Only S bases'], ['none', 'Nothing']];
+    const tier0 = h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } }, h('span', { title: 'Plain rares without an item tier: identified ones, and any the item tier rules don\'t take' }, 'Tier 0'),
+      h('select', { 'aria-label': 'Tier 0, plain rares without an item tier: which bases are shown', onchange: async (e) => { const r = await call('ranks:kind', { kind: 'rares', min: e.target.value }); kinds = r.kinds; S.settings.rankKinds = kinds; toast('Tier 0 rares saved'); } },
+        R0.map(([v, l]) => h('option', { value: v, selected: (kinds.rares || 'off') === v }, l))));
+    const per = h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } }, !unidTiers ? null : TIERS.map((t) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
       h('span', {}, t === 5 ? 'Tier 5' : `Tier ${t}`),
       h('select', { 'aria-label': `Unidentified item tier ${t}: which bases are shown`, onchange: (e) => set(t, e.target.value) },
         WHO.map(([v, l]) => h('option', { value: v, selected: bt[t] === v }, l))),
-      ))) : null;
+      )), tier0);
     return h('div', { class: 'bm-kind' }, h('b', {}, 'Unid item tier'),
-      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A higher tier always shows at least what a lower one does.'), mode, per);
+      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A higher tier always shows at least what a lower one does. Tier 0 is plain rares without a tier (identified ones): lower ranks are hidden, the look stays FilterBlade\'s.'), mode, per);
   })() : null;
 
   // ---------- a whole group at once: every shield, every staff, every pure armour base… ----------

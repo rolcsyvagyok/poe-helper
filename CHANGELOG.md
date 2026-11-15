@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.81 - 2026-11-15
+
+- Base ranks → Unid item tier has a Tier 0: plain rares without an item tier (identified ones). Pick which bases you still see (every base, C, B or A and up, only S, nothing, or let the filter decide); they keep FilterBlade's look. It replaces the separate "Rares" row.
+- Loot filter: the "big price changes this week" list is gone from the category pages. The tiers follow prices anyway (Price review and auto-tier).
+
 ## 1.0.80 - 2026-11-15
 
 - Scrolls look exactly the same in every rule, whatever the tier: Portal Scroll bright blue, Scroll of Wisdom dark red, white text and border, full size. The Loot filter page shows them that way too (it showed the tier's own look before).
