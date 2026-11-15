@@ -668,6 +668,17 @@ function showAllCurrency(text) {
   return lines.join('\n');
 }
 
+/** Regular maps you don't want to see: white ones, yellow ones, below Tier 16. Blighted maps and
+ *  uniques aren't touched. o: { white, yellow, below16 }. */
+function mapHideRules(o = {}) {
+  const out = [];
+  const base = [{ keyword: 'Class', op: '==', values: ['Maps'] }, { keyword: 'BlightedMap', values: ['False'] }, { keyword: 'UberBlightedMap', values: ['False'] }];
+  const rarities = [...(o.white ? ['Normal'] : []), ...(o.yellow ? ['Rare'] : [])];
+  if (rarities.length) out.push({ id: 'maps-hide-rarity', enabled: true, action: 'Hide', group: 'maps', label: `Maps: ${rarities.map((r) => (r === 'Normal' ? 'white' : 'yellow')).join(' and ')} maps hidden`, conditions: [{ keyword: 'Rarity', values: rarities }, ...base], style: { disableDropSound: true } });
+  if (o.below16) out.push({ id: 'maps-hide-below16', enabled: true, action: 'Hide', group: 'maps', label: 'Maps: below Tier 16 hidden', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'MapTier', op: '<', values: ['16'] }, ...base], style: { disableDropSound: true } });
+  return out;
+}
+
 function campaignHideRules(o = {}) {
   const until = Math.max(1, Math.min(83, Math.round(Number(o.untilLevel) || 67)));
   const out = [];
@@ -924,7 +935,7 @@ class FilterManager {
     }
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
     // base ranks come before base visibility: they're the finer choice (per kind of drop)
-    const campaign = campaignHideRules(this.store.get('campaignHide') || {});
+    const campaign = [...campaignHideRules(this.store.get('campaignHide') || {}), ...mapHideRules(this.store.get('mapHide') || {})];
     const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
@@ -1010,4 +1021,4 @@ class FilterManager {
   }
 }
 
-module.exports = { fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

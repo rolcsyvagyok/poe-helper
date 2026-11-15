@@ -147,9 +147,12 @@ function splitTypes(view) {
   types.push(...baseViews(types));
   return { ...view, types };
 }
+// Regular maps: only the tiers by map tier (no highlight rules), Tier 16 first
+const mapTierNo = (y) => Number((/^maps_[a-z]_t(\d+)$/.exec(y.tier) || [])[1]);
 function splitTiers(view) {
   const out = [];
-  for (const t of view.types) {
+  for (let t of view.types) {
+    if (t.type === 'maps') t = { ...t, tiers: t.tiers.filter((y) => mapTierNo(y) > 0).sort((a, b) => mapTierNo(b) - mapTierNo(a)) };
     const splits = TIER_SPLITS.filter((x) => x.type === t.type && t.tiers.some((y) => y.tier === x.tier));
     const rest = t.tiers.filter((y) => !splits.some((x) => x.tier === y.tier));
     // what's left of a split category keeps its page, under a plain name ("Normal" for abyss jewels)
@@ -753,6 +756,15 @@ function renderTiers(body, view) {
           title: on ? 'Every currency tier shows, hidden ones too. Click to go back to your filter\'s choices' : 'League start: show every currency, also the tiers your filter hides or switched off',
           onclick: async () => { S.settings.showAllCurrency = await call('currency:showAll', !on); toast(!on ? 'All currency shows now (hidden tiers too). Select the filter in game again' : 'Currency follows your filter again'); renderFilters(); } }, on ? 'All currency shown ✓' : 'Show all currency'); })() : null,
         type.key === CLUSTER_SIZE_TYPE ? h('button', { class: 'sm', onclick: () => { FB.type = CLUSTER_GRID; renderFilters(); } }, '← Back to the enchantments') : null,
+        // regular maps: quick hides (blighted maps and uniques are never touched)
+        type.key === 'maps' ? (() => {
+          const mh = S.settings.mapHide || {};
+          const btn = (k, label) => h('button', { class: mh[k] ? 'primary sm' : 'sm', 'aria-pressed': mh[k] ? 'true' : 'false', onclick: async () => {
+            S.settings.mapHide = await call('maps:hide', { [k]: !mh[k] });
+            toast(`${label}: ${!mh[k] ? 'on' : 'off'}. Select the filter in game again`); renderFilters();
+          } }, `${mh[k] ? '✓ ' : ''}${label}`);
+          return h('span', { class: 'row', style: { gap: '6px' } }, btn('white', 'Hide white maps'), btn('yellow', 'Hide yellow maps'), btn('below16', 'Hide below Tier 16'));
+        })() : null,
         type.scrollsView || !pricedGroup(type.type) ? null : h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
           FB.priceColors = !FB.priceColors;
           // a fresh analysis when turning colours on (prices come from the 20-minute cache, so this is cheap)
@@ -1083,9 +1095,21 @@ async function renderBaseMatrix(body, view) {
   // three parts: armours and weapons, jewellery, and the minion bases (a view: they keep their one rank)
   const SECTIONS = [['gear', 'Armours and Weapons'], ['jewellery', 'Jewellery']]; // minion bases sit in these; Hide whole groups has a button for all of them
   FB.rankSection = SECTIONS.some(([id]) => id === FB.rankSection) ? FB.rankSection : 'gear';
-  const part = FB.rankSection;
   const gearGroups = (data.groups || []).filter((g) => g.id !== 'jewellery');
   const jewelGroup = (data.groups || []).find((g) => g.id === 'jewellery');
+  // "Show in app" from the price check: open the part and view that hold the base (unless the view already shows it)
+  const focus = FB.matrixFocus;
+  if (focus && FB.focusPlaced !== focus) {
+    FB.focusPlaced = focus;
+    if (jewelGroup?.columns.some((c) => c.list.some((b) => b.name === focus))) FB.rankSection = 'jewellery';
+    else {
+      FB.rankSection = 'gear';
+      const d = data.defences.find((x) => data.classes.some((c) => (data.bases[c][x.id] || []).some((b) => b.name === focus)));
+      const g = gearGroups.find((x) => x.columns.some((c) => c.list.some((b) => b.name === focus)));
+      if (d) FB.matrixView = `d:${d.id}`; else if (g) FB.matrixView = `g:${g.id}`;
+    }
+  }
+  const part = FB.rankSection;
   if (part === 'gear' && FB.matrixView === 'g:jewellery') FB.matrixView = 'd:es';
   const [mode, key] = part === 'gear' ? FB.matrixView.split(':') : [part, ''];
   const byRank = FB.matrixByRank || mode === 'a' || mode === 'minion';
@@ -1146,7 +1170,7 @@ async function renderBaseMatrix(body, view) {
     return b.rank ? dressRank(el, b.rank) : el;
   }));
 
-  const cellClass = (n) => 'bm-cell bm-rank' + ((state[n] || {}).vis === 'hide' ? ' hidden' : '') + (rankOf(n) === LOW ? ' rank-low' : '');
+  const cellClass = (n) => (n === focus ? 'bm-focus ' : '') + 'bm-cell bm-rank' + ((state[n] || {}).vis === 'hide' ? ' hidden' : '') + (rankOf(n) === LOW ? ' rank-low' : '');
   const shownFor = (n) => (data.rankKinds || []).filter((k) => { const m = kinds[k.id]; return m && m !== 'off' && m !== 'none' && RANKS.indexOf(rankOf(n)) <= RANKS.indexOf(m); }).map((k) => k.name.toLowerCase());
   const cellTitle = (b) => {
     const r = rankOf(b.name);
@@ -1196,6 +1220,7 @@ async function renderBaseMatrix(body, view) {
       onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowUp' || e.key === '+') { e.preventDefault(); step([b.name], +1); } else if (e.key === 'ArrowDown' || e.key === '-') { e.preventDefault(); step([b.name], -1); } },
     }, h('span', { class: 'bm-n' }, b.name), h('span', { class: 'bm-f', 'aria-hidden': 'true' }, rankOf(b.name)));
     dressRank(el, rankOf(b.name));
+    if (b.name === focus) { el.classList.add('bm-focus'); el.title = `The item you price checked. ${el.title}`; }
     if (!cells.has(b.name)) cells.set(b.name, []);
     cells.get(b.name).push(el);
     return el;
@@ -1367,6 +1392,16 @@ async function renderBaseMatrix(body, view) {
   const keep = h('input', { type: 'number', min: 1, max: 100, placeholder: 'off', value: opts.keepIlvl ?? '', style: { width: '64px' }, 'aria-label': 'Keep this item level and above visible' });
   keep.addEventListener('change', async () => { const r = await call('matrix:opts', { keepIlvl: keep.value || null }); toast(r.keepIlvl ? `Item level ${r.keepIlvl} and above always show` : 'Hidden bases are hidden at every item level'); });
 
+  if (focus && FB.focusScrolled !== focus) {
+    FB.focusScrolled = focus;
+    setTimeout(() => {
+      const el = document.querySelector('#page-filters .bm-cell.bm-focus');
+      if (!el) return;
+      el.scrollIntoView({ block: 'center' });
+      el.classList.add('bm-pulse');
+      setTimeout(() => el.classList.remove('bm-pulse'), 3200);
+    }, 120);
+  }
   mount(body, h('div', { class: 'fb' },
     h('aside', {}, cats),
     h('div', {},
@@ -1509,7 +1544,7 @@ const CATEGORIES = [
     { id: 'influencedmaps', name: 'Influenced maps', match: ['maps->influenced'], art: ['The Enslaver Map (Tier 16)', 'The Eradicator Map (Tier 16)', '*Map16'], icon: 'map' },
     { id: 'nightmaremaps', name: 'Nightmare maps', match: ['maps->nightmare'], art: ['Nightmare Map', '*Map16'], icon: 'map' },
     { id: 'blightedmaps', name: 'Blighted maps', match: ['maps->blighted'], art: ['*BlightedMap', '*Map16'], icon: 'map' },
-    { id: 'specialmaps', name: 'Special maps', match: ['maps->enchanted', 'maps->corruptedspecial', 'maps->corruptedimplicit', 'maps->implicitmod', 'maps->vaaltemple'], art: ['*Map16'], icon: 'map' },
+    { id: 'specialmaps', name: 'Special maps', match: ['maps->specialmods', 'maps->enchanted', 'maps->corruptedspecial', 'maps->corruptedimplicit', 'maps->implicitmod', 'maps->vaaltemple'], art: ['*Map16'], icon: 'map' },
     { id: 'mapitems', name: 'Other map items', match: ['exoticmap', 'charts', 'miscmapitems', 'miscmapitemsextra', 'maphiders'], art: ["Cartographer's Chisel", 'Orb of Horizons'], icon: 'book' },
   ]],
   ['Rare items', [
@@ -1739,7 +1774,7 @@ function sidebar(view, changedTypes) {
   const pins = S.settings.filterPins || DEFAULT_PINS;
   const q = (FB.catQuery || '').trim().toLowerCase();
   const select = (type) => {
-    FB.type = type; FB.selected.clear(); FB.editing = null; FB.search = '';
+    FB.type = type; FB.matrixFocus = null; FB.focusPlaced = FB.focusScrolled = null; FB.selected.clear(); FB.editing = null; FB.search = '';
     // the category list stays put (it sticks to the top of the window, scrolled where you left it);
     // the new category's tiers start at their top instead of halfway down the old category
     const main = document.querySelector('.main');
@@ -2361,7 +2396,7 @@ window.showInFilter = (g) => {
   FB.revealNav = true;
   // PoE Helper's own pages (My bases, Base ranks, Cluster jewels, Campaign)
   const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE }[g.special];
-  if (special) { FB.goto = null; FB.type = special; return; }
+  if (special) { FB.goto = null; FB.type = special; FB.matrixFocus = special === BASE_MATRIX && g.base ? g.base : null; return; }
   FB.goto = { type: g.type, key: g.key || `${g.type}|${g.tier}`, base: g.base };
 };
 })();

@@ -768,3 +768,12 @@ test('Tier 1 for unidentified items: the lowest rule of a row takes it', () => {
   assert.match(out, /t3r1 !x\n\tUnidentifiedItemTier >= 3/);
   assert.match(out, /t2r1 !x\n\tUnidentifiedItemTier >= 1/);
 });
+
+test('regular maps: hide white, yellow, below Tier 16 (never blighted maps or uniques)', () => {
+  const { mapHideRules } = require('../src/core/filter/manager');
+  assert.deepEqual(mapHideRules({}), []);
+  const r = mapHideRules({ white: true, yellow: true, below16: true });
+  assert.deepEqual(r[0].conditions[0], { keyword: 'Rarity', values: ['Normal', 'Rare'] });
+  assert.ok(r[1].conditions.some((c) => c.keyword === 'MapTier' && c.op === '<' && c.values[0] === '16'));
+  assert.ok(r.every((x) => x.action === 'Hide' && x.conditions.some((c) => c.keyword === 'BlightedMap')));
+});

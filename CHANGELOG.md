@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.83 - 2026-11-15
+
+- Loot filter → Regular maps shows just the map tiers, Tier 16 first (the highlight rules aren't listed any more; "Special mods" maps moved to Special maps).
+- Regular maps has three buttons at the top: Hide white maps, Hide yellow maps and Hide below Tier 16. Blighted maps and unique maps are never hidden by them.
+- Price check → Show in app on a rare now opens Base ranks at the right weapon or armour list, scrolls to the base and marks it with a white frame and a ▶.
+- Price check: "+30% to Item Rarity" (Le Heup of All and other uniques) can be ticked and searched now.
+
 ## 1.0.82 - 2026-11-15
 
 - Base ranks → Unid item tier has a Tier 1 too (FilterBlade has no rule for it: the lowest rule of the rank then takes Tier 1 as well).

@@ -226,3 +226,10 @@ test('"Chain 2 additional times" finds the trade site\'s "Chain an additional ti
   assert.equal(m.id, 'explicit.stat_2999750998');
   assert.equal(m.value, 2);
 });
+
+test('"+30% to Item Rarity" (Le Heup of All) matches the trade site\'s "increased Rarity of Items found"', () => {
+  const idx = T.indexStats({ result: [{ id: 'explicit', entries: [E('explicit.stat_3917489142', '#% increased Rarity of Items found')] }] });
+  const m = T.matchMod(idx, '+30% to Item Rarity', 'explicit', 'Rings', { unique: true });
+  assert.equal(m.id, 'explicit.stat_3917489142');
+  assert.equal(m.value, 30);
+});

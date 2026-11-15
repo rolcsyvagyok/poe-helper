@@ -74,6 +74,11 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
     hits = table[key.replace(/\breduced\b/, 'increased')];
     negate = !!hits;
   }
+  // some uniques (Le Heup of All…) say "+30% to Item Rarity"; the trade site lists it as "#% increased Rarity of Items found"
+  if (!hits) {
+    const alias = { '#% to item rarity': '#% increased rarity of items found', '#% to item quantity': '#% increased quantity of items found' }[key];
+    if (alias) hits = table[alias] || table[`~${looseKey(alias)}`];
+  }
   if (!hits && /\bless\b/i.test(modText)) {
     hits = table[key.replace(/\bless\b/, 'more')];
     negate = !!hits;

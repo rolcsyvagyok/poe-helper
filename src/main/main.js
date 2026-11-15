@@ -1260,6 +1260,7 @@ function registerIpc() {
   handle('ranks:auto', (a) => services.autoRanks(a || {}));
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('campaignHide:set', (a) => services.setCampaignHide(a || {}));
+  handle('maps:hide', (a) => services.setMapHide(a || {}));
   handle('currency:showAll', (on) => services.setShowAllCurrency(on));
   handle('filter:strictness', (level) => services.setStrictness(level));
   handle('bases:add', (a) => services.addMyBase(a || {}));
