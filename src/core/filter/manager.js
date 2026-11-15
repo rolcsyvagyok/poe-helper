@@ -347,7 +347,7 @@ const RANK_LOOKS = {
 };
 const NO_FLAGS = [{ keyword: 'Mirrored', values: ['False'] }, { keyword: 'Corrupted', values: ['False'] }];
 const RANK_KINDS = [ // in the order the page lists them; synthesised items are left to the filter
-  { id: 'rares', name: 'Rares', about: 'Plain rares (not fractured, synthesised or influenced). They keep your filter\'s look; ranks below your choice are hidden', filterLook: true, conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
+  { id: 'rares', name: 'Rares', about: 'Plain rares (not fractured, synthesised or influenced). They keep your filter\'s look; ranks below your choice are hidden. Fated rares count as their base', filterLook: true, conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
   { id: 'crafting', name: 'High ilvl bases', about: 'Normal and magic items of a high item level. They keep your filter\'s look; ranks below your choice are hidden', ilvl: true, filterLook: true, conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
   { id: 'fractured', name: 'Fractured', about: 'Any fractured item of the base', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'FracturedItem', values: ['True'] }] },
   { id: 'influenced', name: 'Influenced', about: 'Shaper, Elder and Conqueror bases', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'HasInfluence', values: ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }] },
@@ -414,6 +414,131 @@ function rankUnidTiers(text, ranks = {}, tiers = {}, names = []) {
     i = end - 1;
   }
   return lines.join('\n');
+}
+
+/**
+ * Minimap icons by kind of item: the tier designer gives Tier N the same colours in every category, so
+ * the icon's shape says what dropped (currency a circle, gear a diamond, cards a kite...). Colour and
+ * size stay as the tier has them; nothing is shown or hidden differently. Campaign rules keep theirs.
+ */
+const ICON_SHAPES = [
+  [/^currency->(stacked|deadmansulphur|harvest)/, 'Hexagon'],
+  [/^(leveling|decorators|hidelayer|event|questlike)/, null],
+  [/^(currency|gold|artefact|expedition|corpses|runesgrafts|enshrouded)/, 'Circle'],
+  [/^divination/, 'Kite'],
+  [/^uniques->maps/, 'Square'],
+  [/^uniques/, 'Star'],
+  [/^gems/, 'Triangle'],
+  [/^(maps|fragments|mapenchantments|miscmapitems|exoticmap|charts|viscera|heisttarget)/, 'Square'],
+  [/^jewels/, 'Pentagon'],
+  [/^(exoticbases|crafting|rr|gear|magicid|rareid|rare|influenced|exoticmods|exotic|endgameflasks|endgametinctures|socketslinks|endgamergb|chancing|normalcraft|animatedweapons|rareblendid|corruptedid|heist|anyremaining)/, 'Diamond'],
+];
+function iconShapeOf(type) {
+  for (const [re, shape] of ICON_SHAPES) if (re.test(type)) return shape;
+  return null;
+}
+function categoryIconShapes(text) {
+  const lines = text.split(/(\r?\n)/); // keeps the line ends
+  let shape = null;
+  for (let i = 0; i < lines.length; i += 2) {
+    const l = lines[i];
+    if (/^#?\s*(Show|Hide|Minimal)\b/.test(l)) {
+      const m = /^Show\b.*\$type->(\S+)/.exec(l);
+      shape = m ? iconShapeOf(m[1]) : null;
+      continue;
+    }
+    if (shape && /^\s+MinimapIcon\s+\d+\s+\w+\s+\w+/.test(l)) lines[i] = l.replace(/^(\s+MinimapIcon\s+\d+\s+\w+\s+)\w+/, `$1${shape}`);
+  }
+  return lines.join('');
+}
+
+/**
+ * Lifeforce and scrolls keep their own colour in every theme: FilterBlade tiers Vivid (yellow), Primal (blue) and Wild
+ * (red here) together by stack size. Each lifeforce tier is split in one block per colour, with the
+ * tier's look (size, border, sound) and the lifeforce's colour for background, beam and minimap icon.
+ */
+const LIFEFORCE = [
+  { base: 'Vivid Crystallised Lifeforce', bg: '230 180 20', text: '0 0 0', game: 'Yellow' },
+  { base: 'Primal Crystallised Lifeforce', bg: '40 110 230', text: '255 255 255', game: 'Blue' },
+  { base: 'Wild Crystallised Lifeforce', bg: '200 30 30', text: '255 255 255', game: 'Red' },
+  // scrolls too: Portal blue, Wisdom dark red, in every rule that holds only scrolls
+  { base: 'Portal Scroll', bg: '30 80 200', text: '255 255 255', game: 'Blue' },
+  { base: 'Scroll of Wisdom', bg: '120 20 20', text: '255 255 255', game: 'Red' },
+];
+const FIXED_BASES = new Set([...LIFEFORCE.map((c) => c.base), 'Scroll Fragment']);
+function colourLifeforce(text) {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const head = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^Show\b.*\$type->/.test(lines[i])) { out.push(lines[i]); continue; }
+    let end = i + 1;
+    while (end < lines.length && lines[end].trim() !== '' && !head(lines[end])) end += 1;
+    const block = lines.slice(i, end);
+    const bl = block.findIndex((l) => /^\s*BaseType\b/.test(l));
+    const listed = bl >= 0 ? [...block[bl].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
+    const colours = LIFEFORCE.filter((c) => listed.includes(c.base));
+    // only rules that hold nothing but these items (a big currency tier with one scroll stays as it is)
+    if (!colours.length || !listed.every((b) => FIXED_BASES.has(b))) { out.push(...block); i = end - 1; continue; }
+    const rest = listed.filter((b) => !colours.some((c) => c.base === b));
+    const ind = (block[1] || '\t').match(/^\s*/)[0] || '\t';
+    for (const c of colours) {
+      const nb = block.map((l, k) => {
+        if (k === bl) return `${ind}BaseType == "${c.base}"`;
+        if (/^\s*SetBackgroundColor\b/.test(l)) return `${ind}SetBackgroundColor ${c.bg} 255`;
+        if (/^\s*SetTextColor\b/.test(l)) return `${ind}SetTextColor ${c.text} 255`;
+        if (/^\s*PlayEffect\b/.test(l)) return l.replace(/PlayEffect\s+\w+/, `PlayEffect ${c.game}`);
+        if (/^\s*MinimapIcon\b/.test(l)) return l.replace(/(MinimapIcon\s+\d+\s+)\w+/, `$1${c.game}`);
+        return l;
+      });
+      if (!nb.some((l) => /^\s*SetBackgroundColor\b/.test(l))) nb.push(`${ind}SetBackgroundColor ${c.bg} 255`);
+      if (!nb.some((l) => /^\s*SetTextColor\b/.test(l))) nb.push(`${ind}SetTextColor ${c.text} 255`);
+      out.push(...nb, '');
+    }
+    if (rest.length) out.push(...block.map((l, k) => (k === bl ? `${ind}BaseType == ${rest.map((b) => `"${b}"`).join(' ')}` : l)), '');
+    if (out[out.length - 1] === '' && lines[end] === '') out.pop();
+    i = end - 1;
+  }
+  return out.join(eol);
+}
+
+/**
+ * Fated rares ("Fated True") follow the rank of their base, like any rare of it: FilterBlade's fated
+ * tiers get your S bases (Tier 1) and A bases (Tier 2); other ranks fall to the plain rare tiers.
+ * Bases the ranking doesn't cover stay where FilterBlade put them.
+ */
+const FATED_RANK = { t1f: 'S', t2f: 'A' };
+function rankFatedTiers(text, ranks = {}, names = []) {
+  const known = new Set(names);
+  const lines = text.split(/\r?\n/);
+  const head = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  for (let i = 0; i < lines.length; i += 1) {
+    const m = /^#?\s*(?:Show|Hide|Minimal)\b.*\$type->rr(?:->amuring|->belts)?\s+\$tier->(t1f|t2f)\b/.exec(lines[i]);
+    if (!m) continue;
+    let end = i + 1;
+    while (end < lines.length && lines[end].trim() !== '' && !head(lines[end])) end += 1;
+    const bl = lines.slice(i + 1, end).findIndex((l) => /^#?\s*BaseType\b/.test(l));
+    if (bl >= 0) {
+      const line = lines[i + 1 + bl];
+      const off = line.startsWith('#');
+      const listed = [...line.matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+      // the block's class decides which bases can be in it (rings and amulets, belts, or gear)
+      const cls = lines.slice(i + 1, end).find((l) => /^#?\s*Class\b/.test(l));
+      const fits = (b) => !cls || listed.includes(b) || BASE_CLASS_OK(cls, b);
+      const mine = names.filter((b) => rankOf(ranks, b) === FATED_RANK[m[1]] && fits(b));
+      const list = [...new Set([...mine, ...listed.filter((b) => !known.has(b))])].sort();
+      lines[i + 1 + bl] = `${off ? '#' : ''}\tBaseType == ${list.length ? list.map((b) => `"${b}"`).join(' ') : '"PoE Helper: no bases of this rank"'}`;
+    }
+    i = end - 1;
+  }
+  return lines.join('\n');
+}
+// a base fits a fated block for rings and amulets / belts only when it is one (by name)
+function BASE_CLASS_OK(clsLine, b) {
+  if (/"Amulets"|"Rings"/.test(clsLine)) return /(Amulet|Ring|Talisman)$/.test(b);
+  if (/"Belts"/.test(clsLine)) return /(Belt|Sash|Vise|Stygian)/.test(b);
+  return !/(Amulet|Ring|Talisman|Belt|Sash|Vise)$/.test(b);
 }
 
 /** Switches off the filter's own "High Unid-ItemTier bases" rules by base and by class (Base ranks decides those). */
@@ -752,6 +877,9 @@ class FilterManager {
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
     let text = applyTierPatch(baseText, patch);
     if (this.store.get('showAllCurrency')) text = showAllCurrency(text);
+    text = colourLifeforce(text);
+    if (this.store.get('categoryIcons2') !== false) text = categoryIconShapes(text);
+    if (this.store.get('rankRareTiers') !== false) text = rankFatedTiers(text, this.store.get('baseRanks') || {}, RANKED_NAMES);
     // unidentified items by item tier: FilterBlade's own rules, with your ranks and lowest tiers
     const unidTiers = this.store.get('rankUnidTier');
     if (unidTiers) text = rankUnidTiers(text, this.store.get('baseRanks') || {}, unidTiers, RANKED_NAMES);
@@ -859,4 +987,4 @@ class FilterManager {
   }
 }
 
-module.exports = { rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

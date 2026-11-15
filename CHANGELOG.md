@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.78 - 2026-11-15
+
+- Base ranks → Unid item tier is now set per item tier: for Tier 5, 4, 3 and 2 you pick which bases you see ("Every base", "B and up", "Only S bases" or "Nothing"). For example Tier 4 and up for every base, Tier 2 only for your S bases. A higher tier always shows at least what a lower one does.
+- Tidier looks: the minimap icon's shape now says what kind of item dropped (currency circle, stacks hexagon, gear and bases diamond, gems triangle, maps and fragments square, cards kite, uniques star, jewels pentagon). Colours still say the tier, so a Tier 2 currency and a Tier 2 base no longer look the same on the minimap. Nothing is shown or hidden differently.
+- Lifeforce and scrolls keep their own colour in every theme: Vivid lifeforce is yellow, Primal blue and Wild red; Portal Scrolls are blue and Scrolls of Wisdom dark red (background, and beam and minimap icon where the rule has them). Their tiers still decide size, border and sound.
+- Fated rares follow the rank of their base: a Fated Imperial Claw is ranked like an Imperial Claw (S in FilterBlade's fated Tier 1, A in fated Tier 2, the rest like plain rares).
+
 ## 1.0.77 - 2026-11-15
 
 - Base ranks → Unid item tier: unidentified items now use FilterBlade's own item tier rules and looks, with your ranks. Your S bases go in FilterBlade's best row, A in the second, B in the third; for each rank you pick the lowest item tier you want to see. C and D bases share one choice (FilterBlade's "any base" rules).

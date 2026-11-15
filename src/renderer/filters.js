@@ -1243,21 +1243,38 @@ async function renderBaseMatrix(body, view) {
   });
 
   // 3.30: unidentified items show their item tier. FilterBlade's own rules (and looks) with your ranks:
-  // per rank, the lowest item tier you want to see. C and D bases share FilterBlade's "any base" rules.
+  // for each item tier, which bases you want to see ("Tier 4+: every base", "Tier 2: only S").
+  // Saved per rank as the lowest tier that shows it ({ S: 2, A: 3, B: 4, C: 5 }; C stands for C and D).
   let unidTiers = data.unidTiers || null;
   const unidRow = (data.hasUnidTiers || unidTiers) ? (() => {
     const DEFAULT_UNID = { S: 2, A: 2, B: 2, C: 3 }; // what FilterBlade shows at Semi-Strict
+    const TIERS = [5, 4, 3, 2];
+    const WHO = [['S', 'Only S bases'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'Every base'], ['', 'Nothing']];
+    const order = ['S', 'A', 'B', 'C'];
+    // per tier: the broadest rank shown at that tier
+    const byTier = (u) => Object.fromEntries(TIERS.map((t) => [t, [...order].reverse().find((r) => u?.[r] && u[r] <= t) || '']));
+    const toRanks = (bt) => {
+      const out = {};
+      for (const r of order) { const t = [...TIERS].reverse().find((x) => bt[x] && order.indexOf(r) <= order.indexOf(bt[x])); if (t) out[r] = t; }
+      return out;
+    };
     const save = async (v) => { const r = await call('ranks:kind', { unidTiers: v }); unidTiers = r.unidTiers; S.settings.rankUnidTier = unidTiers; renderFilters(); };
     const mode = h('select', { 'aria-label': 'Unidentified item tier: who decides', onchange: (e) => save(e.target.value === 'off' ? null : { ...DEFAULT_UNID }) },
-      h('option', { value: 'off', selected: !unidTiers }, 'Filter decides'), h('option', { value: 'mine', selected: !!unidTiers }, 'By rank (below)'));
-    const ROWS = [['S', 'S'], ['A', 'A'], ['B', 'B'], ['C', 'C and D']];
-    const per = unidTiers ? h('div', { class: 'row small bm-unid', style: { gap: '14px', flexWrap: 'wrap' } }, ROWS.map(([r, label]) => h('label', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
-      dressRank(h('span', { class: 'bm-cell sample' }, label), r),
-      h('select', { 'aria-label': `Rank ${label}: lowest unidentified item tier shown`, onchange: (e) => save({ ...unidTiers, [r]: e.target.value === '' ? undefined : Number(e.target.value) }) },
-        h('option', { value: '', selected: !unidTiers[r] }, 'Not shown'),
-        [2, 3, 4, 5].map((t) => h('option', { value: t, selected: unidTiers[r] === t }, t === 5 ? 'Tier 5' : `Tier ${t}+`)))))) : null;
+      h('option', { value: 'off', selected: !unidTiers }, 'Filter decides'), h('option', { value: 'mine', selected: !!unidTiers }, 'My choice (below)'));
+    const bt = byTier(unidTiers);
+    const set = (tier, who) => {
+      const next = { ...bt, [tier]: who };
+      // a higher tier always shows at least what a lower one does
+      for (const t of [3, 4, 5]) { const lower = next[t - 1]; if (lower && (!next[t] || order.indexOf(next[t]) < order.indexOf(lower))) next[t] = lower; }
+      save(toRanks(next));
+    };
+    const per = unidTiers ? h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } }, TIERS.map((t) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
+      h('span', {}, t === 5 ? 'Tier 5' : `Tier ${t}`),
+      h('select', { 'aria-label': `Unidentified item tier ${t}: which bases are shown`, onchange: (e) => set(t, e.target.value) },
+        WHO.map(([v, l]) => h('option', { value: v, selected: bt[t] === v }, l))),
+      ))) : null;
     return h('div', { class: 'bm-kind' }, h('b', {}, 'Unid item tier'),
-      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+, by their item tier. Pick the lowest tier you want to see for each rank; FilterBlade\'s looks stay. C and D bases share one choice.'), mode, per);
+      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A higher tier always shows at least what a lower one does.'), mode, per);
   })() : null;
 
   // ---------- a whole group at once: every shield, every staff, every pure armour base… ----------

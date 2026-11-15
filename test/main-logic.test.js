@@ -714,3 +714,30 @@ test('ranked bases sort rares into FilterBlade\'s rare tiers: S 1, A 2, B 3, C 4
   assert.deepEqual(mv, { 'rr\tWand1': 't1', 'rr\tWand2': 't2', 'rr\tWand3': 't4', 'rr\tWand4': '__folded__' });
   assert.deepEqual(rareTierMoves('Show # nothing', { Wand1: 'S' }, ['Wand1']), {});
 });
+
+test('fated rares follow the rank of their base: S in fated Tier 1, A in fated Tier 2', () => {
+  const { rankFatedTiers } = require('../src/core/filter/manager');
+  const text = 'Show # $type->rr $tier->t1f !x\n\tFated True\n\tRarity Rare\n\tBaseType == "Old"\n\nShow # $type->rr $tier->t2f !x\n\tFated True\n\tRarity Rare\n\tBaseType == "Imperial Claw"\n\n';
+  const out = rankFatedTiers(text, { 'Imperial Claw': 'S', 'Vaal Claw': 'A' }, ['Imperial Claw', 'Vaal Claw', 'Old']);
+  assert.match(out, /t1f !x\n\tFated True\n\tRarity Rare\n\tBaseType == "Imperial Claw"\n/);
+  assert.match(out, /t2f !x\n\tFated True\n\tRarity Rare\n\tBaseType == "Vaal Claw"\n/);
+});
+
+test('lifeforce keeps its own colour: one block per colour with the tier look', () => {
+  const { colourLifeforce } = require('../src/core/filter/manager');
+  const text = 'Show # $type->currency->harvest $tier->t3lifeforce !x\n\tStackSize >= 250\n\tBaseType == "Primal Crystallised Lifeforce" "Vivid Crystallised Lifeforce"\n\tSetFontSize 45\n\tSetBackgroundColor 1 2 3 255\n\tPlayEffect Grey\n\tMinimapIcon 1 Grey Circle\n\nShow # other\n';
+  const out = colourLifeforce(text);
+  assert.match(out, /BaseType == "Vivid Crystallised Lifeforce"\n\tSetFontSize 45\n\tSetBackgroundColor 230 180 20 255\n\tPlayEffect Yellow\n\tMinimapIcon 1 Yellow Circle/);
+  assert.match(out, /BaseType == "Primal Crystallised Lifeforce"\n\tSetFontSize 45\n\tSetBackgroundColor 40 110 230 255\n\tPlayEffect Blue/);
+  assert.match(out, /Show # other/);
+});
+
+test('minimap icon shapes follow the kind of item; nothing else changes', () => {
+  const { categoryIconShapes } = require('../src/core/filter/manager');
+  const text = 'Show # $type->currency $tier->t2\n\tBaseType == "Chaos Orb"\n\tMinimapIcon 0 Red Star\n\nShow # $type->currency->stackedsix $tier->t2\n\tMinimapIcon 1 Red Star\n\nHide # $type->leveling $tier->x\n\tMinimapIcon 2 Red Star\n\nShow # $type->divination $tier->t1\r\n\tMinimapIcon 0 White Star\r\n';
+  const out = categoryIconShapes(text);
+  assert.match(out, /Chaos Orb"\n\tMinimapIcon 0 Red Circle/);
+  assert.match(out, /stackedsix \$tier->t2\n\tMinimapIcon 1 Red Hexagon/);
+  assert.match(out, /leveling \$tier->x\n\tMinimapIcon 2 Red Star/);
+  assert.match(out, /divination \$tier->t1\r\n\tMinimapIcon 0 White Kite\r\n/);
+});
