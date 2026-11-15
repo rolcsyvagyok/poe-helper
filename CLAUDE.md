@@ -72,6 +72,7 @@ the release steps, CHANGELOG.md what each version changed (written for players),
 
 - The owner releases from his Windows PC (see RELEASING.md).
 - Each release needs a `package.json` version bump and a `## X.Y.Z - YYYY-MM-DD` section at the top of CHANGELOG.md. That section becomes the GitHub release text and the in-app patch notes.
+- In that section, `* [Place] short line` bullets are the in-app "What's new" list (only what a player needs to know, no renames or small look changes; `[Place]` is a NOTE_PLACES name in app.js and adds a button). `- ` bullets are the full notes.
 - `npm run release` builds the NSIS installer and publishes it to github.com/rolcsyvagyok/poe-helper. Installed copies auto-update from there.
 - It needs `GH_TOKEN` with Contents read/write on the repo. Don't release from another machine unless the owner agrees.
 - Run `npm test` before every release.

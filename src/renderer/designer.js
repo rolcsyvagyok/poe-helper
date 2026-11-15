@@ -116,21 +116,28 @@ function sizeSection() {
     draw();
   };
   const STEP = 4;
+  // one compact control: − value +
   const stepper = (key, label) => {
     const v = Number(adj[key]) || 0;
-    return h('div', { class: 'dz-size-row' },
-      h('span', { class: 'dz-size-name' }, label),
-      h('button', { class: 'sm', 'aria-label': `${label}: smaller`, title: 'Smaller', onclick: () => save(key, v - STEP) }, 'A−'),
-      h('span', { class: 'dz-size-val' + (v ? ' on' : ''), title: 'Font size change in points' }, v > 0 ? `+${v}` : String(v)),
-      h('button', { class: 'sm', 'aria-label': `${label}: bigger`, title: 'Bigger', onclick: () => save(key, v + STEP) }, 'A+'),
-      v ? h('button', { class: 'quiet sm', onclick: () => save(key, 0) }, 'Reset') : null);
+    return h('div', { class: 'sz-step', role: 'group', 'aria-label': `${label} text size` },
+      h('button', { 'aria-label': `${label}: smaller`, title: 'Smaller', onclick: () => save(key, v - STEP) }, '−'),
+      h('span', { class: 'sz-val' + (v ? ' on' : '') }, v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0'),
+      h('button', { 'aria-label': `${label}: bigger`, title: 'Bigger', onclick: () => save(key, v + STEP) }, '+'));
   };
-  const groups = (D.state?.groups || []).slice().sort((a, b) => b.tiers - a.tiers);
+  const groups = (D.state?.groups || []).slice().sort((a, b) => a.label.localeCompare(b.label));
+  const changed = groups.filter((g) => Number(adj[g.id]) || D.sizeOpen === g.id);
+  const add = h('select', { 'aria-label': 'Change one category', onchange: (e) => { if (e.target.value) { D.sizeOpen = e.target.value; draw(); } } },
+    h('option', { value: '' }, 'Change one category…'),
+    groups.filter((g) => !changed.includes(g)).map((g) => h('option', { value: g.id }, g.label)));
   return h('section', { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Text size'), h('p', {}, 'Make drops smaller or bigger on top of your theme. The game\'s biggest size is 45, so "bigger" only helps tiers that aren\'t at the top already. A category\'s own setting adds to "Everything".')),
-    h('div', { class: 'panel dz-sizes' },
-      stepper('all', 'Everything'),
-      h('div', { class: 'dz-size-grid' }, groups.map((g) => stepper(g.id, g.label)))));
+    h('div', { class: 'section-head' }, h('h2', {}, 'Text size'), h('p', {}, 'Smaller or bigger drops on top of your theme, 4 points a click. The game\'s biggest size is 45.')),
+    h('div', { class: 'panel sz-panel' },
+      h('div', { class: 'sz-row' }, h('b', { class: 'sz-name' }, 'Everything'), stepper('all', 'Everything'),
+        adj.all ? h('button', { class: 'quiet sm', onclick: () => save('all', 0) }, 'Reset') : null),
+      changed.length ? h('div', { class: 'sz-list' }, changed.map((g) => h('div', { class: 'sz-row' },
+        h('span', { class: 'sz-name' }, g.label), stepper(g.id, g.label),
+        h('button', { class: 'quiet sm', title: `Back to the same as everything`, onclick: () => { if (D.sizeOpen === g.id) D.sizeOpen = null; save(g.id, 0); } }, '×')))) : null,
+      h('div', { class: 'sz-row' }, add, h('span', { class: 'small faint' }, 'A category\'s own change adds to Everything.'))));
 }
 
 // ---------------------------------------------------------------- theme gallery

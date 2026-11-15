@@ -4,7 +4,7 @@
    (the same list as the price check's "My collection"). */
 (function () {
   const { h, mount, toast, call } = window.UI;
-  const C = { show: 'all', q: '', sort: 'group', data: null, open: {} };
+  const C = { show: 'all', q: '', sort: 'group', data: null, open: {}, tab: null };
 
   const fmt = (c) => (c >= 100 ? `${Math.round(c)}c` : c >= 10 ? `${Math.round(c)}c` : `${Math.round(c * 10) / 10}c`);
 
@@ -30,9 +30,23 @@
     const all = d.uniques;
     const have = all.filter((u) => u.have).length;
     const q = C.q.trim().toLowerCase();
-    const list = all.filter((u) => (C.show === 'all' || (C.show === 'have' ? u.have : !u.have)) && (!q || u.name.toLowerCase().includes(q) || u.base.toLowerCase().includes(q)));
-    const groups = new Map();
-    for (const u of list) { if (!groups.has(u.group)) groups.set(u.group, []); groups.get(u.group).push(u); }
+    const list = all.filter((u) => (!C.tab || u.tab === C.tab) && (C.show === 'all' || (C.show === 'have' ? u.have : !u.have)) && (!q || u.name.toLowerCase().includes(q) || u.base.toLowerCase().includes(q)));
+    // like the game's Unique stash tab: one group per item category, in its order
+    const order = d.tabs || [];
+    const groups = new Map(order.map((t) => [t, []]));
+    for (const u of list) { const g = u.tab || u.group; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(u); }
+    for (const [g, us] of [...groups]) if (!us.length) groups.delete(g);
+    // the progress tiles: each category's picture (its most valuable unique) and how much of it you have
+    const tiles = h('div', { class: 'col-tiles' }, order.map((t) => {
+      const inTab = all.filter((u) => u.tab === t);
+      if (!inTab.length) return null;
+      const got = inTab.filter((u) => u.have).length;
+      const p = Math.floor((got / inTab.length) * 100);
+      const pic = [...inTab].sort((a, b) => b.chaos - a.chaos).find((u) => u.icon);
+      return h('button', { class: 'col-tile' + (C.tab === t ? ' on' : '') + (got === inTab.length ? ' done' : ''), 'aria-pressed': C.tab === t ? 'true' : 'false', title: `${t}: ${got} of ${inTab.length}. Click to show only ${t.toLowerCase()}${C.tab === t ? ' (click again for all)' : ''}`, onclick: () => { C.tab = C.tab === t ? null : t; draw(); } },
+        h('span', { class: 'col-tile-pic' }, pic ? h('img', { src: pic.icon, alt: '', loading: 'lazy' }) : h('span', { class: 'col-tile-txt' }, t.slice(0, 3))),
+        h('span', { class: 'col-tile-pct' }, got === inTab.length ? `✓ ${p}%` : `${p}%`));
+    }));
     const sorter = C.sort === 'price' ? (a, b) => b.chaos - a.chaos : C.sort === 'base' ? (a, b) => a.base.localeCompare(b.base) || a.name.localeCompare(b.name) : (a, b) => a.name.localeCompare(b.name);
     const seg = (key, opts) => h('div', { class: 'fb-vis', role: 'group' }, opts.map(([v, l]) => h('button', { class: C[key] === v ? 'on' : '', 'aria-pressed': C[key] === v ? 'true' : 'false', onclick: () => { C[key] = v; draw(); } }, l)));
     const search = h('input', { type: 'search', placeholder: 'Find a unique or base', value: C.q, style: { width: '240px' } });
@@ -49,8 +63,9 @@
       h('span', { class: 'col-price' }, fmt(u.chaos)));
 
     mount(el,
-      window.pageHead ? window.pageHead('My collection', 'Every unique that drops. Click the ones you have. When you have every unique on a base and none is worth much, your filter hides that base (Foulborn and Replica ones still show).') : h('h1', {}, 'My collection'),
+      window.pageHead ? window.pageHead('My collection', 'Every unique that drops. Click the ones you have. When you have every unique on a base and none is worth much, your filter hides that base (Foulborn and Replica ones still show; Replicas don\'t count towards hiding a base).') : h('h1', {}, 'My collection'),
       h('div', { class: 'panel col-top' },
+        tiles,
         h('div', { class: 'col-progress' }, h('b', {}, `${have} of ${all.length}`), h('span', { class: 'muted' }, ` uniques (${pct}%)`),
           h('div', { class: 'col-bar', role: 'progressbar', 'aria-valuenow': String(pct), 'aria-valuemin': '0', 'aria-valuemax': '100' }, h('span', { style: { width: `${pct}%` } }))),
         h('div', { class: 'row small', style: { gap: '10px', flexWrap: 'wrap' } },
@@ -64,8 +79,8 @@
           d.on ? [h('span', {}, 'when every unique on the base is worth at most'), max, h('span', {}, 'c')] : null,
           !d.on ? null : h('span', { class: 'faint', title: d.hiddenBases.join('\n') }, d.hiddenBases.length ? `${d.hiddenBases.length} base${d.hiddenBases.length === 1 ? '' : 's'} hidden` : 'none hidden yet'))),
       list.length ? [...groups].map(([g, us]) => {
-        const got = all.filter((u) => u.group === g && u.have).length;
-        const tot = all.filter((u) => u.group === g).length;
+        const got = all.filter((u) => (u.tab || u.group) === g && u.have).length;
+        const tot = all.filter((u) => (u.tab || u.group) === g).length;
         const LIMIT = 120;
         const open = C.open[g] || !!q;
         const shown = us.sort(sorter);

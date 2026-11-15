@@ -897,7 +897,8 @@ function registerIpc() {
   handle('app:version', () => services.versionInfo());
   handle('prices:units', async () => services.currencyUnits(await services.getLeague()));
   handle('app:changelog', () => services.changelog());
-  handle('app:notesSeen', () => { s.set('notesShownFor', services.VERSION); return true; });
+  // opening the notes: the next update's notes start after the version you had read up to
+  handle('app:notesSeen', () => { const prev = s.get('notesShownFor'); if (prev && prev !== services.VERSION) s.set('notesBase', prev); else if (!prev) s.set('notesBase', (s.get('versionSeen') || {}).from || null); s.set('notesShownFor', services.VERSION); return true; });
   handle('update:check', () => updater?.check());
   handle('update:install', () => { quitting = true; return updater?.install() || false; });
   handle('tiers:add', (a) => services.addTier(a || {}));

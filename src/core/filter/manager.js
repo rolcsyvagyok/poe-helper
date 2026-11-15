@@ -798,9 +798,12 @@ function collectedRules(bases = []) {
 function mapHideRules(o = {}) {
   const out = [];
   const base = [{ keyword: 'Class', op: '==', values: ['Maps'] }, { keyword: 'BlightedMap', values: ['False'] }, { keyword: 'UberBlightedMap', values: ['False'] }];
-  const rarities = [...(o.white ? ['Normal'] : []), ...(o.yellow ? ['Rare'] : [])];
-  if (rarities.length) out.push({ id: 'maps-hide-rarity', enabled: true, action: 'Hide', group: 'maps', label: `Maps: ${rarities.map((r) => (r === 'Normal' ? 'white' : 'yellow')).join(' and ')} maps hidden`, conditions: [{ keyword: 'Rarity', values: rarities }, ...base], style: { disableDropSound: true } });
-  if (o.below16) out.push({ id: 'maps-hide-below16', enabled: true, action: 'Hide', group: 'maps', label: 'Maps: below Tier 16 hidden', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'MapTier', op: '<', values: ['16'] }, ...base], style: { disableDropSound: true } });
+  // white maps are Tier 1-5, yellow Tier 6-10, red Tier 11-16 (the map's tier, not its rarity)
+  const anyRarity = { keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] };
+  const band = (id, label, lo, hi) => ({ id, enabled: true, action: 'Hide', group: 'maps', label, conditions: [anyRarity, { keyword: 'MapTier', op: '>=', values: [String(lo)] }, { keyword: 'MapTier', op: '<=', values: [String(hi)] }, ...base], style: { disableDropSound: true } });
+  if (o.white) out.push(band('maps-hide-white', 'Maps: white maps (Tier 1-5) hidden', 1, 5));
+  if (o.yellow) out.push(band('maps-hide-yellow', 'Maps: yellow maps (Tier 6-10) hidden', 6, 10));
+  if (o.below16) out.push({ id: 'maps-hide-below16', enabled: true, action: 'Hide', group: 'maps', label: 'Maps: below Tier 16 hidden', conditions: [anyRarity, { keyword: 'MapTier', op: '<', values: ['16'] }, ...base], style: { disableDropSound: true } });
   return out;
 }
 

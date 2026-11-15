@@ -535,7 +535,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       seen = { version: VERSION, at: Date.now(), from: seen?.version || null };
       settings.set('versionSeen', seen);
     }
-    return { version: VERSION, releasedAt: mine?.date || null, updatedAt: seen.at, updatedFrom: seen.from, justUpdated, notesShown: settings.get('notesShownFor') === VERSION };
+    // the patch notes show what changed since the version whose notes you last read (else the one you updated from)
+    return { version: VERSION, releasedAt: mine?.date || null, updatedAt: seen.at, updatedFrom: seen.from, justUpdated, notesShown: settings.get('notesShownFor') === VERSION, notesBase: (settings.get('notesShownFor') && settings.get('notesShownFor') !== VERSION ? settings.get('notesShownFor') : settings.get('notesShownFor') === VERSION ? settings.get('notesBase') : null) || seen.from || null };
   }
 
   // ---------- item pictures for the category list ----------
@@ -1623,17 +1624,24 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const hiddenBases = new Set(settings.get('collectedHideBases') || []);
     const LABEL = { UniqueWeapon: 'Weapons', UniqueArmour: 'Armour', UniqueAccessory: 'Jewellery', UniqueFlask: 'Flasks', UniqueJewel: 'Jewels', UniqueRelic: 'Relics', UniqueTincture: 'Tinctures' };
     const byName = new Map();
-    for (const c of UNIQUE_CATS) {
+    // the categories of the game's Unique stash tab, in its order
+    const CLASS_OF = require('../core/base-classes.json');
+    const TAB = [['Flasks', /Flasks$/], ['Amulets', /^Amulets$/], ['Rings', /^Rings$/], ['Claws', /^Claws$/], ['Daggers', /Daggers$/], ['Wands', /^Wands$/],
+      ['One Hand Swords', /^(One Hand|Thrusting One Hand) Swords$/], ['One Hand Axes', /^One Hand Axes$/], ['One Hand Maces', /^(One Hand Maces|Sceptres)$/], ['Bows', /^Bows$/], ['Staves', /^(Staves|Warstaves)$/],
+      ['Two Hand Swords', /^Two Hand Swords$/], ['Two Hand Axes', /^Two Hand Axes$/], ['Two Hand Maces', /^Two Hand Maces$/], ['Quivers', /^Quivers$/], ['Belts', /^Belts$/], ['Gloves', /^Gloves$/], ['Boots', /^Boots$/],
+      ['Body Armours', /^Body Armours$/], ['Helmets', /^Helmets$/], ['Shields', /^Shields$/], ['Jewels', /Jewels$/], ['Maps', /^Maps$/], ['Relics', /Relics$/], ['Tinctures', /^Tinctures$/]];
+    const tabOf = (base, cat) => { const c = cat === 'UniqueMap' ? 'Maps' : CLASS_OF[base] || ''; const t = TAB.find(([, re]) => re.test(c)); return t ? t[0] : 'Other'; };
+    for (const c of [...UNIQUE_CATS, 'UniqueMap']) {
       let lines = [];
       try { lines = await ninja.category(league, c); } catch { lines = []; }
       for (const l of lines || []) {
-        if (!l.name || !l.baseType || l.links || /^(Foulborn|Replica) /.test(l.name)) continue;
+        if (!l.name || !l.baseType || l.links || /^Foulborn /.test(l.name)) continue; // Replicas are in the game's Unique tab too
         const e = byName.get(l.name);
         if (e) { e.chaos = Math.max(e.chaos, l.chaos); if (!e.icon && l.icon) e.icon = l.icon; continue; }
-        byName.set(l.name, { name: l.name, base: l.baseType, group: LABEL[c] || c, chaos: l.chaos, icon: l.icon || null, have: !!have[l.name], hiddenBase: hiddenBases.has(l.baseType) });
+        byName.set(l.name, { name: l.name, base: l.baseType, group: LABEL[c] || (c === 'UniqueMap' ? 'Maps' : c), tab: tabOf(l.baseType, c), chaos: l.chaos, icon: l.icon || null, have: !!have[l.name], hiddenBase: hiddenBases.has(l.baseType) });
       }
     }
-    return { league, on: settings.get('collectHide') !== false, max: Number(settings.get('collectHideBelow') ?? 5), hiddenBases: [...hiddenBases], uniques: [...byName.values()] };
+    return { league, tabs: [...TAB.map(([n]) => n), 'Other'], on: settings.get('collectHide') !== false, max: Number(settings.get('collectHideBelow') ?? 5), hiddenBases: [...hiddenBases], uniques: [...byName.values()] };
   }
   async function refreshCollected(write = true) {
     const have = settings.get('uniqueCollection') || {};

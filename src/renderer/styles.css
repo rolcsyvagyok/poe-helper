@@ -1347,12 +1347,15 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 .uq-chips { padding: 8px 10px 10px; border-top: 1px solid var(--line-soft); }
 
 /* Tier designer → Text size */
-.dz-sizes { display: grid; gap: 12px; }
-.dz-size-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 18px; border-top: 1px solid var(--line-soft); padding-top: 10px; }
-.dz-size-row { display: flex; align-items: center; gap: 8px; }
-.dz-size-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dz-size-val { min-width: 34px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
-.dz-size-val.on { color: var(--text); font-weight: 700; }
+.sz-panel { display: grid; gap: 10px; max-width: 560px; }
+.sz-row { display: flex; align-items: center; gap: 12px; }
+.sz-name { min-width: 180px; }
+.sz-list { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.sz-step { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; height: 30px; }
+.sz-step button { all: unset; cursor: pointer; width: 30px; display: grid; place-items: center; font-size: 17px; color: var(--text); background: var(--raised); }
+.sz-step button:hover, .sz-step button:focus-visible { background: var(--line); }
+.sz-val { min-width: 44px; display: grid; place-items: center; font-variant-numeric: tabular-nums; color: var(--muted); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.sz-val.on { color: var(--text); font-weight: 700; }
 
 /* price check header: the badge and the item's facts on one line */
 .ov-headline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
@@ -1377,3 +1380,21 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 .col-base { font-size: 11.5px; color: var(--muted); }
 .col-hid { color: var(--bad); }
 .col-price { font-size: 12px; color: var(--text); }
+
+/* My collection: the stash-tab style progress tiles */
+.col-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.col-tile { all: unset; box-sizing: border-box; cursor: pointer; display: grid; justify-items: center; gap: 2px; padding: 6px 2px 4px; border-radius: 6px; border: 1px solid #6b4a1e; background: linear-gradient(#3a2610, #1d1308); }
+.col-tile:hover, .col-tile:focus-visible { border-color: #d69a3c; }
+.col-tile.on { border: 2px solid var(--accent); }
+.col-tile.done { border-color: var(--good); }
+.col-tile-pic { width: 40px; height: 40px; display: grid; place-items: center; }
+.col-tile-pic img { max-width: 40px; max-height: 40px; object-fit: contain; }
+.col-tile-txt { color: #e0b070; font-weight: 700; }
+.col-tile-pct { font: 700 13px/1 var(--item); color: #f0d8b0; }
+
+/* What's new: one line per change, with a button to where it is */
+.note-rows { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.note-row { display: flex; align-items: center; gap: 12px; padding: 7px 4px; border-bottom: 1px solid var(--line-soft); }
+.note-row::before { content: '•'; color: var(--accent); }
+.note-text { flex: 1; min-width: 0; }
+.note-go { flex: none; white-space: nowrap; }

@@ -232,16 +232,69 @@ function mdBlock(md) {
 }
 const NOTES_SHOWN = 5;
 const RELEASES_URL = 'https://github.com/rolcsyvagyok/poe-helper/releases';
+// where a change is in the app: the first match wins ("Show" button next to the change)
+const NOTE_PLACES = [
+  [/Rare looks/i, 'Rare looks', { special: 'rarelooks' }],
+  [/Base ranks|Unid item tier|Memory Strand|Ranked bases|Tier 0/i, 'Base ranks', { special: 'basematrix' }],
+  [/My collection/i, 'My collection', { page: 'collection' }],
+  [/Unique items|High variety|unique bases|uniques page/i, 'Unique items', { type: 'uniques' }],
+  [/Regular maps|map cards|white maps|yellow maps/i, 'Regular maps', { type: 'maps' }],
+  [/Tier designer|Text size|theme/i, 'Tier designer', { page: 'designer' }],
+  [/Loot filter/i, 'Loot filter', { page: 'filters' }],
+  [/Path of Building|\bPoB\b/, 'Path of Building', { page: 'pob' }],
+  [/Trade searches/i, 'Trade searches', { page: 'trade' }],
+  [/Settings/, 'Settings', { page: 'settings' }],
+];
+function noteGo(t) {
+  if (t.page) return go(t.page);
+  window.showInFilter?.(t.special ? { special: t.special } : { type: t.type, key: `${t.type}|` });
+  go('filters');
+}
+// one line per change: the first sentence, without the details after it
+function noteSummary(text) {
+  const plain = text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1');
+  // the headline: up to the first ": ", " (", ". " or "; " outside quotes (the rest is the detail, on hover);
+  // a short topic before ": " ("Price check header: …") keeps its first clause after it
+  const stop = (txt, from) => {
+    let best = -1;
+    for (const re of [/\. /g, /: /g, / \(/g, /; /g]) {
+      re.lastIndex = from;
+      let m;
+      while ((m = re.exec(txt))) { if (((txt.slice(0, m.index).match(/"/g) || []).length % 2) === 0) break; }
+      if (m && (best < 0 || m.index < best)) best = m.index;
+    }
+    return best;
+  };
+  let cut = stop(plain, 6);
+  if (cut > 0 && plain.slice(cut, cut + 2) === ': ' && cut < 40) { const more = stop(plain, cut + 2); cut = more > 0 ? more : -1; }
+  let one = cut > 0 ? plain.slice(0, cut) : plain.replace(/\.$/, '');
+  if (one.length > 120) one = `${one.slice(0, 115).replace(/\s+\S*$/, '')}…`;
+  return { one, full: plain };
+}
+const vnum = (v) => String(v || '').split('.').map((n) => Number(n) || 0);
+const vnewer = (a, b) => { const x = vnum(a); const y = vnum(b); for (let k = 0; k < 3; k++) if ((x[k] || 0) !== (y[k] || 0)) return (x[k] || 0) > (y[k] || 0); return false; };
 function notesSection(all) {
-  // the last few versions; every older one is on GitHub
-  const entries = all.slice(0, NOTES_SHOWN);
-  const open = new Set([entries[0]?.version]);
-  return section('Patch notes', `What changed in the last ${NOTES_SHOWN} versions. The newest is on top.`,
+  // what changed since the version you had: every change of the newer versions in one list, no version headers
+  const base = S.ver?.notesBase;
+  const fresh = all.filter((e) => (!base || vnewer(e.version, base)) && !vnewer(e.version, S.ver?.version || e.version));
+  // the short list: the "* " lines of each newer version ("* [Base ranks] text"); a version without them adds nothing
+  const changes = (fresh.length ? fresh : all.slice(0, 1)).flatMap((e) => String(e.notes || '').split('\n').map((l) => l.trim()).filter((l) => /^\* /.test(l)).map((l) => l.slice(2)));
+  const rows = changes.map((c0) => {
+    const tag = /^\[([^\]]+)\]\s*/.exec(c0);
+    const c = tag ? c0.slice(tag[0].length) : c0;
+    const { one, full } = { one: c.replace(/\*\*([^*]+)\*\*/g, '$1'), full: c };
+    const place = tag ? NOTE_PLACES.find(([, name]) => name === tag[1]) : null;
+    return h('li', { class: 'note-row', title: full !== one ? full : '' },
+      h('span', { class: 'note-text' }, one),
+      place ? h('button', { class: 'sm note-go', title: `Open ${place[1]}`, onclick: () => noteGo(place[2]) }, place[1], ' →') : null);
+  });
+  const older = all.slice(0, NOTES_SHOWN);
+  return section("What's new", base && fresh.length ? 'What changed since your last update. The button opens the place in the app.' : 'The latest changes. The button opens the place in the app.',
     h('div', { class: 'panel stack notes', id: 'patch-notes' },
-      entries.length ? entries.map((e, i) => h('details', { open: open.has(e.version) || null, class: 'notes-entry' },
-        h('summary', {}, h('b', {}, `Version ${e.version}`), e.date ? h('span', { class: 'faint' }, ` · ${fmtDate(e.date)}`) : null, e.version === S.ver?.version ? h('span', { class: 'pill', style: { marginLeft: '8px' } }, 'yours') : null),
-        h('div', { class: 'notes-body' }, mdBlock(e.notes)))) : h('p', { class: 'small muted' }, 'No patch notes in this copy.'),
-      all.length > NOTES_SHOWN ? h('p', { class: 'small muted' }, 'Older versions: ', h('a', { href: RELEASES_URL, target: '_blank', rel: 'noopener' }, 'every release on GitHub'), '.') : null));
+      rows.length ? h('ul', { class: 'notes-list note-rows' }, rows) : h('p', { class: 'small muted' }, 'No patch notes in this copy.'),
+      h('details', { class: 'notes-entry' }, h('summary', {}, h('span', { class: 'small muted' }, 'Full patch notes of the last versions')),
+        older.map((e) => h('div', { class: 'notes-body' }, h('p', {}, h('b', {}, `Version ${e.version}`), e.date ? h('span', { class: 'faint' }, ` · ${fmtDate(e.date)}`) : null), mdBlock(String(e.notes || '').split('\n').filter((l) => !/^\s*\* /.test(l)).join('\n')))),
+        all.length > NOTES_SHOWN ? h('p', { class: 'small muted' }, 'Older versions: ', h('a', { href: RELEASES_URL, target: '_blank', rel: 'noopener' }, 'every release on GitHub'), '.') : null)));
 }
 
 // ---------------- shared bits ----------------

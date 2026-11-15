@@ -428,8 +428,9 @@ function renderTiers(body, view) {
     const mh = S.settings.mapHide || {};
     const tip = 'Set with the buttons at the top. Blighted and unique maps still show.';
     if (mh.below16 && no < 16) return h('span', { class: 'pill warn', style: { marginLeft: '8px' }, title: tip }, '✕ Hidden (below Tier 16)');
-    const r = [mh.white ? 'white' : '', mh.yellow ? 'yellow' : ''].filter(Boolean);
-    return r.length ? h('span', { class: 'pill warn', style: { marginLeft: '8px' }, title: tip }, `✕ ${r.join(' and ')} hidden`.replace('✕ w', '✕ W').replace('✕ y', '✕ Y')) : null;
+    if (mh.white && no <= 5) return h('span', { class: 'pill warn', style: { marginLeft: '8px' }, title: tip }, '✕ Hidden (white map)');
+    if (mh.yellow && no >= 6 && no <= 10) return h('span', { class: 'pill warn', style: { marginLeft: '8px' }, title: tip }, '✕ Hidden (yellow map)');
+    return null;
   }
   function tierCard(t) {
     const isEditing = FB.editing === t.key;
@@ -447,7 +448,7 @@ function renderTiers(body, view) {
       const size = window.UI.normalizeStyle(st).fontSize || 32;
       // one zoom per name, worked out for the biggest text (45), so a smaller text size really looks smaller
       const scale = Math.max(0.55, Math.min(1, 500 / (sample.length * 45 * 0.6 * 0.6 + 40)));
-      mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, game: true, hidden: t.action === 'Hide' || (type.type === 'maps' && S.settings.mapHide?.below16 && mapTierNo(t) > 0 && mapTierNo(t) < 16) }), soundButton(window.UI.normalizeStyle(st).sound));
+      mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, game: true, hidden: t.action === 'Hide' || (type.type === 'maps' && mapTierNo(t) > 0 && ((S.settings.mapHide?.below16 && mapTierNo(t) < 16) || (S.settings.mapHide?.white && mapTierNo(t) <= 5) || (S.settings.mapHide?.yellow && mapTierNo(t) >= 6 && mapTierNo(t) <= 10))) }), soundButton(window.UI.normalizeStyle(st).sound));
     };
     drawPreview();
     const folded = FB.collapsed.has(t.key);
@@ -930,7 +931,7 @@ function renderTiers(body, view) {
             S.settings.mapHide = await call('maps:hide', { [k]: !mh[k] });
             toast(`${label}: ${!mh[k] ? 'on' : 'off'}. Select the filter in game again`); renderFilters();
           } }, `${mh[k] ? '✓ ' : ''}${label}`);
-          return h('span', { class: 'row', style: { gap: '6px' } }, btn('white', 'Hide white maps'), btn('yellow', 'Hide yellow maps'), btn('below16', 'Hide below Tier 16'));
+          return h('span', { class: 'row', style: { gap: '6px' } }, btn('white', 'Hide white maps (T1–5)'), btn('yellow', 'Hide yellow maps (T6–10)'), btn('below16', 'Hide below Tier 16'));
         })() : null,
         type.scrollsView || !pricedGroup(type.type) ? null : h('button', { class: FB.priceColors ? 'primary sm' : 'sm', title: 'Colour every item by how well its current poe.ninja price fits its tier', onclick: () => {
           FB.priceColors = !FB.priceColors;
@@ -2694,7 +2695,7 @@ window.showInFilter = (g) => {
   FB.tab = 'tiers';
   FB.revealNav = true;
   // PoE Helper's own pages (My bases, Base ranks, Cluster jewels, Campaign)
-  const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE }[g.special];
+  const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE, rarelooks: RARE_LOOKS }[g.special];
   if (special) { FB.goto = null; FB.type = special; FB.matrixFocus = special === BASE_MATRIX && g.base ? g.base : null; return; }
   FB.goto = { type: g.type, key: g.key || `${g.type}|${g.tier}`, base: g.base };
 };

@@ -1,14 +1,36 @@
 # Patch notes
 
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
-and used as the text of the GitHub release, so write it for players.
+and used as the text of the GitHub release, so write it for players. Lines starting with `* ` are the short
+"What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
+button to that page. Lines starting with `- ` are the full notes.
+
+## 1.0.91 - 2026-11-15
+
+* [My collection] My collection looks like the game's Unique stash tab, with a tile and a percentage per category
+* [My collection] Replicas and unique maps are in My collection too
+* [Regular maps] Hide white maps now means Tier 1–5, Hide yellow maps Tier 6–10
+* [Settings] What's new shows only what changed since your last update, with a button to each place
+
+- What's new (after an update): one short list of everything that changed since the version you had, without version numbers. Hover a line for the details, and the button next to it opens that place in the app. The full notes are still there, folded.
+- My collection is laid out like the game's Unique stash tab: a row of category tiles (flasks, amulets, rings, claws, daggers, wands, one and two hand weapons, bows, staves, quivers, belts, gloves, boots, body armours, helmets, shields, jewels, maps, relics, tinctures), each with a picture and how much of it you have. Click a tile to show only that category.
+- My collection lists Replica uniques and unique maps too. Replicas don't count towards hiding a base.
+- Regular maps: "Hide white maps" hides Tier 1–5 maps and "Hide yellow maps" Tier 6–10 (by the map's tier, as the game colours them, not by rarity). The map cards say which ones are hidden.
+- Tier designer → Text size is tidier: one small − / + control for everything, and only the categories you change are listed (pick one from "Change one category…").
 
 ## 1.0.90 - 2026-11-15
+
+* [My collection] New page: My collection. Tick the uniques you own, with pictures
+* [My collection] Cheap bases where you own every unique can be removed from your filter
 
 - New page: My collection (under Wealth). Every unique that drops, with its picture, grouped into weapons, armour, jewellery, flasks, jewels, relics and tinctures. Click one when you have it (ticked ones get a ✓ and full colour). Show all, only missing or only the ones you have; sort by name, base or price; search. It shares the list with the price check, so a base where you have every unique and none is worth more than your limit is hidden in your filter, and the page marks those bases.
 - My collection has a "Remove not valuable from loot filter" switch (on by default) with the price limit next to it, and every unique card has a tick box.
 
 ## 1.0.89 - 2026-11-15
+
+* [Unique items] The Unique items page is laid out like FilterBlade's: S, A, B+C, D and High variety
+* [Tier designer] Make every drop smaller or bigger, or just one category, in the Tier designer
+* Price check: rares and magic items are only searched when you press Search
 
 - Loot filter → Unique items looks like FilterBlade's page: compact rows with a tick box (shown in game), the name and the look (click it to edit). Predictable tiers: S, A, B+C and D (FilterBlade's three D tiers are one row). High variety tiers: jewels, top multi-bases, multi-bases, boss drops. Open a row to see its uniques; special cases (6-links, Kaom's, synthesised…) are one folded line.
 - Moving uniques: select some, then pick the row in the bar at the bottom (no long list of FilterBlade's extra tiers).
@@ -21,12 +43,19 @@ and used as the text of the GitHub release, so write it for players.
 
 ## 1.0.88 - 2026-11-15
 
+* [Rare looks] Rare looks follow your Tier designer theme
+* [Rare looks] Influenced and fractured items get their own look instead of the rank colour
+
 - Rare looks take your Tier designer theme's colours on their own now (once on update, and every time you apply a theme). The button is still there to do it again.
 - Base ranks → Unid item tier and Memory Strands: no more "Filter decides / My choice"; your choice is always on, starting from what FilterBlade shows at Semi-Strict.
 - Influenced and fractured items your Base ranks show get the influenced / fractured look (the one on Rare looks) instead of the rank colours, so an influenced rank D shield no longer looks like a plain dark red D base.
 - Tier 0 lists its choices in the same order as the item tiers: Only S bases, A and up, B and up, C and up, Every base, Nothing.
 
 ## 1.0.87 - 2026-11-15
+
+* [Rare looks] Use your theme's colours for every kind of rare with one click
+* [Base ranks] Choose whether ranked bases show only rares, rares and magic, or every rarity
+* [Base ranks] The rare categories covered by Base ranks and Rare looks are gone from the list
 
 - Loot filter, Rare items: Rares by base, Unidentified & stranded gear, Chancing bases and Highlight specific bases aren't listed any more. Base ranks sets which bases show; Rare looks sets their looks.
 - Rare looks has three more cards: Chancing bases, Fated gear highlight and FilterBlade's size highlights for rares.
@@ -39,6 +68,10 @@ and used as the text of the GitHub release, so write it for players.
 
 ## 1.0.86 - 2026-11-15
 
+* [Rare looks] New Rare looks page: one look for each kind of rare (item tiers, strands, influenced, fractured…)
+* [Unique items] High variety uniques are fixed: cheap bases no longer fill it, and you can see which unique makes a base valuable
+* Price check shows your base rank and the item tier at the top
+
 - Uniques → High variety: the price review had filled "top multi-bases" with bases whose uniques are all about 1c (it went by the cheapest unique). High variety tiers now keep a base only while one of its versions is worth it (20c+ for top multi-bases, 5c+ for multi-bases), counting only prices with 5 or more listings. The next price review moves the others back to where FilterBlade had them.
 - Unique bases on the Loot filter page: hover the price to see every unique on that base, most valuable first, with thin listings marked. The range uses prices with 5+ listings.
 - Price check on an unidentified unique lists the uniques on its base, most valuable first.
@@ -50,11 +83,19 @@ and used as the text of the GitHub release, so write it for players.
 
 ## 1.0.85 - 2026-11-15
 
+* [Base ranks] Pick how many Memory Strands you want to see per rank
+* Price check reads quality unidentified rares and Memory Strands correctly
+
 - Price check: unidentified rares with quality ("Superior Phantom Mitts") are read as their base, so the filter check, base rank and Show in app work for them.
 - Filter check counts Memory Strands, so items shown by FilterBlade's Memory Strand rules no longer say "hidden".
 - Base ranks has a Memory Strands row under Unid item tier: for rank S, A, B and every other base, pick the fewest strands you want to see (or hide them). It uses your ranks and keeps FilterBlade's looks. Stranded gear is no longer hidden by "rares below rank …".
 
 ## 1.0.84 - 2026-11-15
+
+* [Regular maps] Hidden map tiers are marked on the map cards
+* Price check finds the right filter rule for unidentified items
+* Divine Vessel gets its fragment look again
+* [Base ranks] Unidentified rares of lower ranks are no longer hidden by mistake
 
 - Regular maps: the tiers the hide buttons cover are marked in the app ("✕ Hidden (below Tier 16)", "✕ Yellow hidden"), and below-Tier-16 cards are crossed out.
 - Price check on unidentified items reads the new "Unidentified (Tier 5)" line. The filter check now finds the rule the game uses (for example "Shown: Unidentified Tier 5 and up, rank A bases") instead of saying it's hidden.
