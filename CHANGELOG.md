@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.80 - 2026-11-15
+
+- Scrolls look exactly the same in every rule, whatever the tier: Portal Scroll bright blue, Scroll of Wisdom dark red, white text and border, full size. The Loot filter page shows them that way too (it showed the tier's own look before).
+
 ## 1.0.79 - 2026-11-15
 
 - Portal Scrolls (bright blue, white border and text) and Scrolls of Wisdom (dark red, white border and text) now look the same in every rule that shows them, in every category and tier, also where they share a rule with other items. Nothing is shown or hidden differently.

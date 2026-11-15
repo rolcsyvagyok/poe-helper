@@ -462,9 +462,17 @@ const LIFEFORCE = [
   { base: 'Primal Crystallised Lifeforce', bg: '40 110 230', text: '255 255 255', game: 'Blue' },
   { base: 'Wild Crystallised Lifeforce', bg: '200 30 30', text: '255 255 255', game: 'Red' },
   // scrolls too: Portal blue, Wisdom dark red, in every rule that holds only scrolls
-  { base: 'Portal Scroll', bg: '20 27 219', text: '255 255 255', border: '255 255 255', game: 'Blue' },
-  { base: 'Scroll of Wisdom', bg: '107 20 11', text: '255 255 255', border: '255 255 255', game: 'Red' },
+  { base: 'Portal Scroll', bg: '20 27 219', text: '255 255 255', border: '255 255 255', size: 45, game: 'Blue' },
+  { base: 'Scroll of Wisdom', bg: '107 20 11', text: '255 255 255', border: '255 255 255', size: 45, game: 'Red' },
 ];
+/** The look an item list always gets (one Portal Scroll colour, say), or null when it has none or mixes. */
+function fixedLookOf(bases = []) {
+  const hits = LIFEFORCE.filter((c) => bases.includes(c.base));
+  if (hits.length !== 1) return null;
+  const c = hits[0];
+  const rgb = (v) => [...v.split(' ').map(Number), 255];
+  return { base: c.base, background: rgb(c.bg), text: rgb(c.text), ...(c.border ? { border: rgb(c.border) } : {}), ...(c.size ? { fontSize: c.size } : {}), beam: c.game, game: c.game };
+}
 function colourLifeforce(text) {
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
   const lines = text.split(/\r?\n/);
@@ -489,6 +497,7 @@ function colourLifeforce(text) {
         if (/^\s*SetBackgroundColor\b/.test(l)) return `${ind}SetBackgroundColor ${c.bg} 255`;
         if (/^\s*SetTextColor\b/.test(l)) return `${ind}SetTextColor ${c.text} 255`;
         if (c.border && /^\s*SetBorderColor\b/.test(l)) return `${ind}SetBorderColor ${c.border} 255`;
+        if (c.size && /^\s*SetFontSize\b/.test(l)) return `${ind}SetFontSize ${c.size}`;
         if (/^\s*PlayEffect\b/.test(l)) return l.replace(/PlayEffect\s+\w+/, `PlayEffect ${c.game}`);
         if (/^\s*MinimapIcon\b/.test(l)) return l.replace(/(MinimapIcon\s+\d+\s+)\w+/, `$1${c.game}`);
         return l;
@@ -989,4 +998,4 @@ class FilterManager {
   }
 }
 
-module.exports = { categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

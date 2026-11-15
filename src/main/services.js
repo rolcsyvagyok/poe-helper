@@ -948,6 +948,17 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       }
       const view = tiers.tierView(text, strictness.withStrictness(text, shown, level));
       view.editedActions = patch.actions || {};
+      // scrolls and lifeforce always get their own colours in the written filter: show them that way here
+      const { fixedLookOf } = require('../core/filter/manager');
+      for (const t of view.types) for (const x of t.tiers) {
+        const f = x.bases?.length && x.bases.every((b) => fixedLookOf([b])?.base === b) && new Set(x.bases.map((b) => fixedLookOf([b]).base)).size === 1 ? fixedLookOf(x.bases) : null;
+        if (!f || x.action !== 'Show') continue;
+        const st = { ...(x.style || {}), background: f.background, text: f.text, ...(f.border ? { border: f.border } : {}), ...(f.fontSize ? { fontSize: f.fontSize } : {}) };
+        if (st.beam) st.beam = { ...st.beam, color: f.beam };
+        if (st.icon) st.icon = { ...st.icon, color: f.game };
+        x.style = st;
+        x.fixedLook = f.base;
+      }
       // "what FilterBlade has" for a tier is its state at your strictness
       const sa = strictness.strictnessActions(text, level);
       for (const t of view.types) for (const x of t.tiers) if (sa[x.key]) x.origState = sa[x.key];
