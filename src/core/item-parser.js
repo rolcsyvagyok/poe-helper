@@ -156,6 +156,9 @@ function parseItem(rawText) {
         item.flags[FLAG_LINES[line]] = true;
         continue;
       }
+      // 3.30's Ctrl+Alt+C: "Unidentified (Tier 5)"
+      const ut = /^Unidentified \(Tier (\d+)\)$/.exec(line);
+      if (ut) { item.flags.unidentified = true; item.unidTier = Number(ut[1]); continue; }
       const inf = INFLUENCES.find((i) => line === `${i} Item`);
       if (inf) {
         item.influences.push(inf);

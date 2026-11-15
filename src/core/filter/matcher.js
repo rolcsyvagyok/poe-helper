@@ -1,4 +1,5 @@
 'use strict';
+const DROP_LEVELS = require('./drop-levels.json'); // base name -> drop level, from RePoE (game data)
 /**
  * "Why is this item shown/hidden?" — evaluates a parsed filter against a parsed
  * clipboard item and returns the block the game would apply.
@@ -73,6 +74,8 @@ function evalCondition(c, item, assumed) {
     // where it dropped isn't on the item: an item level is close to the area level it dropped in; without
     // one (currency, cards) assume maps (83), where price checks are made
     case 'AreaLevel': return numCond(c.op, v, Number(item.areaLevel) || Math.min(83, Number(item.itemLevel) || 83));
+    // the base's drop level (game data); unknown bases are left to the context rule
+    case 'DropLevel': { const d = DROP_LEVELS[item.baseType || item.typeLine]; return d == null ? null : numCond(c.op, v, d); }
     case 'Quality': return numCond(c.op, v, item.quality ?? 0);
     case 'Sockets': return socketsCond(c.op, v[0], item.sockets);
     case 'LinkedSockets': return numCond(c.op, v, item.sockets?.links ?? 0);

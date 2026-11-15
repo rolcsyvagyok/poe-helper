@@ -613,7 +613,7 @@ function rareTierMoves(baseText, ranks, names) {
   return out;
 }
 
-function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {} } = {}) {
+function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {}, unidTiers = false } = {}) {
   const out = [];
   const endgame = [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }];
   const area = mapsOnly ? endgame : [];
@@ -634,7 +634,10 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
       if (list.length && !k.filterLook) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...showConds, ...endgame, { keyword: 'BaseType', op: '==', values: list }], style: RANK_LOOKS[r] });
     }
     const drop = bases.filter((b) => !keep.includes(rankOf(ranks, b))).sort();
-    if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
+    // 3.30: unidentified drops are decided by the unid item tiers (Base ranks → Unid item tier), so the
+    // rank only hides identified ones; before, this hid every unidentified rare of a lower rank, even at Tier 5
+    const idOnly = unidTiers ? [{ keyword: 'Identified', values: ['True'] }] : [];
+    if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}${unidTiers ? ' (identified)' : ''}`, conditions: [...conds, ...idOnly, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
   }
   return out;
 }
@@ -650,6 +653,17 @@ const CAMPAIGN_CLASSES = ['Claws', 'Daggers', 'Rune Daggers', 'Wands', 'One Hand
  * "Show all currency" (league start): every currency rule of the filter shows, with its own look. Hidden
  * tiers become Show and tiers FilterBlade switched off for your strictness are switched on.
  */
+// 3.30: some fragments (Divine Vessel…) drop as "Stackable Currency" now, but FilterBlade's fragment rules
+// still ask for "Map Fragments", so they fell through to "everything else". Their rules take that class too
+// (the BaseType list keeps them to those items).
+function fragmentsAsCurrency(text) {
+  // only rules that name their items: a catch-all fragment rule must not take every currency
+  return text.replace(/^(?:Show|Hide|Minimal)\b[^\n]*\$type->fragments\b[^\n]*\r?\n(?:[ \t]+[^\n]*(?:\r?\n|$))*/gm, (block) => {
+    if (!/^[ \t]+BaseType\b/m.test(block)) return block;
+    return block.replace(/^([ \t]+Class\s+(?:==\s+)?)([^\r\n]*)/m, (m, head, list) => (/"Stackable Currency"/.test(list) || !/"Map Fragments"/.test(list) ? m : `${head}${list} "Stackable Currency"`));
+  });
+}
+
 function showAllCurrency(text) {
   const lines = text.split(/\r?\n/);
   const isHead = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
@@ -911,6 +925,7 @@ class FilterManager {
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
     let text = applyTierPatch(baseText, patch);
     if (this.store.get('showAllCurrency')) text = showAllCurrency(text);
+    text = fragmentsAsCurrency(text);
     text = colourLifeforce(text);
     if (this.store.get('categoryIcons2') !== false) text = categoryIconShapes(text);
     if (this.store.get('rankRareTiers') !== false) text = rankFatedTiers(text, this.store.get('baseRanks') || {}, RANKED_NAMES);
@@ -924,7 +939,7 @@ class FilterManager {
     const hidden = hiddenBaseRules(baseText, patch, { fractured: !!this.store.get('hideFractured'), synthesised: !!this.store.get('hideSynthesised') });
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
-    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {} });
+    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {}, unidTiers: /^\s*UnidentifiedItemTier\b/m.test(text) });
     const unid = []; // (unidentified item tiers are FilterBlade's own rules now, see rankUnidTiers)
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
@@ -1021,4 +1036,4 @@ class FilterManager {
   }
 }
 
-module.exports = { mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

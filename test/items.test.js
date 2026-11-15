@@ -64,3 +64,11 @@ test('magic items: ticked mods must all be there, ticked tiers of one mod are ei
   assert.strictEqual(r.parts.length, 2);
   assert.match(r.regex, /^"[^"]+\|[^"]+" "[^"|]+"$/);
 });
+
+test('3.30 copy: "Unidentified (Tier 5)" sets the unidentified flag and the tier', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Boots\nRarity: Rare\nMartyr Boots\n--------\nItem Level: 85\n--------\nUnidentified (Tier 5)\n');
+  assert.equal(it.flags.unidentified, true);
+  assert.equal(it.unidTier, 5);
+  assert.equal(it.mods.explicit.length, 0);
+});

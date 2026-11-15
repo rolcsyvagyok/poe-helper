@@ -628,3 +628,28 @@ test('a switched-on tier without a base list (any Heist gear) stays a catch-all'
   const out = T.applyTierPatch(src, { moves: { 'heist->gear\tFoo': 't1' } });
   assert.match(out, /^Show # \$type->heist->gear \$tier->t3any\n\tRarity Normal Magic Rare\n\tClass == "Heist Gear"\n\tSetFontSize 40/m);
 });
+
+test('3.30: fragment rules with a base list also take "Stackable Currency" (Divine Vessel), catch-alls stay as they are', () => {
+  const M = require('../src/core/filter/manager');
+  const src = 'Show # $type->fragments $tier->t3 !x\n\tClass == "Map Fragments" "Misc Map Items"\n\tBaseType == "Divine Vessel"\n\tSetFontSize 45\n\nShow # $type->fragments $tier->restex !y\n\tClass == "Map Fragments"\n\tSetFontSize 45\n';
+  const out = M.fragmentsAsCurrency(src);
+  assert.match(out, /"Misc Map Items" "Stackable Currency"\n\tBaseType == "Divine Vessel"/);
+  assert.match(out, /restex !y\n\tClass == "Map Fragments"\n/);
+});
+
+test('3.30: with unidentified item tiers, base rank hiding only takes identified rares', () => {
+  const M = require('../src/core/filter/manager');
+  const hide = (o) => M.rankRules({ 'Vaal Regalia': 'S' }, { rares: 'A' }, ['Vaal Regalia', 'Silk Robe'], o).find((r) => r.action === 'Hide');
+  assert.ok(hide({ unidTiers: true }).conditions.some((c) => c.keyword === 'Identified' && c.values[0] === 'True'));
+  assert.ok(!hide({}).conditions.some((c) => c.keyword === 'Identified'));
+});
+
+test('DropLevel is read from the base (Martyr Boots 78, Headman\'s Sword 57)', () => {
+  const { explain } = require('../src/core/filter/matcher');
+  const P = require('../src/core/filter/parser');
+  const { parseItem } = require('../src/core/item-parser');
+  const doc = P.parse('Hide # low\n\tDropLevel < 75\n\tRarity Rare\n\nShow # rest\n\tRarity Rare\n');
+  const item = (b, c) => parseItem(`Item Class: ${c}\nRarity: Rare\nFoo Bar\n${b}\n--------\nItem Level: 85\n`);
+  assert.equal(explain(doc, item('Martyr Boots', 'Boots')).comment, 'rest');
+  assert.equal(explain(doc, item("Headman's Sword", 'Two Hand Swords')).comment, 'low');
+});

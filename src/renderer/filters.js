@@ -414,6 +414,16 @@ function renderTiers(body, view) {
     return h('div', { class: 'fb-conds' }, baseBox, rows.map(numberRow), rarRow);
   }
 
+  // Regular maps: what the Hide white / yellow / below Tier 16 buttons do to this tier
+  function mapHidePill(t) {
+    const no = type.type === 'maps' ? mapTierNo(t) : 0;
+    if (!no) return null;
+    const mh = S.settings.mapHide || {};
+    const tip = 'Set with the buttons at the top. Blighted and unique maps still show.';
+    if (mh.below16 && no < 16) return h('span', { class: 'pill warn', style: { marginLeft: '8px' }, title: tip }, '✕ Hidden (below Tier 16)');
+    const r = [mh.white ? 'white' : '', mh.yellow ? 'yellow' : ''].filter(Boolean);
+    return r.length ? h('span', { class: 'pill warn', style: { marginLeft: '8px' }, title: tip }, `✕ ${r.join(' and ')} hidden`.replace('✕ w', '✕ W').replace('✕ y', '✕ Y')) : null;
+  }
   function tierCard(t) {
     const isEditing = FB.editing === t.key;
     const q = FB.search.trim().toLowerCase();
@@ -430,7 +440,7 @@ function renderTiers(body, view) {
       const size = window.UI.normalizeStyle(st).fontSize || 32;
       // one zoom per name, worked out for the biggest text (45), so a smaller text size really looks smaller
       const scale = Math.max(0.55, Math.min(1, 500 / (sample.length * 45 * 0.6 * 0.6 + 40)));
-      mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, game: true, hidden: t.action === 'Hide' }), soundButton(window.UI.normalizeStyle(st).sound));
+      mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, game: true, hidden: t.action === 'Hide' || (type.type === 'maps' && S.settings.mapHide?.below16 && mapTierNo(t) > 0 && mapTierNo(t) < 16) }), soundButton(window.UI.normalizeStyle(st).sound));
     };
     drawPreview();
     const folded = FB.collapsed.has(t.key);
@@ -455,7 +465,7 @@ function renderTiers(body, view) {
         h('div', { class: 'fb-tier-name' }, tierName(t),
           t.mine ? h('span', { class: 'pill', style: { marginLeft: '8px' } }, 'Your tier') : null,
           t.mine ? h('button', { class: 'quiet sm', title: 'Rename this tier', 'aria-label': `Rename ${tierName(t)}`, onclick: async () => { const n = prompt('Name of this tier', tierName(t)); if (n && n.trim()) { await call('tiers:rename', { type: type.type, tier: t.tier, name: n }); renderFilters(); } } }, '✎') : null,
-          t.mine ? h('button', { class: 'quiet sm', title: 'Delete this tier; its items go back to where the filter had them', 'aria-label': `Delete ${tierName(t)}`, onclick: async () => { if (!confirm(`Delete ${tierName(t)}? Its items go back to where your filter had them.`)) return; await call('tiers:remove', { type: type.type, tier: t.tier }); delete FB.prices[type.type]; toast(`${tierName(t)} deleted`); renderFilters(); } }, 'Delete') : null, changedAction ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, changedAction === 'Hide' ? 'Hidden by you' : changedAction === 'Off' ? 'Off by you' : t.origState === 'Off' ? 'Switched on by you' : 'Shown by you') : !changedAction && state === 'Off' ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade switched this tier off for your strictness. Press Shown to use it.' }, 'Off in FilterBlade') : null, edited.has(t.key) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null),
+          t.mine ? h('button', { class: 'quiet sm', title: 'Delete this tier; its items go back to where the filter had them', 'aria-label': `Delete ${tierName(t)}`, onclick: async () => { if (!confirm(`Delete ${tierName(t)}? Its items go back to where your filter had them.`)) return; await call('tiers:remove', { type: type.type, tier: t.tier }); delete FB.prices[type.type]; toast(`${tierName(t)} deleted`); renderFilters(); } }, 'Delete') : null, changedAction ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, changedAction === 'Hide' ? 'Hidden by you' : changedAction === 'Off' ? 'Off by you' : t.origState === 'Off' ? 'Switched on by you' : 'Shown by you') : !changedAction && state === 'Off' ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade switched this tier off for your strictness. Press Shown to use it.' }, 'Off in FilterBlade') : null, edited.has(t.key) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null, mapHidePill(t)),
         h('div', { class: 'small', style: { color: '#9a9f8c' } }, t.hasBaseList ? `${t.bases.length} ${t.bases.length === 1 ? 'base' : 'bases'}` : t.special ? 'Special case' : 'Catches the rest of this category',
           (() => {
             // the price you set for this tier (Set category prices) wins over the typical price

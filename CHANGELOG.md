@@ -3,6 +3,15 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.84 - 2026-11-15
+
+- Regular maps: the tiers the hide buttons cover are marked in the app ("✕ Hidden (below Tier 16)", "✕ Yellow hidden"), and below-Tier-16 cards are crossed out.
+- Price check on unidentified items reads the new "Unidentified (Tier 5)" line. The filter check now finds the rule the game uses (for example "Shown: Unidentified Tier 5 and up, rank A bases") instead of saying it's hidden.
+- Price check → Show in app on any armour, weapon or jewellery with a base rank opens Base ranks with that base marked.
+- Divine Vessel (and other fragments that now drop as currency) gets its Fragments look and sound again. It fell into the pink "everything else" currency rule.
+- Rares: with unidentified item tiers, "Base ranks: rares below rank …" now only hides identified rares. Before, it also hid unidentified rares of lower ranks that FilterBlade shows at Tier 4 and 5 (102 rank B bases in a Semi-Strict filter).
+- Filter check knows each base's drop level, so it no longer says a high-level base is hidden by FilterBlade's "low drop level" rule.
+
 ## 1.0.83 - 2026-11-15
 
 - Loot filter → Regular maps shows just the map tiers, Tier 16 first (the highlight rules aren't listed any more; "Special mods" maps moved to Special maps).

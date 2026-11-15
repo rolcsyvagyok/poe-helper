@@ -287,7 +287,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
           const t = (() => { try { return tierViewNow(); } catch { return null; } })()?.types.find((x) => x.type === 'rr')?.tiers.find((x) => x.tier === RT[rank]);
           if (t) rareTier = { tier: t.tier, state: t.state };
         }
-        baseRank = { base: b, rank, rareTier, group: M.rankGroupOf ? M.rankGroupOf(b) : null };
+        // unidentified (3.30): the item tier decides, not the rare tiers
+        const unid = item.flags?.unidentified ? { tier: item.unidTier ?? null, min: (settings.get('rankUnidTier') || {})[rank] ?? null } : null;
+        if (unid) rareTier = null;
+        baseRank = { base: b, rank, rareTier, unid, group: M.rankGroupOf ? M.rankGroupOf(b) : null };
       }
     } catch { /* no ranks */ }
     return { baseRank, item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };

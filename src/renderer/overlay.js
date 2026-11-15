@@ -194,7 +194,7 @@ function render(p) {
   // your base rank for this base (Loot filter → Base ranks), and the rare tier it puts this rare in
   const br = p.baseRank;
   if (br) {
-    const tierText = br.rareTier ? `, so rares of it go into the filter's rare Tier ${br.rareTier.tier.replace(/^t/, '')}${br.rareTier.state === 'Off' ? ' (switched off at your strictness)' : ''}` : item.rarity === 'Rare' && br.rank === 'D' ? ', so rares of it are left to the rest of your filter' : '';
+    const tierText = br.unid ? `. Unidentified${br.unid.tier != null ? `, Tier ${br.unid.tier}` : ''}${br.unid.min != null ? `: rank ${br.rank} shows from Tier ${br.unid.min} up` : ''}` : br.rareTier ? `, so rares of it go into the filter's rare Tier ${br.rareTier.tier.replace(/^t/, '')}${br.rareTier.state === 'Off' ? ' (switched off at your strictness)' : ''}` : item.rarity === 'Rare' && br.rank === 'D' ? ', so rares of it are left to the rest of your filter' : '';
     body.append(h('div', { class: 'small' }, h('span', { class: 'muted' }, 'Base rank: '), h('b', {}, br.rank), h('span', { class: 'muted' }, ` for ${br.base}${br.group ? ` (${br.group})` : ''}${tierText}.`)));
   }
 
@@ -254,13 +254,14 @@ function render(p) {
   }
   const inTier = ti && !ti.notListed;
   // "Show in app": the tier the base is in, else the part of the Loot filter page whose rule decides the item
-  const goto = inTier ? { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } : filterWhere?.goto ? { ...filterWhere.goto, base: item.baseType || item.typeLine } : null;
+  // gear with a base rank: Base ranks, with the base marked
+  const goto = p.baseRank ? { page: 'filters', special: 'basematrix', base: p.baseRank.base } : inTier ? { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } : filterWhere?.goto ? { ...filterWhere.goto, base: item.baseType || item.typeLine } : null;
   const gear = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !!(item.baseType || item.typeLine) && !['currency', 'divination', 'gem', 'map', 'fragment'].includes(p.kind);
   const actions = h('div', { class: 'ov-actions' },
     gear ? h('button', { title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases…') : null,
     inTier ? null : h('button', { title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
     h('span', { class: 'spacer' }),
-    h('button', { class: 'quiet', title: inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
+    h('button', { class: 'quiet', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
       onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in app' : 'App'));
   if (tierControls) body.append(tierControls);
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });

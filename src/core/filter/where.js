@@ -60,6 +60,12 @@ function whereInFilter(text, hit, tierLabel = () => null) {
   if (own) return { text: comment ? `your rule "${comment}"` : 'one of your rules', goto: null };
 
   const tag = /\$type->(\S+)\s+\$tier->(\S+)/.exec(comment);
+  // FilterBlade's unidentified item tiers (3.30): "t5r2" = Tier 5 and up, the rank A bases; set on Base ranks
+  const unid = tag && tag[1] === 'gear->tiered' ? /^t(\d)(?:r(\d)|any\d*)$/.exec(tag[2]) : null;
+  if (unid) {
+    const ranks = { 1: 'S', 2: 'A', 3: 'B' }[unid[2]];
+    return { text: `Unidentified Tier ${unid[1]} and up, ${ranks ? `rank ${ranks} bases` : 'any base'} (Base ranks)`, goto: { page: 'filters', special: 'basematrix' } };
+  }
   if (tag) {
     const names = tierLabel(tag[1], tag[2]);
     // the tier's name is put together by the app (TierNames), which knows FilterBlade's tier ids

@@ -59,3 +59,10 @@ test('scrolls: Wisdom, then Portal, each from one scroll up to the biggest stack
   ] };
   assert.deepStrictEqual(scrollTiers(view).map((x) => x.key), ['a', 'w', 'p', 'd', 'e', 'f']);
 });
+
+test('FilterBlade unidentified item tiers point at Base ranks', () => {
+  const W = require('../src/core/filter/where');
+  const r = W.whereInFilter('Show # %D7 $type->gear->tiered $tier->t5r2 !exotics_t1\n\tRarity Rare\n', { line: 1, comment: '%D7 $type->gear->tiered $tier->t5r2 !exotics_t1' });
+  assert.match(r.text, /Unidentified Tier 5 and up, rank A bases/);
+  assert.equal(r.goto.special, 'basematrix');
+});
