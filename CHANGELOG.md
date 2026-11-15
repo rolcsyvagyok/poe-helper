@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.79 - 2026-11-15
+
+- Portal Scrolls (bright blue, white border and text) and Scrolls of Wisdom (dark red, white border and text) now look the same in every rule that shows them, in every category and tier, also where they share a rule with other items. Nothing is shown or hidden differently.
+- Fragments lists its pages as Threads, General, Splinters, Simulacrum, then the stacked splinters.
+- Threads page: only the tiers that hold threads are listed (no more empty tiers), and the price notes are about threads only. Other fragment tiers are still there under "Move to".
+
 ## 1.0.78 - 2026-11-15
 
 - Base ranks → Unid item tier is now set per item tier: for Tier 5, 4, 3 and 2 you pick which bases you see ("Every base", "B and up", "Only S bases" or "Nothing"). For example Tier 4 and up for every base, Tier 2 only for your S bases. A higher tier always shows at least what a lower one does.

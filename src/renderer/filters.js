@@ -100,7 +100,9 @@ function baseViews(types) {
     const has = bv.test || ((b) => bv.bases.includes(b));
     if (!t || !t.tiers.some((y) => y.bases.some(has))) continue;
     const bases = [...new Set(t.tiers.flatMap((y) => y.bases.filter(has)))];
-    out.push({ ...t, key: bv.key, label: bv.label, subLabel: bv.label, baseView: bases, tiers: t.tiers.map((y) => ({ ...y, bases: y.bases.filter(has) })) });
+    // only the tiers that hold some of these items; the others are still offered under "Move to"
+    const all = t.tiers.map((y) => ({ ...y, bases: y.bases.filter(has) }));
+    out.push({ ...t, key: bv.key, label: bv.label, subLabel: bv.label, baseView: bases, allTiers: all, tiers: all.filter((y) => y.bases.length) });
   }
   return out;
 }
@@ -296,7 +298,7 @@ function renderTiers(body, view) {
   // right: tiers
   const search = h('input', { type: 'search', placeholder: `Find a base in ${type.label.toLowerCase()}`, value: FB.search, style: { width: '260px' }, oninput: (e) => { FB.search = e.target.value; drawList(); } });
   const list = h('div', { class: 'fb-tiers' });
-  const targets = type.tiers.filter((t) => t.hasBaseList && !t.generated && !t.special);
+  const targets = (type.allTiers || type.tiers).filter((t) => t.hasBaseList && !t.generated && !t.special);
 
   const moveTo = async (bases, to, force = false) => {
     if (!bases.length) return;
@@ -616,6 +618,11 @@ function renderTiers(body, view) {
   }
 
   function priceBanner() {
+    // a view of some items (Threads): only their prices and suggestions
+    if (pricing && !pricing.error && type.baseView) {
+      const inView = new Set(type.baseView);
+      pricing = { ...pricing, suggestions: (pricing.suggestions || []).filter((x) => inView.has(x.base)), prices: Object.fromEntries(Object.entries(pricing.prices || {}).filter(([n]) => inView.has(n))) };
+    }
     if (!pricing) return h('div', { class: 'fb-pricebar' }, h('span', { class: 'spin' }), ' Loading current prices from poe.ninja');
     if (pricing.error) return h('div', { class: 'fb-pricebar' }, `Couldn't load prices: ${pricing.error}`);
     if (!pricing.supported) return h('div', { class: 'fb-pricebar muted' }, 'poe.ninja has no prices for this category, so it can only be tiered by hand.');
@@ -653,6 +660,7 @@ function renderTiers(body, view) {
 
   /** Make your own tier, e.g. "Giga" above Tier 1 for mirror-level items, looking like the Divine Orb's tier. */
   function newTierBar() {
+    if (type.baseView) return null; // a view of some items: new tiers belong to the whole category
     const movable = type.tiers.filter((x) => x.hasBaseList && !x.special && !x.generated);
     if (!movable.length) return null;
     if (!FB.newTier) return h('div', { class: 'fb-newtier-btn' }, h('button', { class: 'sm', onclick: () => { FB.newTier = true; drawList(); } }, '+ New tier'));
@@ -1468,7 +1476,7 @@ const CATEGORIES = [
     { id: 'stacked', name: 'Stacked', match: ['currency->stackedthree', 'currency->stackedsix', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom', 'currency->stackedsupplieshigh', 'currency->stackedsupplieslow'], order: ['currency->stackedthree', 'currency->stackedsix', 'currency->stackedsuppliesportal', 'currency->stackedsupplieswisdom'], art: ['Chaos Orb'], icon: 'coins' },
   ]],
   ['Fragments', [
-    { id: 'fragments', name: 'Fragments', match: ['fragments', 'fragments@threads', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
+    { id: 'fragments', name: 'Fragments', match: ['fragments', 'fragments@threads', 'currency->splinter', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], order: ['fragments@threads', 'fragments', 'currency->splinter', 'currency->splinter->simulacrum', 'currency->stackedsplintershigh', 'currency->stackedsplinterslow'], art: ['Fragment of Shape', '*Fragment'], icon: 'shard' },
   ]],
   ['Cards & gems', [
     { id: 'divination', name: 'Divination Cards', match: ['divination'], art: ['Stacked Deck', 'The Doctor'], icon: 'card' },

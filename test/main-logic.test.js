@@ -741,3 +741,11 @@ test('minimap icon shapes follow the kind of item; nothing else changes', () => 
   assert.match(out, /leveling \$tier->x\n\tMinimapIcon 2 Red Star/);
   assert.match(out, /divination \$tier->t1\r\n\tMinimapIcon 0 White Kite\r\n/);
 });
+
+test('scrolls get their own look in every rule that shows them, mixed rules too, with the same conditions', () => {
+  const { colourLifeforce } = require('../src/core/filter/manager');
+  const text = 'Show # $type->currency $tier->t6 !x\n\tStackSize >= 3\n\tBaseType == "Portal Scroll" "Orb of Chance"\n\tSetBorderColor 1 1 1 255\n\tSetBackgroundColor 9 9 9 255\n\nHide # $type->currency $tier->h\n\tBaseType == "Portal Scroll"\n';
+  const out = colourLifeforce(text);
+  assert.match(out, /t6 !x\n\tStackSize >= 3\n\tBaseType == "Portal Scroll"\n\tSetBorderColor 255 255 255 255\n\tSetBackgroundColor 20 27 219 255\n\tSetTextColor 255 255 255 255\n\nShow # \$type->currency \$tier->t6 !x\n\tStackSize >= 3\n\tBaseType == "Orb of Chance"\n\tSetBorderColor 1 1 1 255\n\tSetBackgroundColor 9 9 9 255/);
+  assert.match(out, /Hide # \$type->currency \$tier->h\n\tBaseType == "Portal Scroll"/);
+});

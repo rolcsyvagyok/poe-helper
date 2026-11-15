@@ -462,10 +462,9 @@ const LIFEFORCE = [
   { base: 'Primal Crystallised Lifeforce', bg: '40 110 230', text: '255 255 255', game: 'Blue' },
   { base: 'Wild Crystallised Lifeforce', bg: '200 30 30', text: '255 255 255', game: 'Red' },
   // scrolls too: Portal blue, Wisdom dark red, in every rule that holds only scrolls
-  { base: 'Portal Scroll', bg: '30 80 200', text: '255 255 255', game: 'Blue' },
-  { base: 'Scroll of Wisdom', bg: '120 20 20', text: '255 255 255', game: 'Red' },
+  { base: 'Portal Scroll', bg: '20 27 219', text: '255 255 255', border: '255 255 255', game: 'Blue' },
+  { base: 'Scroll of Wisdom', bg: '107 20 11', text: '255 255 255', border: '255 255 255', game: 'Red' },
 ];
-const FIXED_BASES = new Set([...LIFEFORCE.map((c) => c.base), 'Scroll Fragment']);
 function colourLifeforce(text) {
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
   const lines = text.split(/\r?\n/);
@@ -478,9 +477,10 @@ function colourLifeforce(text) {
     const block = lines.slice(i, end);
     const bl = block.findIndex((l) => /^\s*BaseType\b/.test(l));
     const listed = bl >= 0 ? [...block[bl].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
-    const colours = LIFEFORCE.filter((c) => listed.includes(c.base));
-    // only rules that hold nothing but these items (a big currency tier with one scroll stays as it is)
-    if (!colours.length || !listed.every((b) => FIXED_BASES.has(b))) { out.push(...block); i = end - 1; continue; }
+    // in every rule that shows them, whatever else it holds: they get a copy of the rule of their own
+    // (same conditions, so nothing is shown or hidden differently), placed before it
+    const colours = bl >= 0 && /==/.test(block[bl]) ? LIFEFORCE.filter((c) => listed.includes(c.base)) : [];
+    if (!colours.length) { out.push(...block); i = end - 1; continue; }
     const rest = listed.filter((b) => !colours.some((c) => c.base === b));
     const ind = (block[1] || '\t').match(/^\s*/)[0] || '\t';
     for (const c of colours) {
@@ -488,12 +488,14 @@ function colourLifeforce(text) {
         if (k === bl) return `${ind}BaseType == "${c.base}"`;
         if (/^\s*SetBackgroundColor\b/.test(l)) return `${ind}SetBackgroundColor ${c.bg} 255`;
         if (/^\s*SetTextColor\b/.test(l)) return `${ind}SetTextColor ${c.text} 255`;
+        if (c.border && /^\s*SetBorderColor\b/.test(l)) return `${ind}SetBorderColor ${c.border} 255`;
         if (/^\s*PlayEffect\b/.test(l)) return l.replace(/PlayEffect\s+\w+/, `PlayEffect ${c.game}`);
         if (/^\s*MinimapIcon\b/.test(l)) return l.replace(/(MinimapIcon\s+\d+\s+)\w+/, `$1${c.game}`);
         return l;
       });
       if (!nb.some((l) => /^\s*SetBackgroundColor\b/.test(l))) nb.push(`${ind}SetBackgroundColor ${c.bg} 255`);
       if (!nb.some((l) => /^\s*SetTextColor\b/.test(l))) nb.push(`${ind}SetTextColor ${c.text} 255`);
+      if (c.border && !nb.some((l) => /^\s*SetBorderColor\b/.test(l))) nb.push(`${ind}SetBorderColor ${c.border} 255`);
       out.push(...nb, '');
     }
     if (rest.length) out.push(...block.map((l, k) => (k === bl ? `${ind}BaseType == ${rest.map((b) => `"${b}"`).join(' ')}` : l)), '');
