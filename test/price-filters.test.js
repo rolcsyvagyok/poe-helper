@@ -356,3 +356,24 @@ test('a veiled mod is searched as the trade site\'s Veiled mod and starts ticked
   assert.equal(m.id, 'veiled.mod_63099');
   assert.equal(m.enabled, true);
 });
+
+test('a conqueror map is searched by its citadel (one trade stat for both lines), ticked', () => {
+  const stats = { result: [{ id: 'implicit', entries: [{ id: 'implicit.stat_2563183002|3', text: "Map contains Al-Hezmin's Citadel\nItem Quantity increases amount of Rewards Al-Hezmin drops by 20% of its value", type: 'implicit' }] }] };
+  const it = parseItem("Item Class: Maps\nRarity: Rare\nDesolate Inscription\nCrimson Temple Map\n--------\nMap Tier: 16\n--------\nItem Level: 83\n--------\nMap contains Al-Hezmin's Citadel (implicit)\nItem Quantity increases amount of Rewards Al-Hezmin drops by 20% of its value (implicit)\n");
+  const p = T.prepareSearch(stats, it, {});
+  const rows = p.mods.filter((m) => m.group === 'implicit');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].enabled, true);
+  assert.deepEqual(T.buildQuery(it, p.mods, { props: p.props }).query.stats[0].filters, [{ id: 'implicit.stat_2563183002', disabled: false, value: { option: 3 } }]);
+});
+
+test('a magic jewel: its base, magic only, its mod at its roll', () => {
+  const stats = { result: [{ id: 'explicit', entries: [{ id: 'explicit.stat_983749596', text: '#% increased maximum Life', type: 'explicit' }] }] };
+  const it = parseItem('Item Class: Jewels\nRarity: Magic\nVivid Crimson Jewel\n--------\nItem Level: 83\n--------\n{ Prefix Modifier "Vivid" (Tier: 1) — Life }\n7(5-7)% increased maximum Life\n');
+  assert.equal(it.baseType, 'Crimson Jewel');
+  const p = T.prepareSearch(stats, it, {});
+  const q = T.buildQuery(it, p.mods, { props: p.props }).query;
+  assert.equal(q.type, 'Crimson Jewel');
+  assert.equal(q.filters.type_filters.filters.rarity.option, 'magic');
+  assert.deepEqual(q.stats[0].filters, [{ id: 'explicit.stat_983749596', disabled: false, value: { min: 7 } }]);
+});

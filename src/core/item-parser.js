@@ -303,7 +303,13 @@ function parseItem(rawText) {
   // Gems: transfigured gems have a different name on the base line
   if (item.rarity === 'Gem' && /\bof\b/.test(item.typeLine || '')) item.transfigured = true;
 
-  if (item.rarity === 'Magic' && !item.baseType) item.baseType = item.typeLine;
+  if (item.rarity === 'Magic' && !item.baseType) {
+    // a magic name is "<prefix> <base> of <suffix>": the longest known base inside it ("Vivid Crimson Jewel" is a Crimson Jewel)
+    const name = String(item.typeLine || '');
+    let best = '';
+    for (const b of Object.keys(require('./base-classes.json'))) if (b.length > best.length && (` ${name} `).includes(` ${b} `)) best = b;
+    item.baseType = best || name;
+  }
   // Wickerman parts: the slot line ("Head") and the "Take this to the Wickerman" line aren't mods
   if (item.itemClass === 'Viscera') {
     // the trade site knows the part by its plain name: "Greater Hag's Stomach" is a "Hag's Stomach"

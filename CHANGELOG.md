@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.101 - 2026-11-15
+
+* Price check: conqueror maps (Al-Hezmin's, Baran's, Drox's, Veritania's Citadel) search by their citadel
+* Price check: magic items are compared with magic ones of the same base, at their own roll
+
+- Price check: a map that contains a conqueror's Citadel is searched with that Citadel ticked. Its two lines are one mod on the trade site, so it couldn't be ticked before.
+- Price check: magic items search their real base ("Vivid Crimson Jewel" is a Crimson Jewel), magic only, with their mods ticked at the roll they have (7% maximum Life is searched as 7% or more).
+
 ## 1.0.100 - 2026-11-15
 
 * [Base ranks] Fated rares follow your Tier 0 rank choice, identified or not

@@ -312,7 +312,7 @@ function buildQuery(item, mods, opts = {}) {
     // a transfigured gem is its base gem with a "discriminator" ("Ethereal Knives of the Massacre" ->
     // { option: 'Ethereal Knives', discriminator: 'alt_x' }), from the trade site's item list
     q.query.type = opts.gemType || item.typeLine;
-  } else if (useBase && item.baseType && kind !== 'magic') {
+  } else if (useBase && item.baseType && (kind !== 'magic' || item.baseType !== item.typeLine)) { // a magic item: when its base was found in its name
     q.query.type = item.baseType;
   }
 
@@ -388,7 +388,8 @@ function buildQuery(item, mods, opts = {}) {
   if (Object.keys(misc).length) q.query.filters.misc_filters = { filters: misc };
   if (kind === 'rare' || kind === 'magic') {
     const tf = q.query.filters.type_filters?.filters || {};
-    q.query.filters.type_filters = { filters: { ...tf, rarity: { option: 'nonunique' } } };
+    // a magic item is compared with magic ones only (its one or two mods are what it is)
+    q.query.filters.type_filters = { filters: { ...tf, rarity: { option: kind === 'magic' ? 'magic' : 'nonunique' } } };
   }
   // an unidentified unique is searched by its base: only uniques of it (not rares of the same base)
   if (kind === 'unique' && item.flags.unidentified) {
@@ -415,8 +416,13 @@ function itemRows(idx, item, tol) {
   const out = [];
   const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'];
   for (const kind of kinds) {
-    (item.mods[kind] || []).forEach((m, i) => {
+    const list = item.mods[kind] || [];
+    list.forEach((m, i) => {
       const opts = { unique: item.rarity === 'Unique' };
+      // a conqueror's map: "Map contains Al-Hezmin's Citadel" and its rewards line are one stat on the trade site
+      if (/^Item Quantity increases amount of Rewards .+ drops by/i.test(m) && /^Map contains .+'s Citadel$/i.test(list[i - 1] || '')) return;
+      const cit = /^Map contains .+'s Citadel$/i.test(m) ? Object.values(idx.implicit || {}).flat().find((e) => e.text.toLowerCase().startsWith(`${m.toLowerCase()}\n`)) : null;
+      if (cit) { out.push({ id: cit.id, text: m, display: null, value: null, negate: false, type: kind, group: kind, enabled: true, special: true, min: null, max: null, meta: null }); return; }
       const vp = /^Veiled (Prefix|Suffix)$/i.exec(m);
       // an unrevealed veiled mod: the trade site lists it as "Veiled" (prefix) or "of the Veil" (suffix)
       // Wickerman parts: the copy calls their buff an implicit, the trade site an explicit
@@ -497,7 +503,7 @@ function specialRules(mods, item, props, kind, tol) {
     const ids = { 'More Scarabs': 'pseudo.pseudo_map_more_scarab_drops', 'More Currency': 'pseudo.pseudo_map_more_currency_drops', 'More Divination Cards': 'pseudo.pseudo_map_more_card_drops', 'More Maps': 'pseudo.pseudo_map_more_map_drops' };
     const extra = Object.entries(ids).filter(([k]) => n(k)).map(([k, id]) => ({ id, text: `${k}: +${n(k)}%`, statText: `${k}: #%`, value: n(k), display: n(k), min: Math.floor(n(k) * (1 - tol)), max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: false }));
     if (props.mapTier) props.mapTier.on = true;
-    for (const m of mods) m.enabled = /^Area is influenced by/i.test(m.text || '');
+    for (const m of mods) m.enabled = /^Area is influenced by|^Map contains .+'s Citadel$/i.test(m.text || '') && !m.unmatched;
     return [...extra, ...mods];
   }
   // heist contracts: the job and its level, and whether the target is priceless
@@ -683,6 +689,13 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     let bRows = baseRows;
     if (/cluster jewel/i.test(item.baseType || '')) { bRows = specialRules(baseRows, item, bp, kind, tolerance); if (bp.ilvl) bp.ilvl.on = true; }
     presets = { active: 'finished', base: { mods: bRows, props: bp } };
+  }
+  // magic items: their one or two mods at the roll they have (a "7% maximum Life" jewel is searched as 7%+), no totals
+  if (kind === 'magic' && !/flask|tincture/i.test(cls) && !item.flags?.unidentified) {
+    for (const m of mods) {
+      if (m.group === 'pseudo') { m.enabled = false; continue; }
+      if (['explicit', 'crafted', 'fractured'].includes(m.group) && m.id && !m.unmatched && !LOW_VALUE.test(m.text || '')) { m.enabled = true; m.hidden = false; if (m.display != null) m.min = m.display; }
+    }
   }
   // every item is searched from its own item level up (86 and over is the same for every mod), maps excepted:
   // their tier is what counts
