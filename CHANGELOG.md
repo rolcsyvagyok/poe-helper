@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.95 - 2026-11-15
+
+* [My collection] "Tick from my Unique stash tab" ticks every unique you have in your Unique tab and hides the cheap collected bases
+
+- My collection: a new button reads your Unique stash tab on pathofexile.com (with your login from Settings) and ticks every unique in it. It only adds ticks, never removes one. Bases where you now have every unique and none is worth much are hidden in your filter right away (if "Remove not valuable from loot filter" is on).
+
 ## 1.0.94 - 2026-11-15
 
 * Price check: Exarch / Eater implicits and mods like item rarity no longer start ticked

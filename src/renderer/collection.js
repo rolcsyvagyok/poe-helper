@@ -24,6 +24,23 @@
     draw();
   }
 
+  async function fromStash(e) {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Reading your stash…';
+    try {
+      const r = await call('collection:fromStash');
+      if (r.note) toast(r.note);
+      else {
+        const hid = C.data?.on === false ? '' : ` · ${r.hidden?.length || 0} collected cheap base${(r.hidden?.length || 0) === 1 ? '' : 's'} hidden in your filter`;
+        toast((r.added.length ? `${r.added.length} new unique${r.added.length === 1 ? '' : 's'} ticked (${r.found} in your Unique tab)` : `All ${r.found} uniques in your Unique tab were already ticked`) + hid);
+      }
+      await render();
+    } catch (err) {
+      toast(/POESESSID|401|403|Account name/i.test(err.message || '') ? 'Log in to pathofexile.com in Settings first, then try again.' : `Could not read your stash: ${err.message}`);
+      btn.disabled = false; btn.textContent = 'Tick from my Unique stash tab';
+    }
+  }
+
   function draw() {
     const el = document.getElementById('page-collection');
     const d = C.data;
@@ -72,6 +89,7 @@
           seg('show', [['all', 'All'], ['missing', 'Missing'], ['have', 'Have']]),
           h('span', { class: 'muted' }, 'Sort'), seg('sort', [['group', 'Name'], ['base', 'Base'], ['price', 'Price']]),
           search,
+          h('button', { class: 'sm', title: 'Reads your Unique stash tab on pathofexile.com (needs your login in Settings) and ticks every unique in it. It never unticks one.', onclick: fromStash }, 'Tick from my Unique stash tab'),
           h('span', { class: 'spacer' }),
           h('label', { class: 'check', title: 'A base where you have every unique and none is worth more than the limit is hidden in your filter' },
             h('input', { type: 'checkbox', checked: d.on, onchange: async (e) => { const r = await call('collection:set', { on: e.target.checked }); d.on = r.on; const hid = new Set(r.hidden); for (const x of all) x.hiddenBase = hid.has(x.base); d.hiddenBases = r.hidden; toast(r.on ? `Collected cheap bases are removed from your filter (${r.hidden.length})` : 'Collected bases show again'); draw(); } }),

@@ -1269,6 +1269,7 @@ function registerIpc() {
   handle('campaignHide:set', (a) => services.setCampaignHide(a || {}));
   handle('collection:list', () => services.collectionList());
   handle('collection:set', (a) => services.setCollected(a || {}));
+  handle('collection:fromStash', () => services.collectionFromStash());
   handle('collection:get', () => services.refreshCollected(false).then((r) => ({ ...r, have: services.settings.get('uniqueCollection') || {} })));
   handle('maps:hide', (a) => services.setMapHide(a || {}));
   handle('currency:showAll', (on) => services.setShowAllCurrency(on));
