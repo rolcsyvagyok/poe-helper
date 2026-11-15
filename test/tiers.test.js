@@ -687,3 +687,12 @@ test('High variety uniques: a base stays only while one version (5+ listed) is w
   assert.ok(!plan.moves.some((m) => m.to === 'multispecialhigh'));
   assert.equal(idx.get('short bow').versions[0].name, 'Foulborn Quill Rain');
 });
+
+test('item tier rules for chosen rarities only', () => {
+  const M = require('../src/core/filter/manager');
+  const src = 'Show # $type->gear->tiered $tier->t5r1 !x\n\tUnidentifiedItemTier >= 5\n\tRarity Normal Magic Rare\n\tSetFontSize 45\n\nShow # $type->other $tier->t1\n\tRarity Normal Magic Rare\n';
+  const out = M.unidTierRarities(src, ['Rare']);
+  assert.match(out, /t5r1 !x\n\tUnidentifiedItemTier >= 5\n\tRarity Rare\n/);
+  assert.match(out, /\$type->other \$tier->t1\n\tRarity Normal Magic Rare/);
+  assert.match(M.unidTierRarities(src, []), /^#Show # \$type->gear->tiered/m);
+});

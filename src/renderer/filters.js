@@ -624,6 +624,9 @@ function renderTiers(body, view) {
       targets.length ? h('span', { class: 'small muted' }, 'Move to') : h('span', { class: 'small muted' }, 'This category only has special tiers, so bases can only be hidden'),
       targets.length ? sel : null,
       targets.length ? h('button', { class: 'primary', onclick: () => moveTo([...FB.selected], sel.value) }, 'Move') : null,
+      // uniques: one click to the main tiers
+      /^uniques$/.test(type.type) ? h('span', { class: 'row', style: { gap: '4px' } }, [['t1', 'S'], ['t2', 'A'], ['multispecialhigh', 'High variety'], ['t3', 'B+C'], ['hideable', 'D (hidden)']]
+        .filter(([tr]) => targets.some((t) => t.tier === tr)).map(([tr, l]) => h('button', { class: 'sm', title: `Move to ${tierName(targets.find((t) => t.tier === tr))}`, onclick: () => moveTo([...FB.selected], tr) }, l))) : null,
       h('button', { onclick: () => moveTo([...FB.selected], HIDE) }, 'Hide'),
       h('button', { class: 'quiet', onclick: () => { FB.selected.clear(); drawList(); } }, 'Clear')));
   }
@@ -731,7 +734,8 @@ function renderTiers(body, view) {
     const secs = sectionGroups(cards);
     if (secs) return secs;
     if (!/^uniques/.test(type.type)) return cards;
-    const ORDER = ['Yours', 'S', 'A', 'B+C', 'D', 'High variety'];
+    // by value: your tiers, S, A, High variety, B+C, D; FilterBlade's special cases folded away at the bottom
+    const ORDER = ['Yours', 'S', 'A', 'High variety', 'B+C', 'D'];
     const groups = new Map(ORDER.map((l) => [l, []]));
     const rest = [];
     type.tiers.forEach((t, i) => {
@@ -741,6 +745,14 @@ function renderTiers(body, view) {
       (u ? groups.get(u[0]) : rest).push([t, cards[i]]);
     });
     const out = [];
+    const anchor = (l) => `fb-uq-${l.replace(/[^a-z]/gi, '')}`;
+    const present = [...groups].filter(([, list]) => list.length).map(([l]) => l);
+    // jump links: the page is long
+    out.push(h('div', { class: 'fb-uq-jump row small' }, h('span', { class: 'muted' }, 'Jump to'),
+      [...present, ...(rest.length ? ['Special cases'] : [])].map((l) => h('button', { class: 'quiet sm', onclick: () => {
+        if (l === 'Special cases' && !FB.uqSpecialOpen) { FB.uqSpecialOpen = true; drawList(); }
+        setTimeout(() => document.getElementById(anchor(l))?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 30);
+      } }, l === 'Yours' ? 'Your tiers' : l))));
     for (const [letter, list] of groups) {
       if (!list.length) continue;
       const movable = list.filter(([t]) => t.hasBaseList && !t.special && !t.generated);
@@ -754,9 +766,36 @@ function renderTiers(body, view) {
         delete FB.prices[type.type];
         renderFilters();
       } }, `Combine into one ${letter} tier`) : null;
-      out.push(h('div', { class: 'fb-lettergroup' }, h('div', { class: 'fb-letter' }, h('b', {}, letter === 'Yours' ? 'Your tiers' : letter === 'High variety' ? 'High variety tiers' : `${letter} tier${list.length > 1 ? 's' : ''}`), h('span', { class: 'spacer' }), combine), list.map(([, c]) => c)));
+      // like FilterBlade: one tier per letter in view (S, A, High variety, B+C, D); FilterBlade's extra tiers of
+      // the same letter (A - jewels, D - early league, boss drops…) fold under it
+      const MAIN = { S: 't1', A: 't2', 'High variety': 'multispecialhigh', 'B+C': 't3', D: 'hideable' };
+      const mainOne = letter === 'Yours' ? null : list.find(([t]) => t.tier === MAIN[letter]) || list[0];
+      const extra = mainOne ? list.filter((x) => x !== mainOne) : [];
+      const moreOpen = !!FB.uqMore?.[letter] || extra.some(([t]) => FB.goto?.key === t.key || (FB.search.trim() && t.bases.some((b) => b.toLowerCase().includes(FB.search.trim().toLowerCase()))));
+      const more = extra.length ? h('div', { class: 'fb-letter', style: { borderBottom: 0, paddingTop: 0 } },
+        h('span', { class: 'small faint', style: { textTransform: 'none', letterSpacing: 0 } }, `Also ${letter}: ${extra.map(([t]) => `${tierName(t)} (${t.bases.length})`).join(', ')}`),
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'quiet sm', onclick: () => { FB.uqMore = { ...(FB.uqMore || {}), [letter]: !moreOpen }; drawList(); } }, moreOpen ? 'Fold' : 'Show')) : null;
+      const shown = mainOne ? [mainOne, ...(moreOpen ? extra : [])] : list;
+      out.push(h('div', { class: 'fb-lettergroup', id: anchor(letter) }, h('div', { class: 'fb-letter' }, h('b', {}, letter === 'Yours' ? 'Your tiers' : letter === 'High variety' ? 'High variety' : `${letter} tier`), h('span', { class: 'spacer' }), combine), shown.map(([, c]) => c), more));
     }
-    if (rest.length) out.push(h('div', { class: 'fb-lettergroup' }, h('div', { class: 'fb-letter' }, h('b', {}, 'Special cases')), rest.map(([, c]) => c)));
+    if (rest.length) {
+      // special cases (6-links, corrupted, Kaom's…): rules by property, mostly nothing to move. Folded; the
+      // ones that are switched off at your strictness and list nothing are in a second fold
+      const unused = rest.filter(([t]) => (t.off || t.state === 'Off') && !t.bases.length);
+      const used = rest.filter((x) => !unused.includes(x));
+      const open = !!FB.uqSpecialOpen || !!FB.search.trim() || rest.some(([t]) => FB.goto?.key === t.key || [...FB.selected].some((b) => t.bases.includes(b)));
+      const head = h('div', { class: 'fb-letter' }, h('b', {}, 'Special cases'),
+        h('span', { class: 'small faint', style: { textTransform: 'none', letterSpacing: 0 } }, `${used.length} in use${unused.length ? `, ${unused.length} switched off` : ''}`),
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'quiet sm', 'aria-expanded': String(open), onclick: () => { FB.uqSpecialOpen = !open; drawList(); } }, open ? 'Fold' : 'Show'));
+      const inner = !open ? null : [
+        used.map(([, c]) => c),
+        unused.length ? h('div', { class: 'fb-letter', style: { borderBottom: 0 } }, h('span', { class: 'small faint', style: { textTransform: 'none', letterSpacing: 0 } }, `Switched off at your strictness: ${unused.map(([t]) => tierName(t)).join(', ')}`), h('span', { class: 'spacer' }),
+          h('button', { class: 'quiet sm', onclick: () => { FB.uqUnusedOpen = !FB.uqUnusedOpen; drawList(); } }, FB.uqUnusedOpen ? 'Hide them' : 'Show them')) : null,
+        FB.uqUnusedOpen ? unused.map(([, c]) => c) : null];
+      out.push(h('div', { class: 'fb-lettergroup', id: anchor('Special cases') }, head, inner));
+    }
     return out;
   }
 
@@ -874,6 +913,9 @@ const RARE_LOOK_GROUPS = [
     ['corrupted', 'Corrupted and enchanted', '', [[/^exotic->(corruptions|enchanted|crucible|sockets)$/, /./]]],
     ['idmods', 'Identified with good mods', 'Rares and magic items FilterBlade keeps for their mods', [[/^(rareid|rareblendid|corruptedid|magicid)$/, /./]]],
     ['links', '6-links and sockets', '', [[/^(6l|socketslinks)$/, /./]]],
+    ['chancing', 'Chancing bases', 'Bases worth an Orb of Chance', [[/^chancing$/, /./]]],
+    ['fated', 'Fated gear highlight', 'The extra look Fated gear gets', [[/^decorators->(rareeg|leveling->rare)$/, /^fatedgear$/]]],
+    ['highlight', 'Highlights: big and small rares', 'FilterBlade\'s size highlights for rares (large, medium, tiny, 4-links, item level 83+)', [[/^decorators->(rareeg|leveling->rare|leveling->magic)$/, /^(?!fatedgear)/]]],
   ]],
 ];
 /** Rules from the price check's "Hide…" (and older extra rules), with on/off and delete. */
@@ -942,7 +984,7 @@ function renderRareLooks(body, view) {
       const draw = () => mount(preview, dropLabel(SAMPLE[id] || 'Vaal Regalia', isEditing ? FB.draft : first.style, { rarity: id === 'craftilvl' || id === 'quality' ? 'Normal' : 'Rare', game: true, scale: 0.8 }), soundButton(window.UI.normalizeStyle(isEditing ? FB.draft : first.style).sound));
       draw();
       const keys = tiersOf.map((t) => t.key);
-      return h('div', { class: 'fb-tier' },
+      return h('div', { class: 'fb-tier rl-card' },
         h('div', { class: 'fb-tier-head ground' }, preview,
           h('div', { class: 'fb-tier-meta' },
             h('div', { class: 'fb-tier-name' }, name, mine ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null,
@@ -961,7 +1003,10 @@ function renderRareLooks(body, view) {
     h('aside', {}, cats),
     h('div', {},
       h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('sparkle', { size: 22 })), h('h2', {}, 'Rare looks'),
-        h('span', { class: 'small muted' }, 'One look for each kind of rare and gear drop. A look here goes on every FilterBlade rule of that kind; which bases show stays with Base ranks and your filter.')),
+        h('span', { class: 'small muted' }, 'One look for each kind of rare and gear drop. A look here goes on every FilterBlade rule of that kind; which bases show stays with Base ranks and your filter.'),
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'sm', title: 'Give every card here the colours of your Tier designer theme: the best kinds get its Tier 2 look, then Tier 3, 4, 5, 6. Applying a theme in the Tier designer does this too.',
+          onclick: async () => { const r = await call('rarelooks:theme'); toast(`${r.count} rare rules use your theme's colours now. Select the filter in game again`); renderFilters(); } }, 'Use my theme\'s colours')),
       sections)));
 }
 
@@ -1516,6 +1561,27 @@ async function renderBaseMatrix(body, view) {
       setTimeout(() => el.classList.remove('bm-pulse'), 3200);
     }, 120);
   }
+  // white and blue drops: FilterBlade shows them by item tier and rank like rares; one switch to keep them off
+  const whiteBlueRow = (data.hasUnidTiers || data.unidTiers) ? (() => {
+    const rar = data.unidRarity || ['Normal', 'Magic', 'Rare'];
+    const cur = rar.includes('Normal') && rar.includes('Magic') ? 'all' : rar.includes('Magic') ? 'magic' : 'rares';
+    const set = async (v) => {
+      const want = v === 'all' ? null : v === 'magic' ? ['Magic', 'Rare'] : ['Rare'];
+      const r = await call('ranks:kind', { unidRarity: want });
+      S.settings.rankUnidRarity = r.unidRarity;
+      toast(v === 'all' ? 'White and blue items show by rank again (FilterBlade)' : v === 'magic' ? 'White items no longer show by rank' : 'Only rares show by rank now; white and blue items are left to your filter');
+      renderFilters();
+    };
+    const opt = (v, label, tip) => h('button', { class: cur === v ? 'on' : '', 'aria-pressed': cur === v ? 'true' : 'false', title: tip, onclick: () => cur !== v && set(v) }, label);
+    return h('div', { class: 'row small', style: { gap: '10px' } },
+      h('span', { class: 'muted' }, 'Ranked bases show as'),
+      h('div', { class: 'fb-vis', role: 'group', 'aria-label': 'Which rarities your ranks show' },
+        opt('rares', 'Rares only', 'White and blue items of your ranked bases aren\'t shown by rank; your filter decides (it hides most in maps)'),
+        opt('magic', 'Rares and magic', 'No white items by rank'),
+        opt('all', 'White, magic and rare', 'FilterBlade\'s way: every rarity shows by item tier and rank')),
+      h('span', { class: 'faint' }, cur === 'all' ? 'S tier white bases show too.' : cur === 'magic' ? 'White bases are left to your filter.' : 'White and blue bases are left to your filter.'));
+  })() : null;
+
   mount(body, h('div', { class: 'fb' },
     h('aside', {}, cats),
     h('div', {},
@@ -1531,6 +1597,7 @@ async function renderBaseMatrix(body, view) {
       sectionTabs,
       h('div', { class: 'panel bm-tools' },
         h('div', { class: 'row', style: { gap: '10px' } }, part === 'gear' ? pick : null, rankToggle, h('span', { class: 'small muted' }, 'Brush:'), brushBar),
+        whiteBlueRow,
         h('div', { class: 'row small', style: { gap: '14px' } },
           h('label', { class: 'check' }, mapsOnly, 'Hide only in maps (area level 68+)'),
           h('label', { class: 'row', style: { gap: '6px' } }, 'Keep item level', keep, 'and above'),
@@ -1665,13 +1732,13 @@ const CATEGORIES = [
   ['Rare items', [
     { id: 'mybases', name: 'My bases', match: [], special: 'mybases', art: null, icon: 'hammer' },
     { id: 'basevis', name: 'Base ranks', match: [], special: 'matrix', art: 'Fracturing Orb', icon: 'eye' },
-    { id: 'chancing', name: 'Chancing bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
-    { id: 'raretiers', name: 'Rares by base', match: ['rr'], art: 'Chaos Orb', icon: 'sword' },
+    { id: 'chancing', inTable: true, name: 'Chancing bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
+    { id: 'raretiers', inTable: true, name: 'Rares by base', match: ['rr'], art: 'Chaos Orb', icon: 'sword' },
     { id: 'rarelooks', name: 'Rare looks', match: [], special: 'rarelooks', art: 'Orb of Alchemy', icon: 'sparkle' },
-    { id: 'unidgear', name: 'Unidentified & stranded gear', match: ['gear->tiered', 'gear->memorystrand'], art: 'Scroll of Wisdom', icon: 'sword' },
+    { id: 'unidgear', inTable: true, name: 'Unidentified & stranded gear', match: ['gear->tiered', 'gear->memorystrand'], art: 'Scroll of Wisdom', icon: 'sword' },
     { id: 'recipes', name: 'Vendor recipes', match: ['6l', 'socketslinks', 'endgamergb'], art: 'Chromatic Orb', icon: 'link' },
     { id: 'flasks', name: 'Flasks & tinctures', match: ['endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
-    { id: 'highlight', name: 'Highlight specific bases', match: ['decorators'], art: 'Orb of Annulment', icon: 'sparkle' },
+    { id: 'highlight', inTable: true, name: 'Highlight specific bases', match: ['decorators'], art: 'Orb of Annulment', icon: 'sparkle' },
   ]],
   ['Jewels', [
     { id: 'jewels', name: 'Normal jewels', match: ['jewels', 'jewels->generic', 'jewels->special', 'jewels->leveling'], order: ['jewels->generic', 'jewels->special', 'jewels->leveling'], art: ['Cobalt Jewel', 'Crimson Jewel'], icon: 'hex' },
@@ -2122,7 +2189,9 @@ function sidebar(view, changedTypes) {
   if (mini) {
     return withResizer(h('nav', { class: 'fb-cats fb-cats-v2 mini', 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, miniBtn,
       sections.map(([title, cats]) => {
-        const present = cats.filter((c) => byCat.has(c.id) || c.special);
+        // categories Base ranks and Rare looks cover aren't listed (Rares by base, Unidentified & stranded gear,
+        // Chancing bases, Highlight specific bases): their bases come from Base ranks, their looks from Rare looks
+        const present = cats.filter((c) => (byCat.has(c.id) || c.special) && !c.inTable);
         if (!present.length) return null;
         return h('div', { class: 'fb-sec', title }, h('div', { class: 'fb-sec-title' }),
           h('div', { class: 'fb-sec-body' }, present.map((c) => (c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : catRow(c, byCat.get(c.id))))));
@@ -2132,7 +2201,7 @@ function sidebar(view, changedTypes) {
     editing ? h('p', { class: 'small muted', style: { margin: 0 } }, 'Rename categories, reorder them, add your own, and drag subcategories between them. This only changes how the list is organised, not your filter.') : null,
     !editing && pinned.length ? h('div', { class: 'fb-sec pinned' }, h('div', { class: 'fb-sec-title' }, 'Pinned'), h('div', { class: 'fb-sec-body' }, pinned.map((t) => row(t)))) : null,
     sections.map(([title, cats]) => {
-      const present = editing ? cats : cats.filter((c) => byCat.has(c.id) || c.special);
+      const present = editing ? cats : cats.filter((c) => (byCat.has(c.id) || c.special) && !c.inTable);
       if (!present.length) return null;
       return h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-title' }, title),
         h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : catRow(c, byCat.get(c.id))))),

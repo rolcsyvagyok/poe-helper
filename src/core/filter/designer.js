@@ -168,14 +168,38 @@ function lockTier1(levels) {
  * @param view    tierView() result
  * @param groups  top-level category names to include (e.g. ['currency','divination']); null = all
  */
+/**
+ * Rares and gear (Loot filter → Rare looks): which design level each kind gets. Their FilterBlade names don't
+ * say the level ("t5r1" is the best unidentified tier, not level 5), so they're mapped here. Tier 1 (white)
+ * stays for the top currency; the best rares start at level 2.
+ */
+const RARE_LEVELS = [
+  [/^gear->tiered$/, /^t5r\d$/, 2], [/^gear->tiered$/, /^t4r\d$/, 3], [/^gear->tiered$/, /^t3r\d$/, 4], [/^gear->tiered$/, /^t2r\d$/, 5],
+  [/^gear->tiered$/, /^(any\d|specialclasses)$/, 6], [/^gear->(tiered|memorystrand)$/, /^stranded/, 2],
+  [/^rr(->|$)/, /^t1f?$/, 2], [/^rr(->|$)/, /^t2f?$/, 3], [/^rr(->|$)/, /^t3$/, 4], [/^rr(->|$)/, /^t[45]$/, 5],
+  [/^gear->memorystrand$/, /^(t\dhigh|anyhigh)$/, 2], [/^gear->memorystrand$/, /^(t\d|any)$/, 3],
+  [/^influenced/, /./, 3], [/^exotic->fractured$/, /./, 3], [/^rare->exotic->veiled$/, /./, 4], [/^rare->(exarch|eater)$/, /./, 4],
+  [/^exoticbases$/, /./, 4], [/^(rareid|rareblendid|corruptedid|magicid)$/, /./, 4],
+  [/^crafting->(qualityperfection|generalgear)$/, /./, 5], [/^exotic->(corruptions|enchanted|crucible|sockets)$/, /./, 5],
+  [/^(6l|socketslinks)$/, /./, 5], [/^chancing$/, /./, 5],
+];
+const NO_DESIGN = /^decorators(->|$)/; // FilterBlade's size highlights: only their own look
+function rareLevel(type, tier) {
+  const hit = RARE_LEVELS.find(([tr, xr]) => tr.test(type) && xr.test(tier));
+  return hit ? hit[2] : undefined;
+}
+
 function targetsFor(view, groups = null) {
   const out = [];
   for (const t of view.types) {
     const g = t.type.split('->')[0];
     if (groups && !groups.includes(g)) continue;
+    if (NO_DESIGN.test(t.type)) continue;
     for (const tier of t.tiers) {
-      if (tier.special || tier.generated) continue;
-      const level = tierLevel(tier.tier);
+      if (tier.generated) continue;
+      const rl = rareLevel(t.type, tier.tier);
+      if (tier.special && rl === undefined) continue;
+      const level = rl !== undefined ? rl : tierLevel(tier.tier);
       if (!level || !LEVELS.includes(level)) continue;
       out.push({ key: tier.key, type: t.type, tier: tier.tier, level });
     }
@@ -329,4 +353,4 @@ function paletteColours(origView, styles, levels) {
   return n;
 }
 
-module.exports = { paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { RARE_LEVELS, rareLevel, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

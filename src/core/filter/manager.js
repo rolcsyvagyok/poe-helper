@@ -429,6 +429,33 @@ function rankUnidTiers(text, ranks = {}, tiers = {}, names = []) {
 }
 
 /**
+ * The item tier rules ($type->gear->tiered) only for the rarities you pick (["Rare"] = no white or blue items
+ * through them). None picked switches the rules off.
+ */
+function unidTierRarities(text, rarities = []) {
+  const keep = ['Normal', 'Magic', 'Rare'].filter((r) => rarities.includes(r));
+  const lines = text.split(/\r?\n/);
+  const head = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^#?\s*(?:Show|Hide|Minimal)\b.*\$type->gear->tiered\b/.test(lines[i])) continue;
+    let end = i + 1;
+    while (end < lines.length && lines[end].trim() !== '' && !head(lines[end])) end += 1;
+    for (let k = i + 1; k < end; k += 1) {
+      const m = /^(#?\s*)Rarity\s+(?:==\s+)?(.*)$/.exec(lines[k]);
+      if (!m) continue;
+      const had = m[2].split(/\s+/).filter(Boolean);
+      const now = had.filter((r) => keep.includes(r));
+      if (now.length === had.length) break;
+      if (!now.length) { for (let j = i; j < end; j += 1) if (!lines[j].startsWith('#')) lines[j] = `#${lines[j]}`; break; }
+      lines[k] = `${m[1]}Rarity ${now.join(' ')}`;
+      break;
+    }
+    i = end - 1;
+  }
+  return lines.join('\n');
+}
+
+/**
  * Memory Strand gear (FilterBlade [0903]): rows t1 / t2 / t3 (each with a "high" twin for many strands) and
  * "any". With your ranks: t1 = rank S bases, t2 = A, t3 = B, any = every base. mins: { S: 15, A: 20, B: 60,
  * C: 'off' } is the fewest strands shown per row ('off' hides the row; a missing rank keeps FilterBlade's
@@ -971,6 +998,9 @@ class FilterManager {
     if (this.store.get('categoryIcons2') !== false) text = categoryIconShapes(text);
     if (this.store.get('rankRareTiers') !== false) text = rankFatedTiers(text, this.store.get('baseRanks') || {}, RANKED_NAMES);
     // unidentified items by item tier: FilterBlade's own rules, with your ranks and lowest tiers
+    // which rarities the item tier rules take (FilterBlade: normal, magic and rare)
+    const unidRar = this.store.get('rankUnidRarity');
+    if (Array.isArray(unidRar) && unidRar.length < 3) text = unidTierRarities(text, unidRar);
     const unidTiers = this.store.get('rankUnidTier');
     if (unidTiers) text = rankUnidTiers(text, this.store.get('baseRanks') || {}, unidTiers, RANKED_NAMES);
     const strands = this.store.get('rankStrands');
@@ -1079,4 +1109,4 @@ class FilterManager {
   }
 }
 
-module.exports = { rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

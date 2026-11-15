@@ -32,3 +32,13 @@ test('items drawn in a tier colour of the filter take that tier colour from the 
   assert.deepEqual(styles['currency|special'], { text: [1, 1, 1, 255], border: [2, 2, 2, 255], background: [3, 3, 3, 255], fontSize: 40, sound: { id: 3, volume: 300 } });
   assert.equal(styles['currency|other'], undefined);
 });
+
+test('rares follow the design by kind: the best unidentified tier gets level 2, not level 5', () => {
+  const D = require('../src/core/filter/designer');
+  assert.equal(D.rareLevel('gear->tiered', 't5r1'), 2);
+  assert.equal(D.rareLevel('gear->tiered', 't2r3'), 5);
+  assert.equal(D.rareLevel('rr', 't1f'), 2);
+  const view = { types: [{ type: 'gear->tiered', tiers: [{ tier: 't5r1', key: 'a' }] }, { type: 'decorators->rareeg', tiers: [{ tier: 'largerares', key: 'b' }] }] };
+  const t = D.targetsFor(view);
+  assert.deepEqual(t.map((x) => [x.key, x.level]), [['a', 2]]);
+});

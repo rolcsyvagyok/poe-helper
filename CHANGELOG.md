@@ -3,6 +3,17 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.87 - 2026-11-15
+
+- Loot filter, Rare items: Rares by base, Unidentified & stranded gear, Chancing bases and Highlight specific bases aren't listed any more. Base ranks sets which bases show; Rare looks sets their looks.
+- Rare looks has three more cards: Chancing bases, Fated gear highlight and FilterBlade's size highlights for rares.
+- Rare looks → "Use my theme's colours": every rare and gear kind gets your Tier designer theme's looks: unidentified Tier 5 and rank S rares its Tier 2 look, then Tier 3, 4, 5, 6 down to "any base". Applying a theme in the Tier designer does the same, so rares follow your palette.
+- Tier designer: unidentified item tiers and rares by base got the wrong level of a theme ("Tier 5" took the 5th look, rank S rares the white Tier 1 look); they're mapped by how good they are now, and FilterBlade's size highlights keep their own look.
+- Rare looks cards fit narrow windows (the name and button go under the preview).
+- Loot filter → Unique items works like FilterBlade's: one tier each for S, A, High variety, B+C and D (hidden), in value order, plus your own tiers. FilterBlade's extra tiers of the same letter (A - jewels, boss drops, early league…) fold under it, and its special cases (6-links, Kaom's, synthesised, corrupted…) fold at the bottom. A "Jump to" bar stays at the top.
+- Base ranks: a "Ranked bases show as" switch right under the brushes: Rares only, Rares and magic, or White, magic and rare (FilterBlade's way, so S tier white bases show too). It starts on Rares only.
+- Moving uniques: click bases to select them; the bar at the bottom has one-click S, A, High variety, B+C and D (hidden), next to the full list.
+
 ## 1.0.86 - 2026-11-15
 
 - Uniques → High variety: the price review had filled "top multi-bases" with bases whose uniques are all about 1c (it went by the cheapest unique). High variety tiers now keep a base only while one of its versions is worth it (20c+ for top multi-bases, 5c+ for multi-bases), counting only prices with 5 or more listings. The next price review moves the others back to where FilterBlade had them.
