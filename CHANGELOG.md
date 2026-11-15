@@ -3,6 +3,13 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.88 - 2026-11-15
+
+- Rare looks take your Tier designer theme's colours on their own now (once on update, and every time you apply a theme). The button is still there to do it again.
+- Base ranks → Unid item tier and Memory Strands: no more "Filter decides / My choice"; your choice is always on, starting from what FilterBlade shows at Semi-Strict.
+- Influenced and fractured items your Base ranks show get the influenced / fractured look (the one on Rare looks) instead of the rank colours, so an influenced rank D shield no longer looks like a plain dark red D base.
+- Tier 0 lists its choices in the same order as the item tiers: Only S bases, A and up, B and up, C and up, Every base, Nothing.
+
 ## 1.0.87 - 2026-11-15
 
 - Loot filter, Rare items: Rares by base, Unidentified & stranded gear, Chancing bases and Highlight specific bases aren't listed any more. Base ranks sets which bases show; Rare looks sets their looks.

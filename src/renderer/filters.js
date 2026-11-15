@@ -1434,9 +1434,8 @@ async function renderBaseMatrix(body, view) {
       return out;
     };
     const save = async (v) => { const r = await call('ranks:kind', { unidTiers: v }); unidTiers = r.unidTiers; S.settings.rankUnidTier = unidTiers; renderFilters(); };
-    const mode = h('select', { 'aria-label': 'Unidentified item tier: who decides', onchange: (e) => save(e.target.value === 'off' ? null : { ...DEFAULT_UNID }) },
-      h('option', { value: 'off', selected: !unidTiers }, 'Filter decides'), h('option', { value: 'mine', selected: !!unidTiers }, 'My choice (below)'));
-    const bt = byTier(unidTiers);
+    const mode = null; // always your choice (no "Filter decides")
+    const bt = byTier(unidTiers || DEFAULT_UNID);
     const set = (tier, who) => {
       const next = { ...bt, [tier]: who };
       // a higher tier always shows at least what a lower one does
@@ -1444,11 +1443,12 @@ async function renderBaseMatrix(body, view) {
       save(toRanks(next));
     };
     // Tier 0: plain rares without an item tier (identified, or from before 3.30): the "Rares" rank choice
-    const R0 = [['off', 'Filter decides'], ['D', 'Every base'], ['C', 'C and up'], ['B', 'B and up'], ['A', 'A and up'], ['S', 'Only S bases'], ['none', 'Nothing']];
+    // the same order as the item tiers (best first); "Every base" is what FilterBlade does on its own
+    const R0 = [['S', 'Only S bases'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'C and up'], ['D', 'Every base'], ['none', 'Nothing']];
     const tier0 = h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } }, h('span', { title: 'Plain rares without an item tier: identified ones, and any the item tier rules don\'t take' }, 'Tier 0'),
       h('select', { 'aria-label': 'Tier 0, plain rares without an item tier: which bases are shown', onchange: async (e) => { const r = await call('ranks:kind', { kind: 'rares', min: e.target.value }); kinds = r.kinds; S.settings.rankKinds = kinds; toast('Tier 0 rares saved'); } },
-        R0.map(([v, l]) => h('option', { value: v, selected: (kinds.rares || 'off') === v }, l))));
-    const per = h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } }, !unidTiers ? null : TIERS.map((t) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
+        R0.map(([v, l]) => h('option', { value: v, selected: ((!kinds.rares || kinds.rares === 'off') ? 'D' : kinds.rares) === v }, l))));
+    const per = h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } }, TIERS.map((t) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
       h('span', {}, t === 5 ? 'Tier 5' : `Tier ${t}`),
       h('select', { 'aria-label': `Unidentified item tier ${t}: which bases are shown`, onchange: (e) => set(t, e.target.value) },
         WHO.map(([v, l]) => h('option', { value: v, selected: bt[t] === v }, l))),
@@ -1464,9 +1464,9 @@ async function renderBaseMatrix(body, view) {
     const DEFAULT = { S: 15, A: 20, B: 60, C: 'off' }; // FilterBlade at Semi-Strict
     const OPTS = [['off', 'Hidden'], ...[1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80].map((n) => [String(n), `${n}+ strands`])];
     const save = async (v) => { const r = await call('ranks:kind', { strands: v }); strands = r.strands; S.settings.rankStrands = strands; renderFilters(); };
-    const mode = h('select', { 'aria-label': 'Memory Strands: who decides', onchange: (e) => save(e.target.value === 'off' ? null : { ...DEFAULT }) },
-      h('option', { value: 'off', selected: !strands }, 'Filter decides'), h('option', { value: 'mine', selected: !!strands }, 'My choice (below)'));
-    const per = !strands ? null : h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } },
+    const mode = null; // always your choice
+    if (!strands) strands = { ...DEFAULT };
+    const per = h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } },
       [['S', 'Rank S'], ['A', 'Rank A'], ['B', 'Rank B'], ['C', 'Every other base']].map(([r, label]) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
         h('span', {}, label),
         h('select', { 'aria-label': `Memory Strands, ${label}: fewest strands shown`, onchange: (e) => save({ ...strands, [r]: e.target.value }) },

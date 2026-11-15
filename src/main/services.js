@@ -695,7 +695,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -2173,6 +2173,20 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       }
       if (changed && filters.basePath()) filters.write();
     } catch (e) { log('filter visibility', e.message); }
+  }
+  // 1.0.88: unidentified item tiers and Memory Strands are always your choice (no "Filter decides"):
+  // start from what FilterBlade shows at Semi-Strict; rare looks take your theme's colours once
+  if (!settings.get('myChoiceV1')) {
+    settings.set('myChoiceV1', true);
+    let changed = false;
+    if (!settings.get('rankUnidTier')) { settings.set('rankUnidTier', { S: 2, A: 2, B: 2, C: 3 }); changed = true; }
+    if (!settings.get('rankStrands')) { settings.set('rankStrands', { S: 15, A: 20, B: 60, C: 'off' }); changed = true; }
+    try { if (changed && filters.basePath()) filters.write(); } catch (e) { log('my choice', e.message); }
+  }
+  if (!settings.get('rareThemeV1')) {
+    settings.set('rareThemeV1', true);
+    const d = settings.get('designer');
+    try { if ((d?.levels || d?.presetId) && filters.basePath()) rareLooksFromTheme(); } catch (e) { log('rare theme', e.message); }
   }
   // 1.0.67: stacked currency, and other items drawn in one of the tier colours, take your design's colours (only the colours); put on once
   if (!settings.get('stackedDesignV1')) {

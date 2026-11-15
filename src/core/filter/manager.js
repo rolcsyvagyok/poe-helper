@@ -680,7 +680,24 @@ function rareTierMoves(baseText, ranks, names) {
   return out;
 }
 
-function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {}, unidTiers = false, strands = false } = {}) {
+/**
+ * Influenced and fractured drops your ranks show take the look of the filter's own influenced / fractured rules
+ * (Loot filter → Rare looks), not the rank colours: an influenced D rank base still looks influenced.
+ */
+function kindLooksOf(text) {
+  const out = {};
+  try {
+    const types = tierView(text, {}).types;
+    const first = (type) => { const t = types.find((x) => x.type === type); const tier = t && (t.tiers.find((x) => !x.off && x.action !== 'Hide' && x.style && Object.keys(x.style).length)); return tier ? tier.style : null; };
+    const inf = first('influenced->all');
+    const frac = first('exotic->fractured');
+    if (inf) out.influenced = inf;
+    if (frac) out.fractured = frac;
+  } catch { /* rank colours */ }
+  return out;
+}
+
+function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {}, unidTiers = false, strands = false, kindLooks = {} } = {}) {
   const out = [];
   const endgame = [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }];
   const area = mapsOnly ? endgame : [];
@@ -698,7 +715,7 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
       // rares keep FilterBlade's own tiers and looks: the rank only decides what is hidden
       // lookRarity: only these rarities get the rank look (magic high ilvl bases keep the filter's look)
       const showConds = k.lookRarity ? conds.map((c) => (c.keyword === 'Rarity' ? { ...c, values: k.lookRarity } : c)) : conds;
-      if (list.length && !k.filterLook) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...showConds, ...endgame, { keyword: 'BaseType', op: '==', values: list }], style: RANK_LOOKS[r] });
+      if (list.length && !k.filterLook) out.push({ id: `rank-${k.id}-${r}`, enabled: true, action: 'Show', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()}, rank ${r}`, conditions: [...showConds, ...endgame, { keyword: 'BaseType', op: '==', values: list }], style: kindLooks[k.id] || RANK_LOOKS[r] });
     }
     const drop = bases.filter((b) => !keep.includes(rankOf(ranks, b))).sort();
     // 3.30: unidentified drops are decided by the unid item tiers (Base ranks → Unid item tier), so the
@@ -1012,7 +1029,7 @@ class FilterManager {
     const hidden = hiddenBaseRules(baseText, patch, { fractured: !!this.store.get('hideFractured'), synthesised: !!this.store.get('hideSynthesised') });
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
-    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {}, unidTiers: /^\s*UnidentifiedItemTier\b/m.test(text), strands: /^\s*MemoryStrands\b/m.test(text) });
+    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {}, unidTiers: /^\s*UnidentifiedItemTier\b/m.test(text), strands: /^\s*MemoryStrands\b/m.test(text), kindLooks: kindLooksOf(text) });
     const unid = []; // (unidentified item tiers are FilterBlade's own rules now, see rankUnidTiers)
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
