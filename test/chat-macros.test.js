@@ -36,3 +36,18 @@ test('chat macros switched off take no keys', () => {
   assert.equal(m.refresh().on, false);
   assert.equal(reg.size, 0);
 });
+
+test('a macro clears the chat line first (a waiting ^ and anything typed), unless switched off', async () => {
+  const sent = [];
+  let front = true;
+  const handlers = {};
+  const base = { globalShortcut: { register: (k, f) => { handlers[k] = f; return true; }, unregister: () => {} }, clipboard: {}, keys: { hasKeySender: () => true, sendChat: async (text, o) => { sent.push(o.clear); } }, foreground: { poeInFront: () => front } };
+  const store = new Map([['chatMacros', [{ key: 'F2', text: '/hideout', send: true }]]]);
+  const cm = createChatMacros({ ...base, settings: { get: (k) => store.get(k), set: () => {} } });
+  cm.refresh();
+  await handlers.F2();
+  store.set('chatMacroClear', false);
+  await handlers.F2();
+  cm.stop();
+  assert.deepEqual(sent, [true, false]);
+});

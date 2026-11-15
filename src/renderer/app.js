@@ -244,6 +244,7 @@ const NOTE_PLACES = [
   [/Path of Building|\bPoB\b/, 'Path of Building', { page: 'pob' }],
   [/Trade searches/i, 'Trade searches', { page: 'trade' }],
   [/Settings/, 'Settings', { page: 'settings' }],
+  [/Chat macros/, 'Chat macros', { page: 'macros' }],
 ];
 function noteGo(t) {
   if (t.page) return go(t.page);
@@ -320,7 +321,10 @@ async function renderMacros() {
     h('p', { class: 'muted' }, 'Press a key in game: PoE Helper presses Enter, types your text and presses Enter again, just like typing it yourself. One key press sends one message. The keys only work while Path of Exile is the active window, so F1 to F5 still do their normal thing in every other app.'),
     h('div', { class: 'panel stack', style: { maxWidth: '760px' } },
       toggle(st.chatMacrosOn !== false, async (v) => { await call('settings:set', { chatMacrosOn: v }); toast(v ? 'Chat macros on' : 'Chat macros off'); renderMacros(); }, 'Use chat macros'),
-      st.chatMacrosOn !== false ? [ideas, ...list.map(row)] : h('p', { class: 'small muted' }, 'Off: F1 to F5 are left alone, also in game.'),
+      st.chatMacrosOn !== false ? [ideas, ...list.map(row),
+        h('label', { class: 'check small', title: 'After Enter the macro presses Backspace twice before typing, so a waiting ^ (or another accent key) doesn\'t end up in front of the text.' },
+          h('input', { type: 'checkbox', checked: st.chatMacroClear !== false, onchange: async (e) => { await call('settings:set', { chatMacroClear: e.target.checked }); toast(e.target.checked ? 'Macros clear the chat line first' : 'Macros type straight away'); } }),
+          h('span', {}, 'Press Backspace twice before the text (removes a waiting ^)'))] : h('p', { class: 'small muted' }, 'Off: F1 to F5 are left alone, also in game.'),
       st.keySender === false ? h('p', { class: 'small warn' }, 'Chat macros need the key sender (uiohook-napi), which isn\'t available in this copy.') : null,
       h('p', { class: 'small faint' }, 'Tip: start typing in a box for ideas like /exit, /hideout, /kingsmarch or @last. Your clipboard is put back after each macro.')));
 }

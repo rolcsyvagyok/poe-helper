@@ -55,7 +55,7 @@ async function sendCopy({ advanced = false, held = [] } = {}) {
  * A chat message: Enter opens the chat, the text goes in by paste (works with any keyboard layout), Enter
  * sends it. Your clipboard is put back afterwards. send: false leaves it typed, e.g. "@last " for a reply.
  */
-async function sendChat(text, { send = true, clipboard } = {}) {
+async function sendChat(text, { send = true, clipboard, clear = true } = {}) {
   if (!hook || !clipboard) return false;
   const { uIOhook, UiohookKey } = hook;
   const before = clipboard.readText();
@@ -63,6 +63,11 @@ async function sendChat(text, { send = true, clipboard } = {}) {
   clipboard.writeText(text);
   uIOhook.keyTap(UiohookKey.Enter);
   await wait(60);
+  if (clear) {
+    // Enter, Backspace, Backspace, then the text: the first Backspace drops a waiting "^" (or another accent
+    // key), the second anything left in front of the text
+    for (let i = 0; i < 2; i += 1) { uIOhook.keyTap(UiohookKey.Backspace); await wait(30); }
+  }
   uIOhook.keyTap(UiohookKey.V, [UiohookKey.Ctrl]);
   await wait(60);
   if (send) uIOhook.keyTap(UiohookKey.Enter);

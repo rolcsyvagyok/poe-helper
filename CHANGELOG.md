@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.92 - 2026-11-15
+
+* [Chat macros] Chat macros press Backspace twice before the text, so a stray ^ no longer ends up in front of /hideout
+
+- Chat macros: Enter, Backspace, Backspace, then your text. The Backspaces drop a waiting ^ (or another accent key). A tick box on the Chat macros page turns it off.
+
 ## 1.0.91 - 2026-11-15
 
 * [My collection] My collection looks like the game's Unique stash tab, with a tile and a percentage per category

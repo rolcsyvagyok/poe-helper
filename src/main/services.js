@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS = {
   hotkeyPobTest: '', // copy the item under the mouse and test it against your build on the Path of Building page (off until you pick one) // save a Path of Building snapshot of your character (off until you pick one)
   defaultGuidesDone: [], // the built-in levelling guides already imported (by link)
   chatMacrosOn: true, // F1-F5 chat macros, only while Path of Exile is the active window
+  chatMacroClear: true, // before a macro's text: let out a waiting ^ (accent key) and empty the chat line
   chatMacros: [{ key: 'F1', text: '/exit', send: true }, { key: 'F2', text: '/hideout', send: true }, { key: 'F3', text: '', send: true }, { key: 'F4', text: '', send: true }, { key: 'F5', text: '', send: true }],
   pobCompareOn: true, // the price check also shows what the item does to your build (Path of Building); off: PoB isn't started for it
   hotkeyLab: 'Alt+L', // daily lab overlay: pick a difficulty, see today's layout from poelab
@@ -746,7 +747,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // Only these go in the file: hotkeys, chat macros, overlay and price check choices, the Regex page,
   // saved trade searches, the lab overlay. Never your account, login (POESESSID), league, folders on
   // your PC (Path of Exile, Path of Building, the filter), history, net worth or caches.
-  const APP_KEYS = ['uiTheme', 'hotkeyPrice', 'hotkeySnapshot', 'hotkeyPobTest', 'chatMacrosOn', 'chatMacros', 'pobCompareOn',
+  const APP_KEYS = ['uiTheme', 'hotkeyPrice', 'hotkeySnapshot', 'hotkeyPobTest', 'chatMacrosOn', 'chatMacroClear', 'chatMacros', 'pobCompareOn',
     'hotkeyLab', 'labFavorite', 'labOpacity', 'clipboardMode', 'restoreClipboard', 'overlayCloseOnMouseAway', 'minimizeToTray',
     'appIconStyle', 'regexMaps', 'regexGems', 'regexGemClass', 'regexCampaign', 'regexItems', 'regexBeasts', 'regexFavMods',
     'regexTrade', 'regexPresets', 'dailyGggBudget', 'ninjaTtlMin', 'autoSnapshotMin', 'minItemChaos', 'tradeTolerance',

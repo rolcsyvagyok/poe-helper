@@ -23,7 +23,7 @@ function createChatMacros({ globalShortcut, clipboard, keys, foreground, setting
   async function run(m) {
     if (busy) return;
     busy = true;
-    try { await keys.sendChat(String(m.text).slice(0, 250), { send: m.send !== false, clipboard }); } catch (e) { log('chat macro failed', e.message); } finally { busy = false; }
+    try { await keys.sendChat(String(m.text).slice(0, 250), { send: m.send !== false, clipboard, clear: settings.get('chatMacroClear') !== false }); } catch (e) { log('chat macro failed', e.message); } finally { busy = false; }
   }
 
   function register() {
