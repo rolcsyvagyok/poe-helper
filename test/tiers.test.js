@@ -639,7 +639,7 @@ test('3.30: fragment rules with a base list also take "Stackable Currency" (Divi
 
 test('3.30: with unidentified item tiers, base rank hiding only takes identified rares', () => {
   const M = require('../src/core/filter/manager');
-  const hide = (o) => M.rankRules({ 'Vaal Regalia': 'S' }, { rares: 'A' }, ['Vaal Regalia', 'Silk Robe'], o).find((r) => r.action === 'Hide');
+  const hide = (o) => M.rankRules({ 'Vaal Regalia': 'S' }, { rares: 'A' }, ['Vaal Regalia', 'Silk Robe'], o).find((r) => r.action === 'Hide' && r.id !== 'rank-rares-fated-hide');
   assert.ok(hide({ unidTiers: true }).conditions.some((c) => c.keyword === 'Identified' && c.values[0] === 'True'));
   assert.ok(!hide({}).conditions.some((c) => c.keyword === 'Identified'));
 });
@@ -704,4 +704,18 @@ test('unique collection: bases you fully own and that are cheap get one hide rul
   assert.equal(r.action, 'Hide');
   assert.ok(r.conditions.some((c) => c.keyword === 'Foulborn' && c.values[0] === 'False'));
   assert.ok(r.conditions.some((c) => c.keyword === 'BaseType' && c.values.includes('Vanguard Belt')));
+});
+
+test('3.30: fated rares below the rare rank are hidden, identified or not', () => {
+  const M = require('../src/core/filter/manager');
+  const { explain } = require('../src/core/filter/matcher');
+  const P = require('../src/core/filter/parser');
+  const { parseItem } = require('../src/core/item-parser');
+  const rules = M.rankRules({ 'Vaal Regalia': 'S' }, { rares: 'A' }, ['Vaal Regalia', 'Silk Robe'], { unidTiers: true });
+  const fated = rules.find((r) => r.id === 'rank-rares-fated-hide');
+  assert.ok(fated && fated.conditions.some((c) => c.keyword === 'Fated') && fated.conditions.find((c) => c.keyword === 'BaseType').values.includes('Silk Robe'));
+  const doc = P.parse('Hide # fated\n\tFated True\n\tBaseType == "Silk Robe"\n\nShow # rest\n');
+  const item = (fl) => parseItem(`Item Class: Body Armours\nRarity: Rare\nFoo Bar\nSilk Robe\n--------\nItem Level: 85\n--------\nUnidentified\n${fl}`);
+  assert.equal(explain(doc, item('--------\nFated Item\n')).comment, 'fated');
+  assert.equal(explain(doc, item('')).comment, 'rest');
 });

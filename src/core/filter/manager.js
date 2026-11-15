@@ -727,6 +727,9 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
     // rank only hides identified ones; before, this hid every unidentified rare of a lower rank, even at Tier 5
     // Memory Strand gear is left to its own rules (Base ranks → Memory Strands)
     const idOnly = [...(unidTiers ? [{ keyword: 'Identified', values: ['True'] }] : []), ...(strands ? [{ keyword: 'MemoryStrands', op: '<', values: ['1'] }] : [])];
+    // fated rares (3.30) keep their rank whether identified or not: an unidentified fated rare of a lower rank
+    // is hidden too (the unid item tiers are for ordinary drops)
+    if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-fated-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: fated rares below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, { keyword: 'Fated', values: ['True'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
     if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}${unidTiers ? ' (identified)' : ''}`, conditions: [...conds, ...idOnly, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
   }
   return out;

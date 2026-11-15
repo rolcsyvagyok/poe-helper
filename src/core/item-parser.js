@@ -22,6 +22,8 @@ const FLAG_LINES = {
   'Searing Exarch Item': 'searing',
   'Eater of Worlds Item': 'eater',
   'Foulborn Item': 'foulborn',
+  'Fated Item': 'fated', // 3.30 (a guess at the copy's line; the filter's "Fated True")
+  'Fated': 'fated',
 };
 
 const INFLUENCES = ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'];

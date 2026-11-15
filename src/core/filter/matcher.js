@@ -122,6 +122,7 @@ function evalCondition(c, item, assumed) {
     case 'HasEnchantment': return stringList(null, v, (item.mods?.enchant || []).join('\n'));
     case 'HasImplicitMod': return boolCond(v, (item.mods?.implicit || []).length > 0);
     case 'Foulborn': return boolCond(v, item.flags?.foulborn);
+    case 'Fated': return boolCond(v, item.flags?.fated);
     case 'Scourged': return boolCond(v, (item.mods?.scourge || []).length > 0);
     case 'CorruptedMods': {
       // Corrupted implicits aren't labelled on the clipboard; uncorrupted items have none.

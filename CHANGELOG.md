@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.100 - 2026-11-15
+
+* [Base ranks] Fated rares follow your Tier 0 rank choice, identified or not
+
+- Base ranks: fated rares on bases below your Tier 0 rank are hidden now, unidentified ones too. Before, only identified ones were, so unidentified fated rares on any base still showed.
+
 ## 1.0.99 - 2026-11-15
 
 * Price check: corpses and Wickerman parts can be price checked
