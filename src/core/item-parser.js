@@ -33,7 +33,14 @@ const MOD_SUFFIX_TYPES = [
   ['(enchant)', 'enchant'],
   ['(scourge)', 'scourge'],
   ['(crucible)', 'crucible'],
+  // league mods the trade site lists on their own: they make an item worth more, so they start ticked
+  ['(mercenary)', 'mercenary'],
+  ['(imbued)', 'imbued'],
+  ['(veiled)', 'veiled'],
+  ['(delve)', 'delve'],
 ];
+const SPECIAL_KINDS = ['scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'];
+const SPECIAL_NAMES = new Set(Object.values(require('./special-mod-names.json')).flat());
 
 function isPoeItemText(text) {
   if (typeof text !== 'string') return false;
@@ -109,12 +116,12 @@ function parseItem(rawText) {
     properties: {},
     influences: [],
     flags: {},
-    mods: { enchant: [], implicit: [], explicit: [], crafted: [], fractured: [], scourge: [], crucible: [] },
+    mods: { enchant: [], implicit: [], explicit: [], crafted: [], fractured: [], scourge: [], crucible: [], mercenary: [], imbued: [], veiled: [], delve: [] },
     note: null,
     transfigured: false,
     modNames: [],
     // Ctrl+Alt+C: per mod line (same index as item.mods[kind]) its tier, prefix/suffix and roll ranges
-    modMeta: { enchant: [], implicit: [], explicit: [], crafted: [], fractured: [], scourge: [], crucible: [] },
+    modMeta: { enchant: [], implicit: [], explicit: [], crafted: [], fractured: [], scourge: [], crucible: [], mercenary: [], imbued: [], veiled: [], delve: [] },
     advanced: false,
   };
 
@@ -213,7 +220,8 @@ function parseItem(rawText) {
         case 'Note': item.note = val; consumed = true; break;
         default:
           // Generic property lines (Armour, Evasion Rating, Item Quantity, etc.)
-          if (/^[A-Z][A-Za-z' ]+$/.test(key) && !/[+#%]/.test(key) && key.length < 40) {
+          // (a cluster jewel's "Added Small Passive Skills also grant: …" is a mod, not a property)
+          if (/^[A-Z][A-Za-z' ]+$/.test(key) && !/[+#%]/.test(key) && key.length < 40 && !/^Added Small Passive Skills/.test(key)) {
             item.properties[key] = val;
             consumed = true;
           }
@@ -253,8 +261,14 @@ function parseItem(rawText) {
         item.advanced = true;
         const tierM = /\((?:Tier|Rank):\s*(\d+)\)/.exec(line);
         headerN += 1;
-        header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line) };
-        headerKind = /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'
+        // special mods (league mechanics, eldritch implicits, Breach…) start ticked in the search
+        // the header names the mod ("Subterranean", "of Farrul", "Elevated Hunter's"): mods only a league
+        // mechanic, an essence or an influence gives (the list PoE Overlay marks with a mod icon, MIT)
+        // (a Vaal orb's "Corruption Implicit" counts too: it's what a corrupted item sells for)
+        const special = /\b(Corruption|Mercenary|Imbued|Veiled|Delve|Breach|Searing Exarch|Eater of Worlds|Eldritch|Incursion|Bestiary|Essence|Synthes\w*|Crucible|Scourge|Foulborn)\b/i.test(line)
+          || (nm && SPECIAL_NAMES.has(nm[1]));
+        header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line), special };
+        headerKind = /\bMercenary\b/i.test(line) ? 'mercenary' : /\bImbued\b/i.test(line) ? 'imbued' : /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'
           : /\bMaster Crafted\b|\bCrafted\b/i.test(line) ? 'crafted' : /\bScourge\b/i.test(line) ? 'scourge' : null;
         continue;
       }
@@ -341,4 +355,4 @@ function plainItemText(text) {
     .join('\n');
 }
 
-module.exports = { plainItemText, parseItem, isPoeItemText, classify, modTemplate, modValues, parseSockets, SEP, RARITIES };
+module.exports = { SPECIAL_KINDS, plainItemText, parseItem, isPoeItemText, classify, modTemplate, modValues, parseSockets, SEP, RARITIES };

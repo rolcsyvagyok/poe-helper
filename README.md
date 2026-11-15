@@ -177,3 +177,8 @@ Item labels use the game's **Fontin SmallCaps** when it's installed on your syst
 ## Pictures
 
 The Overview background (`assets/overview-bg.jpg`) is *The Abbey in the Oakwood* by Caspar David Friedrich (1809–1810, Alte Nationalgalerie, Berlin), cropped and darkened. The painting is in the public domain. You can pick your own picture on the Overview page.
+
+## Credits
+
+- The price check's search is modelled on [Awakened PoE Trade](https://github.com/SnosMe/awakened-poe-trade) (MIT).
+- `src/core/special-mod-names.json` (mod names that only a league mechanic, essence or influence gives) comes from [PoE Overlay Community Fork](https://github.com/PoE-Overlay-Community/PoE-Overlay-Community-Fork)'s `mod-icons.json`, MIT License, Copyright (c) 2020 Nicklas Ronge.

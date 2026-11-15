@@ -69,7 +69,6 @@ async function refreshState() {
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
     h('div', {}, h('span', { class: 'league-chip' }, S.league), S.settings.leagueOverride ? '' : h('span', { class: 'faint' }, ' (auto)')),
-    h('div', {}, `${u?.total ?? 0} of ${S.usage?.ggg?.dailyBudget ?? '–'} GGG requests today`),
     themeDots(),
     versionLine());
   if (!S.ver) {
@@ -382,7 +381,7 @@ async function renderTrade() {
         s.kind !== 'exchange' ? h('div', { class: 'row small', style: { gap: '8px', flexWrap: 'wrap' } }, watch, h('span', { class: 'muted' }, 'Tell me at'), amount, unit, h('span', { class: 'muted' }, 'or less,'), every) : null,
         status);
     };
-    const heavy = d.perDay > (d.budget || 0) * 0.6;
+
     mount(page,
       h('h1', {}, 'Trade searches'),
       h('p', { class: 'muted' }, 'Save your trade searches and live searches with a name, and open them later in one click. Turn on the price watch and PoE Helper runs the search again every few minutes, cheapest first, and sends a Windows notification when something is at or under your price.'),
@@ -391,7 +390,7 @@ async function renderTrade() {
         h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, nameIn, urlIn, h('button', { class: 'primary', onclick: add }, 'Save')),
         h('p', { class: 'small faint' }, 'Make the search on pathofexile.com/trade, then copy the link from the address bar. A live search link (ending in /live) is saved too.')),
       d.list.length ? d.list.map(card) : h('p', { class: 'small muted' }, 'No saved searches yet.'),
-      h('p', { class: `small ${heavy ? 'warn' : 'faint'}` }, `The price watch uses up to ${d.perDay} pathofexile.com requests a day (1 or 2 per check), out of your daily limit of ${d.budget} (${d.usedToday} used today)${heavy ? ': that leaves little for net worth and snapshots, so check less often or raise the limit in Settings' : ''}. It only runs while PoE Helper is open (also in the tray). At most ${d.maxWatched} searches are watched at once.`));
+      h('p', { class: 'small faint' }, `The price watch only runs while PoE Helper is open (also in the tray). At most ${d.maxWatched} searches are watched at once.`));
   };
   draw(data);
 }
@@ -509,7 +508,7 @@ async function renderOverviewNow() {
         h('div', { class: 'figures ov-figures' },
           figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot', latest ? `Net worth, updated ${ago(Date.now() - latest.ts)}` : 'Net worth: take a snapshot on the WealthyExile page'),
           figure(report?.perHourChaos != null ? `${report.perHourChaos >= 0 ? '+' : ''}${fmt(report.perHourChaos)}c` : '–', 'Per hour over the last day', report?.perHourChaos >= 0 ? 'good' : report?.perHourChaos < 0 ? 'bad' : ''),
-          figure(`${g.today.total} of ${g.dailyBudget}`, 'GGG requests used today'))),
+        )),
       bgButtons,
       bg?.credit ? h('span', { class: 'ov-hero-credit' }, bg.credit) : null),
     // net worth over the last day, from snapshots already taken (no new requests)
@@ -524,21 +523,7 @@ async function renderOverviewNow() {
       h('div', {},
         h('div', { class: 'section-head' }, h('h2', {}, 'Recent price checks'), h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, `${window.Hotkey ? window.Hotkey.label(S.settings.hotkeyPrice) : S.settings.hotkeyPrice} over an item`)),
         historyList(S.history.slice(0, 10))),
-      h('div', {},
-        h('div', { class: 'section-head' }, h('h2', {}, 'Requests today')),
-        h('div', { class: 'panel stack' },
-          g.today.total ? h('div', { class: 'bar' }, h('i', { style: { width: Math.min(100, (100 * g.today.total) / g.dailyBudget) + '%' } })) : null,
-          Object.keys(g.today.byKey || {}).length
-            ? h('table', {}, h('tbody', {}, Object.entries(g.today.byKey).map(([k, v]) => h('tr', {}, h('td', {}, { stash: 'Stash tabs', 'trade-search': 'Trade searches', 'trade-fetch': 'Trade listings', 'trade-data': 'Trade mod list', 'trade-exchange': 'Bulk exchange', leagues: 'League list' }[k] || k), h('td', { class: 'r' }, v)))))
-            : h('p', { class: 'small muted' }, 'None yet. Price checks only use poe.ninja, so they never count here.'),
-          h('p', { class: 'small faint' }, `poe.ninja this session: ${n.requests} downloads, ${n.notModified} unchanged, ${n.cacheHits} answered from cache.`)),
-        h('details', { style: { marginTop: '12px' } }, h('summary', {}, 'How requests are kept low'),
-          h('ul', { class: 'small muted', style: { margin: '8px 0 0', paddingLeft: '18px', lineHeight: 1.7 } },
-            h('li', {}, `Prices are cached for ${S.settings.ninjaTtlMin} minutes and only re-downloaded when they changed.`),
-            h('li', {}, 'A price check loads only the price list it needs, for example just divination cards.'),
-            h('li', {}, 'Trade searches run only when you press Search.'),
-            h('li', {}, 'Snapshots fetch only the tabs you pick, and pause while you are not playing.'),
-            h('li', {}, `GGG limits are followed at ${Math.round(S.settings.rateSafety * 100)}% of the allowed rate, with a daily cap.`))))));
+      null));
 }
 
 function historyList(rows) {
@@ -1190,7 +1175,6 @@ async function renderSettingsNow() {
               h('br'), 'Opens the official login page. Log in there yourself; once you see your account page, the app saves the session and closes the window. Or paste it: on pathofexile.com press F12, then Application, Cookies, POESESSID. It is stored encrypted and only sent to pathofexile.com for stash tabs. Never share it.')))),
         section('Requests', 'How much the app may ask of GGG and poe.ninja.',
           h('div', { class: 'panel stack' },
-            field('GGG requests per day', h('input', { type: 'number', min: 10, value: st.dailyGggBudget, onchange: set('dailyGggBudget', Number) }), 'Stash and trade requests stop once this is reached. Price checks never count.'),
             field('Speed', h('select', { onchange: set('rateSafety', Number) }, [[0.3, 'Gentle (a third of what GGG allows)'], [0.5, 'Normal (half of what GGG allows)'], [0.7, 'Faster (most of what GGG allows)']].map(([v, l]) => h('option', { value: v, selected: Number(st.rateSafety) === v }, l)))),
             field('Keep prices for (minutes)', h('input', { type: 'number', min: 5, value: st.ninjaTtlMin, onchange: set('ninjaTtlMin', Number) }), 'poe.ninja updates about every 15 minutes, so lower values only add downloads.'),
             field('Your name or link for request headers', h('input', { value: st.contact || '', placeholder: 'Optional, for example github.com/you', onchange: set('contact', (v) => v.trim()) })),

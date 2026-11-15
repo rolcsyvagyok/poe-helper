@@ -139,7 +139,7 @@ test('cluster jewels: passive count in its useful brackets, the small passives\'
   const count = mods.find((m) => m.id === 'enchant.stat_count');
   assert.deepEqual([count.enabled, count.min, count.max], [true, null, 8], '8 passives: at most 8');
   assert.equal(mods.find((m) => m.id === 'enchant.stat_sockets').hidden, true);
-  assert.deepEqual([props.ilvl.min, props.ilvl.max], [84, 100]);
+  assert.deepEqual([props.ilvl.on, props.ilvl.min, props.ilvl.max], [true, 84, null], 'from its own item level up');
   const q = T.buildQuery(it, mods, { props });
   assert.deepEqual(q.query.stats[0].filters.find((f) => f.id === 'enchant.stat_grant'), { id: 'enchant.stat_grant', disabled: false, value: { option: 13 } });
 });
@@ -232,4 +232,118 @@ test('"+30% to Item Rarity" (Le Heup of All) matches the trade site\'s "increase
   const m = T.matchMod(idx, '+30% to Item Rarity', 'explicit', 'Rings', { unique: true });
   assert.equal(m.id, 'explicit.stat_3917489142');
   assert.equal(m.value, 30);
+});
+
+test('rares: tier 1-2 mods and tier 3 key mods (movement speed on boots) start ticked; low tiers do not', () => {
+  const stats = { result: [
+    { id: 'explicit', entries: [E('explicit.ms', '#% increased Movement Speed'), E('explicit.dex', '+# to Dexterity'), E('explicit.sup', '+#% chance to Suppress Spell Damage')] },
+    { id: 'pseudo', entries: [E('pseudo.pseudo_increased_movement_speed', '#% increased Movement Speed'), E('pseudo.pseudo_total_dexterity', '+# total to Dexterity')] },
+  ] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Boots\nRarity: Rare\nGale Spark\nTwo-Toned Boots\n--------\nItem Level: 85\n--------\n{ Prefix Modifier "Hellion\'s" (Tier: 3) — Speed }\n30(30-34)% increased Movement Speed\n{ Suffix Modifier "of the Lynx" (Tier: 6) — Attribute }\n+22(18-22) to Dexterity\n{ Suffix Modifier "of Dampening" (Tier: 1) }\n+16(16-18)% chance to Suppress Spell Damage\n');
+  const r = T.prepareSearch(stats, it);
+  const on = (re) => r.mods.find((m) => !m.hidden && re.test(m.text))?.enabled;
+  assert.equal(on(/Movement Speed/), true);
+  assert.equal(on(/Suppress/), true);
+  assert.equal(on(/Dexterity/), false);
+});
+
+test('special mods (mercenary, eldritch implicits…) always start ticked and stay out of the totals', () => {
+  const stats = { result: [
+    { id: 'implicit', entries: [E('implicit.fire', '+#% to Fire Resistance')] },
+    { id: 'mercenary', entries: [E('mercenary.storm', 'Greater Stormcall')] },
+    { id: 'pseudo', entries: [E('pseudo.pseudo_total_elemental_resistance', '+#% total Elemental Resistance')] },
+  ] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Gloves\nRarity: Rare\nGale Grip\nSorcerer Gloves\n--------\nItem Level: 85\n--------\n{ Searing Exarch Implicit Modifier (Greater) }\n+12% to Fire Resistance\n--------\nGreater Stormcall (mercenary)\n');
+  const r = T.prepareSearch(stats, it);
+  assert.equal(r.mods.find((m) => m.group === 'mercenary')?.enabled, true);
+  assert.equal(r.mods.find((m) => m.group === 'implicit' && /Fire/.test(m.text))?.enabled, true);
+});
+
+test('a fractured rare is searched by its fractured mod on the exact base, nothing else ticked', () => {
+  const stats = { result: [
+    { id: 'explicit', entries: [E('explicit.ms', '#% increased Movement Speed'), E('explicit.life', '+# to maximum Life')] },
+    { id: 'fractured', entries: [E('fractured.ms', '#% increased Movement Speed')] },
+    { id: 'pseudo', entries: [E('pseudo.pseudo_total_life', '+# total maximum Life'), E('pseudo.pseudo_increased_movement_speed', '#% increased Movement Speed')] },
+  ] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Boots\nRarity: Rare\nGale Spark\nTwo-Toned Boots\n--------\nItem Level: 85\n--------\n35% increased Movement Speed (fractured)\n+62 to maximum Life\n--------\nFractured Item\n');
+  const r = T.prepareSearch(stats, it);
+  assert.equal(r.props.base.on, true);
+  assert.deepEqual(r.mods.filter((m) => m.enabled).map((m) => m.id), ['fractured.ms']);
+});
+
+test('rare jewels: the exact base and at most 3 useful mods (life, crit multi…), not resistances or plain damage', () => {
+  const stats = { result: [
+    { id: 'explicit', entries: [E('explicit.life', '#% increased maximum Life'), E('explicit.cm', '+#% to Global Critical Strike Multiplier'), E('explicit.sd', '#% increased Spell Damage'), E('explicit.fr', '+#% to Fire Resistance')] },
+    { id: 'pseudo', entries: [E('pseudo.pseudo_total_elemental_resistance', '+#% total Elemental Resistance')] },
+  ] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Jewels\nRarity: Rare\nGlyph Eye\nCobalt Jewel\n--------\nItem Level: 84\n--------\n{ Prefix Modifier "Healthy" (Tier: 1) — Life }\n7(5-7)% increased maximum Life\n{ Suffix Modifier "x" (Tier: 2) }\n+15(15-18)% to Global Critical Strike Multiplier\n{ Prefix Modifier "Brutal" (Tier: 1) }\n16(14-16)% increased Spell Damage\n{ Suffix Modifier "of Fire" (Tier: 1) }\n+15(14-15)% to Fire Resistance\n');
+  const r = T.prepareSearch(stats, it);
+  assert.equal(r.props.base.on, true);
+  assert.deepEqual(r.mods.filter((m) => m.enabled).map((m) => m.id).sort(), ['explicit.cm', 'explicit.life']);
+});
+
+test('overquality (over 20%): searched by the exact base and the quality only', () => {
+  const stats = { result: [{ id: 'explicit', entries: [E('explicit.life', '+# to maximum Life')] }, { id: 'pseudo', entries: [E('pseudo.pseudo_total_life', '+# total maximum Life')] }] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Body Armours\nRarity: Rare\nGale Shell\nVaal Regalia\n--------\nQuality: +28% (augmented)\nEnergy Shield: 400 (augmented)\n--------\nItem Level: 86\n--------\n+120 to maximum Life\n');
+  const r = T.prepareSearch(stats, it);
+  assert.equal(r.props.base.on, true);
+  assert.deepEqual([r.props.quality.on, r.props.quality.min], [true, 28]);
+  assert.equal(r.mods.some((m) => m.enabled), false);
+  const q = T.buildQuery(it, r.mods, { props: r.props });
+  assert.equal(q.query.filters.misc_filters.filters.quality.min, 28);
+});
+
+test('jewels: a single or maximum fire / cold / lightning resistance is searched as any of the three (Harvest swap)', () => {
+  const stats = { result: [{ id: 'explicit', entries: [E('explicit.mf', '+#% to maximum Fire Resistance'), E('explicit.mc', '+#% to maximum Cold Resistance'), E('explicit.ml', '+#% to maximum Lightning Resistance')] }] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Jewels\nRarity: Rare\nGlyph Eye\nCrimson Jewel\n--------\nItem Level: 84\n--------\n+1% to maximum Cold Resistance\n');
+  const r = T.prepareSearch(stats, it);
+  const m = r.mods.find((x) => x.anyOf);
+  assert.ok(m && m.enabled);
+  const q = T.buildQuery(it, r.mods, { props: r.props });
+  const g = q.query.stats.find((x) => x.type === 'count');
+  assert.deepEqual(g.filters.map((f) => f.id).sort(), ['explicit.mc', 'explicit.mf', 'explicit.ml']);
+  assert.equal(g.filters[0].value.min, 1);
+});
+
+test("Watcher's Eye: the aura mods are ticked, not the life / mana / ES ones; an unidentified unique searches uniques only", () => {
+  const stats = { result: [{ id: 'explicit', entries: [E('explicit.es', '#% increased maximum Energy Shield'), E('explicit.wrath', '#% increased Critical Strike Chance while affected by Wrath')] }] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem("Item Class: Jewels\nRarity: Unique\nWatcher's Eye\nPrismatic Jewel\n--------\nItem Level: 86\n--------\n5% increased maximum Energy Shield\n55% increased Critical Strike Chance while affected by Wrath\n");
+  const r = T.prepareSearch(stats, it);
+  assert.deepEqual(r.mods.filter((m) => m.enabled).map((m) => m.id), ['explicit.wrath']);
+  const un = parseItem('Item Class: Jewels\nRarity: Unique\nPrismatic Jewel\n--------\nItem Level: 86\n--------\nUnidentified\n');
+  const ru = T.prepareSearch(stats, un);
+  const q = T.buildQuery(un, ru.mods, { props: ru.props });
+  assert.equal(q.query.filters.type_filters.filters.rarity.option, 'unique');
+  assert.equal(q.query.filters.misc_filters.filters.identified.option, 'false');
+});
+
+test('an unidentified unique jewel is searched from its item level up', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const un = parseItem('Item Class: Jewels\nRarity: Unique\nPrismatic Jewel\n--------\nItem Level: 86\n--------\nUnidentified\n');
+  const r = T.prepareSearch({ result: [] }, un);
+  const q = T.buildQuery(un, r.mods, { props: r.props });
+  assert.equal(q.query.filters.misc_filters.filters.ilvl.min, 86);
+});
+
+test('special mods are known by their name too ("Subterranean", "of Farrul"): ticked', () => {
+  const stats = { result: [{ id: 'explicit', entries: [E('explicit.gems', '+# to Level of Socketed Gems')] }] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Helmets\nRarity: Rare\nGale Crown\nHubris Circlet\n--------\nItem Level: 85\n--------\n{ Prefix Modifier "Subterranean" (Tier: 4) }\n+1 to Level of Socketed Gems\n');
+  assert.equal(T.prepareSearch(stats, it).mods.find((m) => m.id === 'explicit.gems').enabled, true);
+});
+
+test('a corrupted item: the corruption implicit starts ticked and only corrupted items are searched', () => {
+  const stats = { result: [{ id: 'implicit', entries: [E('implicit.gems', '+# to Level of Socketed Gems')] }] };
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Helmets\nRarity: Rare\nGale Crown\nHubris Circlet\n--------\nItem Level: 85\n--------\n{ Corruption Implicit Modifier }\n+1 to Level of Socketed Gems (implicit)\n--------\nCorrupted\n');
+  const r = T.prepareSearch(stats, it);
+  assert.equal(r.mods.find((m) => m.id === 'implicit.gems').enabled, true);
+  assert.equal(r.props.corrupted, 'yes');
 });

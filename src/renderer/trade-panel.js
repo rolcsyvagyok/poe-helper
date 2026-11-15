@@ -196,7 +196,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       const why = String(e?.message || '').replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
       // the app can't search now: the same search still opens on the trade site (your browser, not the app's limit)
       mount(results, h('div', { class: 'stack', style: { gap: '6px' } },
-        h('span', { class: 'small muted' }, /wait \d+ seconds|doesn't list/.test(why) ? why : 'The search failed. Your GGG request budget or rate limit may be used up; try again in a minute.'),
+        h('span', { class: 'small muted' }, /wait \d+ seconds|doesn't list/.test(why) ? why : 'The search failed. The trade site may be busy; try again in a minute.'),
         h('div', {}, h('button', { class: 'sm', onclick: () => window.poe.call('trade:openSite', { text, mods, props, opts: { status } }).catch(() => {}) }, 'Open on trade site'))));
     }
     go.disabled = false;
@@ -213,7 +213,6 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       groups,
       propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'Item'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
       h('div', { class: 'row tp-go' }, go, statusSel, countEl),
-      h('div', { class: 'small faint' }, 'Uses 1 to 3 GGG requests per search; the same search again within 3 minutes uses none.'),
       results));
   onFit();
 

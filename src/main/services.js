@@ -345,11 +345,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     });
     const out = { url: ggg.tradeUrl(league, res.id), total: res.total ?? res.result?.length ?? 0, listings: null };
     if ((opts.fetchListings ?? settings.get('tradeFetchListings')) && res.result?.length) {
-      // the 20 cheapest (two fetches of 10, as Awakened PoE Trade does): the first 10 are often one seller
+      // the 10 cheapest: one request (a second one only when all 10 are the same one or two sellers)
       const first = await ggg.tradeFetch(res.id, res.result.slice(0, 10));
-      // the next 10 only when the first 10 are mostly the same few sellers (as Awakened fetches more)
       const sellers = summarizeListings(first, null).prices.length;
-      const more = res.result.length > 10 && sellers < 6 ? await ggg.tradeFetch(res.id, res.result.slice(10, 20)).catch(() => ({ result: [] })) : { result: [] };
+      const more = res.result.length > 10 && sellers <= 2 ? await ggg.tradeFetch(res.id, res.result.slice(10, 20)).catch(() => ({ result: [] })) : { result: [] };
       const divine = await ninja.divinePrice(league).catch(() => null);
       out.listings = summarizeListings({ result: [...(first.result || []), ...(more.result || [])] }, divine, { me: settings.get('accountName') || '' });
     }

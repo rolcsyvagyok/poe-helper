@@ -54,9 +54,6 @@ class GggClient {
   }
 
   async _request(key, url, { method = 'GET', body, withSession = false, safety } = {}) {
-    if (this.usageToday().total >= this.dailyBudget) {
-      throw new BudgetExceededError(`Daily GGG request budget (${this.dailyBudget}) reached. Change it in Settings if you really need more.`);
-    }
     const headers = { 'User-Agent': this.userAgent, Accept: 'application/json' };
     if (body) headers['Content-Type'] = 'application/json';
     if (withSession === 'optional') {
@@ -286,7 +283,6 @@ class GggClient {
 
   /** A web page (not JSON), counted and rate limited like the API calls. */
   async _requestText(key, url) {
-    if (this.usageToday().total >= this.dailyBudget) throw new BudgetExceededError(`Daily GGG request budget (${this.dailyBudget}) reached.`);
     const res = await this.limiter.schedule(key, async () => {
       this._count(key);
       const r = await this.fetch(url, { headers: { 'User-Agent': this.userAgent, Accept: 'text/html' } });

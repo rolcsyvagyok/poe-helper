@@ -159,7 +159,7 @@ function matchItemMods(statsJson, item, { tolerance = 0.1 } = {}) {
   const idx = indexStats(statsJson);
   const out = [];
   // an unidentified item only shows its implicits (and enchantments); its other mods are unknown
-  const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible'];
+  const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'];
   for (const kind of kinds) {
     for (const m of item.mods[kind] || []) {
       const type = kind === 'scourge' || kind === 'crucible' ? kind : kind;
@@ -321,6 +321,12 @@ function buildQuery(item, mods, opts = {}) {
     // a stat with options ("Added Small Passive Skills grant: …" is "enchant.stat_3948993189" option 13)
     const opt = /^(.+)\|(\d+)$/.exec(m.id);
     if (opt) { q.query.stats[0].filters.push({ id: opt[1], disabled: false, value: { option: Number(opt[2]) } }); continue; }
+    // any one of a few stats at this value (a jewel's single resistance: fire, cold or lightning)
+    if (Array.isArray(m.anyOf) && m.anyOf.length) {
+      const v = statRange(m) || (m.value != null ? { min: Math.floor(m.value * (1 - tolerance)) } : undefined);
+      q.query.stats.push({ type: 'count', value: { min: 1 }, filters: m.anyOf.map((id) => ({ id, disabled: false, ...(v ? { value: v } : {}) })) });
+      continue;
+    }
     const f = { id: m.id, disabled: false };
     if ('min' in m || 'max' in m) {
       const v = statRange(m);
@@ -384,6 +390,11 @@ function buildQuery(item, mods, opts = {}) {
     const tf = q.query.filters.type_filters?.filters || {};
     q.query.filters.type_filters = { filters: { ...tf, rarity: { option: 'nonunique' } } };
   }
+  // an unidentified unique is searched by its base: only uniques of it (not rares of the same base)
+  if (kind === 'unique' && item.flags.unidentified) {
+    const tf = q.query.filters.type_filters?.filters || {};
+    q.query.filters.type_filters = { filters: { ...tf, rarity: { option: 'unique' } } };
+  }
   return q;
 }
 
@@ -395,7 +406,7 @@ const PDPS_TYPES = /^(one|two) hand (axes|swords)$|^bows$|^warstaves$/i; // phys
 function itemRows(idx, item, tol) {
   const PF = require('./price-filters');
   const out = [];
-  const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible'];
+  const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'];
   for (const kind of kinds) {
     (item.mods[kind] || []).forEach((m, i) => {
       const opts = { unique: item.rarity === 'Unique' };
@@ -403,6 +414,8 @@ function itemRows(idx, item, tol) {
       const meta = item.modMeta?.[kind]?.[i] || null;
       const row = hit ? { ...hit, group: kind, enabled: false } : { id: null, text: m, type: kind, group: kind, enabled: false, unmatched: true };
       row.meta = meta;
+      // league mods (mercenary, imbued, Breach, eldritch…) make the item: they start ticked
+      if (['scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'].includes(kind) || meta?.special) { row.special = true; if (!row.unmatched) row.enabled = true; }
       row.tpl = PF.tplOf(m);
       if (row.display != null) { row.min = PF.minOf(row.display, tol); row.max = null; }
       out.push(row);
@@ -437,7 +450,10 @@ function specialRules(mods, item, props, kind, tol) {
       if (/^Added Small Passive Skills grant/i.test(m.text)) { m.enabled = true; m.min = m.display; m.max = null; }
     }
     // notables ("1 Added Passive Skill is Smoking Remains"): there or not, no number to type
-    for (const m of mods) if (/^1 Added Passive Skill is /i.test(m.text)) { m.min = null; m.max = null; m.display = null; }
+    // they are what a cluster sells for, so they start ticked
+    for (const m of mods) if (/^1 Added Passive Skill is /i.test(m.text)) { m.min = null; m.max = null; m.display = null; if (!m.unmatched) m.enabled = true; }
+    // Voices and other uniques: the number of jewel sockets is the price
+    for (const m of mods) if (/^Adds \d+ Jewel Socket Passive Skills?/i.test(m.text) && m.display != null) { m.enabled = true; m.min = m.display; m.max = m.display; }
     if (props.ilvl && item.itemLevel) { props.ilvl.min = floorTo(item.itemLevel, [1, 50, 68, 75, 84]); props.ilvl.max = ceilTo(item.itemLevel, [49, 67, 74, 100]); props.ilvl.on = false; }
     return mods;
   }
@@ -486,6 +502,65 @@ function specialRules(mods, item, props, kind, tol) {
 }
 
 /**
+ * Rares and magic items: the mods a buyer searches for start ticked, like Awakened PoE Trade (tier 1 and 2
+ * mods) and a little smarter. A mod is ticked when it is tier 1-2, or tier 3 and one of the mods that sell this
+ * kind of item (movement speed on boots, +levels to gems, suppression…). The totals (life, resistances) stay
+ * as they were. At most MAX_TICKED rows end up ticked, best tiers first, so the search doesn't come back empty.
+ * Without tiers in the copy (a plain Ctrl+C) nothing more is ticked.
+ */
+const MAX_TICKED = 5;
+const KEY_MODS = [
+  [/boots/i, /movement speed/i],
+  [/./, /to level of (all|socketed)/i],
+  [/./, /suppress spell damage/i],
+  [/amulet|ring|jewel|quiver|glove/i, /critical strike multiplier|critical damage bonus/i],
+  [/amulet|ring|glove|quiver|belt|jewel/i, /(attack|cast) speed/i],
+  [/belt|amulet|body/i, /to maximum energy shield|increased maximum life/i],
+  [/glove|helmet|amulet|ring/i, /adds .* damage to (attacks|spells)/i],
+  [/shield|helmet|body/i, /% chance to block/i],
+  [/./, /% (of|to) all elemental resistances|to all attributes/i],
+];
+// rare jewels sell for a few mods; resistances, attributes and small damage mods don't move the price.
+// The earlier a mod in this list, the more it counts; at most 3 are ticked, with the exact base.
+const JEWEL_USEFUL = [
+  /to maximum (fire|cold|lightning|chaos) resistance/i,
+  /increased maximum life$|^\+?\d+ to maximum life$/i,
+  /critical strike multiplier|critical damage bonus/i,
+  /damage over time multiplier/i,
+  /increased maximum energy shield$|to maximum energy shield$/i,
+  /chance to suppress spell damage/i,
+  /increased (attack|cast) speed$|total (attack|cast) speed/i,
+  /minions? (deal|have) .*(damage|attack|cast speed)/i,
+  /adds \d+ to \d+ \w+ damage to (attacks|spells)/i,
+  /to all elemental resistances|chance to block/i,
+];
+function tickJewel(mods, item) {
+  const useful = (m) => { const i = JEWEL_USEFUL.findIndex((re) => re.test(m.text || '')); return i < 0 ? 99 : i; };
+  const cand = mods.filter((m) => !m.hidden && !m.unmatched && m.id && m.group !== 'implicit' && m.group !== 'enchant' && !m.special && !/^pseudo\.pseudo_number_of_empty/.test(m.id));
+  for (const m of cand) m.enabled = false;
+  cand.filter((m) => useful(m) < 99).sort((a, b) => useful(a) - useful(b) || (a.meta?.tier ?? 9) - (b.meta?.tier ?? 9)).slice(0, 3).forEach((m) => { m.enabled = true; });
+}
+
+function tickBestMods(mods, item) {
+  const cls = String(item.itemClass || '');
+  if (/jewel/i.test(cls)) return tickJewel(mods, item);
+  // a mod's tier; a total made of mods (movement speed, dexterity…) has the best tier among them
+  const tierOf = (m) => (m.group === 'pseudo' ? (m.sources || []).reduce((t, x) => (x.meta?.tier != null && (t == null || x.meta.tier < t) ? x.meta.tier : t), null) : m.meta?.tier ?? null);
+  const own = mods.filter((m) => !m.special && !m.hidden && !m.unmatched && m.id && (['explicit', 'crafted', 'fractured'].includes(m.group) || (m.group === 'pseudo' && !m.enabled && m.sources?.length)));
+  if (!own.some((m) => tierOf(m) != null)) return; // no tiers known: leave it to you
+  const key = (m) => KEY_MODS.some(([c, re]) => c.test(cls) && re.test(m.text || ''));
+  for (const m of own) {
+    const t = tierOf(m);
+    m.enabled = t != null && (t <= 2 || (t === 3 && key(m)));
+  }
+  // not too narrow: the totals that were ticked first, then the best tiers (key mods win a tie)
+  const on = mods.filter((m) => m.enabled && !m.hidden && !m.special); // special mods are always kept
+  if (on.length <= MAX_TICKED) return;
+  const rank = (m) => (m.group === 'pseudo' && !own.includes(m) ? 0 : (tierOf(m) ?? 9) * 2 - (key(m) ? 1 : 0));
+  on.sort((a, b) => rank(a) - rank(b)).slice(MAX_TICKED).forEach((m) => { m.enabled = false; });
+}
+
+/**
  * The price check's search for an item: { mods, props, presets }.
  *  presets.base (when offered): the "crafting base" search (exact base, item level, influences, implicits,
  *  fractured mods and top-tier mods), next to the default "finished item" search.
@@ -522,6 +597,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   if (kind === 'unique') {
     PF.uniqueRolls(mods, item, tolerance);
     for (const m of mods) if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; m.hidden = false; }
+    // Watcher's Eye: the aura mods are the price (the life / mana / energy shield ones hardly matter)
+    if (/^Watcher's Eye$/i.test(item.name || '')) for (const m of mods) { m.enabled = /while affected by/i.test(m.text || '') && !m.unmatched && !!m.id; if (m.enabled) m.hidden = false; }
   }
   // open prefixes and suffixes: searchable as "at least this many empty" (unticked to start)
   const open = kind === 'map' ? null : PF.emptyAffix(item); // a map's open slots don't change its price
@@ -540,6 +617,41 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   }
   if (MELEE.test(cls) && props.dps?.show) for (const k of ['ilvl', 'links', 'quality']) if (props[k]) props[k].on = false;
   mods = specialRules(mods, item, props, kind, tolerance);
+  if ((kind === 'rare' || kind === 'magic') && !/flask|map|cluster/i.test(cls + (item.baseType || ''))) {
+    tickBestMods(mods, item);
+    // a jewel's base decides what it can roll: Cobalt, Crimson, Viridian, Prismatic, Abyss bases…
+    if (/jewel/i.test(cls) && props.base) props.base.on = true;
+    // a single fire / cold / lightning resistance (or maximum resistance) can be swapped with Harvest:
+    // the search takes any of the three at that value
+    if (/jewel/i.test(cls)) {
+      const RES = /^(\+\d+(?:\.\d+)?% to (?:maximum )?)(Fire|Cold|Lightning)( Resistance)$/i;
+      for (const m of mods) {
+        const r = RES.exec(m.text || '');
+        if (!r || !m.id || m.group === 'pseudo') continue;
+        const ids = ['Fire', 'Cold', 'Lightning'].map((el) => matchMod(idx, `${r[1]}${el}${r[3]}`, m.group, cls)?.id).filter(Boolean);
+        if (ids.length === 3) { m.anyOf = ids; m.text = `${r[1]}Fire, Cold or Lightning${r[3]} (any: Harvest can swap it)`; }
+      }
+    }
+  }
+  // overquality (more than 20%): the base and the quality are the price, nothing else
+  if (plain && (item.quality || 0) > 20 && !/flask|map/i.test(cls)) {
+    for (const m of mods) m.enabled = false;
+    props.base.on = true;
+    if (props.quality) { props.quality.on = true; props.quality.min = item.quality; props.quality.show = true; }
+    for (const k of ['dps', 'ilvl', 'links']) if (props[k] && 'on' in props[k]) props[k].on = false;
+    if (Array.isArray(props.defence)) for (const d of props.defence) d.on = false;
+    for (const k of Object.keys(props.influences || {})) props.influences[k] = false;
+  } else
+  // enchantments on gear (labyrinth, Harvest, Heist…) start ticked, like PoE Overlay does
+  if (plain && !/cluster|flask|map/i.test(cls + (item.baseType || ''))) for (const m of mods) if (m.group === 'enchant' && !m.hidden && !m.unmatched && m.id) m.enabled = true;
+  // a fractured rare or magic item sells for its fractured mod on that base: only those, with the exact base
+  if ((kind === 'rare' || kind === 'magic') && mods.some((m) => m.group === 'fractured' && !m.unmatched)) {
+    for (const m of mods) m.enabled = m.group === 'fractured' && !m.unmatched;
+    for (const m of mods) if (m.group === 'fractured') m.hidden = false;
+    props.base.on = true;
+    for (const k of ['dps', 'defence', 'ilvl', 'links', 'quality']) if (props[k] && 'on' in props[k]) props[k].on = false;
+    if (Array.isArray(props.defence)) for (const d of props.defence) d.on = false;
+  }
   for (const m of mods) { delete m.sources; delete m.rule; }
 
   // the crafting-base search, for an unfinished item worth crafting on
@@ -557,6 +669,11 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     let bRows = baseRows;
     if (/cluster jewel/i.test(item.baseType || '')) { bRows = specialRules(baseRows, item, bp, kind, tolerance); if (bp.ilvl) bp.ilvl.on = true; }
     presets = { active: 'finished', base: { mods: bRows, props: bp } };
+  }
+  // every item is searched from its own item level up (86 and over is the same for every mod), maps excepted:
+  // their tier is what counts
+  if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !/heist contract|viscera/i.test(cls)) {
+    props.ilvl = { ...(props.ilvl || {}), on: true, min: Math.min(item.itemLevel, 86), max: null, show: true };
   }
   return { mods, props, presets };
 }

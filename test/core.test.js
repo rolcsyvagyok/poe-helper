@@ -239,7 +239,7 @@ test('economy rules render valid blocks', () => {
 });
 
 // ---------- GGG client ----------
-test('GGG client counts calls, enforces daily budget, never sends session to trade', async () => {
+test('GGG client counts calls (no daily cap), never sends session to trade', async () => {
   const usage = new JsonStore(path.join(tmp(), 'u.json'));
   const seen = [];
   const fetchImpl = async (url, opts) => {
@@ -255,7 +255,8 @@ test('GGG client counts calls, enforces daily budget, never sends session to tra
   assert.match(seen[1].url, /accountName=Me%231234/);
   await ggg.stashTabs('Test'); // cached
   assert.equal(seen.length, 2);
-  await assert.rejects(ggg.tradeSearch('Test', {}), BudgetExceededError);
+  await ggg.tradeSearch('Test', {}); // no daily cap: the rate limiter keeps it inside GGG's limits
+  assert.equal(seen.length, 3);
 });
 
 test('trade picker: every mod listed, pseudo totals, min/max in item terms, instant buyout', () => {

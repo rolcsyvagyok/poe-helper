@@ -5,6 +5,30 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.93 - 2026-11-15
+
+* Price check ticks the mods that sell a rare: tier 1–2 mods, tier 3 key mods (like movement speed on boots) and special mods (mercenary, eldritch, Breach…)
+* Fractured items are price checked by the fractured mod on the exact base, overquality items by the base and quality
+* Jewels: the base and up to 3 useful mods; a resistance on a jewel counts as any element (Harvest swap)
+* Every price check searches from the item's own item level up
+* No more daily limit on pathofexile.com requests; the app still keeps every request inside GGG's own rate limits
+
+- Price check on rares and magic items (with the Ctrl+Alt+C copy, which has the tiers): tier 1 and 2 mods start ticked, like Awakened PoE Trade, and tier 3 too when it's a mod that sells that kind of item (movement speed on boots, +levels to gems, spell suppression, crit multiplier on jewellery…). A total (movement speed, attributes) counts with its best mod's tier. At most 5 are ticked, best first, so the search doesn't come back empty.
+- Special mods (mercenary, imbued, veiled, eldritch implicits, Breach, crucible, scourge…) always start ticked and aren't folded into the totals.
+- Cluster jewels: the notables start ticked, and a cluster's "Added Small Passive Skills also grant: …" line is read as a mod again (it was taken for an item property, and that hid the notables). Voices: the number of jewel sockets is ticked, exactly.
+- Rare and magic jewels: the exact base (Cobalt, Crimson, Viridian, Prismatic, Abyss…) and at most 3 useful mods start ticked: % life, crit multiplier, damage over time multiplier, energy shield, suppression, attack / cast speed, minion damage, flat added damage (abyss). Resistances, attributes and plain damage mods start unticked.
+- Jewels: a single fire / cold / lightning resistance or maximum resistance is searched as any of the three at that value (Harvest can swap it). Maximum resistance is the most useful jewel mod.
+- Overquality items (more than 20% quality, not flasks): the search is the exact base and the quality, nothing else.
+- Watcher's Eye: the aura mods start ticked (from just under your roll); the life, mana and energy shield mods don't.
+- Unidentified uniques search uniques of that base only (before, rares of the same base could show up).
+- Every price check searches from the item's own item level up (86 and over counts as 86), so a lower item level item doesn't set the price. Maps (their tier counts), gems, heist contracts and Wickerman parts are left out.
+- Special mods are also known by their name in the Ctrl+Alt+C copy: delve ("Subterranean"), incursion, veiled, essence, bestiary ("of Farrul"), Foulborn and influence mods ("Elevated Hunter's", "of the Crusade") all start ticked. The list comes from PoE Overlay.
+- Enchantments on gear (labyrinth and others) start ticked.
+- The daily limit on pathofexile.com requests is gone, and so are the request counters (sidebar, Overview, price check, Settings). GGG's own rate limits are still followed, so you can't get locked out.
+- Searches use fewer requests: a price check reads the 10 cheapest listings in one request (a second only when they're all one or two sellers), the same search again within 3 minutes uses none, and only identified uniques are searched before you press Search.
+- Corrupted items: the corruption implicit (from a Vaal Orb, like +1 to socketed gems or +1 maximum power charge) starts ticked.
+- Fractured rares and magic items: the search is the fractured mod (as fractured) on the exact base; the other mods, totals, item level and DPS / defences start unticked. The fractured mod is no longer folded into a total.
+
 ## 1.0.92 - 2026-11-15
 
 * [Chat macros] Chat macros press Backspace twice before the text, so a stray ^ no longer ends up in front of /hideout

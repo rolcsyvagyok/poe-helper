@@ -65,6 +65,7 @@ const SOURCE_GROUPS = ['implicit', 'explicit', 'crafted', 'fractured', 'enchant'
 
 /** A bit under the value, floored (45 -> 40 at 10%); one decimal for small numbers. */
 function minOf(v, tol) {
+  if (Number.isInteger(v) && v > 0 && v <= 5) return v; // +1% max resistance, +2 to gem levels: exact
   const lo = v >= 0 ? v * (1 - tol) : v * (1 + tol);
   return Math.abs(v) < 10 && !Number.isInteger(v) ? Math.floor(lo * 10) / 10 : Math.floor(lo);
 }
@@ -76,7 +77,8 @@ function minOf(v, tol) {
 function pseudoTotals(rows, item, idxPseudo, norm, tol = 0.1) {
   const unique = item.rarity === 'Unique';
   const corrupted = !!item.flags?.corrupted;
-  const src = rows.filter((r) => SOURCE_GROUPS.includes(r.group) && !r.unmatched && !r.folded);
+  // special mods and fractured ones (searched on their own) stay out of the totals
+  const src = rows.filter((r) => SOURCE_GROUPS.includes(r.group) && r.group !== 'fractured' && !r.unmatched && !r.folded && !r.special);
   const byGroup = new Map();
   const applied = [];
   let out = [];
