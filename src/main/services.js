@@ -1672,28 +1672,32 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { ...r, base: base ? await collectionFor(base) : null };
   }
 
-  /** Reads your Unique stash tab(s) on pathofexile.com (1 request for the tab list, 1 per Unique tab) and ticks every
-   *  unique in it. Only adds ticks, never removes one. */
+  /** Your Unique stash tab, as PoE Ladder (poeladder.com) sees it: GGG gives the tab's items only to apps it approved,
+   *  and PoE Ladder is one. Its API is public: 2 requests, none to GGG. Only adds ticks, never removes one. */
   async function collectionFromStash() {
     const league = await getLeague();
-    const tabs = await ggg.stashTabs(league, { force: true });
-    const uniq = tabs.filter((t) => t.type === 'UniqueStash');
-    if (!uniq.length) return { league, tabs: 0, found: 0, added: [], note: `No Unique stash tab in your ${league} stash.` };
+    const acct = String(settings.get('accountName') || '').trim();
+    if (!acct) return { league, needAccount: true, note: 'Set your account name (Name#1234) in Settings first.' };
+    const user = encodeURIComponent(acct.replace('#', '-'));
+    const get = async (url) => {
+      const r = await (fetchImpl || globalThis.fetch)(url, { headers: { 'User-Agent': userAgent(), Accept: 'application/json' } });
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error(`PoE Ladder answered ${r.status}`);
+      return r.json();
+    };
+    const ladders = await get(`https://poeladder.com/api/v1/users/${user}/stashfound`);
+    if (!Array.isArray(ladders) || !ladders.length) return { league, notJoined: true, note: 'PoE Ladder doesn\'t know your account yet. Join it once at poeladder.com, then try again.' };
+    const norm = (x) => String(x || '').toLowerCase().replace(/^ssf\s+/, '').trim();
+    const mine = ladders.filter((l) => !l.isPoe2 && norm(l.name) === norm(league));
+    if (!mine.length) return { league, ladders: ladders.filter((l) => !l.isPoe2).map((l) => l.name), note: `PoE Ladder has no ${league} ladder for you yet. Join it there (Ladder → your league), then try again.` };
     const names = new Set();
-    for (const t of uniq) {
-      const items = await ggg.stashTabItems(league, t.index, { maxAgeMs: t.index === 0 ? 60 * 1000 : 0 });
-      for (const it of items) {
-        if (it.frameType !== 3 && it.frameType !== 9 && it.rarity !== 'Unique') continue; // 9 = relic
-        const n = String(it.name || '').replace(/<<[^>]*>>/g, '').trim();
-        if (n) names.add(n);
-      }
-    }
+    for (const l of mine) for (const u of (await get(l.url || `https://poeladder.com/api/v1/users/${user}/leagues/${encodeURIComponent(l.identifier)}/stashfound`)) || []) if (u?.name) names.add(u.name);
     const all = { ...(settings.get('uniqueCollection') || {}) };
     const added = [...names].filter((n) => !all[n]);
     for (const n of added) all[n] = true;
     settings.set('uniqueCollection', all);
     const r = await refreshCollected();
-    return { league, tabs: uniq.length, found: names.size, added, hidden: r.hidden, note: names.size ? null : 'The website sent no items for your Unique tab.' };
+    return { league, ladder: mine.map((l) => l.name).join(', '), found: names.size, added, hidden: r.hidden, note: names.size ? null : 'PoE Ladder has no uniques for you in this league yet. It can take a while after you join.' };
   }
 
   function setMapHide(o = {}) {

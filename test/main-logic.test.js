@@ -796,3 +796,26 @@ test('3.30: "Identified True" does not take normal items (the game counts them a
   const doc = parse('Hide # ranks\n\tRarity Normal Magic\n\tIdentified True\n\tBaseType == "Topaz Ring"\n\nShow # rest\n\tRarity Normal\n');
   assert.equal(explain(doc, parseItem('Item Class: Rings\nRarity: Normal\nTopaz Ring\n--------\nItem Level: 84\n')).comment, 'rest');
 });
+
+test('My collection: ticks the uniques PoE Ladder lists for your league, never unticks', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-ladder-'));
+  const seen = [];
+  const fetchImpl = async (url) => {
+    seen.push(url);
+    const ok = (b) => ({ status: 200, ok: true, headers: new Map(), json: async () => b });
+    if (url.includes('/economy/leagues')) return ok([{ id: 'Test', name: 'Test' }]);
+    if (url.endsWith('/users/Me-12/stashfound')) return ok([{ name: 'SSF Test', identifier: 'SSF_Test', isPoe2: false, url: 'https://poeladder.com/api/v1/users/Me-12/leagues/SSF_Test/stashfound' }, { name: 'Standard', identifier: 'Standard', isPoe2: false }]);
+    if (url.includes('/leagues/SSF_Test/stashfound')) return ok([{ name: 'Headhunter' }, { name: 'Quill Rain' }]);
+    if (url.includes('poeladder')) return { status: 404, ok: false, json: async () => ({}) };
+    return ok({ core: { items: [] }, lines: [] });
+  };
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl, log: () => {} });
+  svc.settings.patch({ leagueOverride: 'Test', accountName: 'Me#12', uniqueCollection: { 'Le Heup of All': true, 'Quill Rain': true } });
+  const r = await svc.collectionFromStash();
+  assert.deepEqual(r.added, ['Headhunter']);
+  assert.equal(r.found, 2);
+  assert.deepEqual(Object.keys(svc.settings.get('uniqueCollection')).sort(), ['Headhunter', 'Le Heup of All', 'Quill Rain']);
+  assert.ok(!seen.some((u) => u.includes('pathofexile.com')), 'no GGG request');
+  svc.settings.patch({ accountName: 'Other#1' });
+  assert.ok((await svc.collectionFromStash()).notJoined);
+});

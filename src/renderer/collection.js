@@ -26,17 +26,20 @@
 
   async function fromStash(e) {
     const btn = e.currentTarget;
-    btn.disabled = true; btn.textContent = 'Reading your stash…';
+    btn.disabled = true; btn.textContent = 'Asking PoE Ladder…';
     try {
       const r = await call('collection:fromStash');
-      if (r.note) toast(r.note);
-      else {
+      if (r.note) {
+        toast(r.note);
+        if (r.notJoined || r.ladders) C.ladderHelp = true;
+      } else {
+        C.ladderHelp = false;
         const hid = C.data?.on === false ? '' : ` · ${r.hidden?.length || 0} collected cheap base${(r.hidden?.length || 0) === 1 ? '' : 's'} hidden in your filter`;
         toast((r.added.length ? `${r.added.length} new unique${r.added.length === 1 ? '' : 's'} ticked (${r.found} in your Unique tab)` : `All ${r.found} uniques in your Unique tab were already ticked`) + hid);
       }
       await render();
     } catch (err) {
-      toast(/POESESSID|401|403|Account name/i.test(err.message || '') ? 'Log in to pathofexile.com in Settings first, then try again.' : `Could not read your stash: ${err.message}`);
+      toast(`Could not reach PoE Ladder: ${err.message}`);
       btn.disabled = false; btn.textContent = 'Tick from my Unique stash tab';
     }
   }
@@ -83,13 +86,16 @@
       window.pageHead ? window.pageHead('My collection', 'Every unique that drops. Click the ones you have. When you have every unique on a base and none is worth much, your filter hides that base (Foulborn and Replica ones still show; Replicas don\'t count towards hiding a base).') : h('h1', {}, 'My collection'),
       h('div', { class: 'panel col-top' },
         tiles,
+        C.ladderHelp ? h('div', { class: 'small', style: { padding: '8px 10px', border: '1px dashed var(--line, #ffffff33)', borderRadius: '6px' } },
+          h('b', {}, 'One-time setup: '), 'GGG only shows your Unique tab to sites it approved. Join PoE Ladder with your Path of Exile account and its league ladder, then press the button again (new uniques can take a while to show up there). ',
+          h('button', { class: 'quiet sm', onclick: () => call('shell:open', 'https://poeladder.com/getting-started') }, 'Open PoE Ladder')) : null,
         h('div', { class: 'col-progress' }, h('b', {}, `${have} of ${all.length}`), h('span', { class: 'muted' }, ` uniques (${pct}%)`),
           h('div', { class: 'col-bar', role: 'progressbar', 'aria-valuenow': String(pct), 'aria-valuemin': '0', 'aria-valuemax': '100' }, h('span', { style: { width: `${pct}%` } }))),
         h('div', { class: 'row small', style: { gap: '10px', flexWrap: 'wrap' } },
           seg('show', [['all', 'All'], ['missing', 'Missing'], ['have', 'Have']]),
           h('span', { class: 'muted' }, 'Sort'), seg('sort', [['group', 'Name'], ['base', 'Base'], ['price', 'Price']]),
           search,
-          h('button', { class: 'sm', title: 'Reads your Unique stash tab on pathofexile.com (needs your login in Settings) and ticks every unique in it. It never unticks one.', onclick: fromStash }, 'Tick from my Unique stash tab'),
+          h('button', { class: 'sm', title: 'Reads your Unique stash tab through PoE Ladder (poeladder.com) and ticks every unique in it. It never unticks one. GGG only shows that tab to approved sites, so you join PoE Ladder once with your Path of Exile account.', onclick: fromStash }, 'Tick from my Unique stash tab'),
           h('span', { class: 'spacer' }),
           h('label', { class: 'check', title: 'A base where you have every unique and none is worth more than the limit is hidden in your filter' },
             h('input', { type: 'checkbox', checked: d.on, onchange: async (e) => { const r = await call('collection:set', { on: e.target.checked }); d.on = r.on; const hid = new Set(r.hidden); for (const x of all) x.hiddenBase = hid.has(x.base); d.hiddenBases = r.hidden; toast(r.on ? `Collected cheap bases are removed from your filter (${r.hidden.length})` : 'Collected bases show again'); draw(); } }),

@@ -503,7 +503,8 @@ function rankStrandTiers(text, ranks = {}, mins = {}, names = []) {
 const ICON_SHAPES = [
   [/^currency->(stacked|deadmansulphur|harvest)/, 'Hexagon'],
   [/^(leveling|decorators|hidelayer|event|questlike)/, null],
-  [/^(currency|gold|artefact|expedition|corpses|runesgrafts|enshrouded)/, 'Circle'],
+  [/^gold/, 'Cross'], // the game's own gold icon shape; easy to tell from currency
+  [/^(currency|artefact|expedition|corpses|runesgrafts|enshrouded)/, 'Circle'],
   [/^divination/, 'Kite'],
   [/^uniques->maps/, 'Square'],
   [/^uniques/, 'Star'],

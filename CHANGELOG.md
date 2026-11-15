@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.97 - 2026-11-15
+
+* Gold has its cross on the minimap again
+* [My collection] "Tick from my Unique stash tab" now works: it reads your Unique tab through PoE Ladder (join poeladder.com once)
+
+- My collection: GGG only shows the Unique tab to sites it approved, so the button now asks PoE Ladder (poeladder.com), which reads it with your permission. Join PoE Ladder once with your Path of Exile account and your league's ladder; after that one click ticks every unique you have. No request to GGG.
+- Loot filter: gold's minimap icon is a cross again (it had become a circle, the same as currency).
+
 ## 1.0.96 - 2026-11-15
 
 * [Base ranks] Unid item tier: a choice is copied to every lower tier, so making Tier 5 stricter is one click
