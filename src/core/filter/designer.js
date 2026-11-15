@@ -176,7 +176,9 @@ function lockTier1(levels) {
 const RARE_LEVELS = [
   [/^gear->tiered$/, /^t5r\d$/, 2], [/^gear->tiered$/, /^t4r\d$/, 3], [/^gear->tiered$/, /^t3r\d$/, 4], [/^gear->tiered$/, /^t2r\d$/, 5],
   [/^gear->tiered$/, /^(any\d|specialclasses)$/, 6], [/^gear->(tiered|memorystrand)$/, /^stranded/, 2],
-  [/^rr(->|$)/, /^t1f?$/, 2], [/^rr(->|$)/, /^t2f?$/, 3], [/^rr(->|$)/, /^t3$/, 4], [/^rr(->|$)/, /^t[45]$/, 5],
+  // Tier 0 (rares without an item tier) sit below every item tier: the quiet "any base" look, and the rank of
+  // the base shows only in the border (S gold, A silver, B grey); a higher item tier always looks more expensive
+  [/^rr(->|$)/, /^t1f?$/, 6, 'S'], [/^rr(->|$)/, /^t2f?$/, 6, 'A'], [/^rr(->|$)/, /^t3$/, 6, 'B'], [/^rr(->|$)/, /^t[45]$/, 6, 'C'],
   [/^gear->memorystrand$/, /^(t\dhigh|anyhigh)$/, 2], [/^gear->memorystrand$/, /^(t\d|any)$/, 3],
   [/^influenced/, /./, 3], [/^exotic->fractured$/, /./, 3], [/^rare->exotic->veiled$/, /./, 4], [/^rare->(exarch|eater)$/, /./, 4],
   [/^exoticbases$/, /./, 4], [/^(rareid|rareblendid|corruptedid|magicid)$/, /./, 4],
@@ -187,6 +189,24 @@ const NO_DESIGN = /^decorators(->|$)/; // FilterBlade's size highlights: only th
 function rareLevel(type, tier) {
   const hit = RARE_LEVELS.find(([tr, xr]) => tr.test(type) && xr.test(tier));
   return hit ? hit[2] : undefined;
+}
+function rareRank(type, tier) {
+  const hit = RARE_LEVELS.find(([tr, xr]) => tr.test(type) && xr.test(tier));
+  return hit?.[3] || null;
+}
+const RANK_BORDER = { S: [255, 200, 90], A: [200, 208, 222], B: [125, 130, 142] };
+/** A design level's look for one target: Tier 0 ranks keep the level's look with their rank's border (and S/A the
+ *  next level's minimap icon, so the best bases are still found on the map). */
+function lookFor(t, levels) {
+  const st = levels[t.level];
+  if (!st) return null;
+  const out = fullLook(withLevelSound(JSON.parse(JSON.stringify(st)), t.level));
+  if (t.rank && RANK_BORDER[t.rank]) {
+    out.border = [...RANK_BORDER[t.rank], 255];
+    const up = levels[t.level - 1];
+    if ((t.rank === 'S' || t.rank === 'A') && up?.icon && !out.icon) out.icon = { ...up.icon, size: 2 };
+  }
+  return out;
 }
 
 function targetsFor(view, groups = null) {
@@ -201,7 +221,7 @@ function targetsFor(view, groups = null) {
       if (tier.special && rl === undefined) continue;
       const level = rl !== undefined ? rl : tierLevel(tier.tier);
       if (!level || !LEVELS.includes(level)) continue;
-      out.push({ key: tier.key, type: t.type, tier: tier.tier, level });
+      out.push({ key: tier.key, type: t.type, tier: tier.tier, level, rank: rareRank(t.type, tier.tier) });
     }
   }
   return out;
@@ -213,9 +233,9 @@ function applyDesign(view, patch, levels, { groups = null, origView = null } = {
   const targets = targetsFor(view, groups);
   let count = 0;
   for (const t of targets) {
-    const st = levels[t.level];
-    if (!st) continue;
-    styles[t.key] = fullLook(withLevelSound(JSON.parse(JSON.stringify(st)), t.level));
+    const look = lookFor(t, levels);
+    if (!look) continue;
+    styles[t.key] = look;
     count++;
   }
   count += stackedColours(view, styles, levels);
@@ -353,4 +373,4 @@ function paletteColours(origView, styles, levels) {
   return n;
 }
 
-module.exports = { RARE_LEVELS, rareLevel, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

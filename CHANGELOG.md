@@ -5,6 +5,20 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.103 - 2026-11-16
+
+* [WealthyExile] New look: net worth chart with your sessions, a categories donut and every item with its stash tab
+* [WealthyExile] Sessions: start one before you farm and see its profit, profit per hour and what each tab gained
+* [Settings] New Midnight look: darker and more modern (the old looks are still under Appearance)
+* [Rare looks] A higher item tier always looks more expensive; Tier 0 rares show their rank in the border
+
+- WealthyExile: a bar on top with the league, last snapshot and session; the net worth chart (or income per day) shows your sessions as bands; categories as a donut or a list (click one to list only its items).
+- WealthyExile: the items of the last snapshot in a table you can sort, search and filter by stash tab, with each item's tabs shown. New snapshots remember the tabs; older ones don't.
+- WealthyExile: "Start session" takes a snapshot and starts counting; pick a session to see its profit chart, profit per hour, time played and the change per tab. "Stop session" takes the last snapshot.
+- WealthyExile: tracked tabs, automatic snapshots and deleting history are under the ⋯ button.
+- The app has a new default look, Midnight: near black, neutral greys, clean text and rounded cards. Atlas, Hideout and Dark are still in Settings → Appearance.
+- Rare looks: rares without an item tier (Tier 0) no longer copy the item tier looks. They get the quiet "any base" look, and their rank shows in the border: gold for rank S, silver for A, grey for B (S and A keep a minimap icon). So an item tier 5 always looks more expensive than any Tier 0 rare. "Use my theme's colours" does the same.
+
 ## 1.0.102 - 2026-11-15
 
 - My collection: "Tick from my Unique stash tab" finds your PoE Ladder ladder when the league's names differ ("Covens" on poe.ninja is "Covens of Umbra" on PoE Ladder).

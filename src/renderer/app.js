@@ -163,14 +163,14 @@ async function setUiTheme(id) {
   document.querySelectorAll('[data-theme-id]').forEach((b) => b.classList.toggle('on', b.dataset.themeId === S.settings.uiTheme));
 }
 function themeDots() {
-  const cur = S.settings.uiTheme || 'atlas';
+  const cur = S.settings.uiTheme || 'midnight';
   return h('div', { class: 'theme-dots', role: 'group', 'aria-label': 'Look' }, h('span', { class: 'faint' }, 'Look'), window.UI.UI_THEMES.map((t) => h('button', {
     class: t.id === cur ? 'on' : '', 'data-theme-id': t.id, title: `${t.name} look`, 'aria-label': `${t.name} look`,
     style: { background: `linear-gradient(135deg, ${t.sw[1]} 50%, ${t.sw[2]} 50%)` }, onclick: () => setUiTheme(t.id),
   })));
 }
 function themePicker() {
-  const cur = S.settings.uiTheme || 'atlas';
+  const cur = S.settings.uiTheme || 'midnight';
   return h('div', { class: 'theme-pick' }, window.UI.UI_THEMES.map((t) => h('button', { class: 'tp' + (t.id === cur ? ' on' : ''), 'data-theme-id': t.id, onclick: () => setUiTheme(t.id) },
     h('div', { class: 'tp-sw', style: { boxShadow: `inset 0 0 0 1px ${t.sw[3]}` } }, h('i', { style: { background: t.sw[0] } }),
       h('b', { style: { background: t.sw[1], color: t.sw[2] } }, 'Aa', h('span', { style: { background: t.sw[3] } }))),
@@ -236,6 +236,7 @@ const NOTE_PLACES = [
   [/Rare looks/i, 'Rare looks', { special: 'rarelooks' }],
   [/Base ranks|Unid item tier|Memory Strand|Ranked bases|Tier 0/i, 'Base ranks', { special: 'basematrix' }],
   [/My collection/i, 'My collection', { page: 'collection' }],
+  [/WealthyExile|net worth/i, 'WealthyExile', { page: 'networth' }],
   [/Unique items|High variety|unique bases|uniques page/i, 'Unique items', { type: 'uniques' }],
   [/Regular maps|map cards|white maps|yellow maps/i, 'Regular maps', { type: 'maps' }],
   [/Tier designer|Text size|theme/i, 'Tier designer', { page: 'designer' }],
@@ -558,59 +559,81 @@ const wxIcon = (item, size = 26) => {
   return url ? h('img', { src: url, alt: '', width: size, height: size, loading: 'lazy', style: { objectFit: 'contain' } }) : h('span', { class: 'wx-noimg', style: { width: size + 'px', height: size + 'px' } });
 };
 
-function wealthDashboard(latest) {
+// WealthyExile: a bar with the league, last snapshot and session; the net worth (or session profit) chart next
+// to the categories donut; then every item of the snapshot, filterable by stash tab.
+let nwSession = null; // a session's id: the page shows that session (profit); null = all snapshots
+let nwMode = 'total'; // chart: 'total' or 'rate' (per day, per hour in a session)
+let nwCatView = 'donut';
+let nwSort = { k: 'total', dir: -1 };
+let nwOffTabs = new Set(); // stash tabs unticked in the item list
+let nwShowAll = false;
+let nwSetup = false;
+const NW_COLOURS = ['#e5c48b', '#4a90d9', '#f08c00', '#9db8d6', '#b0702a', '#6d8fbf', '#f2c46d', '#3f5f8f', '#c98a4b', '#7fb3e0'];
+
+function nwDonut(cats, total) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 120 120');
+  svg.setAttribute('class', 'nw-donut');
+  svg.setAttribute('role', 'img');
+  const R = 46, C = 2 * Math.PI * R;
+  let off = 0;
+  cats.forEach((g, i) => {
+    const part = g.total / total;
+    if (part <= 0) return;
+    const c = document.createElementNS(NS, 'circle');
+    for (const [k, v] of Object.entries({ cx: 60, cy: 60, r: R, fill: 'none', stroke: NW_COLOURS[i % NW_COLOURS.length], 'stroke-width': 14, 'stroke-dasharray': `${Math.max(0.5, part * C - 1)} ${C}`, 'stroke-dashoffset': -off, transform: 'rotate(-90 60 60)' })) c.setAttribute(k, v);
+    const t = document.createElementNS(NS, 'title'); t.textContent = `${wxName(g.id)}: ${Math.round(part * 1000) / 10}%`; c.append(t);
+    svg.append(c);
+    off += part * C;
+  });
+  return svg;
+}
+
+function nwItems(latest, tabNames, snapBtn) {
   const d = latest.divine;
   const items = latest.items || [];
-  const total = latest.totalChaos || items.reduce((a, i) => a + i.q * i.e, 0) || 1;
-  const groups = new Map();
-  for (const i of items) {
-    const c = i.c || 'Other';
-    if (!groups.has(c)) groups.set(c, { id: c, total: 0, items: [] });
-    const g = groups.get(c); g.total += i.q * i.e; g.items.push(i);
-  }
-  const cats = [...groups.values()].sort((a, b) => b.total - a.total);
   // pictures for older snapshots: one lookup by name, then redraw
-  const lack = cats.flatMap((g) => g.items.slice(0, 6)).filter((i) => !i.i && !(wxBase(i.n) in nwArt));
-  // "name<tab>category" so the main process looks in the right poe.ninja list (gems, astrolabes, runegrafts…)
+  const lack = items.slice(0, 80).filter((i) => !i.i && !(wxBase(i.n) in nwArt));
   const missing = [...new Map(lack.map((i) => [wxBase(i.n), `${wxBase(i.n)}\t${i.c || ''}`])).values()].slice(0, 60);
   if (missing.length) {
     for (const i of lack) nwArt[wxBase(i.n)] = null;
     call('art:icons', missing).then((m) => { let any = false; for (const [k, v] of Object.entries(m || {})) if (v) { nwArt[k] = v; any = true; } if (any && currentPage === 'networth') renderNetworth(); }).catch(() => {});
   }
-  const pct = (v) => { const x = Math.round((v / total) * 1000) / 10; return x > 0 ? `${x}%` : '<0.1%'; };
-  const card = (g) => h('button', { type: 'button', class: 'wx-card' + (nwCat === g.id ? ' on' : ''), 'aria-pressed': nwCat === g.id ? 'true' : 'false', onclick: () => { nwCat = nwCat === g.id ? null : g.id; renderNetworth(); } },
-    h('div', { class: 'wx-card-head' }, wxIcon(g.items[0], 34),
-      h('div', { class: 'wx-card-title' }, h('b', {}, wxName(g.id)), h('span', { class: 'small faint' }, `${g.items.length} ${g.items.length === 1 ? 'item' : 'items'}`)),
-      h('div', { class: 'wx-card-val' }, h('b', {}, chaosDiv(g.total, d)), h('span', { class: 'small muted' }, pct(g.total)))),
-    h('div', { class: 'wx-bar' }, h('i', { style: { width: pct(g.total) } })),
-    h('div', { class: 'wx-top' }, g.items.slice(0, 3).map((i) => h('div', { class: 'wx-line' }, wxIcon(i, 20), h('span', { class: 'n' }, i.n), h('span', { class: 'q small muted' }, i.q > 1 ? `×${fmt(i.q)}` : ''), h('span', { class: 'v' }, chaosDiv(i.q * i.e, d))))));
-
-  const shown = items.filter((i) => (!nwCat || (i.c || 'Other') === nwCat) && (!nwFind || i.n.toLowerCase().includes(nwFind.toLowerCase())));
-  const find = h('input', { type: 'search', placeholder: 'Find an item', value: nwFind, style: { width: '200px' }, oninput: (e) => { nwFind = e.target.value; clearTimeout(window.wxFindT); window.wxFindT = setTimeout(renderNetworth, 250); } });
-  const byTab = Object.entries(latest.byTab || {}).sort((a, b) => b[1] - a[1]);
-  const tabMax = byTab[0]?.[1] || 1;
-  return [
-    h('div', { class: 'section-head', style: { marginTop: '28px' } }, h('h2', {}, 'By category'), h('p', {}, 'Click a category to list only its items.')),
-    h('div', { class: 'wx-grid' }, cats.map(card)),
-    h('div', { class: 'cols', style: { marginTop: '28px', alignItems: 'start', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)' } },
-      h('div', {},
-        h('div', { class: 'section-head' }, h('h2', {}, nwCat ? wxName(nwCat) : 'All items'), h('span', { class: 'small faint' }, `${shown.length} items, ${chaosDiv(shown.reduce((a, i) => a + i.q * i.e, 0), d)}`), h('span', { class: 'spacer' }),
-          find, nwCat ? h('button', { class: 'quiet sm', onclick: () => { nwCat = null; renderNetworth(); } }, 'Show all') : null),
-        h('div', { class: 'panel', style: { padding: '6px 10px' } }, shown.length ? h('table', { class: 'wx-items' },
-          h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', {}, 'Category'), h('th', { class: 'r' }, 'Amount'), h('th', { class: 'r' }, 'Each'), h('th', { class: 'r' }, 'Value'))),
-          h('tbody', {}, shown.slice(0, 60).map((i) => h('tr', {},
-            h('td', {}, h('span', { class: 'row', style: { gap: '8px', flexWrap: 'nowrap' } }, wxIcon(i, 24), i.n)),
-            h('td', { class: 'small muted' }, wxName(i.c)),
-            h('td', { class: 'r muted' }, fmt(i.q)),
-            h('td', { class: 'r small muted' }, chaosDiv(i.e, d)),
-            h('td', { class: 'r' }, chaosDiv(i.q * i.e, d)))))) : h('p', { class: 'small muted' }, 'Nothing matches.'),
-        shown.length > 60 ? h('p', { class: 'small faint' }, `The ${shown.length - 60} smaller ones are left out; search to find them.`) : null)),
-      h('div', {},
-        h('div', { class: 'section-head' }, h('h2', {}, 'By tab')),
-        h('div', { class: 'panel stack', style: { gap: '10px' } }, byTab.map(([name, v]) => h('div', {},
-          h('div', { class: 'row small', style: { justifyContent: 'space-between' } }, h('span', {}, name), h('b', {}, chaosDiv(v, d))),
-          h('div', { class: 'wx-bar' }, h('i', { style: { width: `${Math.max(2, (v / tabMax) * 100)}%` } }))))))),
-  ];
+  const inTab = (i) => !i.t?.length || i.t.some((t) => !nwOffTabs.has(t));
+  const q = nwFind.trim().toLowerCase();
+  const shown = items.filter((i) => inTab(i) && (!nwCat || (i.c || 'Other') === nwCat) && (!q || i.n.toLowerCase().includes(q)));
+  const key = { name: (i) => i.n.toLowerCase(), qty: (i) => i.q, each: (i) => i.e, total: (i) => i.q * i.e }[nwSort.k];
+  shown.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * nwSort.dir; });
+  const sum = shown.reduce((a, i) => a + i.q * i.e, 0);
+  const th = (k, label, cls = '') => h('th', { class: cls, 'aria-sort': nwSort.k === k ? (nwSort.dir < 0 ? 'descending' : 'ascending') : 'none' },
+    h('button', { class: 'nw-sort', onclick: () => { nwSort = { k, dir: nwSort.k === k ? -nwSort.dir : (k === 'name' ? 1 : -1) }; renderNetworth(); } }, label, nwSort.k === k ? (nwSort.dir < 0 ? ' ↓' : ' ↑') : ''));
+  const byTab = latest.byTab || {};
+  const tabList = h('div', { class: 'nw-tabs panel' },
+    h('div', { class: 'nw-tabs-head' }, h('b', {}, 'Stash tabs'), h('span', { class: 'spacer' }),
+      h('button', { class: 'quiet sm', onclick: () => { nwOffTabs = nwOffTabs.size ? new Set() : new Set(tabNames); renderNetworth(); } }, nwOffTabs.size ? 'All' : 'None')),
+    tabNames.map((t) => h('label', { class: 'nw-tab' },
+      h('input', { type: 'checkbox', checked: !nwOffTabs.has(t), onchange: (e) => { e.target.checked ? nwOffTabs.delete(t) : nwOffTabs.add(t); renderNetworth(); } }),
+      h('span', { class: 'n' }, t), h('span', { class: 'v small muted' }, chaosDiv(byTab[t] || 0, d)))),
+    !(latest.items || []).some((i) => i.t) ? h('p', { class: 'small faint' }, 'Snapshots from before this update don\'t know each item\'s tab.') : null);
+  const find = h('input', { type: 'search', placeholder: 'Search…', value: nwFind, 'aria-label': 'Search items', oninput: (e) => { nwFind = e.target.value; clearTimeout(window.wxFindT); window.wxFindT = setTimeout(() => { renderNetworth(); }, 250); } });
+  const LIMIT = 100;
+  return h('div', { class: 'nw-panel nw-items-box' },
+    h('div', { class: 'nw-ph' }, h('h2', {}, 'Items recorded in the last snapshot'), h('span', { class: 'small faint' }, `${shown.length} items · ${chaosDiv(sum, d)}`)),
+    h('div', { class: 'nw-items-grid' }, tabList,
+      h('div', { style: { minWidth: 0 } },
+        h('div', { class: 'nw-toolbar' }, find,
+          nwCat ? h('button', { class: 'pill-btn on', onclick: () => { nwCat = null; renderNetworth(); }, title: 'Show every category' }, `${wxName(nwCat)} ✕`) : null,
+          h('span', { class: 'spacer' }), snapBtn),
+        shown.length ? h('table', { class: 'wx-items nw-table' },
+          h('thead', {}, h('tr', {}, th('name', 'Name'), h('th', {}, 'Tab'), th('qty', 'Quantity', 'r'), th('each', 'Price', 'r'), th('total', 'Total price', 'r'))),
+          h('tbody', {}, (nwShowAll ? shown : shown.slice(0, LIMIT)).map((i) => h('tr', {},
+            h('td', {}, h('span', { class: 'nw-name' }, wxIcon(i, 30), h('span', {}, i.n))),
+            h('td', {}, h('span', { class: 'nw-chips' }, (i.t || []).slice(0, 3).map((t) => h('span', { class: 'nw-chip', title: t }, t.length > 12 ? `${t.slice(0, 11)}…` : t)), (i.t || []).length > 3 ? h('span', { class: 'nw-chip' }, `+${i.t.length - 3}`) : null)),
+            h('td', { class: 'r' }, fmt(i.q)),
+            h('td', { class: 'r muted' }, chaosDiv(i.e, d)),
+            h('td', { class: 'r' }, h('b', {}, chaosDiv(i.q * i.e, d))))))) : h('p', { class: 'small muted', style: { padding: '12px' } }, 'Nothing matches.'),
+        !nwShowAll && shown.length > LIMIT ? h('button', { class: 'quiet sm', style: { margin: '10px 0' }, onclick: () => { nwShowAll = true; renderNetworth(); } }, `Show all ${shown.length}`) : null)));
 }
 
 function renderNetworth() { return window.UI.keepScroll(() => renderNetworthNow()); }
@@ -620,86 +643,142 @@ async function renderNetworthNow() {
   const st = S.settings;
   const ready = st.accountName && st.sessionSet;
   let report = null;
-  try { report = await call('networth:report', nwWindow, nwAt); } catch { /* none */ }
-  if (nwAt && !report?.latest) { nwAt = null; try { report = await call('networth:report', nwWindow); } catch { /* none */ } }
-  const selected = new Set(st.selectedTabs || []);
+  try { report = await call('networth:report', 24 * 365 * 3600000, null); } catch { /* none */ }
+  const sessions = (report?.sessions || []).slice().reverse();
+  const running = sessions.find((s) => !s.end);
+  const sess = nwSession ? sessions.find((s) => s.id === nwSession) : null;
+  if (nwSession && !sess) nwSession = null;
+  const all = report?.series || [];
   const latest = report?.latest;
-  const viewingOld = !!(latest && report.newest && latest.ts !== report.newest);
+  const d = latest?.divine;
+  const selected = new Set(st.selectedTabs || []);
 
-  const tabsBox = !nwTabs
-    ? h('p', { class: 'small muted' }, ready ? 'Load your tab list, then tick the tabs to track. Loading costs 1 request and is remembered for 6 hours.' : 'Add your account name and POESESSID in Settings first.')
-    : h('div', { class: 'tabs-pick' }, nwTabs.filter((t) => !t.hidden).map((t) => h('label', { class: 'check' },
-      h('input', { type: 'checkbox', checked: selected.has(t.index), onchange: (e) => { e.target.checked ? selected.add(t.index) : selected.delete(t.index); } }),
-      t.colour ? h('span', { class: 'swatch', style: { background: '#' + t.colour } }) : null, t.name)));
-
-  const snapBtn = h('button', { class: 'primary nw-snap', disabled: !ready || !selected.size, onclick: async () => {
-    snapBtn.disabled = true;
-    snapBtn.textContent = 'Taking snapshot…';
-    try { await call('networth:snapshot'); nwAt = null; toast('Snapshot taken'); } catch { /* toast */ }
+  // ---- the bar on top ----
+  const snapBtn = h('button', { class: 'primary', disabled: !ready || !selected.size, onclick: async () => {
+    snapBtn.disabled = true; snapBtn.textContent = 'Taking snapshot…';
+    try { await call('networth:snapshot'); toast('Snapshot taken'); } catch { /* toast */ }
     renderNetworth();
-  } }, 'Take snapshot');
-  const snapNote = !ready ? 'Add your account name and POESESSID in Settings first.' : !selected.size ? 'Pick the tabs to track below first.' : `${selected.size} ${selected.size === 1 ? 'tab' : 'tabs'}, ${selected.size} ${selected.size === 1 ? 'request' : 'requests'}`;
+  }, title: `Costs ${selected.size} GGG ${selected.size === 1 ? 'request' : 'requests'} (one per tracked tab)` }, 'Take snapshot ⊕');
+  const sessBtn = h('button', { class: running ? 'danger' : '', disabled: !ready || !selected.size, onclick: async () => {
+    sessBtn.disabled = true; sessBtn.textContent = running ? 'Stopping…' : 'Starting…';
+    try { const s = await call('networth:session', running ? 'stop' : 'start'); if (!running && s) nwSession = s.id; toast(running ? `${running.name} ended` : `${s.name} started: snapshots now count towards it`); } catch { /* toast */ }
+    renderNetworth();
+  } }, running ? '■ Stop session' : '▶ Start session');
+  const fact = (icon, label, value, extra) => h('div', { class: 'nw-fact' }, h('span', { class: 'nw-fact-ico', 'aria-hidden': 'true' }, icon), h('div', {}, h('div', { class: 'nw-fact-l' }, label), h('div', { class: 'nw-fact-v' }, value, extra || null)));
+  const played = (s) => ((s.end || Date.now()) - s.start);
+  const dur = (ms) => { const m = Math.floor(ms / 60000); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+  const sessSel = h('select', { class: 'nw-sess-sel', 'aria-label': 'Session', onchange: (e) => { nwSession = e.target.value || null; nwMode = 'total'; renderNetworth(); } },
+    h('option', { value: '' }, 'All snapshots'),
+    sessions.map((s) => h('option', { value: s.id, selected: s.id === nwSession }, `${s.name}${s.end ? '' : ' (active)'}`)));
+  const bar = h('div', { class: 'nw-bar' },
+    fact('🏆', 'League', S.league || '–'),
+    fact('◎', 'Price league', S.league || '–'),
+    fact('⟲', 'Last snapshot', latest ? ago(Date.now() - latest.ts) : 'none yet'),
+    fact('⌛', 'Session', sessSel, running ? h('span', { class: 'nw-live' }, '● Active') : null),
+    sess ? fact('⏱', 'Played', dur(played(sess))) : null,
+    h('span', { class: 'spacer' }),
+    sessBtn,
+    h('button', { class: 'quiet nw-more' + (nwSetup ? ' on' : ''), 'aria-expanded': nwSetup ? 'true' : 'false', title: 'Tracked tabs, automatic snapshots, history', onclick: () => { nwSetup = !nwSetup; renderNetworth(); } }, '⋯'));
 
+  // ---- chart ----
+  let pts, title, unit, head;
+  if (sess) {
+    const base = [...all].reverse().find((p) => p.ts <= sess.start + 60000) || all.find((p) => p.ts >= sess.start);
+    const inS = all.filter((p) => p.ts >= (base?.ts ?? sess.start) && p.ts <= (sess.end ? sess.end + 120000 : Infinity));
+    const profit = inS.map((p) => ({ ts: p.ts, chaos: p.chaos - (base?.chaos || 0), divine: p.divine }));
+    pts = nwMode === 'rate' ? profit.filter((p) => p.ts - profit[0].ts > 10 * 60000).map((p) => ({ ...p, chaos: p.chaos / ((p.ts - profit[0].ts) / 3600000) })) : profit;
+    const last = profit[profit.length - 1];
+    head = last ? `${last.chaos >= 0 ? '+' : '−'}${chaosDiv(Math.abs(last.chaos), d)}` : '–';
+    title = [['total', 'Profit'], ['rate', 'Profit / h']];
+  } else {
+    pts = all;
+    if (nwMode === 'rate') pts = all.slice(1).map((p) => ({ ...p, chaos: (p.chaos - all[0].chaos) / Math.max(1 / 24, (p.ts - all[0].ts) / 86400000) }));
+    const first = all[0];
+    head = latest ? chaosDiv(latest.totalChaos, d) : '–';
+    title = [['total', 'Net worth'], ['rate', 'Income / d']];
+    if (first && latest && first.ts !== latest.ts) head = [h('span', { class: (latest.totalChaos - first.chaos) >= 0 ? 'good small' : 'bad small' }, `${latest.totalChaos >= first.chaos ? '+' : '−'}${chaosDiv(Math.abs(latest.totalChaos - first.chaos), d)} `), head];
+  }
+  unit = d && Math.max(1, ...pts.map((p) => Math.abs(p.chaos))) > d * 3 ? 'd' : 'c';
+  const bands = sess ? [] : sessions.map((s) => ({ from: s.start, to: s.end || Date.now(), label: s.name, on: s.id === running?.id }));
+  const chartBox = h('div', { class: 'nw-panel nw-chart' },
+    h('div', { class: 'nw-ph' },
+      h('div', { class: 'seg' }, title.map(([k, l]) => h('button', { class: nwMode === k ? 'on' : '', 'aria-pressed': nwMode === k ? 'true' : 'false', onclick: () => { nwMode = k; renderNetworth(); } }, l))),
+      h('span', { class: 'spacer' }), h('b', { class: 'nw-big' }, head)),
+    window.lineChart(pts, { divine: d, height: 230, bands, unit, zero: !!sess || nwMode === 'rate' }));
+
+  // ---- categories ----
+  const groups = new Map();
+  for (const i of latest?.items || []) { const c = i.c || 'Other'; if (!groups.has(c)) groups.set(c, { id: c, total: 0, items: [] }); const g = groups.get(c); g.total += i.q * i.e; g.items.push(i); }
+  const cats = [...groups.values()].sort((a, b) => b.total - a.total);
+  const tot = cats.reduce((a, g) => a + g.total, 0) || 1;
+  const pct = (v) => { const x = Math.round((v / tot) * 1000) / 10; return x > 0 ? `${x}%` : '<0.1%'; };
+  const catRow = (g, i) => h('button', { class: 'nw-cat' + (nwCat === g.id ? ' on' : ''), 'aria-pressed': nwCat === g.id ? 'true' : 'false', title: 'Show only these items', onclick: () => { nwCat = nwCat === g.id ? null : g.id; renderNetworth(); } },
+    h('i', { class: 'dot', style: { background: NW_COLOURS[i % NW_COLOURS.length] } }), wxIcon(g.items[0], 22), h('span', { class: 'n' }, wxName(g.id)),
+    nwCatView === 'list' ? h('span', { class: 'small muted' }, chaosDiv(g.total, d)) : null, h('span', { class: 'p' }, pct(g.total)));
+  const catBox = h('div', { class: 'nw-panel nw-cats' },
+    h('div', { class: 'nw-ph' }, h('h2', {}, 'Categories'), h('span', { class: 'spacer' }),
+      h('div', { class: 'seg' }, [['donut', 'Donut'], ['list', 'List']].map(([k, l]) => h('button', { class: nwCatView === k ? 'on' : '', onclick: () => { nwCatView = k; renderNetworth(); } }, l)))),
+    cats.length ? h('div', { class: 'nw-cats-body' + (nwCatView === 'list' ? ' list' : '') },
+      nwCatView === 'donut' ? h('div', { class: 'nw-donut-wrap' }, nwDonut(cats, tot), h('div', { class: 'nw-donut-mid' }, h('span', { class: 'small muted' }, 'Total'), h('b', {}, chaosDiv(latest.totalChaos || tot, d)))) : null,
+      h('div', { class: 'nw-cat-list' }, cats.map(catRow))) : h('p', { class: 'small muted' }, 'Take a snapshot to see your categories.'));
+
+  // ---- a session: its result and what each tab gained ----
+  let sessBox = null;
+  if (sess) {
+    const base = [...all].reverse().find((p) => p.ts <= sess.start + 60000) || all.find((p) => p.ts >= sess.start);
+    const end = [...all].reverse().find((p) => p.ts <= (sess.end ? sess.end + 120000 : Infinity));
+    const profit = base && end ? end.chaos - base.chaos : 0;
+    const hrs = played(sess) / 3600000;
+    const tabs = base?.tabs && end?.tabs ? [...new Set([...Object.keys(base.tabs), ...Object.keys(end.tabs)])].map((t) => [t, (end.tabs[t] || 0) - (base.tabs[t] || 0)]).filter(([, v]) => Math.abs(v) >= 1).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])) : [];
+    const mx = Math.max(1, ...tabs.map(([, v]) => Math.abs(v)));
+    const sign = (v) => `${v >= 0 ? '+' : '−'}${chaosDiv(Math.abs(v), d)}`;
+    sessBox = h('div', { class: 'nw-two' },
+      h('div', { class: 'nw-panel' },
+        h('div', { class: 'nw-ph' }, h('h2', {}, 'Change per tab'), h('span', { class: 'small faint' }, 'since the session started')),
+        tabs.length ? h('div', { class: 'nw-tabbars' }, tabs.map(([t, v]) => h('div', { class: 'nw-tabbar' },
+          h('span', { class: 'n' }, t),
+          h('span', { class: 'track' }, h('i', { class: v >= 0 ? 'up' : 'down', style: { width: `${Math.max(2, (Math.abs(v) / mx) * 100)}%` } })),
+          h('b', { class: v >= 0 ? 'good' : 'bad' }, sign(v))))) : h('p', { class: 'small muted' }, 'Take a snapshot during the session to see what each tab gained.')),
+      h('div', { class: 'nw-panel nw-result' },
+        h('div', { class: 'nw-ph' }, h('h2', {}, 'Session result')),
+        h('div', { class: 'nw-res-grid' },
+          h('span', {}, ''), h('span', { class: 'small faint r' }, 'Total'), h('span', { class: 'small faint r' }, '/ h'),
+          h('b', {}, 'Profit'), h('b', { class: 'r ' + (profit >= 0 ? 'good' : 'bad') }, sign(profit)), h('b', { class: 'r' }, hrs > 0.05 ? sign(profit / hrs) : '–')),
+        h('div', { class: 'nw-res-grid two' },
+          h('span', { class: 'muted' }, 'Played'), h('b', { class: 'r' }, dur(played(sess))),
+          h('span', { class: 'muted' }, 'Snapshots'), h('b', { class: 'r' }, String(all.filter((p) => p.ts >= sess.start - 60000 && p.ts <= (sess.end || Infinity) + 120000).length)),
+          h('span', { class: 'muted' }, 'Started'), h('b', { class: 'r' }, new Date(sess.start).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })),
+          h('span', { class: 'muted' }, sess.end ? 'Ended' : 'Status'), h('b', { class: 'r' }, sess.end ? new Date(sess.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '● running'))));
+  }
+
+  // ---- set up: tracked tabs, automatic snapshots, history ----
   const perHourReq = st.autoSnapshotMin ? Math.round((60 / Math.max(15, st.autoSnapshotMin)) * selected.size * 10) / 10 : 0;
+  const setupOpen = nwSetup || !ready || !selected.size;
+  const setup = setupOpen ? h('div', { class: 'nw-panel stack' },
+    h('div', { class: 'nw-ph' }, h('h2', {}, 'Tracked tabs and automatic snapshots'), h('span', { class: 'spacer' }),
+      h('button', { class: 'quiet sm', disabled: !ready, onclick: async () => { nwTabs = await call('networth:tabs', !!nwTabs); renderNetworth(); } }, nwTabs ? 'Reload tab list' : 'Load tab list')),
+    !ready ? h('p', { class: 'small muted' }, 'Add your account name and POESESSID in Settings first.')
+      : !nwTabs ? h('p', { class: 'small muted' }, 'Load your tab list, then tick the tabs to track. Loading costs 1 request and is remembered for 6 hours.')
+        : h('div', { class: 'tabs-pick' }, nwTabs.filter((t) => !t.hidden).map((t) => h('label', { class: 'check' },
+          h('input', { type: 'checkbox', checked: selected.has(t.index), onchange: (e) => { e.target.checked ? selected.add(t.index) : selected.delete(t.index); } }),
+          t.colour ? h('span', { class: 'swatch', style: { background: '#' + t.colour } }) : null, t.name))),
+    nwTabs ? h('div', { class: 'row' }, h('button', { onclick: async () => { await call('networth:select', [...selected]); toast(`Tracking ${selected.size} tabs`); renderNetworth(); } }, 'Save selection')) : null,
+    h('div', { class: 'row small' }, h('span', { class: 'muted' }, 'Automatic snapshots'),
+      h('select', { onchange: async (e) => { await call('settings:set', { autoSnapshotMin: Number(e.target.value) }); renderNetworth(); } },
+        [0, 15, 30, 60, 120].map((m) => h('option', { value: m, selected: Number(st.autoSnapshotMin) === m }, m ? `Every ${m} minutes` : 'Off'))),
+      st.autoSnapshotMin ? h('span', { class: 'faint' }, `About ${perHourReq} requests an hour while you play`) : null,
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'danger sm', onclick: async () => { if (confirm(`Delete all snapshots for ${S.league}?`)) { await call('networth:clear'); nwSession = null; renderNetworth(); } } }, 'Delete history'))) : null;
 
-  // every snapshot, newest first: pick one to see your stash as it was then
-  const series = (report?.series || []).slice().reverse();
-  const when = (ts) => {
-    const d = new Date(ts);
-    const today = new Date();
-    const y = new Date(Date.now() - 86400000);
-    const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (d.toDateString() === today.toDateString()) return `Today ${hm}`;
-    if (d.toDateString() === y.toDateString()) return `Yesterday ${hm}`;
-    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
-  };
-  const snapList = h('div', { class: 'panel nw-list', role: 'listbox', 'aria-label': 'Snapshots' },
-    series.length ? series.map((p, i) => {
-      const prev = series[i + 1];
-      const delta = prev ? p.chaos - prev.chaos : null;
-      const on = latest && p.ts === latest.ts;
-      return h('button', { class: 'nw-item' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', onclick: () => { nwAt = i === 0 ? null : p.ts; renderNetworth(); } },
-        h('span', { class: 'nw-when' }, when(p.ts), i === 0 ? h('span', { class: 'pill', style: { marginLeft: '6px' } }, 'newest') : null),
-        h('span', { class: 'nw-val' }, chaosDiv(p.chaos, p.divine)),
-        delta != null ? h('span', { class: 'nw-delta ' + (delta > 0 ? 'good' : delta < 0 ? 'bad' : 'faint') }, `${delta > 0 ? '+' : delta < 0 ? '−' : ''}${fmt(Math.abs(delta))}c`) : h('span', { class: 'nw-delta faint' }, 'first'));
-    }) : h('p', { class: 'small muted' }, 'No snapshots yet.'));
-
-  const setupOpen = !ready || !selected.size;
+  const tabNames = Object.keys(latest?.byTab || {});
   mount(el,
-    pageHead('WealthyExile', `What your tracked tabs are worth in ${S.league}.`,
-      h('select', { 'aria-label': 'Time range', onchange: (e) => { nwWindow = Number(e.target.value); renderNetworth(); } },
-        [[6, 'Last 6 hours'], [24, 'Last 24 hours'], [168, 'Last 7 days'], [24 * 365, 'Whole league']].map(([hr, l]) => h('option', { value: hr * 3600000, selected: nwWindow === hr * 3600000 }, l)))),
-    // the snapshot first: take one, and what it says
-    h('div', { class: 'panel nw-hero' },
-      h('div', { class: 'row', style: { gap: '16px', alignItems: 'center', flexWrap: 'wrap' } },
-        h('div', { class: 'stack', style: { gap: '4px' } }, snapBtn, h('span', { class: 'small faint' }, snapNote)),
-        h('div', { class: 'figures', style: { flex: 1 } },
-          figure(latest ? chaosDiv(latest.totalChaos, latest.divine) : 'No snapshot yet', latest ? `${fmt(latest.totalChaos)} chaos, ${viewingOld ? when(latest.ts) : ago(Date.now() - latest.ts)}` : 'Take one to start'),
-          figure(report?.gainChaos != null ? `${report.gainChaos >= 0 ? '+' : ''}${chaosDiv(report.gainChaos, latest?.divine)}` : '–', report?.hours ? `Change over ${fmt(report.hours)} hours` : 'Change', report?.gainChaos > 0 ? 'good' : report?.gainChaos < 0 ? 'bad' : ''),
-          figure(report?.perHourChaos != null ? `${fmt(report.perHourChaos)}c` : '–', 'Per hour'))),
-      viewingOld ? h('div', { class: 'row small', style: { marginTop: '10px', gap: '8px' } }, h('span', { class: 'pill warn' }, `Showing ${when(latest.ts)}`), h('button', { class: 'quiet sm', onclick: () => { nwAt = null; renderNetworth(); } }, 'Back to the newest')) : null,
-      h('div', { style: { marginTop: '14px' } }, window.lineChart((report?.series || []).filter((p) => p.ts >= (latest?.ts || 0) - nwWindow && p.ts <= (latest?.ts || Infinity)), { divine: latest?.divine }))),
-    // the snapshots, and the one you picked
-    h('div', { class: 'nw-main' },
-      h('div', {}, h('div', { class: 'section-head' }, h('h2', {}, 'Snapshots'), h('span', { class: 'small faint' }, String(series.length))), snapList),
-      h('div', { style: { minWidth: 0 } },
-        latest ? wealthDashboard(latest) : h('div', { class: 'panel small muted' }, 'Your categories, items and tabs show up here after your first snapshot.'),
-        h('div', { class: 'section-head', style: { marginTop: '28px' } }, h('h2', {}, 'What changed'), h('span', { class: 'small faint' }, report?.first && latest && report.first.ts !== latest.ts ? `${when(report.first.ts)} → ${when(latest.ts)}` : '')),
-        h('div', { class: 'panel' }, report?.diff?.length ? h('table', {}, h('tbody', {}, report.diff.map((d, i) => h('tr', {}, h('td', { style: i ? null : { borderTop: 0 } }, d.name), h('td', { class: 'r muted', style: i ? null : { borderTop: 0 } }, `${d.deltaQty > 0 ? '+' : ''}${d.deltaQty}`), h('td', { class: 'r ' + (d.deltaChaos >= 0 ? 'good' : 'bad'), style: i ? null : { borderTop: 0 } }, `${d.deltaChaos > 0 ? '+' : ''}${fmt(d.deltaChaos)}c`))))) : h('p', { class: 'small muted' }, 'Needs two snapshots in the selected time range.')))),
-    // set up once: which tabs, how often
-    h('details', { class: 'nw-setup', open: setupOpen ? true : null, style: { marginTop: '28px' } },
-      h('summary', {}, h('b', {}, 'Tracked tabs and automatic snapshots'), h('span', { class: 'small faint', style: { marginLeft: '8px' } }, `${selected.size} ${selected.size === 1 ? 'tab' : 'tabs'}${st.autoSnapshotMin ? `, every ${st.autoSnapshotMin} minutes` : ''}`)),
-      h('div', { class: 'panel stack', style: { marginTop: '10px' } },
-        h('div', { class: 'row' }, h('span', { class: 'spacer' }),
-          h('button', { class: 'quiet sm', disabled: !ready, onclick: async () => { nwTabs = await call('networth:tabs', !!nwTabs); renderNetworth(); } }, nwTabs ? 'Reload tab list' : 'Load tab list')),
-        tabsBox,
-        nwTabs ? h('div', { class: 'row' }, h('button', { onclick: async () => { await call('networth:select', [...selected]); toast(`Tracking ${selected.size} tabs`); renderNetworth(); } }, 'Save selection')) : null,
-        h('div', { class: 'row small' }, h('span', { class: 'muted' }, 'Automatic snapshots'),
-          h('select', { onchange: async (e) => { await call('settings:set', { autoSnapshotMin: Number(e.target.value) }); renderNetworth(); } },
-            [0, 15, 30, 60, 120].map((m) => h('option', { value: m, selected: Number(st.autoSnapshotMin) === m }, m ? `Every ${m} minutes` : 'Off'))),
-          st.autoSnapshotMin ? h('span', { class: 'faint' }, `About ${perHourReq} requests an hour while you play`) : null),
-        h('div', { class: 'row' }, h('span', { class: 'spacer' }),
-          h('button', { class: 'danger sm', onclick: async () => { if (confirm(`Delete all snapshots for ${S.league}?`)) { await call('networth:clear'); nwAt = null; renderNetworth(); } } }, 'Delete history')))));
+    h('div', { class: 'nw-page' },
+      bar,
+      setup,
+      h('div', { class: 'nw-top' }, chartBox, catBox),
+      sessBox,
+      latest ? null : h('div', { class: 'nw-panel row' }, snapBtn, h('span', { class: 'small muted' }, 'Your net worth, categories and items show up here after your first snapshot.')),
+      latest ? nwItems(latest, tabNames, snapBtn) : null));
 }
 
 // ---------------- loot filter ----------------

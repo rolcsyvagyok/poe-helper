@@ -859,6 +859,14 @@ function registerIpc() {
   handle('networth:tabs', async (force) => services.ggg.stashTabs(await services.getLeague(), { force: !!force }));
   handle('networth:select', (indices) => { s.set('selectedTabs', (indices || []).map(Number).filter(Number.isInteger)); return s.get('selectedTabs'); });
   handle('networth:snapshot', () => snapshotNow('manual'));
+  // a farming session: a snapshot when it starts and when it stops, so its profit is measured
+  handle('networth:session', async (action) => {
+    const league = await services.getLeague();
+    if (action === 'start') { await snapshotNow('session'); return services.networth.startSession(league); }
+    const s = services.networth.stopSession(league);
+    await snapshotNow('session').catch(() => {});
+    return s;
+  });
   handle('networth:report', async (sinceMs, at = null) => services.networth.report(await services.getLeague(), { sinceMs, at }));
   handle('networth:clear', async () => {
     const league = await services.getLeague();

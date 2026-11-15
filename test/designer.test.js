@@ -37,7 +37,7 @@ test('rares follow the design by kind: the best unidentified tier gets level 2, 
   const D = require('../src/core/filter/designer');
   assert.equal(D.rareLevel('gear->tiered', 't5r1'), 2);
   assert.equal(D.rareLevel('gear->tiered', 't2r3'), 5);
-  assert.equal(D.rareLevel('rr', 't1f'), 2);
+  assert.equal(D.rareLevel('rr', 't1f'), 6); assert.equal(D.rareRank('rr', 't1f'), 'S'); // Tier 0 sits below every item tier; its rank is the border
   const view = { types: [{ type: 'gear->tiered', tiers: [{ tier: 't5r1', key: 'a' }] }, { type: 'decorators->rareeg', tiers: [{ tier: 'largerares', key: 'b' }] }] };
   const t = D.targetsFor(view);
   assert.deepEqual(t.map((x) => [x.key, x.level]), [['a', 2]]);
@@ -51,4 +51,14 @@ test('text size steps: everything and per category, kept between 12 and 45', () 
   assert.match(out, /uniques \$tier->t1\n\tSetFontSize 44/);
   assert.match(out, /My bases: x\n\tSetFontSize 26/);
   assert.match(M.adjustSizes(src, { all: -40 }), /SetFontSize 12/);
+});
+
+test('Tier 0 rank S keeps the quiet look with a gold border, below item tier 2', () => {
+  const levels = { 5: { text: [1, 1, 1, 255], background: [9, 9, 9, 255], border: [5, 5, 5, 255], icon: { size: 1, color: 'Blue', shape: 'Star' } }, 6: { text: [2, 2, 2, 255], background: [0, 0, 0, 255], border: [3, 3, 3, 255] } };
+  const D = require('../src/core/filter/designer');
+  const s = D.lookFor({ level: 6, rank: 'S' }, levels);
+  assert.deepEqual(s.background, [0, 0, 0, 255]);
+  assert.deepEqual(s.border, [255, 200, 90, 255]);
+  assert.equal(s.icon.shape, 'Star');
+  assert.deepEqual(D.lookFor({ level: 6, rank: 'C' }, levels).border, [3, 3, 3, 255]);
 });

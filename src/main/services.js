@@ -24,7 +24,7 @@ const VERSION = require('../../package.json').version;
 
 const DEFAULT_SETTINGS = {
   leagueOverride: '',
-  uiTheme: 'atlas', // the app's look: 'atlas' (default), 'hideout' or 'dark'
+  uiTheme: 'midnight', // the app's look: 'midnight' (default), 'atlas', 'hideout' or 'dark'
   accountName: '',
   sessionEnc: null, // encrypted POESESSID
   contact: '', // optional contact for User-Agent, e.g. a GitHub URL
@@ -699,7 +699,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -2007,7 +2007,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     let count = 0;
     for (const t of designer.targetsFor(view)) {
       if (designer.rareLevel(t.type, t.tier) === undefined || !levels[t.level]) continue;
-      styles[t.key] = designer.fullLook(designer.withLevelSound(JSON.parse(JSON.stringify(levels[t.level])), t.level));
+      styles[t.key] = designer.lookFor(t, levels);
       count++;
     }
     const { target } = savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
@@ -2308,6 +2308,25 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     settings.set('veiledKindV1', true);
     const k = { ...(settings.get('rankKinds') || {}) };
     if (!k.veiled) { settings.set('rankKinds', { ...k, veiled: 'D' }); try { if (filters.basePath()) filters.write(); } catch (e) { log('veiled kind', e.message); } }
+  }
+  // 1.0.103: the new near-black Midnight look for everyone once (Settings → Appearance switches back)
+  if (!settings.get('midnightV1')) { settings.set('midnightV1', true); settings.set('uiTheme', 'midnight'); }
+  // 1.0.103: a higher item tier always looks more expensive; Tier 0 ranks get the quiet look with a rank border
+  if (!settings.get('rareTiersV2')) {
+    settings.set('rareTiersV2', true);
+    try {
+      const view = filters.basePath() ? tierViewNow() : null;
+      if (view) {
+        const d = settings.get('designer') || {};
+        const preset = designer.PRESETS.find((p) => p.id === (d.presetId || 'classic')) || designer.PRESETS[0];
+        const levels = designer.lockTier1(designer.fullLevels(d.levels || preset.levels));
+        const patch = settings.get('tierPatch') || {};
+        const styles = { ...(patch.styles || {}) };
+        let n = 0;
+        for (const t of designer.targetsFor(view)) if (t.rank && levels[t.level]) { styles[t.key] = designer.lookFor(t, levels); n++; }
+        if (n) savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
+      }
+    } catch (e) { log('rare tiers v2', e.message); }
   }
   if (!settings.get('rareThemeV1')) {
     settings.set('rareThemeV1', true);

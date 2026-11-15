@@ -121,8 +121,9 @@ function valueTabs(tabs, idx, minChaos = 0) {
       byCategory[v.category] = (byCategory[v.category] || 0) + sum;
       // GGG's stash data carries each item's picture (on web.poecdn.com); kept for the dashboard
       const icon = typeof it.icon === 'string' && /^https:\/\/web\.poecdn\.com\//.test(it.icon) ? it.icon : null;
-      const a = agg.get(v.name) || { name: v.name, qty: 0, each: v.each, total: 0, category: v.category, icon };
+      const a = agg.get(v.name) || { name: v.name, qty: 0, each: v.each, total: 0, category: v.category, icon, tabs: new Set() };
       if (!a.icon && icon) a.icon = icon;
+      a.tabs.add(tab.name);
       a.qty += v.qty;
       a.total += sum;
       agg.set(v.name, a);
@@ -184,7 +185,7 @@ class NetWorthTracker {
         byTab: v.byTab,
         byCategory: Object.fromEntries(Object.entries(v.byCategory).map(([k, x]) => [k, Math.round(x)])),
         // Keep everything worth >= 1c so diffs ("what did I gain?") work, but cap size.
-        items: v.items.filter((i) => i.total >= 1).slice(0, 400).map((i) => ({ n: i.name, q: i.qty, e: Math.round(i.each * 100) / 100, c: i.category, ...(i.icon ? { i: i.icon } : {}) })),
+        items: v.items.filter((i) => i.total >= 1).slice(0, 400).map((i) => ({ n: i.name, q: i.qty, e: Math.round(i.each * 100) / 100, c: i.category, ...(i.icon ? { i: i.icon } : {}), t: [...(i.tabs || [])] })),
       };
       const all = this.store.get('snapshots') || [];
       all.push(snap);
@@ -214,10 +215,34 @@ class NetWorthTracker {
       hours,
       gainChaos: latest.totalChaos - first.totalChaos,
       perHourChaos: hours > 0.05 ? (latest.totalChaos - first.totalChaos) / hours : null,
-      series: all.map((s) => ({ ts: s.ts, chaos: s.totalChaos, divine: s.divine })),
+      series: all.map((s) => ({ ts: s.ts, chaos: s.totalChaos, divine: s.divine, tabs: s.byTab })),
+      sessions: this.sessions(league),
       newest: all[all.length - 1].ts,
       diff,
     };
+  }
+
+  /** Farming sessions: a start and an end (open while running); profit is measured from the snapshot at the start. */
+  sessions(league) {
+    return (this.store.get('sessions') || []).filter((s) => !league || s.league === league);
+  }
+
+  startSession(league) {
+    const all = this.store.get('sessions') || [];
+    for (const s of all) if (s.league === league && !s.end) s.end = Date.now();
+    const n = all.filter((s) => s.league === league).length + 1;
+    const s = { id: `${Date.now()}`, league, name: `Session ${n}`, start: Date.now(), end: null };
+    all.push(s);
+    this.store.set('sessions', all.slice(-200));
+    return s;
+  }
+
+  stopSession(league) {
+    const all = this.store.get('sessions') || [];
+    const s = all.filter((x) => x.league === league && !x.end).pop();
+    if (s) s.end = Date.now();
+    this.store.set('sessions', all);
+    return s || null;
   }
 
   /** Auto snapshots: interval >= 15 min, skipped while Client.txt shows you are idle. */

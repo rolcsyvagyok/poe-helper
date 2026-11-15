@@ -1,7 +1,7 @@
 'use strict';
 /* Dependency-free SVG line chart for net worth history. */
 
-window.lineChart = function lineChart(points, { divine, height = 220 } = {}) {
+window.lineChart = function lineChart(points, { divine, height = 220, bands = [], unit = null, zero = false } = {}) {
   const NS = 'http://www.w3.org/2000/svg';
   const W = 900;
   const H = height;
@@ -21,7 +21,7 @@ window.lineChart = function lineChart(points, { divine, height = 220 } = {}) {
     el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', class: 'axis' }, 'No snapshots yet');
     return svg;
   }
-  const useDiv = divine && Math.max(...points.map((p) => p.chaos)) > divine * 3;
+  const useDiv = unit ? unit === 'd' : divine && Math.max(...points.map((p) => Math.abs(p.chaos))) > divine * 3;
   const val = (p) => (useDiv ? p.chaos / (p.divine || divine) : p.chaos);
   const xs = points.map((p) => p.ts);
   const ys = points.map(val);
@@ -47,6 +47,15 @@ window.lineChart = function lineChart(points, { divine, height = 220 } = {}) {
   }
   defs.append(grad);
 
+  // farming sessions as shaded bands with their name
+  for (const b of bands) {
+    const a = Math.max(x0, b.from), z = Math.min(x1, b.to || x1);
+    if (z <= a) continue;
+    el('rect', { x: X(a), y: pad.t, width: Math.max(2, X(z) - X(a)), height: H - pad.t - pad.b, class: 'band' + (b.on ? ' on' : '') });
+    el('line', { x1: X(a), x2: X(a), y1: pad.t, y2: H - pad.b, class: 'band-edge' });
+    el('text', { x: X(a) + 4, y: pad.t + 12, class: 'band-label' }, b.label);
+  }
+  if (zero && y0 < 0 && y1 > 0) el('line', { x1: pad.l, x2: W - pad.r, y1: Y(0), y2: Y(0), class: 'zero-line' });
   for (let i = 0; i <= 4; i++) {
     const v = y0 + ((y1 - y0) * i) / 4;
     el('line', { x1: pad.l, x2: W - pad.r, y1: Y(v), y2: Y(v), class: 'grid-line' });

@@ -368,12 +368,13 @@ async function keepScroll(fn) {
 
 // ---------------- the app's look (Settings → Appearance); kept in localStorage too so windows open in it without a flash
 const UI_THEMES = [
-  { id: 'atlas', name: 'Atlas', note: 'Night blue and silver (default)', sw: ['#070a0f', '#0f1720', '#d9ecfb', '#2c6c9a'] },
+  { id: 'midnight', name: 'Midnight', note: 'Near black and modern (default)', sw: ['#09090b', '#141417', '#f4f4f5', '#3b82f6'] },
+  { id: 'atlas', name: 'Atlas', note: 'Night blue and silver', sw: ['#070a0f', '#0f1720', '#d9ecfb', '#2c6c9a'] },
   { id: 'hideout', name: 'Hideout', note: 'Stone, bronze and gold', sw: ['#080706', '#15110d', '#e2c48e', '#6b4a1c'] },
   { id: 'dark', name: 'Dark', note: 'The quiet slate look', sw: ['#181a20', '#1e2027', '#ece9e2', '#9db8e8'] },
 ];
 function applyTheme(t) {
-  const id = UI_THEMES.some((x) => x.id === t) ? t : 'atlas';
+  const id = UI_THEMES.some((x) => x.id === t) ? t : 'midnight';
   if (id === 'dark') delete document.documentElement.dataset.uiTheme;
   else document.documentElement.dataset.uiTheme = id;
   try { localStorage.setItem('uiTheme', id); } catch { /* no storage */ }
