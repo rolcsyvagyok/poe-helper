@@ -80,12 +80,33 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   let showHidden = mods.some((m) => m.hidden && m.enabled);
   const hiddenCount = mods.filter((m) => m.hidden && !m.unmatched).length;
   const groupsBox = h('div', {});
-  const drawGroups = () => mount(groupsBox, GROUPS.map(([g, label]) => {
+  // with the Ctrl+Alt+C copy every mod says whether it is a prefix or a suffix: the item's own mods
+  // (explicit, crafted, fractured) are listed that way, with how many of the 3 each side uses
+  const AFFIX = ['fractured', 'explicit', 'crafted'];
+  const own = mods.filter((m) => AFFIX.includes(m.group));
+  const byGen = own.length && own.every((m) => m.meta?.gen || m.unmatched);
+  const used = (gen) => new Set(own.filter((m) => m.meta?.gen === gen).map((m) => m.meta.n)).size;
+  const tagOf = (m) => (m.group === 'crafted' ? 'crafted' : m.group === 'fractured' ? 'fractured' : null);
+  const drawGroups = () => mount(groupsBox, GROUPS.flatMap(([g, label]) => {
+    if (byGen && AFFIX.includes(g)) {
+      if (g !== 'explicit') return [];
+      return [['prefix', 'Prefixes'], ['suffix', 'Suffixes']].map(([gen, title]) => {
+        const rows = own.filter((m) => m.meta?.gen === gen);
+        const n = used(gen);
+        // a mod already counted in a total is listed for the overview, without its own tick box
+        const info = (m) => h('div', { class: 'tp-mod tp-info', title: 'Counted in the totals above (or the DPS / defences). Click "Show more mods" to search it on its own.' },
+          h('span', { class: 'tp-mod-main' }, h('span', { class: 'tp-info-dot', 'aria-hidden': 'true' }, '∑'), h('span', { class: 'tp-text' }, m.text, tagOf(m) ? h('span', { class: 'faint' }, ` (${tagOf(m)})`) : null)));
+        return h('div', { class: 'tp-group' },
+          h('div', { class: 'tp-ghead' }, title, h('span', { class: 'faint' }, ` (${n} of 3${n < 3 ? `, ${3 - n} open` : ''})`)),
+          rows.length ? rows.map((m) => { if (m.hidden && !showHidden) return info(m); const r = modRow(m); const t = tagOf(m); if (t) r.querySelector('.tp-text')?.append(h('span', { class: 'faint' }, ` (${t})`)); return r; })
+            : h('div', { class: 'small faint', style: { padding: '2px 4px' } }, 'None'));
+      });
+    }
     const rows = mods.filter((m) => m.group === g && (!m.hidden || showHidden));
-    if (!rows.length) return null;
-    return h('div', { class: 'tp-group' },
+    if (!rows.length) return [];
+    return [h('div', { class: 'tp-group' },
       h('div', { class: 'tp-ghead' }, label, g === 'pseudo' ? h('span', { class: 'faint' }, ' (summed from all mods)') : null),
-      rows.map(modRow));
+      rows.map(modRow))];
   }));
   drawGroups();
   const hiddenToggle = hiddenCount ? h('button', { class: 'quiet sm', style: { margin: '2px 0 6px' }, 'aria-expanded': String(showHidden), onclick: (e) => { showHidden = !showHidden; e.target.setAttribute('aria-expanded', String(showHidden)); e.target.textContent = toggleText(); drawGroups(); } }, '') : null;
@@ -104,11 +125,12 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       inp.addEventListener('input', () => { p[k] = num(inp.value); if (!p.on) { p.on = true; cb.checked = true; } });
       return inp;
     };
-    propRows.push(h('div', { class: 'tp-mod' + (p.on ? ' on' : '') }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, label)), mk('min', 'min'), h('span', { class: 'tp-dash' }, maxToo ? '–' : ''), maxToo ? mk('max', 'max') : h('span', { class: 'tp-num-empty' })));
+    const cbOn = cb; cbOn.addEventListener('change', () => cbOn.closest('.tp-mod')?.classList.toggle('on', p.on));
+    propRows.push(h('div', { class: 'tp-mod' + (p.on ? ' on' : ''), 'data-k': key }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, label)), mk('min', 'min'), h('span', { class: 'tp-dash' }, maxToo ? '–' : ''), maxToo ? mk('max', 'max') : h('span', { class: 'tp-num-empty' })));
   };
   if (props.base?.canChange) {
-    propRows.push(h('div', { class: 'tp-mod on' }, h('label', { class: 'tp-mod-main' },
-      h('input', { type: 'checkbox', checked: props.base.on, onchange: (e) => { props.base.on = e.target.checked; } }),
+    propRows.push(h('div', { class: 'tp-mod' + (props.base.on ? ' on' : ''), 'data-k': 'base' }, h('label', { class: 'tp-mod-main' },
+      h('input', { type: 'checkbox', checked: props.base.on, onchange: (e) => { props.base.on = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', props.base.on); } }),
       h('span', { class: 'tp-text' }, `Same base: ${props.base.value}`, h('span', { class: 'faint' }, ' (untick for any base of this kind)')))));
   }
   // weapons: search by its own DPS (physical, elemental or all)
@@ -155,9 +177,32 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   rangeRow('quality', 'Quality');
   rangeRow('gemLevel', 'Gem level');
   rangeRow('mapTier', 'Map tier');
-  const corr = h('select', { 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
-  const ident = h('select', { 'aria-label': 'Identified', onchange: (e) => { props.identified = e.target.value; } }, [['any', 'Identified or not'], ['yes', 'Identified only'], ['no', 'Unidentified only']].map(([v, l]) => h('option', { value: v, selected: (props.identified || 'any') === v }, l)));
-  const infl = Object.keys(props.influences || {}).map((inf) => h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: props.influences[inf], onchange: (e) => { props.influences[inf] = e.target.checked; } }), `${inf} item`));
+  const corr = h('select', { 'data-k': 'corrupted', 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
+  const ident = h('select', { 'data-k': 'unid', 'aria-label': 'Identified', onchange: (e) => { props.identified = e.target.value; } }, [['any', 'Identified or not'], ['yes', 'Identified only'], ['no', 'Unidentified only']].map(([v, l]) => h('option', { value: v, selected: (props.identified || 'any') === v }, l)));
+  const infl = Object.keys(props.influences || {}).map((inf) => h('label', { class: 'check small', 'data-k': `infl:${inf}` }, h('input', { type: 'checkbox', checked: props.influences[inf], onchange: (e) => { props.influences[inf] = e.target.checked; } }), `${inf} item`));
+
+  // the overlay header's facts (item level 85, 5-link, Shaper…) tick these lines when clicked
+  box._isOn = (k) => {
+    if (k === 'base') return props.base?.canChange ? !!props.base.on : null;
+    if (k === 'corrupted') return props.corrupted === 'yes';
+    if (k === 'unid') return (props.identified || 'any') === 'no';
+    if (k.startsWith('infl:')) { const i = k.slice(5); return props.influences && i in props.influences ? !!props.influences[i] : null; }
+    return props[k] && props[k].show !== false ? !!props[k].on : null;
+  };
+  box._tick = (k) => {
+    const el = box.querySelector(`[data-k="${CSS.escape(k)}"]`);
+    if (!el) return;
+    if (el.tagName === 'SELECT') {
+      el.value = k === 'corrupted' ? (props.corrupted === 'yes' ? 'any' : 'yes') : ((props.identified || 'any') === 'no' ? 'any' : 'no');
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      const cb = el.querySelector('input[type=checkbox]');
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    el.scrollIntoView({ block: 'nearest' });
+    el.classList.remove('tp-flash'); void el.offsetWidth; el.classList.add('tp-flash');
+  };
 
   // ---------- search ----------
   const countEl = h('span', { class: 'small faint' });

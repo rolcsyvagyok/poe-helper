@@ -36,10 +36,32 @@ function header(item, filterHit, br = null, facts = []) { // eslint-disable-line
       h('div', { class: 'ov-head-top' }, dropLabel(name, filterHit?.style, { rarity: item?.rarity, scale: 0.85, hidden }), filterHit ? soundButton(normalizeStyle(filterHit.style).sound) : null),
       (br || facts.length) ? h('div', { class: 'ov-headline' }, rankBadge(item, br),
         // with the badge (it says the tier and "Unidentified") the facts skip that part
-        (br ? facts.filter((f) => !/^unidentified/.test(f)) : facts).map((f) => h('span', { class: 'ov-fact' }, f))) : null),
+        (br ? facts.filter((f) => !/^(unidentified|rare$|magic$|normal$)/.test(f.t)) : facts).map(factChip)) : null),
     h('span', { class: 'spacer' }),
     pinButton(),
     h('button', { class: 'ov-x', title: 'Close (Esc)', 'aria-label': 'Close', onclick: close }, '✕'));
+}
+
+/** A header fact. One that is part of the search is a button: click it to tick or untick that line of the search. */
+function factChip(f) {
+  if (!f.k) return h('span', { class: 'ov-fact' }, f.t);
+  return h('button', { class: 'ov-fact ov-fact-btn', 'data-k': f.k, 'aria-pressed': 'false', title: 'Click to search for this (click again to stop)', onclick: (e) => {
+    e.stopPropagation();
+    const box = document.querySelector('.ov-trade');
+    if (!box?._tick) return;
+    box._tick(f.k);
+    syncFacts();
+  } }, f.t);
+}
+/** Marks the header facts that are ticked in the search (✓ and filled). */
+function syncFacts() {
+  const box = document.querySelector('.ov-trade');
+  for (const b of document.querySelectorAll('.ov-fact-btn')) {
+    const st = box?._isOn ? box._isOn(b.dataset.k) : null;
+    b.classList.toggle('static', st === null); // not part of this search
+    b.classList.toggle('on', !!st);
+    b.setAttribute('aria-pressed', st ? 'true' : 'false');
+  }
 }
 
 /** Your base rank as a badge in its rank colours, and the item tier ("Tier 5 - Unidentified", "Tier 0 - Normal item"). */
@@ -161,19 +183,20 @@ function render(p) {
   const facts = [];
   // gear: say its rarity, since the filter treats a magic Amethyst Ring very differently from a rare one
   const gearRarity = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !/Currency|Gem|Map|Card|Fragment|Incubator|Contract|Blueprint|Viscera/i.test(item.itemClass || '') ? item.rarity.toLowerCase() : null;
-  if (gearRarity) facts.push(gearRarity);
-  if (item.typeLine && item.name && item.name !== item.typeLine) facts.push(item.typeLine);
-  else if (gearRarity === 'magic' && item.baseType && item.baseType !== item.typeLine) facts.push(item.baseType);
-  if (item.itemLevel) facts.push(`item level ${item.itemLevel}`);
-  if (item.gemLevel) facts.push(`level ${item.gemLevel}${item.quality ? `, ${item.quality}% quality` : ''}`);
-  if (item.sockets?.links >= 5) facts.push(`${item.sockets.links}-link`);
-  if (item.mapTier) facts.push(`tier ${item.mapTier}`);
-  if (item.influences?.length) facts.push(item.influences.join(' and '));
-  // what the filter can tell apart: fractured, synthesised, the exarch/eater implicits, unidentified (and its tier)
+  // only what matters for the price; a fact with k ticks that part of the search when clicked
+  const fact = (t, k = null) => facts.push({ t, k });
+  if (gearRarity) fact(gearRarity);
+  if (item.typeLine && item.name && item.name !== item.typeLine) fact(item.typeLine, 'base');
+  else if (gearRarity === 'magic' && item.baseType && item.baseType !== item.typeLine) fact(item.baseType, 'base');
+  if (item.itemLevel) fact(`item level ${item.itemLevel}`, 'ilvl');
+  if (item.gemLevel) fact(`level ${item.gemLevel}${item.quality ? `, ${item.quality}% quality` : ''}`, 'gemLevel');
+  if (item.sockets?.links >= 5) fact(`${item.sockets.links}-link`, 'links');
+  if (item.mapTier) fact(`tier ${item.mapTier}`, 'mapTier');
+  for (const inf of item.influences || []) fact(inf, `infl:${inf}`);
   const F = item.flags || {};
-  for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['searing', 'Searing Exarch'], ['eater', 'Eater of Worlds'], ['foulborn', 'Foulborn'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) facts.push(word);
-  if (F.unidentified) facts.push(item.unidTier != null ? `unidentified, item tier ${item.unidTier}` : 'unidentified');
-  if (F.corrupted) facts.push('corrupted');
+  for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['foulborn', 'Foulborn'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) fact(word);
+  if (F.unidentified) fact(item.unidTier != null ? `unidentified, item tier ${item.unidTier}` : 'unidentified', 'unid');
+  if (F.corrupted) fact('corrupted', 'corrupted');
 
   const body = h('div', { class: 'ov-body' });
   // the facts sit in the header next to the rank badge (rare, item level 85, Hunter…)
@@ -210,15 +233,17 @@ function render(p) {
           h('span', { class: 'spacer' }),
           h('span', {}, chaosDiv(m.chaos, divine)))))));
     }
-  } else if (price || modPriced) {
-    body.append(h('div', { class: 'muted' }, modPriced || p.kind === 'rare' || p.kind === 'magic' ? 'Priced by its mods: tick them below and press Search.' : 'poe.ninja has no price for this item.'));
+  } else if (price && !modPriced && p.kind !== 'rare' && p.kind !== 'magic') {
+    body.append(h('div', { class: 'muted' }, 'poe.ninja has no price for this item.'));
   }
   if (price?.ageMs != null) body.append(h('div', { class: 'small faint' }, `${p.league} prices from ${ago(price.ageMs)}`));
 
   // --- filter ---
   // which rule decides it, and where that rule is in your filter (the tier block below says it when it can move the base)
   const whereText = filterWhere ? (filterWhere.tier ? `${filterWhere.text}, ${window.TierNames.tierName({ tier: filterWhere.tier.tier, type: filterWhere.tier.type, customName: filterWhere.tier.name })}` : filterWhere.text) : null;
-  if (filterHit?.byTier && item.unidTier == null) {
+  // gear (white, magic, rare): no filter text; the header's look, rank badge and tier say it
+  const gearItem = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !!gearRarity;
+  if (gearItem) { /* nothing */ } else if (filterHit?.byTier && item.unidTier == null) {
     // unidentified, and the game's copy doesn't say the item tier: what the filter does at each tier
     function what(c) { return /gear->tiered/.test(c) ? 'Unid item tiers' : /hidelayer/.test(c) ? 'Hide layer' : /\$type->rr\b/.test(c) ? 'Rares by base' : (/\$type->(\S+)/.exec(c || '') || [])[1] || 'a rule'; }
     const groups = [];
@@ -242,7 +267,8 @@ function render(p) {
   if (p.pob) body.append(pobSection(p.pob));
 
   // --- actions ---
-  const tradeBox = h('div', { class: 'ov-block', style: { display: 'none' } });
+  const tradeBox = h('div', { class: 'ov-block ov-trade', style: { display: 'none' } });
+  tradeBox.addEventListener('change', () => syncFacts());
   // an unidentified (or white) item decided by the item tier rules: those are set on Base ranks, so the
   // "move to another tier" controls (for identified rares) don't apply to it
   const byUnidTier = /gear->(tiered|memorystrand)/.test(filterHit?.comment || '') || (item.unidTier == null && filterHit?.byTier?.some((x) => /gear->tiered/.test(x.comment || '')));
@@ -306,7 +332,7 @@ function render(p) {
     h('span', { class: 'spacer' }),
     h('button', { class: goto ? 'primary' : 'quiet', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
       onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in loot filter' : 'Open app'));
-  if (tierControls) body.append(tierControls);
+  if (tierControls && !gearItem) body.append(tierControls);
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });
   // currency, fragments, cards…: the live bulk exchange; rares: a price guess from poeprices.info
   const bulkBox = h('div', { class: 'ov-block' });
@@ -314,7 +340,8 @@ function render(p) {
   if (p.bulk) { if (p.autoBulk) bulkSection(bulkBox); else mount(bulkBox, h('button', { class: 'sm', onclick: () => bulkSection(bulkBox) }, 'Check the live exchange')); }
   if (p.guess) guessSection(guessBox);
   body.append(...(p.bulk ? [bulkBox] : []), ...(p.guess ? [guessBox] : []));
-  body.append(actions, quickBox, tradeBox);
+  // the mods and the search first; "Show in loot filter" and the other buttons at the bottom
+  body.append(tradeBox, actions, quickBox);
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
   if (p.tradeable) openTrade(tradeBox);
 
@@ -328,6 +355,7 @@ function previewLook(o) {
   if (!head || !current) return;
   const hit = o ? { action: o.action === 'Hide' || o.state === 'Hide' ? 'Hide' : 'Show', style: o.style || {} } : current.filterHit;
   head.replaceWith(header(current.item, hit, current.baseRank, current.facts));
+  syncFacts();
 }
 
 async function moveTier(type, base, to, option) {
@@ -520,6 +548,7 @@ async function guessSection(box) {
 async function openTrade(box) {
   box.style.display = '';
   await window.TradePanel.mount(box, { text: current.text, divine: current.price?.divine, onFit: fit });
+  syncFacts();
 }
 
 // your recordings of the game's drop sounds, so ▶ works for "Game sound N" here too

@@ -248,7 +248,7 @@ test('rares: tier 1-2 mods and tier 3 key mods (movement speed on boots) start t
   assert.equal(on(/Dexterity/), false);
 });
 
-test('special mods (mercenary, eldritch implicits…) always start ticked and stay out of the totals', () => {
+test('special mods (mercenary…) always start ticked; an eldritch implicit does not', () => {
   const stats = { result: [
     { id: 'implicit', entries: [E('implicit.fire', '+#% to Fire Resistance')] },
     { id: 'mercenary', entries: [E('mercenary.storm', 'Greater Stormcall')] },
@@ -258,7 +258,7 @@ test('special mods (mercenary, eldritch implicits…) always start ticked and st
   const it = parseItem('Item Class: Gloves\nRarity: Rare\nGale Grip\nSorcerer Gloves\n--------\nItem Level: 85\n--------\n{ Searing Exarch Implicit Modifier (Greater) }\n+12% to Fire Resistance\n--------\nGreater Stormcall (mercenary)\n');
   const r = T.prepareSearch(stats, it);
   assert.equal(r.mods.find((m) => m.group === 'mercenary')?.enabled, true);
-  assert.equal(r.mods.find((m) => m.group === 'implicit' && /Fire/.test(m.text))?.enabled, true);
+  assert.equal(r.mods.find((m) => /Fire/.test(m.text) && m.enabled), undefined, 'an Exarch / Eater implicit rarely makes the item');
 });
 
 test('a fractured rare is searched by its fractured mod on the exact base, nothing else ticked', () => {
@@ -346,4 +346,13 @@ test('a corrupted item: the corruption implicit starts ticked and only corrupted
   const r = T.prepareSearch(stats, it);
   assert.equal(r.mods.find((m) => m.id === 'implicit.gems').enabled, true);
   assert.equal(r.props.corrupted, 'yes');
+});
+test('a veiled mod is searched as the trade site\'s Veiled mod and starts ticked', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const { prepareSearch } = require('../src/core/trade');
+  const stats = { result: [{ id: 'veiled', entries: [{ id: 'veiled.mod_65000', text: 'Veiled', type: 'veiled' }, { id: 'veiled.mod_63099', text: 'of the Veil', type: 'veiled' }] }] };
+  const it = parseItem('Item Class: Jewels\nRarity: Rare\nKraken Star\nCobalt Jewel\n--------\nItem Level: 85\n--------\nVeiled Suffix\n');
+  const m = prepareSearch(stats, it, {}).mods.find((x) => /Veiled/.test(x.text));
+  assert.equal(m.id, 'veiled.mod_63099');
+  assert.equal(m.enabled, true);
 });

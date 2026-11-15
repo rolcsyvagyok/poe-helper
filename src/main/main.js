@@ -415,7 +415,7 @@ function registerHotkeys({ quiet = false } = {}) {
   tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
   // unregisterAll above dropped the chat macro keys too
-  if (!chatMacros) chatMacros = createChatMacros({ globalShortcut, clipboard, keys: keysMod, foreground: require('./foreground'), settings: s, log });
+  if (!chatMacros) chatMacros = createChatMacros({ globalShortcut, clipboard, keys: keysMod, foreground: require('./foreground'), settings: s, log, onSend: () => { suppressClipboardUntil = Date.now() + 1500; } });
   hotkeyStatus.chatMacros = chatMacros.refresh().on ? 'ok' : 'off';
   return hotkeyStatus;
 }

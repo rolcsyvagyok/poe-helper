@@ -5,6 +5,21 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.94 - 2026-11-15
+
+* Price check: Exarch / Eater implicits and mods like item rarity no longer start ticked
+* Price check: mods are split into prefixes and suffixes, the search comes first, and the header facts (item level, base, links) tick that part of the search when clicked
+* Price check: veiled mods can be searched
+* Chat macros (F1…) no longer open the last price check
+
+- Price check: Searing Exarch and Eater of Worlds implicits start unticked (they rarely make the item); tick them yourself for a good one.
+- Price check: mods nobody pays for (item rarity, light radius, stun and block recovery, lower attribute requirements, accuracy, reflect, mana / life on kill) never start ticked, whatever their tier.
+- Price check: the item's mods are listed as Prefixes and Suffixes (with how many of the 3 are used); crafted and fractured mods are marked.
+- Price check: the search is at the top and "Show in loot filter" at the bottom; the filter text is gone for gear (DPS stays).
+- Price check: the header no longer shows Searing Exarch / Eater of Worlds. Click item level, the base, links, influences or corrupted in the header to tick or untick it in the search; ticked ones show ✓.
+- Price check: a "Veiled Prefix" or "Veiled Suffix" can be ticked and starts ticked.
+- Chat macros: pressing F1 (or any macro) no longer pops up the last price check.
+
 ## 1.0.93 - 2026-11-15
 
 * Price check ticks the mods that sell a rare: tier 1–2 mods, tier 3 key mods (like movement speed on boots) and special mods (mercenary, eldritch, Breach…)

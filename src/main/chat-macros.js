@@ -12,7 +12,7 @@ const DEFAULT_MACROS = [
   { key: 'F5', text: '', send: true },
 ];
 
-function createChatMacros({ globalShortcut, clipboard, keys, foreground, settings, log = () => {} }) {
+function createChatMacros({ globalShortcut, clipboard, keys, foreground, settings, log = () => {}, onSend = () => {} }) {
   let timer = null;
   let active = false; // keys registered right now
   let busy = false;
@@ -23,6 +23,9 @@ function createChatMacros({ globalShortcut, clipboard, keys, foreground, setting
   async function run(m) {
     if (busy) return;
     busy = true;
+    // the macro puts its text in the clipboard and then your old clipboard back (often the last item you
+    // price checked): the clipboard watchers must not take that as a new item
+    onSend();
     try { await keys.sendChat(String(m.text).slice(0, 250), { send: m.send !== false, clipboard, clear: settings.get('chatMacroClear') !== false }); } catch (e) { log('chat macro failed', e.message); } finally { busy = false; }
   }
 

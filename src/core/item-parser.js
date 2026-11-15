@@ -261,11 +261,12 @@ function parseItem(rawText) {
         item.advanced = true;
         const tierM = /\((?:Tier|Rank):\s*(\d+)\)/.exec(line);
         headerN += 1;
-        // special mods (league mechanics, eldritch implicits, Breach…) start ticked in the search
+        // special mods (league mechanics, Breach…) start ticked in the search; eldritch (Exarch / Eater)
+        // implicits don't: they rarely make the item
         // the header names the mod ("Subterranean", "of Farrul", "Elevated Hunter's"): mods only a league
         // mechanic, an essence or an influence gives (the list PoE Overlay marks with a mod icon, MIT)
         // (a Vaal orb's "Corruption Implicit" counts too: it's what a corrupted item sells for)
-        const special = /\b(Corruption|Mercenary|Imbued|Veiled|Delve|Breach|Searing Exarch|Eater of Worlds|Eldritch|Incursion|Bestiary|Essence|Synthes\w*|Crucible|Scourge|Foulborn)\b/i.test(line)
+        const special = /\b(Corruption|Mercenary|Imbued|Veiled|Delve|Breach|Incursion|Bestiary|Essence|Synthes\w*|Crucible|Scourge|Foulborn)\b/i.test(line)
           || (nm && SPECIAL_NAMES.has(nm[1]));
         header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line), special };
         headerKind = /\bMercenary\b/i.test(line) ? 'mercenary' : /\bImbued\b/i.test(line) ? 'imbued' : /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'

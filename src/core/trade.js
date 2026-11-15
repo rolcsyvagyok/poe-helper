@@ -402,6 +402,13 @@ function buildQuery(item, mods, opts = {}) {
 const MELEE = /^(one|two) hand (axes|swords|maces)$|^thrusting one hand swords$|^(staves|warstaves|claws|daggers)$/i;
 const PDPS_TYPES = /^(one|two) hand (axes|swords)$|^bows$|^warstaves$/i; // physical DPS matters most (Awakened's list)
 
+function veiledStat(idx, side) {
+  const want = /^p/i.test(side) ? 'veiled' : 'of the veil';
+  const e = Object.values(idx.veiled || {}).flat().find((x) => x.text.toLowerCase() === want);
+  const id = e?.id || (want === 'veiled' ? 'veiled.mod_65000' : 'veiled.mod_63099');
+  return { id, text: `Veiled ${/^p/i.test(side) ? 'Prefix' : 'Suffix'}`, display: null, value: null, negate: false, type: 'veiled', min: null, max: null };
+}
+
 /** Every mod of the item as a search row, with its tier/range info (Ctrl+Alt+C) and template; nothing ticked. */
 function itemRows(idx, item, tol) {
   const PF = require('./price-filters');
@@ -410,12 +417,14 @@ function itemRows(idx, item, tol) {
   for (const kind of kinds) {
     (item.mods[kind] || []).forEach((m, i) => {
       const opts = { unique: item.rarity === 'Unique' };
-      const hit = matchMod(idx, m, kind, item.itemClass, opts) || (kind === 'fractured' ? matchMod(idx, m, 'explicit', item.itemClass, opts) : null);
+      const vp = /^Veiled (Prefix|Suffix)$/i.exec(m);
+      // an unrevealed veiled mod: the trade site lists it as "Veiled" (prefix) or "of the Veil" (suffix)
+      const hit = vp ? veiledStat(idx, vp[1]) : (matchMod(idx, m, kind, item.itemClass, opts) || (kind === 'fractured' ? matchMod(idx, m, 'explicit', item.itemClass, opts) : null));
       const meta = item.modMeta?.[kind]?.[i] || null;
       const row = hit ? { ...hit, group: kind, enabled: false } : { id: null, text: m, type: kind, group: kind, enabled: false, unmatched: true };
       row.meta = meta;
       // league mods (mercenary, imbued, Breach, eldritch…) make the item: they start ticked
-      if (['scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'].includes(kind) || meta?.special) { row.special = true; if (!row.unmatched) row.enabled = true; }
+      if (['scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'].includes(kind) || meta?.special || vp) { row.special = true; if (!row.unmatched) row.enabled = true; }
       row.tpl = PF.tplOf(m);
       if (row.display != null) { row.min = PF.minOf(row.display, tol); row.max = null; }
       out.push(row);
@@ -541,6 +550,9 @@ function tickJewel(mods, item) {
   cand.filter((m) => useful(m) < 99).sort((a, b) => useful(a) - useful(b) || (a.meta?.tier ?? 9) - (b.meta?.tier ?? 9)).slice(0, 3).forEach((m) => { m.enabled = true; });
 }
 
+// mods nobody pays for, whatever their tier: never ticked to start
+const LOW_VALUE = /item rarity|rarity of items|light radius|stun and block recovery|attribute requirements|accuracy rating$|reflects \d+ physical damage|mana gained|life gained on kill|stun duration/i;
+
 function tickBestMods(mods, item) {
   const cls = String(item.itemClass || '');
   if (/jewel/i.test(cls)) return tickJewel(mods, item);
@@ -551,7 +563,7 @@ function tickBestMods(mods, item) {
   const key = (m) => KEY_MODS.some(([c, re]) => c.test(cls) && re.test(m.text || ''));
   for (const m of own) {
     const t = tierOf(m);
-    m.enabled = t != null && (t <= 2 || (t === 3 && key(m)));
+    m.enabled = t != null && !LOW_VALUE.test(m.text || '') && (t <= 2 || (t === 3 && key(m)));
   }
   // not too narrow: the totals that were ticked first, then the best tiers (key mods win a tie)
   const on = mods.filter((m) => m.enabled && !m.hidden && !m.special); // special mods are always kept
