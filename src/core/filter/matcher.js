@@ -67,7 +67,7 @@ function evalCondition(c, item, assumed) {
     // 3.30: only on unidentified items; when the copy doesn't show the tier, the filter's choice is assumed
     case 'UnidentifiedItemTier': {
       if (!item.flags?.unidentified) return false;
-      if (item.unidTier == null) return unknownCondition(c, assumed);
+      if (item.unidTier == null) return 'tier'; // the copy doesn't say the tier: explain() reports both ways
       return numCond(c.op, v, item.unidTier);
     }
     // where it dropped isn't on the item: an item level is close to the area level it dropped in; without
@@ -176,30 +176,50 @@ function explain(doc, item) {
   const chain = [];
   const style = {};
   const unknown = new Set();
+  const tierRules = [];
+  // per item tier (5 down to 1): which rule takes it, when the copy doesn't say the tier
+  const byTier = (fallback) => (tierRules.length ? [5, 4, 3, 2, 1].map((t) => {
+    const r = tierRules.find((x) => x.fits(t)) || fallback;
+    return { tier: t, action: r.action, line: r.line, comment: r.comment, style: r.style };
+  }) : null);
   for (const b of blocks(doc)) {
     if (b.disabled) continue; // switched off in FilterBlade: the game reads it as a comment
     let ok = true;
     const blockUnknown = [];
     let isContinue = false;
+    let needsTier = null;
     for (const l of b.lines) {
       if (!l.keyword) continue;
       if (l.keyword === 'Continue') { isContinue = true; continue; }
       if (STYLE_KEYWORDS.has(l.keyword)) continue;
       const r = evalCondition(l, item, blockUnknown);
+      if (r === 'tier') { needsTier = l; continue; }
       if (r === null) blockUnknown.push(l.keyword);
       else if (!r) { ok = false; break; }
+    }
+    // an unidentified item whose tier the copy doesn't show: the first rule that would take it at some
+    // tier is kept as "if its item tier is N or higher", and the search goes on as if it didn't match
+    if (ok && needsTier) {
+      if (!isContinue) {
+        const st = { ...style };
+        for (const l of b.lines) if (STYLE_KEYWORDS.has(l.keyword)) st[l.keyword] = l.values;
+        const n = Number((needsTier.values || [])[needsTier.values.length - 1]);
+        const op = needsTier.op || '=';
+        tierRules.push({ fits: (t) => numCond(op, [String(n)], t), action: b.action, line: b.startLine, comment: b.headerComment, style: st });
+      }
+      continue;
     }
     if (!ok) continue;
     blockUnknown.forEach((u) => unknown.add(u));
     for (const l of b.lines) if (STYLE_KEYWORDS.has(l.keyword)) style[l.keyword] = l.values;
     chain.push({ action: b.action, line: b.startLine, comment: b.headerComment, unknown: blockUnknown });
     if (!isContinue) {
-      return { action: b.action, line: b.startLine, comment: b.headerComment, style, unknown: [...unknown], chain };
+      return { action: b.action, line: b.startLine, comment: b.headerComment, style, unknown: [...unknown], chain, byTier: byTier({ action: b.action, line: b.startLine, comment: b.headerComment, style }) };
     }
   }
   if (chain.length) {
     const last = chain[chain.length - 1];
-    return { action: last.action, line: last.line, comment: last.comment, style, unknown: [...unknown], chain };
+    return { action: last.action, line: last.line, comment: last.comment, style, unknown: [...unknown], chain, byTier: byTier({ ...last, style }) };
   }
   return { action: 'Show', line: null, comment: 'No block matched (game default: shown)', style: {}, unknown: [], chain };
 }

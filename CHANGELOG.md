@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.82 - 2026-11-15
+
+- Base ranks → Unid item tier has a Tier 1 too (FilterBlade has no rule for it: the lowest rule of the rank then takes Tier 1 as well).
+- Price check: an unidentified item's copy doesn't say its item tier, so "Hidden by the hide layer" could be wrong for something you see on the ground. It now says what your filter does at each tier ("Tier 3 and up shown (Unid item tiers); Tier 1–2 hidden (Hide layer)"), and the label at the top shows the look it gets when shown.
+
 ## 1.0.81 - 2026-11-15
 
 - Base ranks → Unid item tier has a Tier 0: plain rares without an item tier (identified ones). Pick which bases you still see (every base, C, B or A and up, only S, nothing, or let the filter decide); they keep FilterBlade's look. It replaces the separate "Rares" row.

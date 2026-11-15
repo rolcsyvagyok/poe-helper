@@ -1257,7 +1257,7 @@ async function renderBaseMatrix(body, view) {
   let unidTiers = data.unidTiers || null;
   const unidRow = (data.hasUnidTiers || unidTiers) ? (() => {
     const DEFAULT_UNID = { S: 2, A: 2, B: 2, C: 3 }; // what FilterBlade shows at Semi-Strict
-    const TIERS = [5, 4, 3, 2];
+    const TIERS = [5, 4, 3, 2, 1];
     const WHO = [['S', 'Only S bases'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'Every base'], ['', 'Nothing']];
     const order = ['S', 'A', 'B', 'C'];
     // per tier: the broadest rank shown at that tier
@@ -1274,7 +1274,7 @@ async function renderBaseMatrix(body, view) {
     const set = (tier, who) => {
       const next = { ...bt, [tier]: who };
       // a higher tier always shows at least what a lower one does
-      for (const t of [3, 4, 5]) { const lower = next[t - 1]; if (lower && (!next[t] || order.indexOf(next[t]) < order.indexOf(lower))) next[t] = lower; }
+      for (const t of [2, 3, 4, 5]) { const lower = next[t - 1]; if (lower && (!next[t] || order.indexOf(next[t]) < order.indexOf(lower))) next[t] = lower; }
       save(toRanks(next));
     };
     // Tier 0: plain rares without an item tier (identified, or from before 3.30): the "Rares" rank choice

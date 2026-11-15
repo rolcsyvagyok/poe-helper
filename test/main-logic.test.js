@@ -749,3 +749,22 @@ test('scrolls get their own look in every rule that shows them, mixed rules too,
   assert.match(out, /t6 !x\n\tStackSize >= 3\n\tBaseType == "Portal Scroll"\n\tSetBorderColor 255 255 255 255\n\tSetBackgroundColor 20 27 219 255\n\tSetTextColor 255 255 255 255\n\nShow # \$type->currency \$tier->t6 !x\n\tStackSize >= 3\n\tBaseType == "Orb of Chance"\n\tSetBorderColor 1 1 1 255\n\tSetBackgroundColor 9 9 9 255/);
   assert.match(out, /Hide # \$type->currency \$tier->h\n\tBaseType == "Portal Scroll"/);
 });
+
+test('unidentified item without its tier in the copy: what the filter does at each item tier', () => {
+  const { explain } = require('../src/core/filter/matcher');
+  const { parse } = require('../src/core/filter/parser');
+  const { parseItem } = require('../src/core/item-parser');
+  const doc = parse('Show # $type->gear->tiered $tier->t3\n\tUnidentifiedItemTier >= 3\n\tRarity Rare\n\tSetFontSize 45\n\nHide # $type->hidelayer $tier->x\n\tRarity Rare\n');
+  const item = parseItem('Item Class: Bows\nRarity: Rare\nSpine Bow\n--------\nItem Level: 85\n--------\nUnidentified');
+  const r = explain(doc, item);
+  assert.equal(r.action, 'Hide');
+  assert.deepEqual(r.byTier.map((x) => `${x.tier}${x.action[0]}`), ['5S', '4S', '3S', '2H', '1H']);
+});
+
+test('Tier 1 for unidentified items: the lowest rule of a row takes it', () => {
+  const { rankUnidTiers } = require('../src/core/filter/manager');
+  const text = 'Show # $type->gear->tiered $tier->t3r1 !x\n\tUnidentifiedItemTier >= 3\n\tBaseType == "A"\n\nShow # $type->gear->tiered $tier->t2r1 !x\n\tUnidentifiedItemTier >= 2\n\tBaseType == "A"\n';
+  const out = rankUnidTiers(text, { A: 'S' }, { S: 1 }, ['A']);
+  assert.match(out, /t3r1 !x\n\tUnidentifiedItemTier >= 3/);
+  assert.match(out, /t2r1 !x\n\tUnidentifiedItemTier >= 1/);
+});

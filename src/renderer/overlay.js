@@ -24,8 +24,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 /** Top of the overlay: the item drawn the way your filter draws it on the ground. */
-function header(item, filterHit) {
+function header(item, filterHit) { // eslint-disable-line no-param-reassign
   const name = item ? (item.rarity === 'Unique' || item.rarity === 'Rare' ? item.name : item.typeLine) : 'Price check';
+  // an unidentified item whose tier the copy doesn't show: drawn with the best look it can get
+  const shownAtSomeTier = item?.unidTier == null && filterHit?.byTier?.find((x) => x.action === 'Show');
+  if (shownAtSomeTier && filterHit.action === 'Hide') filterHit = { ...filterHit, action: 'Show', style: shownAtSomeTier.style };
   const hidden = filterHit?.action === 'Hide';
   // the header is the drag handle (frameless window); buttons inside it stay clickable
   return h('div', { class: 'ground ov-ground ov-drag', title: 'Drag to move. The next popup opens where you leave it.' },
@@ -173,7 +176,18 @@ function render(p) {
   // --- filter ---
   // which rule decides it, and where that rule is in your filter (the tier block below says it when it can move the base)
   const whereText = filterWhere ? (filterWhere.tier ? `${filterWhere.text}, ${window.TierNames.tierName({ tier: filterWhere.tier.tier, type: filterWhere.tier.type, customName: filterWhere.tier.name })}` : filterWhere.text) : null;
-  if (filterHit?.line) {
+  if (filterHit?.byTier && item.unidTier == null) {
+    // unidentified, and the game's copy doesn't say the item tier: what the filter does at each tier
+    function what(c) { return /gear->tiered/.test(c) ? 'Unid item tiers' : /hidelayer/.test(c) ? 'Hide layer' : /\$type->rr\b/.test(c) ? 'Rares by base' : (/\$type->(\S+)/.exec(c || '') || [])[1] || 'a rule'; }
+    const groups = [];
+    for (const x of filterHit.byTier) {
+      const last = groups[groups.length - 1];
+      if (last && last.action === x.action) { last.tiers.push(x.tier); last.whats.add(what(x.comment)); } else groups.push({ ...x, tiers: [x.tier], whats: new Set([what(x.comment)]) });
+    }
+    const span = (t) => (t.length === 5 ? 'Every tier' : t.length === 1 ? `Tier ${t[0]}` : t[0] === 5 ? `Tier ${t[t.length - 1]} and up` : `Tier ${t[t.length - 1]}–${t[0]}`);
+    body.append(h('div', { class: 'small muted' }, 'The game\'s copy doesn\'t show the item tier, so your filter decides by it: ',
+      groups.map((g, i) => h('span', {}, i ? '; ' : '', h('b', {}, span(g.tiers)), ` ${g.action === 'Hide' ? 'hidden' : 'shown'} (${[...g.whats].join(', ')})`)), '. The label on the ground says the tier.'));
+  } else if (filterHit?.line) {
     body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter${gearRarity ? ` (as a ${gearRarity} item)` : ''}${whereText ? `: ${whereText}` : ''}.`));
   }
 

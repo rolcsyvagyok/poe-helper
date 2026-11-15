@@ -384,6 +384,7 @@ function rankUnidTiers(text, ranks = {}, tiers = {}, names = []) {
   for (const b of names) { const row = UNID_ROW[rankOf(ranks, b)]; if (row) rowBases[row].push(b); }
   const lines = text.split(/\r?\n/);
   const head = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  const lowest = {};
   for (let i = 0; i < lines.length; i += 1) {
     const m = /^#?\s*(?:Show|Hide|Minimal)\b.*\$type->gear->tiered\s+\$tier->(?:t(\d)r(\d)|any(\d))\b/.exec(lines[i]);
     if (!m) continue;
@@ -411,7 +412,18 @@ function rankUnidTiers(text, ranks = {}, tiers = {}, names = []) {
       const bare = lines[k].startsWith('#') ? lines[k].slice(1) : lines[k];
       lines[k] = on ? bare : `#${bare}`;
     }
+    // remember each row's lowest switched-on rule: FilterBlade has none for Tier 1, so that rule takes it
+    const rowKey = m[2] ? `r${m[2]}` : 'any';
+    const want = m[2] ? Number(tiers[Object.keys(UNID_ROW).find((r) => UNID_ROW[r] === Number(m[2]))]) : Number(tiers.C);
+    if (on && cond) {
+      if (!lowest[rowKey] || tier < lowest[rowKey].tier) lowest[rowKey] = { tier, want, spans: [[i, end]] };
+      else if (tier === lowest[rowKey].tier) lowest[rowKey].spans.push([i, end]);
+    }
     i = end - 1;
+  }
+  for (const x of Object.values(lowest)) {
+    if (!(x.want < x.tier)) continue;
+    for (const [a, b] of x.spans) for (let k = a; k < b; k += 1) lines[k] = lines[k].replace(/(UnidentifiedItemTier\s*>=?\s*)\d/, `$1${x.want}`);
   }
   return lines.join('\n');
 }
