@@ -3,6 +3,12 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.85 - 2026-11-15
+
+- Price check: unidentified rares with quality ("Superior Phantom Mitts") are read as their base, so the filter check, base rank and Show in app work for them.
+- Filter check counts Memory Strands, so items shown by FilterBlade's Memory Strand rules no longer say "hidden".
+- Base ranks has a Memory Strands row under Unid item tier: for rank S, A, B and every other base, pick the fewest strands you want to see (or hide them). It uses your ranks and keeps FilterBlade's looks. Stranded gear is no longer hidden by "rares below rank …".
+
 ## 1.0.84 - 2026-11-15
 
 - Regular maps: the tiers the hide buttons cover are marked in the app ("✕ Hidden (below Tier 16)", "✕ Yellow hidden"), and below-Tier-16 cards are crossed out.

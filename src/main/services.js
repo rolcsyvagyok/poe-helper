@@ -83,6 +83,7 @@ const DEFAULT_SETTINGS = {
   rankKinds: { rares: 'off', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks, 'off' = FilterBlade decides)
   rankCraftIlvl: 82,
   rankRareTiers: true, // rares on your ranked bases go into FilterBlade's rare tiers by rank (S Tier 1 ... C Tier 4)
+  rankStrands: null, // Memory Strand gear per rank: fewest strands shown { S: 15, A: 20, B: 60, C: 'off' } (null = the filter decides)
   rankUnidTier: null, // 3.30 unidentified item tier per rank: { S: 2, A: 3 } (null = the filter decides)
   rankIlvl: {}, // lowest item level per kind of drop: { fractured: 68 } (crafting bases: rankCraftIlvl)
   hideFractured: false, // also hide fractured copies of bases you hid
@@ -723,7 +724,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
   // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
-  const FILTER_KEYS = ['mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
+  const FILTER_KEYS = ['rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
@@ -1346,6 +1347,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       craftIlvl: settings.get('rankCraftIlvl') || 82,
       ilvls: settings.get('rankIlvl') || {},
       unidTiers: settings.get('rankUnidTier') || null,
+      strands: settings.get('rankStrands') || null,
+      hasStrands: (() => { try { return /\$type->gear->memorystrand\b/.test(filters.readBase()); } catch { return false; } })(),
       hasUnidTiers: (() => { try { return /\$type->gear->tiered\b/.test(filters.readBase()); } catch { return false; } })(),
       rankList: RANKS,
       rankLooks: RANK_LOOKS,
@@ -1497,7 +1500,15 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { ranks, target, leftOut: filters.lastDropped };
   }
   /** The lowest rank shown for one kind of drop: 'S' | 'A' | 'B' | 'C' (all) | 'none' | 'off' (filter decides). */
-  function setRankKind({ kind, min, craftIlvl, ilvl, unidTiers } = {}) {
+  function setRankKind({ kind, min, craftIlvl, ilvl, unidTiers, strands } = {}) {
+    if (strands !== undefined) {
+      if (strands === null) settings.set('rankStrands', null);
+      else {
+        const clean = {};
+        for (const r of ['S', 'A', 'B', 'C']) { const v = strands?.[r]; if (v === 'off') clean[r] = 'off'; else { const n = Math.round(Number(v)); if (n >= 1 && n <= 100) clean[r] = n; } }
+        settings.set('rankStrands', clean);
+      }
+    }
     const { RANK_KINDS, UNID_TIERS } = require('../core/filter/manager');
     // unidentified item tier per rank (null: the filter's own rules decide)
     if (unidTiers !== undefined) {
@@ -1530,7 +1541,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       settings.set('rankCraftIlvl', n >= 1 && n <= 100 ? n : 82);
     }
     const target = filters.basePath() ? filters.write() : null;
-    return { kinds, craftIlvl: settings.get('rankCraftIlvl') || 82, ilvls: settings.get('rankIlvl') || {}, unidTiers: settings.get('rankUnidTier') || null, target };
+    return { kinds, craftIlvl: settings.get('rankCraftIlvl') || 82, ilvls: settings.get('rankIlvl') || {}, unidTiers: settings.get('rankUnidTier') || null, strands: settings.get('rankStrands') || null, target };
   }
   /**
    * Ranks in one go from the base order: in every column (item class and defence, or weapon type) the

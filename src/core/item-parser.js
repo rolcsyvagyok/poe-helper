@@ -141,6 +141,9 @@ function parseItem(rawText) {
     item.baseType = names[0];
   }
 
+  // quality items show "Superior <base>" when their name line is the base (normal items, unidentified rares)
+  if (item.baseType && /^Superior /.test(item.baseType) && item.rarity !== 'Unique') item.baseType = item.typeLine = item.baseType.slice('Superior '.length);
+
   // Magic items have affixes glued to the base; we keep typeLine and let the
   // pricer/trade fall back to fuzzy matching against known bases.
   if (item.rarity === 'Magic' && names.length === 1) item.baseType = null;
@@ -198,6 +201,7 @@ function parseItem(rawText) {
         // 3.30: an unidentified item's tier ("Item Tier: 3"), what FilterBlade's unidentified tiers go by
         case 'Item Tier': case 'Unidentified Item Tier': item.unidTier = toNumber(val); consumed = true; break;
         case 'Quality': item.quality = toNumber(val); consumed = true; break;
+        case 'Memory Strands': item.memoryStrands = toNumber(val); consumed = true; break;
         case 'Stack Size': item.stack = parseStack(val); consumed = true; break;
         case 'Sockets': item.sockets = parseSockets(val); consumed = true; break;
         case 'Level':

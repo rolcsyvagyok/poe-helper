@@ -653,3 +653,17 @@ test('DropLevel is read from the base (Martyr Boots 78, Headman\'s Sword 57)', (
   assert.equal(explain(doc, item('Martyr Boots', 'Boots')).comment, 'rest');
   assert.equal(explain(doc, item("Headman's Sword", 'Two Hand Swords')).comment, 'low');
 });
+
+test('Memory Strands by rank: rows get your rank bases, numbers and on/off', () => {
+  const M = require('../src/core/filter/manager');
+  const src = [
+    'Show # %D8 $type->gear->memorystrand $tier->t1high !x', '\tMemoryStrands >= 60', '\tBaseType == "Old S"', '\tSetFontSize 45', '',
+    'Show # %D6 $type->gear->memorystrand $tier->t1 !x', '\tMemoryStrands >= 15', '\tBaseType == "Old S"', '\tSetFontSize 45', '',
+    '#Show # %D2 $type->gear->memorystrand $tier->t3 !x', '#\tMemoryStrands >= 25', '#\tBaseType == "Silk Robe"', '#\tSetFontSize 45', '',
+    '#Show # %D2 $type->gear->memorystrand $tier->any !x', '#\tMemoryStrands >= 1', '#\tSetFontSize 45', ''].join('\n');
+  const out = M.rankStrandTiers(src, { 'Vaal Regalia': 'S', 'Silk Robe': 'B' }, { S: 30, B: 10, C: 'off' }, ['Vaal Regalia', 'Silk Robe', 'Old S']);
+  assert.match(out, /t1high !x\n\tMemoryStrands >= 60\n\tBaseType == "Vaal Regalia"/);
+  assert.match(out, /\$tier->t1 !x\n\tMemoryStrands >= 30\n\tBaseType == "Vaal Regalia"/);
+  assert.match(out, /^Show # %D2 \$type->gear->memorystrand \$tier->t3 !x\n\tMemoryStrands >= 10\n\tBaseType == "Silk Robe"/m);
+  assert.match(out, /^#Show # %D2 \$type->gear->memorystrand \$tier->any/m);
+});

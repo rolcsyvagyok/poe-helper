@@ -429,6 +429,46 @@ function rankUnidTiers(text, ranks = {}, tiers = {}, names = []) {
 }
 
 /**
+ * Memory Strand gear (FilterBlade [0903]): rows t1 / t2 / t3 (each with a "high" twin for many strands) and
+ * "any". With your ranks: t1 = rank S bases, t2 = A, t3 = B, any = every base. mins: { S: 15, A: 20, B: 60,
+ * C: 'off' } is the fewest strands shown per row ('off' hides the row; a missing rank keeps FilterBlade's
+ * choice). The "high" rule keeps its louder look from its own number up.
+ */
+const STRAND_ROW = { 1: 'S', 2: 'A', 3: 'B' };
+function rankStrandTiers(text, ranks = {}, mins = {}, names = []) {
+  const known = new Set(names);
+  const rowBases = { 1: [], 2: [], 3: [] };
+  for (const b of names) { const r = rankOf(ranks, b); const row = Object.keys(STRAND_ROW).find((k) => STRAND_ROW[k] === r); if (row) rowBases[row].push(b); }
+  const lines = text.split(/\r?\n/);
+  const head = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
+  for (let i = 0; i < lines.length; i += 1) {
+    const m = /^#?\s*(?:Show|Hide|Minimal)\b.*\$type->gear->memorystrand\s+\$tier->(?:t(\d)|(any))(high)?\b/.exec(lines[i]);
+    if (!m) continue;
+    let end = i + 1;
+    while (end < lines.length && lines[end].trim() !== '' && !head(lines[end])) end += 1;
+    const rank = m[1] ? STRAND_ROW[m[1]] : 'C';
+    if (m[1]) {
+      const bl = lines.slice(i + 1, end).findIndex((l) => /^#?\s*BaseType\b/.test(l));
+      const keep = bl >= 0 ? [...lines[i + 1 + bl].matchAll(/"([^"]+)"/g)].map((x) => x[1]).filter((b) => !known.has(b)) : [];
+      const list = [...new Set([...(rowBases[m[1]] || []), ...keep])].sort();
+      if (bl >= 0) lines[i + 1 + bl] = `${lines[i + 1 + bl].startsWith('#') ? '#' : ''}\tBaseType == ${list.length ? list.map((b) => `"${b}"`).join(' ') : '"PoE Helper: no bases of this rank"'}`;
+    }
+    const want = mins[rank];
+    if (want !== undefined && want !== null) {
+      const n = Number(want);
+      const on = want !== 'off' && Number.isFinite(n) && n >= 1;
+      for (let k = i; k < end; k += 1) {
+        let bare = lines[k].startsWith('#') ? lines[k].slice(1) : lines[k];
+        if (on) bare = bare.replace(/(MemoryStrands\s*>=?\s*)(\d+)/, (x, a, v) => `${a}${m[3] ? Math.max(Number(v), n) : n}`);
+        lines[k] = on ? bare : `#${bare}`;
+      }
+    }
+    i = end - 1;
+  }
+  return lines.join('\n');
+}
+
+/**
  * Minimap icons by kind of item: the tier designer gives Tier N the same colours in every category, so
  * the icon's shape says what dropped (currency a circle, gear a diamond, cards a kite...). Colour and
  * size stay as the tier has them; nothing is shown or hidden differently. Campaign rules keep theirs.
@@ -613,7 +653,7 @@ function rareTierMoves(baseText, ranks, names) {
   return out;
 }
 
-function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {}, unidTiers = false } = {}) {
+function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {}, unidTiers = false, strands = false } = {}) {
   const out = [];
   const endgame = [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }];
   const area = mapsOnly ? endgame : [];
@@ -636,7 +676,8 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
     const drop = bases.filter((b) => !keep.includes(rankOf(ranks, b))).sort();
     // 3.30: unidentified drops are decided by the unid item tiers (Base ranks → Unid item tier), so the
     // rank only hides identified ones; before, this hid every unidentified rare of a lower rank, even at Tier 5
-    const idOnly = unidTiers ? [{ keyword: 'Identified', values: ['True'] }] : [];
+    // Memory Strand gear is left to its own rules (Base ranks → Memory Strands)
+    const idOnly = [...(unidTiers ? [{ keyword: 'Identified', values: ['True'] }] : []), ...(strands ? [{ keyword: 'MemoryStrands', op: '<', values: ['1'] }] : [])];
     if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}${unidTiers ? ' (identified)' : ''}`, conditions: [...conds, ...idOnly, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
   }
   return out;
@@ -932,6 +973,8 @@ class FilterManager {
     // unidentified items by item tier: FilterBlade's own rules, with your ranks and lowest tiers
     const unidTiers = this.store.get('rankUnidTier');
     if (unidTiers) text = rankUnidTiers(text, this.store.get('baseRanks') || {}, unidTiers, RANKED_NAMES);
+    const strands = this.store.get('rankStrands');
+    if (strands) text = rankStrandTiers(text, this.store.get('baseRanks') || {}, strands, RANKED_NAMES);
     // Synced filters start with metadata the game keeps for online filters; the local copy doesn't need it.
     if (text.startsWith('#Online Item Filter')) text = text.replace(/^(#(Online Item Filter|[a-zA-Z]+:[^\n]*)\r?\n)+/, '');
     const eco = (this.store.get('economy')?.enabled ? this.lastEconomy : []).map((r) => cleanRule(r, fix)).filter(Boolean);
@@ -939,7 +982,7 @@ class FilterManager {
     const hidden = hiddenBaseRules(baseText, patch, { fractured: !!this.store.get('hideFractured'), synthesised: !!this.store.get('hideSynthesised') });
     // My bases first (what you collect always shows), then your rules, then hiding fractured copies of hidden bases
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
-    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {}, unidTiers: /^\s*UnidentifiedItemTier\b/m.test(text) });
+    const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {}, unidTiers: /^\s*UnidentifiedItemTier\b/m.test(text), strands: /^\s*MemoryStrands\b/m.test(text) });
     const unid = []; // (unidentified item tiers are FilterBlade's own rules now, see rankUnidTiers)
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
@@ -1036,4 +1079,4 @@ class FilterManager {
   }
 }
 
-module.exports = { fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

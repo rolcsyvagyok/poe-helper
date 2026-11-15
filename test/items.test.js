@@ -72,3 +72,10 @@ test('3.30 copy: "Unidentified (Tier 5)" sets the unidentified flag and the tier
   assert.equal(it.unidTier, 5);
   assert.equal(it.mods.explicit.length, 0);
 });
+
+test('unidentified rare with quality: "Superior Phantom Mitts" is the Phantom Mitts base; Memory Strands are read', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Gloves\nRarity: Rare\nSuperior Phantom Mitts\n--------\nQuality: +19% (augmented)\nMemory Strands: 58\n--------\nItem Level: 85\n--------\nUnidentified\n');
+  assert.equal(it.baseType, 'Phantom Mitts');
+  assert.equal(it.memoryStrands, 58);
+});

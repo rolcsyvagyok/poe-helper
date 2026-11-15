@@ -77,6 +77,7 @@ function evalCondition(c, item, assumed) {
     // the base's drop level (game data); unknown bases are left to the context rule
     case 'DropLevel': { const d = DROP_LEVELS[item.baseType || item.typeLine]; return d == null ? null : numCond(c.op, v, d); }
     case 'Quality': return numCond(c.op, v, item.quality ?? 0);
+    case 'MemoryStrands': return numCond(c.op, v, item.memoryStrands ?? 0);
     case 'Sockets': return socketsCond(c.op, v[0], item.sockets);
     case 'LinkedSockets': return numCond(c.op, v, item.sockets?.links ?? 0);
     case 'StackSize': return numCond(c.op, v, item.stack?.current ?? 1);

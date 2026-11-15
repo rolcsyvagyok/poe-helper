@@ -1326,6 +1326,24 @@ async function renderBaseMatrix(body, view) {
       h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A higher tier always shows at least what a lower one does. Tier 0 is plain rares without a tier (identified ones): lower ranks are hidden, the look stays FilterBlade\'s.'), mode, per);
   })() : null;
 
+  // 3.30 Memory Strand gear: FilterBlade's rows with your ranks. Per rank the fewest strands that show it
+  // ("Every base" is the rest); the louder "high" look stays FilterBlade's.
+  let strands = data.strands || null;
+  const strandRow = (data.hasStrands || strands) ? (() => {
+    const DEFAULT = { S: 15, A: 20, B: 60, C: 'off' }; // FilterBlade at Semi-Strict
+    const OPTS = [['off', 'Hidden'], ...[1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80].map((n) => [String(n), `${n}+ strands`])];
+    const save = async (v) => { const r = await call('ranks:kind', { strands: v }); strands = r.strands; S.settings.rankStrands = strands; renderFilters(); };
+    const mode = h('select', { 'aria-label': 'Memory Strands: who decides', onchange: (e) => save(e.target.value === 'off' ? null : { ...DEFAULT }) },
+      h('option', { value: 'off', selected: !strands }, 'Filter decides'), h('option', { value: 'mine', selected: !!strands }, 'My choice (below)'));
+    const per = !strands ? null : h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } },
+      [['S', 'Rank S'], ['A', 'Rank A'], ['B', 'Rank B'], ['C', 'Every other base']].map(([r, label]) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
+        h('span', {}, label),
+        h('select', { 'aria-label': `Memory Strands, ${label}: fewest strands shown`, onchange: (e) => save({ ...strands, [r]: e.target.value }) },
+          OPTS.map(([v, l]) => h('option', { value: v, selected: String(strands[r] ?? 'off') === v }, l))))));
+    return h('div', { class: 'bm-kind' }, h('b', {}, 'Memory Strands'),
+      h('span', { class: 'small muted' }, 'Gear with Memory Strands. For each rank, the fewest strands you want to see; FilterBlade\'s looks stay (many strands get the louder look). Fractured and veiled stranded items always show.'), mode, per);
+  })() : null;
+
   // ---------- a whole group at once: every shield, every staff, every pure armour base… ----------
   const namesOf = (list) => [...new Set(list.map((b) => b.name))];
   // shields and weapon types, then the armour defences; body armours, boots, gloves, helmets and
@@ -1421,6 +1439,7 @@ async function renderBaseMatrix(body, view) {
         h('div', { class: 'row', style: { gap: '8px' } }, h('b', {}, 'Lowest rank shown'), h('span', { class: 'small faint' }, 'For each kind of drop. "Rares: S only" and "Fractured: B and up" hide a B rank rare but show it fractured. Uniques are never touched.')),
         kindRows,
         unidRow,
+        strandRow,
         h('div', { class: 'row small', style: { gap: '8px' } }, h('span', { class: 'muted' }, 'Looks:'), RANKS.map((r) => dressRank(h('span', { class: 'bm-cell sample' }, `Rank ${r}`), r)))),
       groupPanel,
       sectionTabs,
