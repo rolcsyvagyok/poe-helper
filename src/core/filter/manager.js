@@ -351,6 +351,8 @@ const RANK_KINDS = [ // in the order the page lists them; synthesised items are 
   { id: 'crafting', name: 'High ilvl bases', about: 'Normal and magic items of a high item level. They keep your filter\'s look; ranks below your choice are hidden', ilvl: true, filterLook: true, conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }, ...NO_FLAGS] },
   { id: 'fractured', name: 'Fractured', about: 'Any fractured item of the base', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'FracturedItem', values: ['True'] }] },
   { id: 'influenced', name: 'Influenced', about: 'Shaper, Elder and Conqueror bases', conditions: [{ keyword: 'Rarity', values: ['Normal', 'Magic', 'Rare'] }, { keyword: 'HasInfluence', values: ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'SynthesisedItem', values: ['False'] }] },
+  // identified rares with a veiled mod (Betrayal): "Veiled" prefixes and "of the Veil" suffixes, Vagan's Veiled too
+  { id: 'veiled', name: 'Veiled', about: 'Identified rares with a veiled mod', conditions: [{ keyword: 'Rarity', values: ['Rare'] }, { keyword: 'Identified', values: ['True'] }, { keyword: 'HasExplicitMod', values: ['Veil'] }, { keyword: 'FracturedItem', values: ['False'] }, { keyword: 'HasInfluence', values: ['None'] }] },
 ];
 const rankOf = (ranks, base) => (RANKS.includes(ranks?.[base]) ? ranks[base] : 'D');
 // Unidentified item tier (3.30): per rank, the lowest unid item tier shown. tiers: { S: 2, A: 3, ... };
@@ -694,6 +696,8 @@ function kindLooksOf(text) {
     const frac = first('exotic->fractured');
     if (inf) out.influenced = inf;
     if (frac) out.fractured = frac;
+    const veil = first('rare->exotic->veiled');
+    if (veil) out.veiled = veil;
   } catch { /* rank colours */ }
   return out;
 }

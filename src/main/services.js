@@ -81,7 +81,7 @@ const DEFAULT_SETTINGS = {
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
   regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]
   baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
-  rankKinds: { rares: 'off', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks, 'off' = FilterBlade decides)
+  rankKinds: { rares: 'off', crafting: 'D', fractured: 'D', influenced: 'D', veiled: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks, 'off' = FilterBlade decides)
   rankCraftIlvl: 82,
   rankRareTiers: true, // rares on your ranked bases go into FilterBlade's rare tiers by rank (S Tier 1 ... C Tier 4)
   rankUnidRarity: ['Rare'], // rarities the item tier rules take; FilterBlade's own is all three (['Normal', 'Magic', 'Rare'])
@@ -699,7 +699,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -2300,6 +2300,12 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (!settings.get('rankUnidTier')) { settings.set('rankUnidTier', { S: 2, A: 2, B: 2, C: 3 }); changed = true; }
     if (!settings.get('rankStrands')) { settings.set('rankStrands', { S: 15, A: 20, B: 60, C: 'off' }); changed = true; }
     try { if (changed && filters.basePath()) filters.write(); } catch (e) { log('my choice', e.message); }
+  }
+  // 1.0.98: veiled rares are a kind of their own on Base ranks (all ranks shown, in the filter's veiled look)
+  if (!settings.get('veiledKindV1')) {
+    settings.set('veiledKindV1', true);
+    const k = { ...(settings.get('rankKinds') || {}) };
+    if (!k.veiled) { settings.set('rankKinds', { ...k, veiled: 'D' }); try { if (filters.basePath()) filters.write(); } catch (e) { log('veiled kind', e.message); } }
   }
   if (!settings.get('rareThemeV1')) {
     settings.set('rareThemeV1', true);
