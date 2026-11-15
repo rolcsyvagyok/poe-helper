@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.96 - 2026-11-15
+
+* [Base ranks] Unid item tier: a choice is copied to every lower tier, so making Tier 5 stricter is one click
+
+- Base ranks, Unid item tier: picking which bases a tier shows now sets the same for every lower tier (Tier 0 too). Before, a higher tier couldn't be made stricter until the lower ones were changed first.
+
 ## 1.0.95 - 2026-11-15
 
 * [My collection] "Tick from my Unique stash tab" ticks every unique you have in your Unique tab and hides the cheap collected bases

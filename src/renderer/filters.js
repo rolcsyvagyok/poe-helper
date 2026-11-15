@@ -1544,10 +1544,18 @@ async function renderBaseMatrix(body, view) {
     const save = async (v) => { const r = await call('ranks:kind', { unidTiers: v }); unidTiers = r.unidTiers; S.settings.rankUnidTier = unidTiers; renderFilters(); };
     const mode = null; // always your choice (no "Filter decides")
     const bt = byTier(unidTiers || DEFAULT_UNID);
-    const set = (tier, who) => {
-      const next = { ...bt, [tier]: who };
-      // a higher tier always shows at least what a lower one does
+    // a choice is copied to every lower tier (Tier 0 too), so a stricter Tier 5 is one click;
+    // a higher tier still shows at least what a lower one does
+    const set = async (tier, who) => {
+      const next = { ...bt };
+      for (const t of TIERS) if (t <= tier) next[t] = who;
       for (const t of [2, 3, 4, 5]) { const lower = next[t - 1]; if (lower && (!next[t] || order.indexOf(next[t]) < order.indexOf(lower))) next[t] = lower; }
+      const r0 = { S: 'S', A: 'A', B: 'B', C: 'D', '': 'none' }[who];
+      if (r0 && r0 !== ((!kinds.rares || kinds.rares === 'off') ? 'D' : kinds.rares)) {
+        const r = await call('ranks:kind', { kind: 'rares', min: r0 }); kinds = r.kinds; S.settings.rankKinds = kinds;
+      }
+      const lower = TIERS.filter((t) => t < tier).length;
+      toast(lower ? `Tier ${tier} and every lower tier: ${WHO.find(([v]) => v === who)[1].toLowerCase()}` : `Tier ${tier}: ${WHO.find(([v]) => v === who)[1].toLowerCase()}`);
       save(toRanks(next));
     };
     // Tier 0: plain rares without an item tier (identified, or from before 3.30): the "Rares" rank choice
@@ -1562,7 +1570,7 @@ async function renderBaseMatrix(body, view) {
         WHO.map(([v, l]) => h('option', { value: v, selected: bt[t] === v }, l))),
       )), tier0);
     return h('div', { class: 'bm-kind' }, h('b', {}, 'Unid item tier'),
-      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A higher tier always shows at least what a lower one does. Tier 0 is plain rares without a tier (identified ones): lower ranks are hidden, the look stays FilterBlade\'s.'), mode, per);
+      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A choice is copied to every lower tier, and a higher tier always shows at least what a lower one does. Tier 0 is plain rares without a tier (identified ones): lower ranks are hidden, the look stays FilterBlade\'s.'), mode, per);
   })() : null;
 
   // 3.30 Memory Strand gear: FilterBlade's rows with your ranks. Per rank the fewest strands that show it
