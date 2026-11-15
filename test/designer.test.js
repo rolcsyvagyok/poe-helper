@@ -42,3 +42,13 @@ test('rares follow the design by kind: the best unidentified tier gets level 2, 
   const t = D.targetsFor(view);
   assert.deepEqual(t.map((x) => [x.key, x.level]), [['a', 2]]);
 });
+
+test('text size steps: everything and per category, kept between 12 and 45', () => {
+  const M = require('../src/core/filter/manager');
+  const src = 'Show # $type->currency $tier->t1\n\tSetFontSize 45\n\nShow # $type->uniques $tier->t1\n\tSetFontSize 40\n\nShow # My bases: x\n\tSetFontSize 30\n';
+  const out = M.adjustSizes(src, { all: -4, uniques: 8 });
+  assert.match(out, /currency \$tier->t1\n\tSetFontSize 41/);
+  assert.match(out, /uniques \$tier->t1\n\tSetFontSize 44/);
+  assert.match(out, /My bases: x\n\tSetFontSize 26/);
+  assert.match(M.adjustSizes(src, { all: -40 }), /SetFontSize 12/);
+});

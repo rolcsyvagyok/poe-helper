@@ -1317,8 +1317,10 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 .pob-anoint-cur td { background: var(--surface-2, rgba(255,255,255,.04)); font-weight: 600; }
 
 /* price check header: your base rank and the item tier */
-.ov-rank { display: inline-flex; align-items: center; gap: 8px; margin-left: 10px; flex: none; }
-.ov-ground:has(.ov-rank) { flex-wrap: wrap; row-gap: 6px; }
+.ov-rank { display: inline-flex; align-items: center; gap: 8px; flex: none; margin-right: 4px; }
+.ov-head-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.ov-head-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ov-ground { align-items: flex-start; }
 .ov-rank-box { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid; border-radius: 4px; font: 700 13px/1 var(--item, inherit); flex: none; }
 .ov-rank-tier { font-weight: 700; font-size: 15px; white-space: nowrap; }
 
@@ -1328,3 +1330,30 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 
 /* Unique items: jump links over the long page */
 .fb-uq-jump { gap: 4px; flex-wrap: wrap; position: sticky; top: 0; z-index: 4; background: var(--ink); padding: 6px 0; border-bottom: 1px solid var(--line-soft); }
+
+/* Unique items: FilterBlade-like compact rows */
+.uq-sec { margin: 0 0 16px; }
+.uq-sec-title { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--text); font-weight: 700; padding: 8px 4px; border-bottom: 1px solid var(--line); margin-bottom: 6px; gap: 10px; }
+.uq-row { border: 1px solid var(--line-soft); border-radius: 6px; background: var(--surface); margin-bottom: 6px; }
+.uq-row.drop-target { outline: 2px dashed var(--accent); }
+.uq-row.is-hidden .uq-name { color: var(--muted); text-decoration: line-through; }
+.uq-row-head { display: flex; align-items: center; gap: 12px; padding: 6px 10px; min-height: 46px; }
+.uq-check input { width: 18px; height: 18px; }
+.uq-name { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; letter-spacing: .03em; text-transform: uppercase; }
+.uq-caret { color: var(--muted); width: 12px; }
+.uq-count { color: var(--faint); font-weight: 400; font-size: 12px; text-transform: none; }
+.uq-look { all: unset; cursor: pointer; display: inline-flex; min-width: 260px; justify-content: center; }
+.uq-look:focus-visible { outline: 2px solid var(--accent); }
+.uq-chips { padding: 8px 10px 10px; border-top: 1px solid var(--line-soft); }
+
+/* Tier designer → Text size */
+.dz-sizes { display: grid; gap: 12px; }
+.dz-size-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 18px; border-top: 1px solid var(--line-soft); padding-top: 10px; }
+.dz-size-row { display: flex; align-items: center; gap: 8px; }
+.dz-size-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-size-val { min-width: 34px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dz-size-val.on { color: var(--text); font-weight: 700; }
+
+/* price check header: the badge and the item's facts on one line */
+.ov-headline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.ov-fact { font-size: 12.5px; padding: 2px 8px; border-radius: 999px; background: #ffffff14; border: 1px solid #ffffff22; color: var(--text); white-space: nowrap; }

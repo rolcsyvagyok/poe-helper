@@ -99,10 +99,38 @@ function drawNow() {
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', {}, 'Design'), h('p', {}, 'Click a drop in the preview or a tier below to edit it.'), h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, 'Every tier is full size and solid: pick the colours.')),
       h('div', { class: 'dz' }, pile(), editor())),
+    sizeSection(),
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', {}, 'Game sound previews'), h('p', {}, 'Your filter uses the game\'s built-in drop sounds (Game sound 1 to 16). PoE Helper makes preview copies from the Path of Exile install on this PC, so every ▶ plays the real sound; nothing from the game comes with the app. It reads them again by itself after a game patch. Previews only: the filter keeps the real in-game sound.')),
       h('div', { class: 'panel' }, window.gameSoundRows ? window.gameSoundRows(S.settings, () => renderDesigner()) : null)),
     applyBar());
+}
+
+// ---------------------------------------------------------------- text size, on top of the theme
+// Every drop smaller or bigger with a click, or one category (currency, uniques…) on its own.
+function sizeSection() {
+  const adj = S.settings.sizeAdjust || {};
+  const save = async (key, v) => {
+    S.settings.sizeAdjust = await call('designer:sizes', { [key]: v });
+    toast(`Text size saved${D.state?.hasFilter ? '. Zone or reload the filter in game' : ''}`);
+    draw();
+  };
+  const STEP = 4;
+  const stepper = (key, label) => {
+    const v = Number(adj[key]) || 0;
+    return h('div', { class: 'dz-size-row' },
+      h('span', { class: 'dz-size-name' }, label),
+      h('button', { class: 'sm', 'aria-label': `${label}: smaller`, title: 'Smaller', onclick: () => save(key, v - STEP) }, 'A−'),
+      h('span', { class: 'dz-size-val' + (v ? ' on' : ''), title: 'Font size change in points' }, v > 0 ? `+${v}` : String(v)),
+      h('button', { class: 'sm', 'aria-label': `${label}: bigger`, title: 'Bigger', onclick: () => save(key, v + STEP) }, 'A+'),
+      v ? h('button', { class: 'quiet sm', onclick: () => save(key, 0) }, 'Reset') : null);
+  };
+  const groups = (D.state?.groups || []).slice().sort((a, b) => b.tiers - a.tiers);
+  return h('section', { class: 'section' },
+    h('div', { class: 'section-head' }, h('h2', {}, 'Text size'), h('p', {}, 'Make drops smaller or bigger on top of your theme. The game\'s biggest size is 45, so "bigger" only helps tiers that aren\'t at the top already. A category\'s own setting adds to "Everything".')),
+    h('div', { class: 'panel dz-sizes' },
+      stepper('all', 'Everything'),
+      h('div', { class: 'dz-size-grid' }, groups.map((g) => stepper(g.id, g.label)))));
 }
 
 // ---------------------------------------------------------------- theme gallery

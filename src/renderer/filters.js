@@ -616,6 +616,18 @@ function renderTiers(body, view) {
   const bar = h('div', { class: 'fb-selbar' });
   function drawBar() {
     if (!FB.selected.size) return mount(bar);
+    // Unique items: one button per row of the page (no list of FilterBlade's extra tiers)
+    if (type.type === 'uniques') {
+      const has = new Set(targets.map((t) => t.tier));
+      const own = targets.filter((t) => /^poehelper-/.test(t.tier)).map((t) => [t.tier, tierName(t)]);
+      const rows = [...own, ...UQ_ROWS.flatMap(([, r]) => r.map(([name, ids]) => [ids.find((id) => has.has(id)), name]))].filter(([id]) => id);
+      return mount(bar, h('div', { class: 'fb-selbar-in' },
+        h('b', {}, `${FB.selected.size} selected`),
+        h('span', { class: 'muted small', style: { maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [...FB.selected].join(', ')),
+        h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, 'Move to'),
+        rows.map(([id, name]) => h('button', { class: 'sm', onclick: () => moveTo([...FB.selected], id) }, name.replace(/ tier$/, ''))),
+        h('button', { class: 'quiet', onclick: () => { FB.selected.clear(); drawList(); } }, 'Clear')));
+    }
     const sel = h('select', { 'aria-label': 'Move to tier' }, targets.map((t) => h('option', { value: t.tier }, `${tierName(t)}${t.action === 'Hide' ? ' (hidden)' : ''}`)));
     mount(bar, h('div', { class: 'fb-selbar-in' },
       h('b', {}, `${FB.selected.size} selected`),
@@ -799,7 +811,102 @@ function renderTiers(body, view) {
     return out;
   }
 
+  // ---------- Unique items, like FilterBlade's page: compact tier rows in two groups ----------
+  // Predictable tiers (S, A, B+C, D) and High variety tiers (jewels, top multi-bases, multi-bases, boss drops).
+  // A row: shown or not, the name, the look (click to edit). Open a row for its bases. FilterBlade's three D
+  // tiers are one row (D tier); special cases (6-links, Kaom's…) are one folded line at the bottom.
+  const UQ_ROWS = [
+    ['Predictable tiers', [['S tier', ['t1']], ['A tier', ['t2']], ['B+C tier', ['t3']], ['D tier', ['hideable', 'hideable2', 'earlyleague']]]],
+    ['High variety tiers', [['Jewels', ['exjewels']], ['Top multi-bases', ['multispecialhigh']], ['Multi-bases', ['multispecial', 'multi']], ['Boss drops', ['t3boss']]]],
+  ];
+  function uniqueRows() {
+    const byTier = new Map(type.tiers.map((t) => [t.tier, t]));
+    const used = new Set();
+    const row = (name, tiersOf, { own = false } = {}) => {
+      const list = tiersOf.filter(Boolean);
+      if (!list.length) return null;
+      list.forEach((t) => used.add(t.tier));
+      const main = list[0];
+      const key = `uq|${main.key}`;
+      const states = list.map((t) => t.state || (t.off ? 'Off' : t.action));
+      const allShown = states.every((x) => x === 'Show');
+      const noneShown = states.every((x) => x !== 'Show');
+      const bases = list.flatMap((t) => t.bases.map((b) => [b, t]));
+      const q = FB.search.trim().toLowerCase();
+      const hits = q ? bases.filter(([b]) => b.toLowerCase().includes(q)) : bases;
+      if (q && !hits.length) return null;
+      const open = FB.uqOpen?.[key] || (!!q) || list.some((t) => FB.goto?.key === t.key) || [...FB.selected].some((b) => bases.some(([x]) => x === b));
+      const editing = FB.editing === key;
+      const cb = h('input', { type: 'checkbox', checked: allShown, 'aria-label': `${name}: shown in game` });
+      cb.indeterminate = !allShown && !noneShown;
+      cb.addEventListener('change', async () => {
+        const want = cb.checked ? 'Show' : 'Hide';
+        for (const t of list) if ((t.state || t.action) !== want) await call('tiers:action', { key: t.key, action: want });
+        toast(`${name} ${want === 'Show' ? 'shown' : 'hidden'} in game`);
+        delete FB.prices[type.type];
+        renderFilters();
+      });
+      const look = h('button', { class: 'uq-look', title: `Change the look of ${name}`, onclick: () => { if (editing) FB.editing = null; else { FB.editing = key; FB.draft = structuredClone(main.style || {}); } drawList(); } });
+      const drawLook = () => mount(look, dropLabel(hits[0]?.[0] || main.bases[0] || 'Unique', editing ? FB.draft : main.style, { rarity: 'Unique', game: true, scale: 0.62, hidden: noneShown }));
+      drawLook();
+      const head = h('div', { class: 'uq-row-head' },
+        h('label', { class: 'uq-check' }, cb),
+        h('button', { class: 'uq-name', 'aria-expanded': String(open), onclick: () => { FB.uqOpen = { ...(FB.uqOpen || {}), [key]: !open }; drawList(); } },
+          h('span', { class: 'uq-caret' }, open ? '▾' : '▸'), name,
+          h('span', { class: 'uq-count' }, `${bases.length}`),
+          own ? h('span', { class: 'pill', style: { marginLeft: '8px' } }, 'Your tier') : null,
+          list.some((t) => edited.has(t.key)) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null),
+        h('span', { class: 'spacer' }), look);
+      const box = h('div', { class: 'uq-row' + (noneShown ? ' is-hidden' : ''), 'data-key': main.key }, head,
+        editing ? lookEditor({ ...main, customName: name }, () => drawList(), drawLook, list.length > 1 ? {
+          onSave: async (d) => { await call('tiers:styles', { keys: list.map((t) => t.key), style: d }); },
+          onReset: async () => { await call('tiers:styles', { keys: list.map((t) => t.key), style: null }); },
+        } : {}) : null,
+        open ? h('div', { class: 'fb-chips uq-chips' }, hits.length ? hits.map(([b, t]) => chip(b, t)) : h('span', { class: 'small faint' }, 'Empty. Drag uniques here, or select some and use the bar below.')) : null);
+      // drop bases on the row: they go to its main tier
+      if (main.hasBaseList) {
+        box.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-bases')) { e.preventDefault(); box.classList.add('drop-target'); } });
+        box.addEventListener('dragleave', () => box.classList.remove('drop-target'));
+        box.addEventListener('drop', (e) => { e.preventDefault(); box.classList.remove('drop-target'); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), main.tier); } catch { /* ignore */ } });
+      }
+      return box;
+    };
+    const own = type.tiers.filter((t) => /^poehelper-/.test(t.tier) && !t.generated);
+    const out = [];
+    // My collection: ticked in the price check; a base where you have every unique and all are cheap is hidden
+    {
+      const have = Object.keys(S.settings.uniqueCollection || {}).length;
+      const hiddenB = S.settings.collectedHideBases || [];
+      const max = h('input', { type: 'number', min: 0, step: 1, value: S.settings.collectHideBelow ?? 5, style: { width: '64px' }, 'aria-label': 'Hide collected bases when every unique is worth at most' });
+      max.addEventListener('change', async () => { const r = await call('collection:set', { max: max.value }); S.settings.collectHideBelow = r.max; S.settings.collectedHideBases = r.hidden; toast(`${r.hidden.length} collected bases hidden`); drawList(); });
+      out.push(h('div', { class: 'panel row small', style: { gap: '10px', marginBottom: '12px' } },
+        h('b', {}, 'My collection'),
+        h('span', { class: 'muted' }, have ? `${have} unique${have === 1 ? '' : 's'} ticked` : 'Price check a unique and tick the ones you own.'),
+        h('span', { class: 'spacer' }),
+        h('span', {}, 'Hide a base when I have every unique on it and none is worth more than'), max, h('span', {}, 'c'),
+        h('span', { class: 'faint', title: hiddenB.join('\n') }, hiddenB.length ? `${hiddenB.length} base${hiddenB.length === 1 ? '' : 's'} hidden now` : 'none hidden yet')));
+    }
+    if (own.length) out.push(h('div', { class: 'uq-sec' }, h('div', { class: 'uq-sec-title' }, 'Your tiers'), own.map((t) => row(tierName(t), [t], { own: true }))));
+    for (const [title, rows] of UQ_ROWS) {
+      const r = rows.map(([name, ids]) => row(name, ids.map((id) => byTier.get(id)))).filter(Boolean);
+      if (r.length) out.push(h('div', { class: 'uq-sec' }, h('div', { class: 'uq-sec-title' }, title), r));
+    }
+    const rest = type.tiers.filter((t) => !used.has(t.tier) && !t.generated && !/^poehelper-/.test(t.tier) && t.tier !== 'restex');
+    if (rest.length) {
+      const open = !!FB.uqSpecialOpen || !!FB.search.trim();
+      const r = open ? rest.map((t) => row(tierName(t), [t])).filter(Boolean) : [];
+      out.push(h('div', { class: 'uq-sec' }, h('div', { class: 'uq-sec-title row' }, 'Special cases', h('span', { class: 'small faint', style: { textTransform: 'none', letterSpacing: 0 } }, '6-links, Kaom\'s Heart, synthesised, corrupted… shown by their own rules'), h('span', { class: 'spacer' }),
+        h('button', { class: 'quiet sm', onclick: () => { FB.uqSpecialOpen = !open; drawList(); } }, open ? 'Fold' : `Show ${rest.length}`)), r));
+    }
+    return out;
+  }
+
   function drawList() {
+    if (type.type === 'uniques') {
+      mount(list, priceBanner(), addRow(), uniqueRows(), h('datalist', { id: 'fb-names' }, (FB.names[type.type] || []).map((n) => h('option', { value: n }))));
+      drawBar();
+      return;
+    }
     const cards = letterGroups(type.tiers.map(tierCard)).filter(Boolean);
     mount(list, categoryOf(type.type)?.clusters ? clusterPanel() : null, priceBanner(), newTierBar(), addRow(), cards.length ? cards : h('div', { class: 'panel empty' }, 'No base matches your search.'), hideZone(), fracturedBox(),
       h('datalist', { id: 'fb-names' }, (FB.names[type.type] || []).map((n) => h('option', { value: n }))));

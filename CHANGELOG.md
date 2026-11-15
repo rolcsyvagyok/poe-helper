@@ -3,6 +3,17 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.89 - 2026-11-15
+
+- Loot filter → Unique items looks like FilterBlade's page: compact rows with a tick box (shown in game), the name and the look (click it to edit). Predictable tiers: S, A, B+C and D (FilterBlade's three D tiers are one row). High variety tiers: jewels, top multi-bases, multi-bases, boss drops. Open a row to see its uniques; special cases (6-links, Kaom's, synthesised…) are one folded line.
+- Moving uniques: select some, then pick the row in the bar at the bottom (no long list of FilterBlade's extra tiers).
+- My collection: the price check on a unique lists every unique on its base with a tick box. Tick the ones you own. When you own every unique on a base and none is worth more than 5c (you can change it on the Unique items page), your filter hides that base. Foulborn and Replica uniques still show, and a base comes back if one of its uniques gets expensive.
+- Tier designer → Text size: make every drop smaller or bigger with a click (A− / A+, 4 points a step), or one category on its own (currency, uniques, divination cards…). It goes on top of your theme; the game's biggest size is 45.
+- Price check header: the item's facts (rare, item level, influence, fractured, corrupted…) sit next to the rank badge, where you see them first.
+- Price check on rares and magic items: no poe.ninja base price and no search until you press Search (it said little about the item and cost GGG requests). Identified uniques are still searched at once.
+- "Show in app" is now a blue "Show in loot filter" button.
+- Price check: the "Search as: finished item / crafting base" choice is gone (it always searches the item as it is), and "+ My bases" and "Hide…" are quieter buttons.
+
 ## 1.0.88 - 2026-11-15
 
 - Rare looks take your Tier designer theme's colours on their own now (once on update, and every time you apply a theme). The button is still there to do it again.

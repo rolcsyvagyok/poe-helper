@@ -7,7 +7,7 @@
 
   // Uniques tiered like FilterBlade: S, A, B+C, D and High variety
   const UNIQUE_TIERS = {
-    t1: ['S', 'S tier'], t2: ['A', 'A tier'], exjewels: ['A', 'A tier - jewels'], t3: ['B+C', 'B+C tier'],
+    t1: ['S', 'S tier'], t2: ['A', 'A tier'], exjewels: ['High variety', 'High variety - jewels'], t3: ['B+C', 'B+C tier'],
     earlyleague: ['D', 'D tier - early league uniques'], hideable2: ['D', 'D tier - low value + non-drops'], hideable: ['D', 'D tier - low value'],
     multispecialhigh: ['High variety', 'High variety - top multi-bases'], multispecial: ['High variety', 'High variety - multi-bases'], multi: ['High variety', 'High variety - multi-bases'], t3boss: ['High variety', 'High variety - boss drops'],
   };

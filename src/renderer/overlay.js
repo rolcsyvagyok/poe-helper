@@ -24,7 +24,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 /** Top of the overlay: the item drawn the way your filter draws it on the ground. */
-function header(item, filterHit, br = null) { // eslint-disable-line no-param-reassign
+function header(item, filterHit, br = null, facts = []) { // eslint-disable-line no-param-reassign
   const name = item ? (item.rarity === 'Unique' || item.rarity === 'Rare' ? item.name : item.typeLine) : 'Price check';
   // an unidentified item whose tier the copy doesn't show: drawn with the best look it can get
   const shownAtSomeTier = item?.unidTier == null && filterHit?.byTier?.find((x) => x.action === 'Show');
@@ -32,9 +32,11 @@ function header(item, filterHit, br = null) { // eslint-disable-line no-param-re
   const hidden = filterHit?.action === 'Hide';
   // the header is the drag handle (frameless window); buttons inside it stay clickable
   return h('div', { class: 'ground ov-ground ov-drag', title: 'Drag to move. The next popup opens where you leave it.' },
-    dropLabel(name, filterHit?.style, { rarity: item?.rarity, scale: 0.85, hidden }),
-    filterHit ? soundButton(normalizeStyle(filterHit.style).sound) : null,
-    rankBadge(item, br),
+    h('div', { class: 'ov-head-main' },
+      h('div', { class: 'ov-head-top' }, dropLabel(name, filterHit?.style, { rarity: item?.rarity, scale: 0.85, hidden }), filterHit ? soundButton(normalizeStyle(filterHit.style).sound) : null),
+      (br || facts.length) ? h('div', { class: 'ov-headline' }, rankBadge(item, br),
+        // with the badge (it says the tier and "Unidentified") the facts skip that part
+        (br ? facts.filter((f) => !/^unidentified/.test(f)) : facts).map((f) => h('span', { class: 'ov-fact' }, f))) : null),
     h('span', { class: 'spacer' }),
     pinButton(),
     h('button', { class: 'ov-x', title: 'Close (Esc)', 'aria-label': 'Close', onclick: close }, '✕'));
@@ -54,6 +56,24 @@ function rankBadge(item, br) {
   return h('span', { class: 'ov-rank', title: `Base rank ${br.rank} for ${br.base}${br.group ? ` (${br.group})` : ''}.${unidNote}${rareNote}` },
     h('span', { class: 'ov-rank-box', style: { background: rgb(bg), color: rgb(lk.text), borderColor: rgb(lk.border) } }, br.rank),
     h('span', { class: 'ov-rank-tier', style: { color: light(bg) ? rgb(bg) : rgb(lk.text) } }, `Tier ${tier} - ${what}`));
+}
+
+function collectionBlock(c) {
+  const box = h('div', { class: 'ov-block ov-collect' });
+  const draw = (col) => {
+    const all = col.uniques.every((u) => u.have);
+    const cheap = col.uniques.every((u) => u.chaos <= col.max);
+    mount(box, h('div', { class: 't' }, 'My collection'),
+      h('div', { class: 'ov-list' }, col.uniques.map((u) => h('label', { class: 'li check', title: u.have ? 'You have it. Untick if not.' : 'Tick when you have it' },
+        h('input', { type: 'checkbox', checked: u.have, onchange: async (e) => { const r = await call('collection:set', { name: u.name, have: e.target.checked, base: col.base }); if (r.base) draw({ ...r.base, own: col.own }); } }),
+        h('span', { style: { fontWeight: u.name === col.own ? 700 : 400 } }, u.name, u.name === col.own ? h('span', { class: 'faint' }, ' (this one)') : null),
+        h('span', { class: 'spacer' }), h('span', { class: u.chaos > col.max ? '' : 'muted' }, chaosDiv(u.chaos, null))))),
+      h('div', { class: 'small ' + (col.hidden ? '' : 'faint') }, col.hidden ? `✓ You have every unique on ${col.base} and none is worth more than ${col.max}c, so your filter hides it (Foulborn and Replica ones still show).`
+        : all && !cheap ? `You have them all, but one is worth more than ${col.max}c, so it still shows.`
+          : `When you have every unique on ${col.base} and none is worth more than ${col.max}c, your filter hides it.`));
+  };
+  draw(c);
+  return box;
 }
 
 let kept = false;
@@ -156,7 +176,8 @@ function render(p) {
   if (F.corrupted) facts.push('corrupted');
 
   const body = h('div', { class: 'ov-body' });
-  if (facts.length) body.append(h('div', { class: 'ov-meta' }, facts.join(', ')));
+  // the facts sit in the header next to the rank badge (rare, item level 85, Hunter…)
+  current.facts = facts;
   // a weapon's own DPS (its damage times attacks per second, as the game shows them)
   if (p.weapon) {
     const w = p.weapon;
@@ -169,7 +190,9 @@ function render(p) {
   }
 
   // --- price ---
-  if (price?.found) {
+  // rares and magic items: poe.ninja's base price says nothing about the mods, so it isn't shown; Search prices them
+  const modPriced = ['Magic', 'Rare'].includes(item.rarity) && gearRarity;
+  if (price?.found && !modPriced) {
     const conf = { high: ['good', 'Plenty of listings'], medium: ['warn', 'Some listings'], low: ['bad', 'Few listings'], range: ['warn', 'Variants differ'] }[price.confidence] || ['', ''];
     body.append(h('div', { class: 'ov-price' },
       h('span', { class: 'big' }, chaosDiv(price.chaos, divine)),
@@ -187,8 +210,8 @@ function render(p) {
           h('span', { class: 'spacer' }),
           h('span', {}, chaosDiv(m.chaos, divine)))))));
     }
-  } else if (price) {
-    body.append(h('div', { class: 'muted' }, p.kind === 'rare' || p.kind === 'magic' ? 'Priced by its mods: tick them below and search.' : 'poe.ninja has no price for this item.'));
+  } else if (price || modPriced) {
+    body.append(h('div', { class: 'muted' }, modPriced || p.kind === 'rare' || p.kind === 'magic' ? 'Priced by its mods: tick them below and press Search.' : 'poe.ninja has no price for this item.'));
   }
   if (price?.ageMs != null) body.append(h('div', { class: 'small faint' }, `${p.league} prices from ${ago(price.ageMs)}`));
 
@@ -211,6 +234,9 @@ function render(p) {
   }
 
   // your base rank: the badge in the header (its tooltip has the details)
+
+  // --- unique collection: tick the uniques you own; a base where you own every one and all are cheap is hidden ---
+  if (p.collection?.uniques?.length) body.append(collectionBlock(p.collection));
 
   // --- Path of Building: what this item does to your build (the compare hotkey only) ---
   if (p.pob) body.append(pobSection(p.pob));
@@ -275,11 +301,11 @@ function render(p) {
   const goto = p.baseRank ? { page: 'filters', special: 'basematrix', base: p.baseRank.base } : inTier ? { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } : filterWhere?.goto ? { ...filterWhere.goto, base: item.baseType || item.typeLine } : null;
   const gear = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !!(item.baseType || item.typeLine) && !['currency', 'divination', 'gem', 'map', 'fragment'].includes(p.kind);
   const actions = h('div', { class: 'ov-actions' },
-    gear ? h('button', { title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases…') : null,
-    inTier ? null : h('button', { title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
+    gear ? h('button', { class: 'quiet sm', title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases') : null,
+    inTier ? null : h('button', { class: 'quiet sm', title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
     h('span', { class: 'spacer' }),
-    h('button', { class: 'quiet', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
-      onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in app' : 'App'));
+    h('button', { class: goto ? 'primary' : 'quiet', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
+      onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in loot filter' : 'Open app'));
   if (tierControls) body.append(tierControls);
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });
   // currency, fragments, cards…: the live bulk exchange; rares: a price guess from poeprices.info
@@ -292,7 +318,7 @@ function render(p) {
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
   if (p.tradeable) openTrade(tradeBox);
 
-  mount(root, header(item, filterHit, p.baseRank), body);
+  mount(root, header(item, filterHit, p.baseRank, facts), body);
   fit();
 }
 
@@ -301,7 +327,7 @@ function previewLook(o) {
   const head = root.querySelector('.ov-ground');
   if (!head || !current) return;
   const hit = o ? { action: o.action === 'Hide' || o.state === 'Hide' ? 'Hide' : 'Show', style: o.style || {} } : current.filterHit;
-  head.replaceWith(header(current.item, hit, current.baseRank));
+  head.replaceWith(header(current.item, hit, current.baseRank, current.facts));
 }
 
 async function moveTier(type, base, to, option) {

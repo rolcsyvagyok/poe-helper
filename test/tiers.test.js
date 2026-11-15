@@ -696,3 +696,12 @@ test('item tier rules for chosen rarities only', () => {
   assert.match(out, /\$type->other \$tier->t1\n\tRarity Normal Magic Rare/);
   assert.match(M.unidTierRarities(src, []), /^#Show # \$type->gear->tiered/m);
 });
+
+test('unique collection: bases you fully own and that are cheap get one hide rule (Foulborn and Replica still show)', () => {
+  const M = require('../src/core/filter/manager');
+  assert.deepEqual(M.collectedRules([]), []);
+  const [r] = M.collectedRules(['Vanguard Belt']);
+  assert.equal(r.action, 'Hide');
+  assert.ok(r.conditions.some((c) => c.keyword === 'Foulborn' && c.values[0] === 'False'));
+  assert.ok(r.conditions.some((c) => c.keyword === 'BaseType' && c.values.includes('Vanguard Belt')));
+});

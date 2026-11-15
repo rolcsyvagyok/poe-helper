@@ -203,22 +203,9 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     onFit();
   }
 
-  // an unfinished item worth crafting on: search it as a finished item, or as a crafting base
-  let presetSel = null;
-  if (prep.presets?.base) {
-    presetSel = h('select', { 'aria-label': 'Search as', onchange: (e) => {
-      const want = e.target.value;
-      if (want === prep.presets.active) return;
-      prep.presets[prep.presets.active] = { mods: prep.mods, props: prep.props };
-      const next = prep.presets[want];
-      prep.mods = next.mods; prep.props = next.props; prep.presets.active = want;
-      mountAgain();
-    } }, h('option', { value: 'finished', selected: prep.presets.active === 'finished' }, 'Finished item'),
-    h('option', { value: 'base', selected: prep.presets.active === 'base' }, 'Crafting base'));
-  }
+  // (the "Search as: finished item / crafting base" choice is gone: the price check searches the finished item)
   mount(box,
     h('div', { class: 'tp' },
-      presetSel ? h('div', { class: 'row small', style: { marginBottom: '6px', gap: '8px' }, title: 'Crafting base: the exact base, item level, influences, implicits and fractured or top-tier mods, for an item you would craft on' }, h('span', { class: 'muted' }, 'Search as'), presetSel) : null,
       h('div', { class: 'row tp-top' },
         h('span', { class: 't' }, prep.kind === 'gem' ? 'Searches this gem by level, quality and whether it is corrupted.' : prep.kind === 'unique' ? 'Searches this unique by name. Tick mods to narrow it down.' : 'Tick the mods to search for. Values are min and max.'),
         h('span', { class: 'spacer' }),

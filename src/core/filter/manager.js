@@ -769,6 +769,32 @@ function showAllCurrency(text) {
 
 /** Regular maps you don't want to see: white ones, yellow ones, below Tier 16. Blighted maps and
  *  uniques aren't touched. o: { white, yellow, below16 }. */
+/**
+ * Text size steps on top of every look: { all: -4, currency: 2, uniques: 0, … } (font size points; the game
+ * takes 1 to 45). A rule's category is its "$type->" group; your own rules follow "all" only.
+ */
+const SIZE_MIN = 12;
+function adjustSizes(text, adj = {}) {
+  const all = Number(adj.all) || 0;
+  let group = null;
+  return text.split(/(\r?\n)/).map((l) => {
+    if (/^#?\s*(Show|Hide|Minimal)\b/.test(l)) { group = (/\$type->([a-z0-9]+)/i.exec(l) || [])[1] || null; return l; }
+    const m = /^(\s+SetFontSize\s+)(\d+)(.*)$/.exec(l);
+    if (!m) return l;
+    const d = all + (group ? Number(adj[group]) || 0 : 0);
+    if (!d) return l;
+    return `${m[1]}${Math.max(SIZE_MIN, Math.min(45, Number(m[2]) + d))}${m[3]}`;
+  }).join('');
+}
+
+/** Unique collection: bases where you own every unique and none is worth much are hidden (not Foulborn or Replica ones). */
+function collectedRules(bases = []) {
+  if (!bases.length) return [];
+  return [{ id: 'uniques-collected', enabled: true, action: 'Hide', group: 'uniques', label: 'Uniques: every one collected, all cheap',
+    conditions: [{ keyword: 'Rarity', values: ['Unique'] }, { keyword: 'Foulborn', values: ['False'] }, { keyword: 'Replica', values: ['False'] }, { keyword: 'BaseType', op: '==', values: [...bases].sort() }],
+    style: { disableDropSound: true } }];
+}
+
 function mapHideRules(o = {}) {
   const out = [];
   const base = [{ keyword: 'Class', op: '==', values: ['Maps'] }, { keyword: 'BlightedMap', values: ['False'] }, { keyword: 'UberBlightedMap', values: ['False'] }];
@@ -1040,11 +1066,14 @@ class FilterManager {
     }
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
     // base ranks come before base visibility: they're the finer choice (per kind of drop)
-    const campaign = [...campaignHideRules(this.store.get('campaignHide') || {}), ...mapHideRules(this.store.get('mapHide') || {})];
+    const campaign = [...campaignHideRules(this.store.get('campaignHide') || {}), ...mapHideRules(this.store.get('mapHide') || {}), ...collectedRules(this.store.get('collectedHideBases') || [])];
     const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
-    const out = finalCheck(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), fix, this.log);
+    let out = finalCheck(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), fix, this.log);
+    // Tier designer → Text size: bigger or smaller for everything, or one category, on top of the theme
+    const sizes = this.store.get('sizeAdjust');
+    if (sizes && Object.values(sizes).some((v) => Number(v))) out = adjustSizes(out, sizes);
     const target = helperPathFor(base);
     const tmp = target + '.tmp';
     fs.writeFileSync(tmp, out, 'utf8');
@@ -1126,4 +1155,4 @@ class FilterManager {
   }
 }
 
-module.exports = { unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

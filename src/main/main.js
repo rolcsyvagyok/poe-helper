@@ -662,6 +662,12 @@ setTimeout(async () => {
     if (moves.length) mainWin?.webContents.send('filter:rebuilt');
   } catch (e) { log('threads', e.message); }
 }, 90 * 1000);
+// unique collection: prices move, so the "every one collected and cheap" bases are worked out again every few hours
+async function collectedTick() {
+  try { if (Object.keys(services.settings.get('uniqueCollection') || {}).length) await services.refreshCollected(true); } catch (e) { log('collection', e.message); }
+}
+setTimeout(collectedTick, 2 * 60 * 1000);
+setInterval(collectedTick, 3 * 60 * 60 * 1000);
 
 function applyFilterWatch() {
   if (services.settings.get('autoWatchFilter') && services.filters.basePath()) {
@@ -1260,6 +1266,8 @@ function registerIpc() {
   handle('ranks:auto', (a) => services.autoRanks(a || {}));
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('campaignHide:set', (a) => services.setCampaignHide(a || {}));
+  handle('collection:set', (a) => services.setCollected(a || {}));
+  handle('collection:get', () => services.refreshCollected(false).then((r) => ({ ...r, have: services.settings.get('uniqueCollection') || {} })));
   handle('maps:hide', (a) => services.setMapHide(a || {}));
   handle('currency:showAll', (on) => services.setShowAllCurrency(on));
   handle('filter:strictness', (level) => services.setStrictness(level));
@@ -1347,6 +1355,7 @@ function registerIpc() {
   handle('farm:dashboard', () => services.farmDashboard());
   handle('designer:state', () => services.designerState());
   handle('designer:random', () => require('../core/filter/designer').randomTheme());
+  handle('designer:sizes', (o) => services.setSizeAdjust(o || {}));
   handle('designer:draft', (d) => services.designerSaveDraft(d || {}));
   handle('designer:apply', (a) => services.designerApply(a || {}));
   handle('designer:undo', () => services.designerUndo());
