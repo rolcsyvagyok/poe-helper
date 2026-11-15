@@ -192,6 +192,8 @@ function parseItem(rawText) {
       const val = valRaw.replace(/\s*\(augmented\)|\s*\(unmet\)/g, '').trim();
       switch (key) {
         case 'Item Level': item.itemLevel = toNumber(val); consumed = true; break;
+        // 3.30: an unidentified item's tier ("Item Tier: 3"), what FilterBlade's unidentified tiers go by
+        case 'Item Tier': case 'Unidentified Item Tier': item.unidTier = toNumber(val); consumed = true; break;
         case 'Quality': item.quality = toNumber(val); consumed = true; break;
         case 'Stack Size': item.stack = parseStack(val); consumed = true; break;
         case 'Sockets': item.sockets = parseSockets(val); consumed = true; break;

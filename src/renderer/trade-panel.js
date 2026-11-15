@@ -194,7 +194,10 @@ function renderPanel(box, prep, { text, divine, onFit }) {
         !r.total ? h('div', { class: 'small muted', style: { marginTop: '4px' } }, 'Nothing listed. Untick a mod or lower a min value and search again.') : null);
     } catch (e) {
       const why = String(e?.message || '').replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-      mount(results, h('span', { class: 'small muted' }, /wait \d+ seconds/.test(why) ? why : 'The search failed. Your GGG request budget or rate limit may be used up; try again in a minute.'));
+      // the app can't search now: the same search still opens on the trade site (your browser, not the app's limit)
+      mount(results, h('div', { class: 'stack', style: { gap: '6px' } },
+        h('span', { class: 'small muted' }, /wait \d+ seconds|doesn't list/.test(why) ? why : 'The search failed. Your GGG request budget or rate limit may be used up; try again in a minute.'),
+        h('div', {}, h('button', { class: 'sm', onclick: () => call('trade:openSite', { text, mods, props, opts: { status } }).catch(() => {}) }, 'Open on trade site'))));
     }
     go.disabled = false;
     onFit();

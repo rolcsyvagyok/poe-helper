@@ -64,6 +64,12 @@ function evalCondition(c, item, assumed) {
       return cmp(c.op, RARITY_ORDER[rarityOf(item)], RARITY_ORDER[v[0]] ?? -1);
     }
     case 'ItemLevel': return numCond(c.op, v, item.itemLevel);
+    // 3.30: only on unidentified items; when the copy doesn't show the tier, the filter's choice is assumed
+    case 'UnidentifiedItemTier': {
+      if (!item.flags?.unidentified) return false;
+      if (item.unidTier == null) return unknownCondition(c, assumed);
+      return numCond(c.op, v, item.unidTier);
+    }
     // where it dropped isn't on the item: an item level is close to the area level it dropped in; without
     // one (currency, cards) assume maps (83), where price checks are made
     case 'AreaLevel': return numCond(c.op, v, Number(item.areaLevel) || Math.min(83, Number(item.itemLevel) || 83));

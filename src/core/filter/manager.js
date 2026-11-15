@@ -388,6 +388,37 @@ function disableUnidTiers(text) {
  * value is the lowest rank still shown, 'none' hides them all, and 'off' (or missing) leaves the kind to
  * your filter. bases: every base the ranking covers.
  */
+/**
+ * Moves that sort ranked bases into FilterBlade's rare tiers ("$type->rr $tier->t1".."t4"): S Tier 1,
+ * A Tier 2, B Tier 3, C Tier 4, D out of the rare tiers (FilterBlade's later rules decide). Only tiers
+ * the filter has with a base list are used.
+ */
+/** Where a base sits on the Base ranks page: "Energy Shield, Boots" or "Wands". */
+function rankGroupOf(base) {
+  for (const [cls, byDef] of Object.entries(BASES)) for (const [def, list] of Object.entries(byDef)) if (list.includes(base)) {
+    const d = (require('../base-data').DEFENCES || []).find((x) => x.id === def);
+    return `${d ? d.name : def}, ${cls}`;
+  }
+  for (const g of GROUPS) for (const [col, list] of Object.entries(g.columns)) if (list.includes(base)) return col;
+  return null;
+}
+
+const RANK_RARE_TIER = { S: 't1', A: 't2', B: 't3', C: 't4' };
+function rareTierMoves(baseText, ranks, names) {
+  const have = new Set();
+  const re = /^#?\s*Show[^\n]*\$type->rr \$tier->(t[1-4])\b[^\n]*\n((?:#?[ \t]+[^\n]*\n)+)/gm;
+  let m;
+  while ((m = re.exec(String(baseText || '').replace(/\r/g, '')))) if (/BaseType/.test(m[2])) have.add(m[1]);
+  if (!have.size) return {};
+  const out = {};
+  for (const b of names) {
+    const tier = RANK_RARE_TIER[ranks[b] || 'D'];
+    out[`rr\t${b}`] = tier ? (have.has(tier) ? tier : null) : '__folded__';
+    if (out[`rr\t${b}`] == null) delete out[`rr\t${b}`];
+  }
+  return out;
+}
+
 function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftIlvl = 82, ilvls = {} } = {}) {
   const out = [];
   const endgame = [{ keyword: 'AreaLevel', op: '>=', values: ['68'] }];
@@ -665,6 +696,11 @@ class FilterManager {
       const ok = fix(b);
       if (ok) moves[`${type}\t${ok}`] = to;
     }
+    // Rares on your ranked bases go into FilterBlade's own rare tiers by your rank (S Tier 1, A Tier 2,
+    // B Tier 3, C Tier 4, D out of them), so they keep FilterBlade's looks; your own moves win.
+    if (this.store.get('rankRareTiers') !== false) {
+      for (const [k, to] of Object.entries(rareTierMoves(baseText, this.store.get('baseRanks') || {}, RANKED_NAMES))) if (!(k in moves)) moves[k] = to;
+    }
     // the strictness you picked in the app goes under your own tier changes
     const patch = withStrictness(baseText, { ...patch0, moves }, levelFor(this.store.get('strictness'), baseText, base));
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
@@ -776,4 +812,4 @@ class FilterManager {
   }
 }
 
-module.exports = { unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

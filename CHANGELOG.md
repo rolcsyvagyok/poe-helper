@@ -3,6 +3,15 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.75 - 2026-11-15
+
+- Rares go into FilterBlade's rare tiers by your base ranks: S bases Tier 1, A Tier 2, B Tier 3, C Tier 4, D left to the rest of the filter. They keep FilterBlade's look for that tier.
+- Price check: gear shows its base rank and where the base sits on the Base ranks page ("Base rank: A for Prophecy Wand (Wands), so rares of it go into the filter's rare Tier 2").
+- Price check: the top line also says fractured, synthesised, Searing Exarch, Eater of Worlds, Foulborn, mirrored, split and unidentified (with the item tier when the game shows it).
+- Loot filter: FilterBlade's rare tiers by base have their own category, "Rares by base" (they were under Vendor recipes).
+- Price check: normal, magic and rare gear says its rarity ("magic, Amethyst Ring, item level 84"), and the filter line says the rule is for it as a magic item.
+- Price check: when the trade site makes the app wait (or the search fails), "Open on trade site" is still there and opens the same search in your browser.
+
 ## 1.0.74 - 2026-11-15
 
 - Path of Building → Upgrades: "Best anointment for your amulet". Every notable an amulet can be anointed with is tried on yours (your own anointment taken off first) and listed by what it adds to DPS, effective HP or life, with the three oils. ▲ marks the ones better than yours.

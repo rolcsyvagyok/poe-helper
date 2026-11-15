@@ -705,3 +705,12 @@ test('app settings share: hotkeys and choices go, login, account, folders and hi
   assert.equal(b.settings.get('hotkeyPrice'), 'Alt+E');
   assert.throws(() => b.importAppSettings(a.exportFilterSettings()), /loot filter settings file/);
 });
+
+test('ranked bases sort rares into FilterBlade\'s rare tiers: S 1, A 2, B 3, C 4, D out', () => {
+  const { rareTierMoves } = require('../src/core/filter/manager');
+  const blk = (tier, off, bases) => `${off ? '#' : ''}Show # %D3 $type->rr $tier->${tier} !rares\n${off ? '#' : ''}\tRarity Rare\n${off ? '#' : ''}\tBaseType == ${bases}\n\n`;
+  const text = blk('t1', false, '"A"') + blk('t2', false, '"B"') + blk('t3', false, '"C"') + blk('t4', true, '"D"');
+  const mv = rareTierMoves(text, { Wand1: 'S', Wand2: 'A', Wand3: 'C' }, ['Wand1', 'Wand2', 'Wand3', 'Wand4']);
+  assert.deepEqual(mv, { 'rr\tWand1': 't1', 'rr\tWand2': 't2', 'rr\tWand3': 't4', 'rr\tWand4': '__folded__' });
+  assert.deepEqual(rareTierMoves('Show # nothing', { Wand1: 'S' }, ['Wand1']), {});
+});

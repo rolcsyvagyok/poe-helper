@@ -839,6 +839,7 @@ function registerIpc() {
 
   handle('trade:prepare', (text) => services.tradePrepare(text));
   handle('trade:search', (args) => services.tradeSearch(args));
+  handle('trade:openSite', async (args) => { const url = await services.tradeSiteUrl(args || {}); shell.openExternal(url); return url; });
   handle('trade:bulk', (args) => services.tradeBulk(args || {}));
   handle('price:guess', (args) => services.pricePredict(args || {}));
 
@@ -1428,7 +1429,7 @@ function registerIpc() {
     return services.importTheme(require('fs').readFileSync(r.filePaths[0], 'utf8'));
   });
   handle('filter:explain', (text) => {
-    const item = require('../core/item-parser').parseItem(text);
+    const item = services.readItem(text); // a magic item's base without its prefix and suffix
     const doc = item && services.filters.parsedActive();
     return doc ? require('../core/filter/matcher').explain(doc, item) : null;
   });

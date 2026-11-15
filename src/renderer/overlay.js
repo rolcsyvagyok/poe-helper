@@ -119,13 +119,21 @@ function render(p) {
   const { item, price, filterHit, filterWhere } = p;
   const divine = price?.divine;
   const facts = [];
+  // gear: say its rarity, since the filter treats a magic Amethyst Ring very differently from a rare one
+  const gearRarity = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !/Currency|Gem|Map|Card|Fragment|Incubator|Contract|Blueprint|Viscera/i.test(item.itemClass || '') ? item.rarity.toLowerCase() : null;
+  if (gearRarity) facts.push(gearRarity);
   if (item.typeLine && item.name && item.name !== item.typeLine) facts.push(item.typeLine);
+  else if (gearRarity === 'magic' && item.baseType && item.baseType !== item.typeLine) facts.push(item.baseType);
   if (item.itemLevel) facts.push(`item level ${item.itemLevel}`);
   if (item.gemLevel) facts.push(`level ${item.gemLevel}${item.quality ? `, ${item.quality}% quality` : ''}`);
   if (item.sockets?.links >= 5) facts.push(`${item.sockets.links}-link`);
   if (item.mapTier) facts.push(`tier ${item.mapTier}`);
   if (item.influences?.length) facts.push(item.influences.join(' and '));
-  if (item.flags?.corrupted) facts.push('corrupted');
+  // what the filter can tell apart: fractured, synthesised, the exarch/eater implicits, unidentified (and its tier)
+  const F = item.flags || {};
+  for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['searing', 'Searing Exarch'], ['eater', 'Eater of Worlds'], ['foulborn', 'Foulborn'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) facts.push(word);
+  if (F.unidentified) facts.push(item.unidTier != null ? `unidentified, item tier ${item.unidTier}` : 'unidentified');
+  if (F.corrupted) facts.push('corrupted');
 
   const body = h('div', { class: 'ov-body' });
   if (facts.length) body.append(h('div', { class: 'ov-meta' }, facts.join(', ')));
@@ -166,7 +174,14 @@ function render(p) {
   // which rule decides it, and where that rule is in your filter (the tier block below says it when it can move the base)
   const whereText = filterWhere ? (filterWhere.tier ? `${filterWhere.text}, ${window.TierNames.tierName({ tier: filterWhere.tier.tier, type: filterWhere.tier.type, customName: filterWhere.tier.name })}` : filterWhere.text) : null;
   if (filterHit?.line) {
-    body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter${whereText ? `: ${whereText}` : ''}.`));
+    body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter${gearRarity ? ` (as a ${gearRarity} item)` : ''}${whereText ? `: ${whereText}` : ''}.`));
+  }
+
+  // your base rank for this base (Loot filter → Base ranks), and the rare tier it puts this rare in
+  const br = p.baseRank;
+  if (br) {
+    const tierText = br.rareTier ? `, so rares of it go into the filter's rare Tier ${br.rareTier.tier.replace(/^t/, '')}${br.rareTier.state === 'Off' ? ' (switched off at your strictness)' : ''}` : item.rarity === 'Rare' && br.rank === 'D' ? ', so rares of it are left to the rest of your filter' : '';
+    body.append(h('div', { class: 'small' }, h('span', { class: 'muted' }, 'Base rank: '), h('b', {}, br.rank), h('span', { class: 'muted' }, ` for ${br.base}${br.group ? ` (${br.group})` : ''}${tierText}.`)));
   }
 
   // --- Path of Building: what this item does to your build (the compare hotkey only) ---

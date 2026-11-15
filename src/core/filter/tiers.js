@@ -145,7 +145,7 @@ const TYPE_NAMES = {
   currency: 'Currency', divination: 'Divination cards', uniques: 'Uniques', fragments: 'Fragments', scarabs: 'Scarabs',
   essence: 'Essences', fossil: 'Fossils', oil: 'Oils', gems: 'Gems', maps: 'Maps', incubator: 'Incubators',
   delirium: 'Delirium orbs', exotic: 'Exotic bases', rare: 'Rare items', crafting: 'Crafting bases', flasks: 'Flasks',
-  rr: 'Vendor recipes', animatedweapons: 'Animated weapons', normalcraft: 'Normal crafting bases', rareblendid: 'Rares worth identifying (blend)',
+  rr: 'Rares by base', animatedweapons: 'Animated weapons', normalcraft: 'Normal crafting bases', rareblendid: 'Rares worth identifying (blend)',
   corruptedid: 'Corrupted items worth identifying', rareoptional: 'Rares (optional)', questlikeexception: 'Quest-like exceptions', socketslinks: 'Sockets & links',
   endgamergb: 'R-G-B recipe', maphiders: 'Map hiders', chancing: 'Chancing bases', gold: 'Gold',
 };

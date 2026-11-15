@@ -82,6 +82,7 @@ const DEFAULT_SETTINGS = {
   baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
   rankKinds: { rares: 'off', crafting: 'D', fractured: 'D', influenced: 'D' }, // lowest rank shown per kind of drop ('D' = all ranks, 'off' = FilterBlade decides)
   rankCraftIlvl: 82,
+  rankRareTiers: true, // rares on your ranked bases go into FilterBlade's rare tiers by rank (S Tier 1 ... C Tier 4)
   rankUnidTier: null, // 3.30 unidentified item tier per rank: { S: 2, A: 3 } (null = the filter decides)
   rankIlvl: {}, // lowest item level per kind of drop: { fractured: 68 } (crafting bases: rankCraftIlvl)
   hideFractured: false, // also hide fractured copies of bases you hid
@@ -273,7 +274,23 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     // bulk items get the live exchange; identified rares a poeprices.info guess (both as Awakened shows them)
     const bulk = ['currency', 'divination', 'fragment'].includes(kind);
     const guess = false; // poeprices.info is gone: no price guess
-    return { item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
+    // your base rank for this base, and the rare tier of the filter it puts rares in
+    let baseRank = null;
+    try {
+      const M = require('../core/filter/manager');
+      const b = item.baseType || item.typeLine;
+      if (['Normal', 'Magic', 'Rare'].includes(item.rarity) && M.RANKED_NAMES.includes(b)) {
+        const rank = (settings.get('baseRanks') || {})[b] || 'D';
+        const RT = { S: 't1', A: 't2', B: 't3', C: 't4' };
+        let rareTier = null;
+        if (item.rarity === 'Rare' && settings.get('rankRareTiers') !== false && RT[rank]) {
+          const t = (() => { try { return tierViewNow(); } catch { return null; } })()?.types.find((x) => x.type === 'rr')?.tiers.find((x) => x.tier === RT[rank]);
+          if (t) rareTier = { tier: t.tier, state: t.state };
+        }
+        baseRank = { base: b, rank, rareTier, group: M.rankGroupOf ? M.rankGroupOf(b) : null };
+      }
+    } catch { /* no ranks */ }
+    return { baseRank, item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
   }
 
   let bulkTag = async () => null;
@@ -288,6 +305,19 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { mods, props, presets, kind, autoSearch, status: settings.get('tradeStatus') || 'securable' };
   }
 
+  /** The same search as a trade site link (pathofexile.com/trade/search/<league>?q=...), without asking GGG's API. */
+  async function tradeSiteUrl({ text, mods, props = null, opts = {} }) {
+    const item = readItem(text);
+    if (!item) throw new Error('Not an item.');
+    const league = await getLeague();
+    const status = opts.status || settings.get('tradeStatus') || 'securable';
+    let gemType = null;
+    if (classify(item) === 'gem' && / of /.test(item.typeLine || '')) {
+      try { gemType = require('../core/trade').gemTradeType(await ggg.tradeItems(), item.typeLine); } catch { /* base name */ }
+    }
+    const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}) });
+    return `https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify({ query: query.query, sort: query.sort }))}`;
+  }
   async function tradeSearch({ text, mods, props = null, opts = {} }) {
     const item = readItem(text);
     if (!item) throw new Error('Not an item.');
@@ -909,7 +939,14 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (viewCache?.sig !== sig) {
       const text = filters.readBase();
       // tiers show what the game will do (with your strictness); "by you" marks only your own changes
-      const view = tiers.tierView(text, strictness.withStrictness(text, patch, level));
+      // base ranks sort rares into FilterBlade's rare tiers (as the written filter has them); your moves win
+      let shown = patch;
+      if (settings.get('rankRareTiers') !== false) {
+        const { rareTierMoves } = require('../core/filter/manager');
+        const rm = rareTierMoves(text, settings.get('baseRanks') || {}, require('../core/filter/manager').RANKED_NAMES || []);
+        shown = { ...patch, moves: { ...rm, ...(patch.moves || {}) } };
+      }
+      const view = tiers.tierView(text, strictness.withStrictness(text, shown, level));
       view.editedActions = patch.actions || {};
       // "what FilterBlade has" for a tier is its state at your strictness
       const sa = strictness.strictnessActions(text, level);
@@ -2123,7 +2160,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {
