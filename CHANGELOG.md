@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.99 - 2026-11-15
+
+* Price check: corpses and Wickerman parts can be price checked
+
+- Price check: Necropolis corpses get their poe.ninja price and a trade search (by name and item level).
+- Price check: Wickerman parts search by their plain name ("Greater Hag's Stomach" is a "Hag's Stomach" on the trade site) with their buff ticked; before, the site said the item didn't exist.
+
 ## 1.0.98 - 2026-11-15
 
 * [Base ranks] Veiled rares have their own row, like Fractured and Influenced: pick the lowest rank to show

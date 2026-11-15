@@ -268,7 +268,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         });
       }
     } catch { /* no filter configured */ }
-    const tradeable = ['rare', 'magic', 'unique', 'normal', 'gem', 'unique-map', 'map'].includes(kind);
+    const tradeable = ['rare', 'magic', 'unique', 'normal', 'gem', 'unique-map', 'map'].includes(kind) || /^corpses$/i.test(item.itemClass || '');
     const entry = { at: Date.now(), name: item.name !== item.typeLine && item.name ? `${item.name} ${item.typeLine}` : item.typeLine, kind, chaos: price.chaos ?? null, total: price.totalChaos ?? null };
     const hist = [entry, ...(settings.get('history') || [])].slice(0, 100);
     settings.set('history', hist);

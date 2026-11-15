@@ -304,6 +304,9 @@ function parseItem(rawText) {
   if (item.rarity === 'Magic' && !item.baseType) item.baseType = item.typeLine;
   // Wickerman parts: the slot line ("Head") and the "Take this to the Wickerman" line aren't mods
   if (item.itemClass === 'Viscera') {
+    // the trade site knows the part by its plain name: "Greater Hag's Stomach" is a "Hag's Stomach"
+    const plain = String(item.typeLine || '').replace(/^(Lesser|Greater|Grand|Superior|Perfect|Imperfect)\s+/i, '');
+    if (plain) item.baseType = plain;
     const keep = (m) => !/^(Head|Torso|Body|Arms?|Legs?|Upper Limb|Lower Limb|Left Arm|Right Arm|Left Leg|Right Leg)$/i.test(m) && !/Wickerman/i.test(m);
     for (const kind of Object.keys(item.mods || {})) {
       const list = item.mods[kind];

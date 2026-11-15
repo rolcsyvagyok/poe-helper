@@ -419,7 +419,9 @@ function itemRows(idx, item, tol) {
       const opts = { unique: item.rarity === 'Unique' };
       const vp = /^Veiled (Prefix|Suffix)$/i.exec(m);
       // an unrevealed veiled mod: the trade site lists it as "Veiled" (prefix) or "of the Veil" (suffix)
-      const hit = vp ? veiledStat(idx, vp[1]) : (matchMod(idx, m, kind, item.itemClass, opts) || (kind === 'fractured' ? matchMod(idx, m, 'explicit', item.itemClass, opts) : null));
+      // Wickerman parts: the copy calls their buff an implicit, the trade site an explicit
+      const alt = kind === 'fractured' || (kind === 'implicit' && item.itemClass === 'Viscera') ? 'explicit' : null;
+      const hit = vp ? veiledStat(idx, vp[1]) : (matchMod(idx, m, kind, item.itemClass, opts) || (alt ? matchMod(idx, m, alt, item.itemClass, opts) : null));
       const meta = item.modMeta?.[kind]?.[i] || null;
       const row = hit ? { ...hit, group: kind, enabled: false } : { id: null, text: m, type: kind, group: kind, enabled: false, unmatched: true };
       row.meta = meta;

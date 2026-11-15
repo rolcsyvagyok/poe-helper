@@ -84,7 +84,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   // (explicit, crafted, fractured) are listed that way, with how many of the 3 each side uses
   const AFFIX = ['fractured', 'explicit', 'crafted'];
   const own = mods.filter((m) => AFFIX.includes(m.group));
-  const byGen = own.length && own.every((m) => m.meta?.gen || m.unmatched);
+  const byGen = own.some((m) => m.meta?.gen) && own.every((m) => m.meta?.gen || m.unmatched);
   const used = (gen) => new Set(own.filter((m) => m.meta?.gen === gen).map((m) => m.meta.n)).size;
   const tagOf = (m) => (m.group === 'crafted' ? 'crafted' : m.group === 'fractured' ? 'fractured' : null);
   const drawGroups = () => mount(groupsBox, GROUPS.flatMap(([g, label]) => {

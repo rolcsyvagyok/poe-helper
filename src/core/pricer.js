@@ -53,6 +53,8 @@ function uniqueCategories(item) {
 function categoriesFor(item) {
   const kind = classify(item);
   const name = item.typeLine || item.baseType || '';
+  // Necropolis corpses (whatever rarity the copy says): poe.ninja lists them by name
+  if (norm(item.itemClass) === 'corpses') return ['Corpse'];
   switch (kind) {
     case 'divination': return ['DivinationCard'];
     case 'gem': return ['SkillGem', 'ImbuedGem'];
