@@ -1131,6 +1131,7 @@ function registerIpc() {
   handle('pob:tree', (file) => pobWith(file, async () => ({ ...(await pob.tree()), editable: pobIsSnapshot(file) })));
   handle('pob:node', ({ file, id } = {}) => pobWith(file, () => pob.node(Number(id) || 0)));
   handle('pob:power', ({ file, from, count } = {}) => pobWith(file, () => pob.power(Number(from) || 0, Number(count) || 150)));
+  handle('pob:anoints', ({ file, from, count, asSkill } = {}) => pobWith(file, () => pob.withSkill(asSkill, () => pob.anoints(Number(from) || 0, Number(count) || 40))));
   // the tree optimiser, on snapshots only; nothing is saved until you keep the result
   handle('pob:optStart', ({ file, ...o } = {}) => {
     if (!pobIsSnapshot(file)) throw new Error('Only snapshots are optimised here; take a snapshot of your character first.');

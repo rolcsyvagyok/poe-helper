@@ -3,6 +3,10 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.74 - 2026-11-15
+
+- Path of Building → Upgrades: "Best anointment for your amulet". Every notable an amulet can be anointed with is tried on yours (your own anointment taken off first) and listed by what it adds to DPS, effective HP or life, with the three oils. ▲ marks the ones better than yours.
+
 ## 1.0.73 - 2026-11-15
 
 - Settings → Share your app settings: export your hotkeys, chat macros, price check and overlay choices, Regex page, saved trade searches and lab overlay to one file, and import someone else's (with Undo). Your account, login, league, folders, history and net worth are never in it.

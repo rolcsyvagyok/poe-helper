@@ -1651,8 +1651,64 @@
     else mount(mods, h('div', { class: 'panel stack' },
       h('p', { class: 'small muted' }, 'Or see which single mod would help each of your rare items most (PoB adds one high roll at a time to the item you wear).'),
       h('div', {}, h('button', { class: 'sm', disabled: !PB.file, onclick: startMods }, 'Show the best mods per item'))));
-    mount(out, h('div', { class: 'panel' }, picker.el), find, h('h3', { style: { margin: '18px 0 0' } }, 'Best mods for your items'), mods);
+    const anoint = h('div', { class: 'stack' });
+    anointBox(anoint, asSkill);
+    mount(out, h('div', { class: 'panel' }, picker.el), find, h('h3', { style: { margin: '18px 0 0' } }, 'Best mods for your items'), mods,
+      h('h3', { style: { margin: '18px 0 0' } }, 'Best anointment for your amulet'), anoint);
     return [buildRow(), out];
+  }
+
+  // ---------------------------------------------------------------- anointments: every notable tried on your amulet
+  function anointBox(box, asSkill) {
+    const key = () => `anoints|${PB.file}|${asSkill() || ''}`;
+    const sort = PB.anointSort || (PB.anointSort = { by: 'd' });
+    const pctText = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`;
+    const cell = (v) => h('td', { class: `r ${v > 0.05 ? 'good' : v < -0.05 ? 'bad' : 'faint'}` }, Math.abs(v) < 0.05 ? '–' : pctText(v));
+    const draw = () => {
+      const r = PB.results[key()];
+      if (!r) return;
+      const cur = r.current?.length ? r.list.find((x) => r.current.includes(x.name)) || (r.currentValue ? { name: r.current.join(', '), ...r.currentValue } : null) : null;
+      const list = r.list.filter((x) => Math.abs(x.d) >= 0.05 || Math.abs(x.e) >= 0.05 || Math.abs(x.l) >= 0.05).sort((a, b) => b[sort.by] - a[sort.by] || b.d - a.d).slice(0, 25);
+      const by = (k, label) => h('button', { class: `sm ${sort.by === k ? 'primary' : ''}`, 'aria-pressed': String(sort.by === k), onclick: () => { sort.by = k; draw(); } }, label);
+      mount(box, h('div', { class: 'panel stack' },
+        h('p', { class: 'small' }, `${r.amulet || 'Your amulet'}: `, cur ? h('b', {}, `anointed with ${cur.name}, ${pctText(cur.d)} DPS`) : h('span', { class: 'muted' }, 'no anointment yet'),
+          h('span', { class: 'muted' }, `. Each notable below is tried on it in place of that (${r.list.length} notables you don't have on your tree${r.full ? ', full DPS' : ''}).`)),
+        h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'small muted' }, 'Sort by'), by('d', 'DPS'), by('e', 'Effective HP'), by('l', 'Life')),
+        list.length ? h('table', { class: 'pob-anoint' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Notable'), h('th', {}, 'Oils'), h('th', { class: 'r' }, 'DPS'), h('th', { class: 'r' }, 'Effective HP'), h('th', { class: 'r' }, 'Life'))),
+          h('tbody', {}, list.map((x) => {
+            const better = cur && x.name !== cur.name && x[sort.by] > (cur[sort.by] || 0) + 0.05;
+            return h('tr', { class: cur && x.name === cur.name ? 'pob-anoint-cur' : '', title: (x.sd || []).join('\n') },
+              h('td', {}, x.name, cur && x.name === cur.name ? h('span', { class: 'small muted' }, ' (yours)') : better ? h('span', { class: 'small good', title: 'Better than your anointment' }, ' ▲') : null),
+              h('td', { class: 'small muted' }, (x.oils || []).join(' · ')),
+              cell(x.d), cell(x.e), cell(x.l));
+          }))) : h('p', { class: 'small muted' }, 'No anointment changes this build\'s DPS, life or effective HP.'),
+        h('div', {}, h('button', { class: 'sm quiet', onclick: () => { delete PB.results[key()]; start(); } }, 'Work it out again'))));
+    };
+    const start = async () => {
+      if (!PB.file) return;
+      const note = h('span', {}, ' Path of Building tries every notable on your amulet…');
+      mount(box, h('p', { class: 'small muted' }, h('span', { class: 'spin' }), note));
+      const k = key();
+      try {
+        let from = 0; let head = null; const list = [];
+        for (;;) {
+          const r = await call('pob:anoints', { file: PB.file, from, count: 40, asSkill: asSkill() });
+          if (r?.error) throw new Error(r.error);
+          if (from === 0) head = r;
+          list.push(...r.results);
+          from += 40;
+          note.textContent = ` Path of Building tries every notable on your amulet… ${Math.min(from, r.total)} of ${r.total}`;
+          if (r.done) break;
+        }
+        PB.results[k] = { amulet: head.amulet, current: head.current || [], currentValue: head.currentValue || null, full: head.full, list };
+        draw();
+      } catch (e) { mount(box, h('p', { class: 'small warn' }, errText(e))); }
+    };
+    if (PB.results[key()]) draw();
+    else mount(box, h('div', { class: 'panel stack' },
+      h('p', { class: 'small muted' }, 'Tries every notable an amulet can be anointed with, one at a time, and shows which adds most DPS, life or effective HP. Your own anointment is taken off first, so you see what a swap gives. Takes a few seconds.'),
+      h('div', {}, h('button', { class: 'sm', disabled: !PB.file, onclick: start }, 'Find the best anointment'))));
   }
 
   async function findBox(box) {

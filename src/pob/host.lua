@@ -983,6 +983,67 @@ local function power(req)
 	return { total = #P.list, from = from, results = res, done = from + count >= #P.list }
 end
 
+-- Anointments: every notable an amulet can be anointed with, tried on your amulet one at a time (your
+-- current anointment taken off first), in pieces so the app can show progress. What each adds to DPS,
+-- life and effective HP against the amulet without an anointment.
+local OIL_ORDER = { Clear = 1, Sepia = 2, Amber = 3, Verdant = 4, Teal = 5, Azure = 6, Indigo = 7, Violet = 8, Crimson = 9, Black = 10, Opalescent = 11, Silver = 12, Golden = 13, Prismatic = 14 }
+local anointState
+local function anoints(req)
+	local slot = build.itemsTab.slots["Amulet"]
+	local item = usable(slot) and build.itemsTab.items[slot.selItemId]
+	if not item then return { error = "This build has no amulet. Put one in the Amulet slot in Path of Building first." } end
+	local spec = build.spec
+	local mainOut = build.calcsTab.mainOutput
+	if not anointState or anointState.out ~= mainOut or anointState.spec ~= spec or anointState.item ~= item then
+		-- the amulet without its anointment ("Allocates X")
+		local stripped = newItem(item:BuildRaw())
+		local current = { }
+		for _, key in ipairs({ "enchantModLines", "implicitModLines", "explicitModLines" }) do
+			local keep = { }
+			for _, m in ipairs(stripped[key] or { }) do
+				local name = m.line and m.line:match("^Allocates (.+)$")
+				if name then current[#current + 1] = name else keep[#keep + 1] = m end
+			end
+			stripped[key] = keep
+		end
+		stripped:BuildAndParseRaw()
+		local list = { }
+		for id, n in pairs(spec.nodes) do
+			local tn = spec.tree.nodes[id] or n
+			if tn.recipe and (n.type == "Notable" or tn.isNotable) and not n.alloc then list[#list + 1] = id end
+		end
+		table.sort(list, function(a, b) return (spec.nodes[a].dn or "") < (spec.nodes[b].dn or "") end)
+		local calcFunc, base = build.calcsTab:GetMiscCalculator(build)
+		local full = (base.FullDPS or 0) > 0
+		local plain = calcFunc({ repSlotName = "Amulet", repItem = stripped }, full)
+		anointState = { out = mainOut, spec = spec, item = item, stripped = stripped, list = list, calcFunc = calcFunc, full = full, plain = plain, base = base, current = current }
+	end
+	local A = anointState
+	local function dps(o) return A.full and (o.FullDPS or 0) or (o.CombinedDPS or o.TotalDPS or 0) end
+	local function pct(a, b) if not b or b == 0 then return 0 end return (a - b) / math.abs(b) * 100 end
+	local function rel(o) return { d = pct(dps(o), dps(A.plain)), l = pct(o.Life or 0, A.plain.Life), e = pct(o.TotalEHP or 0, A.plain.TotalEHP) } end
+	local from = tonumber(req.from) or 0
+	local count = tonumber(req.count) or 40
+	local res = { }
+	for k = from + 1, math.min(from + count, #A.list) do
+		local id = A.list[k]
+		local n = spec.nodes[id]
+		local tn = spec.tree.nodes[id] or n
+		local o = A.calcFunc({ repSlotName = "Amulet", repItem = A.stripped, addNodes = { [n] = true } }, A.full)
+		local oils = { }
+		for _, r in ipairs(tn.recipe or { }) do oils[#oils + 1] = (tostring(r):gsub("Oil$", "")) end
+		local v = rel(o)
+		res[#res + 1] = { i = id, name = n.dn, oils = oils, sd = n.sd, d = v.d, l = v.l, e = v.e }
+	end
+	local out = { total = #A.list, from = from, results = res, done = from + count >= #A.list, full = A.full }
+	if from == 0 then
+		out.amulet = item.title or item.name
+		out.current = A.current
+		out.currentValue = #A.current > 0 and rel(A.base) or nil -- what your anointment gives now
+	end
+	return out
+end
+
 -- The tree optimiser: with the same points, swap the nodes worth least for paths worth more, one swap a step,
 -- while life, effective HP, resistances and attribute requirements stay where you asked.
 local opt
@@ -1810,6 +1871,9 @@ function handle(line)
 			elseif req.op == "power" then
 				if not build then return { error = "No build loaded." } end
 				return power(req)
+			elseif req.op == "anoints" then
+				if not build then return { error = "No build loaded." } end
+				return anoints(req)
 			elseif req.op == "optStart" then
 				if not build then return { error = "No build loaded." } end
 				return optStart(req)

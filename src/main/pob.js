@@ -215,6 +215,7 @@ class PobEngine {
   treeEdit({ id, effect, undo, save = false, name } = {}) { return this.send({ op: 'treeEdit', node: id, effect, undo, save, name }, 60000); }
   /** What each node is worth to the build, a piece at a time. */
   power(from, count) { return this.send({ op: 'power', from, count }, 120000); }
+  anoints(from, count) { return this.send({ op: 'anoints', from, count }, 120000); }
   /** The tree optimiser: start with the goal and limits, then one swap a step; end keeps the tree (saved) or not. */
   optStart(o) { return this.send({ op: 'optStart', ...o }, 60000); }
   optStep() { return this.send({ op: 'optStep' }, 180000); }
