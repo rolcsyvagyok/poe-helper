@@ -3,6 +3,11 @@
 Newest first. Each `## <version> - <date>` section is shown in the app (Settings → Patch notes)
 and used as the text of the GitHub release, so write it for players.
 
+## 1.0.90 - 2026-11-15
+
+- New page: My collection (under Wealth). Every unique that drops, with its picture, grouped into weapons, armour, jewellery, flasks, jewels, relics and tinctures. Click one when you have it (ticked ones get a ✓ and full colour). Show all, only missing or only the ones you have; sort by name, base or price; search. It shares the list with the price check, so a base where you have every unique and none is worth more than your limit is hidden in your filter, and the page marks those bases.
+- My collection has a "Remove not valuable from loot filter" switch (on by default) with the price limit next to it, and every unique card has a tick box.
+
 ## 1.0.89 - 2026-11-15
 
 - Loot filter → Unique items looks like FilterBlade's page: compact rows with a tick box (shown in game), the name and the look (click it to edit). Predictable tiers: S, A, B+C and D (FilterBlade's three D tiers are one row). High variety tiers: jewels, top multi-bases, multi-bases, boss drops. Open a row to see its uniques; special cases (6-links, Kaom's, synthesised…) are one folded line.

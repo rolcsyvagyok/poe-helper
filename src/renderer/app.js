@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, collection: () => window.CollectionView.render(), regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons

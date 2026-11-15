@@ -1266,6 +1266,7 @@ function registerIpc() {
   handle('ranks:auto', (a) => services.autoRanks(a || {}));
   handle('matrix:opts', (a) => services.setBaseMatrixOpts(a || {}));
   handle('campaignHide:set', (a) => services.setCampaignHide(a || {}));
+  handle('collection:list', () => services.collectionList());
   handle('collection:set', (a) => services.setCollected(a || {}));
   handle('collection:get', () => services.refreshCollected(false).then((r) => ({ ...r, have: services.settings.get('uniqueCollection') || {} })));
   handle('maps:hide', (a) => services.setMapHide(a || {}));
