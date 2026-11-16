@@ -299,9 +299,13 @@ function notesSection(all) {
 }
 
 // ---------------- shared bits ----------------
+// a page's name with its explanation behind an ⓘ (pages read cleaner without a paragraph on top)
 function pageHead(title, desc, ...right) {
-  return h('div', { class: 'page-head' }, h('div', { class: 'stack', style: { gap: '4px' } }, h('h1', {}, title), desc ? h('p', {}, desc) : null), h('span', { class: 'spacer' }), ...right);
+  return h('div', { class: 'page-head' }, h('div', { class: 'page-title' }, h('h1', {}, title), desc ? window.UI.infoTip(desc, { label: `About ${title}` }) : null), h('span', { class: 'spacer' }), ...right);
 }
+window.pageHead = pageHead;
+// a section's explanation: a short one stays as a grey line, a long one goes behind an ⓘ
+const sectionNote = (title, desc) => (!desc ? null : typeof desc === 'string' && desc.length > 70 ? window.UI.infoTip(desc, { label: `About ${title}` }) : h('p', {}, desc));
 // ---------------------------------------------------------------- chat macros
 const MACRO_IDEAS = [['/exit', 'Log out to character select'], ['/hideout', 'Go to your hideout'], ['/kingsmarch', 'Go to Kingsmarch'], ['/menagerie', 'Go to the Menagerie'], ['/delve', 'Go to the Azurite Mine'], ['/heist', 'Go to the Rogue Harbour'], ['/monastery', 'Go to the Monastery of the Keepers'], ['@last ', 'Reply to the last whisper (not sent: type the rest)'], ['/invite @last', 'Party invite the last whisperer'], ['/kick ', 'Leave your party (add your name)'], ['/remaining', 'Monsters left in the area'], ['/deaths', 'How many times you died'], ['/played', 'Time played on this character'], ['/dnd', 'Do not disturb on or off']];
 async function renderMacros() {
@@ -317,8 +321,7 @@ async function renderMacros() {
     h('label', { class: 'check small', title: 'Off: the text is typed but not sent, so you can finish it (handy for @last replies)' },
       h('input', { type: 'checkbox', checked: m.send !== false, onchange: (e) => { m.send = e.target.checked; save('Saved'); } }), h('span', {}, 'Send')));
   mount(page,
-    h('h1', {}, 'Chat macros'),
-    h('p', { class: 'muted' }, 'Press a key in game: PoE Helper presses Enter, types your text and presses Enter again, just like typing it yourself. One key press sends one message. The keys only work while Path of Exile is the active window, so F1 to F5 still do their normal thing in every other app.'),
+    pageHead('Chat macros', 'Press a key in game: PoE Helper presses Enter, types your text and presses Enter again, just like typing it yourself. One key press sends one message. The keys only work while Path of Exile is the active window, so F1 to F5 still do their normal thing in every other app.'),
     h('div', { class: 'panel stack', style: { maxWidth: '760px' } },
       toggle(st.chatMacrosOn !== false, async (v) => { await call('settings:set', { chatMacrosOn: v }); toast(v ? 'Chat macros on' : 'Chat macros off'); renderMacros(); }, 'Use chat macros'),
       st.chatMacrosOn !== false ? [ideas, ...list.map(row),
@@ -384,8 +387,7 @@ async function renderTrade() {
     };
 
     mount(page,
-      h('h1', {}, 'Trade searches'),
-      h('p', { class: 'muted' }, 'Save your trade searches and live searches with a name, and open them later in one click. Turn on the price watch and PoE Helper runs the search again every few minutes, cheapest first, and sends a Windows notification when something is at or under your price.'),
+      pageHead('Trade searches', 'Save your trade searches and live searches with a name, and open them later in one click. Turn on the price watch and PoE Helper runs the search again every few minutes, cheapest first, and sends a Windows notification when something is at or under your price.'),
       h('div', { class: 'panel stack', style: { gap: '8px' } },
         h('b', {}, 'Add a search'),
         h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, nameIn, urlIn, h('button', { class: 'primary', onclick: add }, 'Save')),
@@ -398,10 +400,10 @@ async function renderTrade() {
 window.poe.on('trade:watched', () => { if (currentPage === 'trade') renderTrade(); });
 
 function section(title, desc, ...content) {
-  return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), desc ? h('p', {}, desc) : null), ...content);
+  return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), sectionNote(title, desc)), ...content);
 }
 function sectionWith(title, desc, right, ...content) {
-  return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), desc ? h('p', {}, desc) : null, h('span', { class: 'spacer' }), right), ...content);
+  return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), sectionNote(title, desc), h('span', { class: 'spacer' }), right), ...content);
 }
 function figure(value, label, cls) {
   return h('div', { class: 'figure' }, h('div', { class: 'v ' + (cls || '') }, value), h('div', { class: 'l' }, label));
@@ -631,8 +633,8 @@ function nwItems(latest, tabNames, snapBtn) {
             h('td', {}, h('span', { class: 'nw-name' }, wxIcon(i, 30), h('span', {}, i.n))),
             h('td', {}, h('span', { class: 'nw-chips' }, (i.t || []).slice(0, 3).map((t) => h('span', { class: 'nw-chip', title: t }, t.length > 12 ? `${t.slice(0, 11)}…` : t)), (i.t || []).length > 3 ? h('span', { class: 'nw-chip' }, `+${i.t.length - 3}`) : null)),
             h('td', { class: 'r' }, fmt(i.q)),
-            h('td', { class: 'r muted' }, chaosDiv(i.e, d)),
-            h('td', { class: 'r' }, h('b', {}, chaosDiv(i.q * i.e, d))))))) : h('p', { class: 'small muted', style: { padding: '12px' } }, 'Nothing matches.'),
+            h('td', { class: 'r muted' }, window.UI.money(i.e, d)),
+            h('td', { class: 'r' }, window.UI.money(i.q * i.e, d)))))) : h('p', { class: 'small muted', style: { padding: '12px' } }, 'Nothing matches.'),
         !nwShowAll && shown.length > LIMIT ? h('button', { class: 'quiet sm', style: { margin: '10px 0' }, onclick: () => { nwShowAll = true; renderNetworth(); } }, `Show all ${shown.length}`) : null)));
 }
 
@@ -658,27 +660,27 @@ async function renderNetworthNow() {
     snapBtn.disabled = true; snapBtn.textContent = 'Taking snapshot…';
     try { await call('networth:snapshot'); toast('Snapshot taken'); } catch { /* toast */ }
     renderNetworth();
-  }, title: `Costs ${selected.size} GGG ${selected.size === 1 ? 'request' : 'requests'} (one per tracked tab)` }, 'Take snapshot ⊕');
+  }, title: `Costs ${selected.size} GGG ${selected.size === 1 ? 'request' : 'requests'} (one per tracked tab)` }, 'Take snapshot ', window.UI.icon('plusc', { size: 16 }));
   const sessBtn = h('button', { class: running ? 'danger' : '', disabled: !ready || !selected.size, onclick: async () => {
     sessBtn.disabled = true; sessBtn.textContent = running ? 'Stopping…' : 'Starting…';
     try { const s = await call('networth:session', running ? 'stop' : 'start'); if (!running && s) nwSession = s.id; toast(running ? `${running.name} ended` : `${s.name} started: snapshots now count towards it`); } catch { /* toast */ }
     renderNetworth();
-  } }, running ? '■ Stop session' : '▶ Start session');
-  const fact = (icon, label, value, extra) => h('div', { class: 'nw-fact' }, h('span', { class: 'nw-fact-ico', 'aria-hidden': 'true' }, icon), h('div', {}, h('div', { class: 'nw-fact-l' }, label), h('div', { class: 'nw-fact-v' }, value, extra || null)));
+  } }, window.UI.icon(running ? 'stop' : 'play', { size: 15 }), running ? ' Stop session' : ' Start session');
+  const fact = (ic, label, value, extra) => h('div', { class: 'nw-fact' }, h('span', { class: 'nw-fact-ico', 'aria-hidden': 'true' }, window.UI.icon(ic, { size: 18 })), h('div', {}, h('div', { class: 'nw-fact-l' }, label), h('div', { class: 'nw-fact-v' }, value, extra || null)));
   const played = (s) => ((s.end || Date.now()) - s.start);
   const dur = (ms) => { const m = Math.floor(ms / 60000); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
   const sessSel = h('select', { class: 'nw-sess-sel', 'aria-label': 'Session', onchange: (e) => { nwSession = e.target.value || null; nwMode = 'total'; renderNetworth(); } },
     h('option', { value: '' }, 'All snapshots'),
     sessions.map((s) => h('option', { value: s.id, selected: s.id === nwSession }, `${s.name}${s.end ? '' : ' (active)'}`)));
   const bar = h('div', { class: 'nw-bar' },
-    fact('🏆', 'League', S.league || '–'),
-    fact('◎', 'Price league', S.league || '–'),
-    fact('⟲', 'Last snapshot', latest ? ago(Date.now() - latest.ts) : 'none yet'),
-    fact('⌛', 'Session', sessSel, running ? h('span', { class: 'nw-live' }, '● Active') : null),
-    sess ? fact('⏱', 'Played', dur(played(sess))) : null,
+    fact('trophy', 'League', S.league || '–'),
+    fact('globe', 'Price league', S.league || '–'),
+    fact('history', 'Last snapshot', latest ? ago(Date.now() - latest.ts) : 'none yet'),
+    fact('hourglass', 'Session', sessSel, running ? h('span', { class: 'nw-live' }, '● Active') : null),
+    sess ? fact('timer', 'Played', dur(played(sess))) : null,
     h('span', { class: 'spacer' }),
     sessBtn,
-    h('button', { class: 'quiet nw-more' + (nwSetup ? ' on' : ''), 'aria-expanded': nwSetup ? 'true' : 'false', title: 'Tracked tabs, automatic snapshots, history', onclick: () => { nwSetup = !nwSetup; renderNetworth(); } }, '⋯'));
+    h('button', { class: 'quiet nw-more' + (nwSetup ? ' on' : ''), 'aria-expanded': nwSetup ? 'true' : 'false', title: 'Tracked tabs, automatic snapshots, history', 'aria-label': 'Settings for WealthyExile', onclick: () => { nwSetup = !nwSetup; renderNetworth(); } }, window.UI.icon('dots', { size: 18 })));
 
   // ---- chart ----
   let pts, title, unit, head;
@@ -688,15 +690,15 @@ async function renderNetworthNow() {
     const profit = inS.map((p) => ({ ts: p.ts, chaos: p.chaos - (base?.chaos || 0), divine: p.divine }));
     pts = nwMode === 'rate' ? profit.filter((p) => p.ts - profit[0].ts > 10 * 60000).map((p) => ({ ...p, chaos: p.chaos / ((p.ts - profit[0].ts) / 3600000) })) : profit;
     const last = profit[profit.length - 1];
-    head = last ? `${last.chaos >= 0 ? '+' : '−'}${chaosDiv(Math.abs(last.chaos), d)}` : '–';
+    head = last ? window.UI.money(last.chaos, d, { sign: true }) : '–';
     title = [['total', 'Profit'], ['rate', 'Profit / h']];
   } else {
     pts = all;
     if (nwMode === 'rate') pts = all.slice(1).map((p) => ({ ...p, chaos: (p.chaos - all[0].chaos) / Math.max(1 / 24, (p.ts - all[0].ts) / 86400000) }));
     const first = all[0];
-    head = latest ? chaosDiv(latest.totalChaos, d) : '–';
+    head = latest ? window.UI.money(latest.totalChaos, d) : '–';
     title = [['total', 'Net worth'], ['rate', 'Income / d']];
-    if (first && latest && first.ts !== latest.ts) head = [h('span', { class: (latest.totalChaos - first.chaos) >= 0 ? 'good small' : 'bad small' }, `${latest.totalChaos >= first.chaos ? '+' : '−'}${chaosDiv(Math.abs(latest.totalChaos - first.chaos), d)} `), head];
+    if (first && latest && first.ts !== latest.ts) { const g = latest.totalChaos - first.chaos; head = [h('span', { class: 'delta-pill ' + (g >= 0 ? 'up' : 'down') }, window.UI.money(g, d, { sign: true })), head]; }
   }
   unit = d && Math.max(1, ...pts.map((p) => Math.abs(p.chaos))) > d * 3 ? 'd' : 'c';
   const bands = sess ? [] : sessions.map((s) => ({ from: s.start, to: s.end || Date.now(), label: s.name, on: s.id === running?.id }));
@@ -719,7 +721,7 @@ async function renderNetworthNow() {
     h('div', { class: 'nw-ph' }, h('h2', {}, 'Categories'), h('span', { class: 'spacer' }),
       h('div', { class: 'seg' }, [['donut', 'Donut'], ['list', 'List']].map(([k, l]) => h('button', { class: nwCatView === k ? 'on' : '', onclick: () => { nwCatView = k; renderNetworth(); } }, l)))),
     cats.length ? h('div', { class: 'nw-cats-body' + (nwCatView === 'list' ? ' list' : '') },
-      nwCatView === 'donut' ? h('div', { class: 'nw-donut-wrap' }, nwDonut(cats, tot), h('div', { class: 'nw-donut-mid' }, h('span', { class: 'small muted' }, 'Total'), h('b', {}, chaosDiv(latest.totalChaos || tot, d)))) : null,
+      nwCatView === 'donut' ? h('div', { class: 'nw-donut-wrap' }, nwDonut(cats, tot), h('div', { class: 'nw-donut-mid' }, h('span', { class: 'small muted' }, 'Total'), window.UI.money(latest.totalChaos || tot, d))) : null,
       h('div', { class: 'nw-cat-list' }, cats.map(catRow))) : h('p', { class: 'small muted' }, 'Take a snapshot to see your categories.'));
 
   // ---- a session: its result and what each tab gained ----

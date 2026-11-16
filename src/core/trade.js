@@ -389,7 +389,7 @@ function buildQuery(item, mods, opts = {}) {
   if (kind === 'rare' || kind === 'magic') {
     const tf = q.query.filters.type_filters?.filters || {};
     // a magic item is compared with magic ones only (its one or two mods are what it is)
-    q.query.filters.type_filters = { filters: { ...tf, rarity: { option: kind === 'magic' ? 'magic' : 'nonunique' } } };
+    q.query.filters.type_filters = { filters: { ...tf, rarity: { option: kind === 'magic' ? 'magic' : props?.rareOnly?.on ? 'rare' : 'nonunique' } } };
   }
   // an unidentified unique is searched by its base: only uniques of it (not rares of the same base)
   if (kind === 'unique' && item.flags.unidentified) {
@@ -697,6 +697,9 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
       if (['explicit', 'crafted', 'fractured'].includes(m.group) && m.id && !m.unmatched && !LOW_VALUE.test(m.text || '')) { m.enabled = true; m.hidden = false; if (m.display != null) m.min = m.display; }
     }
   }
+  // how many prefixes / suffixes the item can have (the panel's "1 of 2"), and "only rares" for the rarity chip
+  props.maxAffix = item.rarity === 'Magic' ? 1 : /jewel/i.test(`${cls} ${item.baseType || ''}`) ? 2 : 3;
+  if (kind === 'rare') props.rareOnly = { on: false, show: true };
   // every item is searched from its own item level up (86 and over is the same for every mod), maps excepted:
   // their tier is what counts
   if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !/heist contract|viscera/i.test(cls)) {

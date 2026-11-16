@@ -10,7 +10,7 @@
 
   async function render() {
     const el = document.getElementById('page-collection');
-    if (!C.data) mount(el, h('div', { class: 'muted' }, h('span', { class: 'spin' }), ' Loading the uniques from poe.ninja'));
+    if (!C.data) mount(el, h('div', { class: 'skeleton panel', role: 'status', 'aria-label': 'Loading the uniques from poe.ninja' }, h('i'), h('i'), h('i')));
     try { C.data = await call('collection:list'); } catch { mount(el, h('div', { class: 'panel' }, 'Could not load the uniques. Check your connection and try again.')); return; }
     draw();
   }

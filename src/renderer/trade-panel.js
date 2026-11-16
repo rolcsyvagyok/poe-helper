@@ -78,13 +78,14 @@ function renderPanel(box, prep, { text, divine, onFit }) {
 
   // hidden mods (counted in a total, the DPS or the defences): shown on request, to tick one yourself
   let showHidden = mods.some((m) => m.hidden && m.enabled);
-  const hiddenCount = mods.filter((m) => m.hidden && !m.unmatched).length;
+  let hiddenCount = mods.filter((m) => m.hidden && !m.unmatched).length;
   const groupsBox = h('div', {});
   // with the Ctrl+Alt+C copy every mod says whether it is a prefix or a suffix: the item's own mods
   // (explicit, crafted, fractured) are listed that way, with how many of the 3 each side uses
   const AFFIX = ['fractured', 'explicit', 'crafted'];
   const own = mods.filter((m) => AFFIX.includes(m.group));
   const byGen = own.some((m) => m.meta?.gen) && own.every((m) => m.meta?.gen || m.unmatched);
+  const cap = props.maxAffix || 3;
   const used = (gen) => new Set(own.filter((m) => m.meta?.gen === gen).map((m) => m.meta.n)).size;
   const tagOf = (m) => (m.group === 'crafted' ? 'crafted' : m.group === 'fractured' ? 'fractured' : null);
   const drawGroups = () => mount(groupsBox, GROUPS.flatMap(([g, label]) => {
@@ -94,11 +95,9 @@ function renderPanel(box, prep, { text, divine, onFit }) {
         const rows = own.filter((m) => m.meta?.gen === gen);
         const n = used(gen);
         // a mod already counted in a total is listed for the overview, without its own tick box
-        const info = (m) => h('div', { class: 'tp-mod tp-info', title: 'Counted in the totals above (or the DPS / defences). Click "Show more mods" to search it on its own.' },
-          h('span', { class: 'tp-mod-main' }, h('span', { class: 'tp-info-dot', 'aria-hidden': 'true' }, '∑'), h('span', { class: 'tp-text' }, m.text, tagOf(m) ? h('span', { class: 'faint' }, ` (${tagOf(m)})`) : null)));
         return h('div', { class: 'tp-group' },
-          h('div', { class: 'tp-ghead' }, title, h('span', { class: 'faint' }, ` (${n} of 3${n < 3 ? `, ${3 - n} open` : ''})`)),
-          rows.length ? rows.map((m) => { if (m.hidden && !showHidden) return info(m); const r = modRow(m); const t = tagOf(m); if (t) r.querySelector('.tp-text')?.append(h('span', { class: 'faint' }, ` (${t})`)); return r; })
+          h('div', { class: 'tp-ghead' }, title, h('span', { class: 'faint' }, ` (${n} of ${cap}${n < cap ? `, ${cap - n} open` : ''})`)),
+          rows.length ? rows.map((m) => { const r = modRow(m); const t = tagOf(m); if (t) r.querySelector('.tp-text')?.append(h('span', { class: 'faint' }, ` (${t})`)); return r; })
             : h('div', { class: 'small faint', style: { padding: '2px 4px' } }, 'None'));
       });
     }
@@ -109,6 +108,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       rows.map(modRow))];
   }));
   drawGroups();
+  if (byGen) hiddenCount = mods.filter((m) => m.hidden && !AFFIX.includes(m.group)).length;
   const hiddenToggle = hiddenCount ? h('button', { class: 'quiet sm', style: { margin: '2px 0 6px' }, 'aria-expanded': String(showHidden), onclick: (e) => { showHidden = !showHidden; e.target.setAttribute('aria-expanded', String(showHidden)); e.target.textContent = toggleText(); drawGroups(); } }, '') : null;
   const toggleText = () => (showHidden ? `− Hide the ${hiddenCount} counted-in mods` : `+ Show ${hiddenCount} more mod${hiddenCount === 1 ? '' : 's'} (counted in the totals, DPS or defences)`);
   if (hiddenToggle) hiddenToggle.textContent = toggleText();
@@ -177,6 +177,11 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   rangeRow('quality', 'Quality');
   rangeRow('gemLevel', 'Gem level');
   rangeRow('mapTier', 'Map tier');
+  // "rare" in the header: only rares (else rares and magic items of the base)
+  if (props.rareOnly?.show) {
+    const cb = h('input', { type: 'checkbox', checked: !!props.rareOnly.on, onchange: (e) => { props.rareOnly.on = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', props.rareOnly.on); } });
+    propRows.push(h('div', { class: 'tp-mod' + (props.rareOnly.on ? ' on' : ''), 'data-k': 'rareOnly' }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, 'Rare items only', h('span', { class: 'faint' }, ' (else magic ones too)')))));
+  }
   const corr = h('select', { 'data-k': 'corrupted', 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
   const ident = h('select', { 'data-k': 'unid', 'aria-label': 'Identified', onchange: (e) => { props.identified = e.target.value; } }, [['any', 'Identified or not'], ['yes', 'Identified only'], ['no', 'Unidentified only']].map(([v, l]) => h('option', { value: v, selected: (props.identified || 'any') === v }, l)));
   const infl = Object.keys(props.influences || {}).map((inf) => h('label', { class: 'check small', 'data-k': `infl:${inf}` }, h('input', { type: 'checkbox', checked: props.influences[inf], onchange: (e) => { props.influences[inf] = e.target.checked; } }), `${inf} item`));
@@ -184,6 +189,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   // the overlay header's facts (item level 85, 5-link, Shaper…) tick these lines when clicked
   box._isOn = (k) => {
     if (k === 'base') return props.base?.canChange ? !!props.base.on : null;
+    if (k === 'rareOnly') return props.rareOnly?.show ? !!props.rareOnly.on : null;
     if (k === 'corrupted') return props.corrupted === 'yes';
     if (k === 'unid') return (props.identified || 'any') === 'no';
     if (k.startsWith('infl:')) { const i = k.slice(5); return props.influences && i in props.influences ? !!props.influences[i] : null; }
@@ -226,12 +232,12 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       mount(results,
         h('div', { class: 'row', style: { gap: '8px' } },
           h('b', {}, `${r.total} ${r.total === 1 ? 'listing' : 'listings'}`),
-          l?.min != null ? h('span', {}, 'from ', h('b', {}, chaosDiv(l.min, divine))) : null,
+          l?.min != null ? h('span', {}, 'from ', window.UI.money(l.min, divine)) : null,
           l?.median != null && l.prices.length > 2 ? h('span', { class: 'muted' }, `typical ${chaosDiv(l.median, divine)}`) : null,
           h('span', { class: 'spacer' }),
           h('button', { class: 'sm', onclick: () => call('shell:open', r.url) }, 'Open on trade site')),
         l?.prices?.length ? h('div', { class: 'tp-listings', style: { marginTop: '6px' } }, l.prices.map((x) => h('div', { class: 'tp-li' + (x.mine ? ' mine' : '') },
-          h('span', { class: 'tp-price' }, `${x.amount} ${x.currency}`, x.times > 1 ? h('span', { class: 'tp-times', title: `${x.times} listings from this seller` }, `×${x.times}`) : null),
+          h('span', { class: 'tp-price money' }, h('b', {}, String(x.amount)), h('small', {}, x.currency), x.times > 1 ? h('span', { class: 'tp-times', title: `${x.times} listings from this seller` }, `×${x.times}`) : null),
           h('span', { class: 'faint tp-ago' }, ago(x.indexed)),
           h('span', { class: 'spacer' }),
           x.mine ? h('span', { class: 'tp-you' }, 'You') : h('span', { class: 'faint tp-seller' }, x.seller || ''),
@@ -251,13 +257,9 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   // (the "Search as: finished item / crafting base" choice is gone: the price check searches the finished item)
   mount(box,
     h('div', { class: 'tp' },
-      h('div', { class: 'row tp-top' },
-        h('span', { class: 't' }, prep.kind === 'gem' ? 'Searches this gem by level, quality and whether it is corrupted.' : prep.kind === 'unique' ? 'Searches this unique by name. Tick mods to narrow it down.' : 'Tick the mods to search for. Values are min and max.'),
-        h('span', { class: 'spacer' }),
-        mods.length ? h('button', { class: 'quiet sm', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden)) m.enabled = on; }); mountAgain(); } }, 'All / none') : null),
       groups,
       propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'Item'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
-      h('div', { class: 'row tp-go' }, go, statusSel, countEl),
+      h('div', { class: 'row tp-go' }, go, statusSel, countEl, mods.length ? h('button', { class: 'quiet sm', title: 'Tick or untick every mod', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden || (byGen && AFFIX.includes(m.group)))) m.enabled = on; }); mountAgain(); } }, 'All / none') : null),
       results));
   onFit();
 

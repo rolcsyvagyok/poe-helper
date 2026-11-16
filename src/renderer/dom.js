@@ -265,6 +265,22 @@ if (window.poe) loadUserFont();
 // ---------------------------------------------------------------- category icons
 // Small line icons (24x24, drawn with currentColor) for the loot filter categories.
 const ICONS = {
+  // the app's own controls (line icons, drawn here)
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5z"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  history: '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4.5v3.8h3.8"/><path d="M12 8v4l2.8 1.8"/>',
+  hourglass: '<path d="M6.5 3.5h11M6.5 20.5h11M7.5 3.5c0 4.5 4.5 5.5 4.5 8.5s-4.5 4-4.5 8.5M16.5 3.5c0 4.5-4.5 5.5-4.5 8.5s4.5 4 4.5 8.5"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>',
+  dots: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  plusc: '<circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.2"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/>',
+  chart: '<path d="M4 19.5h16M6.5 16l4-5 3 3 4.5-6.5"/>',
+  list: '<path d="M8.5 7h11M8.5 12h11M8.5 17h11M4.5 7h.1M4.5 12h.1M4.5 17h.1"/>',
+  timer: '<circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M9.5 3h5"/>',
   coin: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/>',
   coins: '<ellipse cx="12" cy="6.5" rx="7" ry="3"/><path d="M5 6.5v5c0 1.7 3 3 7 3s7-1.3 7-3v-5M5 11.5v5c0 1.7 3 3 7 3s7-1.3 7-3v-5"/>',
   card: '<rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M8.5 7h7M8.5 11h7M8.5 15h4"/>',
@@ -383,5 +399,35 @@ function applyTheme(t) {
 try { applyTheme(localStorage.getItem('uiTheme')); } catch { /* no storage */ }
 if (window.poe) window.poe.on('uiTheme:changed', (t) => { applyTheme(t); document.dispatchEvent(new CustomEvent('uitheme', { detail: t })); });
 
-window.UI = { UI_THEMES, applyTheme, gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
+/** A price as a bold number with a small grey unit ("12.4" + "div"): easier to read at a glance. */
+function money(chaos, divine, { sign = false } = {}) {
+  const span = document.createElement('span');
+  span.className = 'money';
+  if (chaos == null || !Number.isFinite(chaos)) { span.textContent = '–'; return span; }
+  const neg = chaos < 0;
+  const abs = Math.abs(chaos);
+  const useDiv = divine && abs >= divine;
+  const b = document.createElement('b');
+  b.textContent = `${sign ? (neg ? '−' : '+') : neg ? '−' : ''}${useDiv ? fmt(abs / divine, 2) : fmt(abs)}`;
+  const u = document.createElement('small');
+  u.textContent = useDiv ? 'div' : 'c';
+  span.append(b, u);
+  return span;
+}
+/** A small ⓘ that shows its text on hover or keyboard focus (help that used to sit as a sentence on the page). */
+function infoTip(text, { label = 'About this' } = {}) {
+  if (!text) return null;
+  const id = `tip${Math.random().toString(36).slice(2, 8)}`;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'info-tip'; b.setAttribute('aria-label', label); b.setAttribute('aria-describedby', id);
+  b.append(icon('info', { size: 15 }));
+  const pop = document.createElement('span');
+  pop.className = 'info-pop'; pop.id = id; pop.setAttribute('role', 'tooltip');
+  if (typeof text === 'string') pop.textContent = text; else pop.append(text);
+  b.append(pop);
+  b.addEventListener('click', (e) => { e.stopPropagation(); b.classList.toggle('open'); });
+  b.addEventListener('blur', () => b.classList.remove('open'));
+  return b;
+}
+window.UI = { money, infoTip, UI_THEMES, applyTheme, gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
 })();

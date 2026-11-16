@@ -1519,3 +1519,74 @@ html[data-ui-theme="midnight"] ::-webkit-scrollbar { width: 10px; height: 10px; 
 html[data-ui-theme="midnight"] ::-webkit-scrollbar-thumb { background: #26262d; border-radius: 8px; border: 2px solid #09090b; }
 html[data-ui-theme="midnight"] ::-webkit-scrollbar-track { background: transparent; }
 html[data-ui-theme="midnight"] .rail .nav-group { font: 600 11px var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+/* Midnight buttons: a dark carbon texture instead of flat white; the main button is told apart by its blue border */
+html[data-ui-theme="midnight"] {
+  --btn-bg: repeating-linear-gradient(135deg, #1b1d19 0 2px, #161814 2px 6px);
+  --btn-hover-bg: repeating-linear-gradient(135deg, #22251f 0 2px, #1b1d19 2px 6px);
+  --btn-line: #2f3229; --btn-hover-line: #4a4f43; --btn-text: #e4e5df;
+  --pri-bg: repeating-linear-gradient(135deg, #1f2a38 0 2px, #18212c 2px 6px);
+  --pri-hover-bg: repeating-linear-gradient(135deg, #26354a 0 2px, #1d2836 2px 6px);
+  --pri-line: #3f6ea8; --pri-text: #eaf2ff;
+}
+html[data-ui-theme="midnight"] button.primary:hover { color: #ffffff; border-color: #60a5fa; }
+html[data-ui-theme="midnight"] .seg button.on { background: repeating-linear-gradient(135deg, #1f2a38 0 2px, #18212c 2px 6px); color: #eaf2ff; box-shadow: 0 0 0 1px #3f6ea8; }
+
+/* ================= design system: one spacing scale, one card, one heading style ================= */
+:root { --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; }
+button .ico, .nw-fact-ico .ico { display: inline-flex; vertical-align: -3px; }
+button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+button.fb-cat-main, .rail nav button, .nw-cat, .nw-sort, .col-card, .col-tile, .rx-beast { justify-content: flex-start; }
+.page-title { display: flex; align-items: center; gap: var(--sp-2); }
+/* the ⓘ help */
+.info-tip { position: relative; all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; color: var(--faint); cursor: help; }
+.info-tip { position: relative; }
+.info-tip:hover, .info-tip:focus-visible, .info-tip.open { color: var(--text); background: var(--raised); }
+.info-tip:focus-visible { outline: 2px solid var(--accent); }
+.info-pop { display: none; position: absolute; z-index: 50; left: -8px; top: calc(100% + 8px); width: max-content; max-width: 360px; padding: 10px 12px; border-radius: 8px; background: #1c1c21; border: 1px solid #2e2e36; color: #dcdce0; font: 400 13px/1.5 var(--ui); letter-spacing: 0; text-transform: none; text-align: left; box-shadow: 0 12px 32px #000a; white-space: normal; pointer-events: none; }
+.info-tip:hover .info-pop, .info-tip:focus-visible .info-pop, .info-tip.open .info-pop { display: block; }
+.section-head .info-tip, .nw-ph .info-tip { align-self: center; }
+
+/* Midnight: the shared rhythm */
+html[data-ui-theme="midnight"] .page { max-width: 1480px; padding: var(--sp-5) var(--sp-6) 56px; }
+html[data-ui-theme="midnight"] .page-head { align-items: center; margin-bottom: var(--sp-5); }
+html[data-ui-theme="midnight"] .section { margin-top: var(--sp-5); }
+html[data-ui-theme="midnight"] .section-head { align-items: center; margin-bottom: var(--sp-3); }
+html[data-ui-theme="midnight"] .section-head h2 { font: 650 13px var(--ui); letter-spacing: .06em; text-transform: uppercase; color: #d6d6db; margin: 0; }
+html[data-ui-theme="midnight"] .section-head p { font-size: 12.5px; color: var(--faint); }
+html[data-ui-theme="midnight"] .panel { padding: var(--sp-4) 18px; border-radius: 12px; transition: border-color .15s; }
+html[data-ui-theme="midnight"] .panel:hover { border-color: #26262d; }
+html[data-ui-theme="midnight"] .help { color: var(--faint); font-size: 12.5px; }
+html[data-ui-theme="midnight"] .page.active { animation: pageIn .18s ease-out; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { html[data-ui-theme="midnight"] .page.active { animation: none; } }
+
+/* numbers: a bold figure with a small grey unit; changes as small pills with + / − */
+.money { display: inline-flex; align-items: baseline; gap: 3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.money b { font-weight: 650; }
+.money small { font-size: .72em; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.r .money { justify-content: flex-end; }
+td.muted .money b { font-weight: 500; color: var(--muted); }
+.delta-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 13px; margin-right: 8px; vertical-align: middle; }
+.delta-pill.up { background: #3b82f61f; color: #7fb3e0; box-shadow: inset 0 0 0 1px #3b82f655; }
+.delta-pill.down { background: #f08c001f; color: #f0a040; box-shadow: inset 0 0 0 1px #f08c0055; }
+.delta-pill .money small { color: inherit; opacity: .75; }
+.nw-big .money b { font-size: 24px; }
+.nw-donut-mid .money b { font-size: 18px; }
+.ov-price .big .money b { font-size: 28px; }
+/* trade listings as small cards */
+html[data-ui-theme="midnight"] .tp-listings { display: grid; gap: 4px; }
+html[data-ui-theme="midnight"] .tp-li { padding: 7px 10px; border-radius: 8px; background: #16161a; border: 1px solid #1f1f25; align-items: center; }
+html[data-ui-theme="midnight"] .tp-li:nth-child(odd) { background: #16161a; }
+html[data-ui-theme="midnight"] .tp-li:hover { border-color: #2e2e36; }
+html[data-ui-theme="midnight"] .tp-li .tp-price b { font-size: 14px; }
+/* cards lift a little under the mouse */
+html[data-ui-theme="midnight"] .farm-card, html[data-ui-theme="midnight"] .dz-card, html[data-ui-theme="midnight"] .col-card { transition: transform .12s ease, border-color .12s ease; }
+html[data-ui-theme="midnight"] .farm-card:hover, html[data-ui-theme="midnight"] .dz-card:hover, html[data-ui-theme="midnight"] .col-card:hover { transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) { html[data-ui-theme="midnight"] .farm-card:hover, html[data-ui-theme="midnight"] .dz-card:hover, html[data-ui-theme="midnight"] .col-card:hover { transform: none; } }
+/* loading: a soft shimmer bar instead of a line of text */
+.skeleton { display: grid; gap: 10px; }
+.skeleton i { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, #17171b 0%, #222228 50%, #17171b 100%); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+.skeleton i:nth-child(2) { width: 80%; } .skeleton i:nth-child(3) { width: 60%; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton i { animation: none; } }
+.nw-big .delta-pill .money b { font-size: 14px; }

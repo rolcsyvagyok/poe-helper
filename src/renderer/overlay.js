@@ -185,7 +185,7 @@ function render(p) {
   const gearRarity = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !/Currency|Gem|Map|Card|Fragment|Incubator|Contract|Blueprint|Viscera/i.test(item.itemClass || '') ? item.rarity.toLowerCase() : null;
   // only what matters for the price; a fact with k ticks that part of the search when clicked
   const fact = (t, k = null) => facts.push({ t, k });
-  if (gearRarity) fact(gearRarity);
+  if (gearRarity) fact(gearRarity, gearRarity === 'rare' ? 'rareOnly' : null);
   if (item.typeLine && item.name && item.name !== item.typeLine) fact(item.typeLine, 'base');
   else if (gearRarity === 'magic' && item.baseType && item.baseType !== item.typeLine) fact(item.baseType, 'base');
   if (item.itemLevel) fact(`item level ${item.itemLevel}`, 'ilvl');
@@ -218,7 +218,7 @@ function render(p) {
   if (price?.found && !modPriced) {
     const conf = { high: ['good', 'Plenty of listings'], medium: ['warn', 'Some listings'], low: ['bad', 'Few listings'], range: ['warn', 'Variants differ'] }[price.confidence] || ['', ''];
     body.append(h('div', { class: 'ov-price' },
-      h('span', { class: 'big' }, chaosDiv(price.chaos, divine)),
+      h('span', { class: 'big' }, window.UI.money(price.chaos, divine)),
       divine && price.chaos >= divine ? h('span', { class: 'alt' }, `${fmt(price.chaos)} chaos`) : null,
       h('span', { class: 'spacer' }),
       conf[1] ? h('span', { class: `pill ${conf[0]}` }, conf[1]) : null));
@@ -236,7 +236,7 @@ function render(p) {
   } else if (price && !modPriced && p.kind !== 'rare' && p.kind !== 'magic') {
     body.append(h('div', { class: 'muted' }, 'poe.ninja has no price for this item.'));
   }
-  if (price?.ageMs != null) body.append(h('div', { class: 'small faint' }, `${p.league} prices from ${ago(price.ageMs)}`));
+  // (the "prices from N min ago" line is gone: it said little and took space)
 
   // --- filter ---
   // which rule decides it, and where that rule is in your filter (the tier block below says it when it can move the base)

@@ -5,6 +5,20 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.104 - 2026-11-16
+
+* Price check: jewels count 2 prefixes and 2 suffixes, every mod can be ticked where it is, and "rare" in the header ticks "Rare items only"
+* Cleaner pages: explanations are behind a small ⓘ, with the same header and spacing everywhere
+
+- Price check: jewels show "1 of 2" prefixes / suffixes (magic items 1, other rares 3).
+- Price check: mods in the Prefixes and Suffixes lists are normal tick boxes again, also the ones counted in a total.
+- Price check: the "prices from…" and "Tick the mods…" lines are gone; All / none sits next to Search.
+- Price check: clicking "rare" in the header ticks "Rare items only" (else magic items of the base count too).
+- Midnight look: buttons have a dark textured look instead of white; the main buttons have a blue edge.
+- Look: every page has the same clean header; its explanation is behind a small ⓘ (hover or click it) instead of a paragraph on top. Long section explanations went behind an ⓘ too.
+- Look: one spacing and heading style on every page, wider pages on big screens, line icons instead of symbols on WealthyExile, and a short fade when you switch pages.
+- Look: prices show as a bold number with a small grey unit (12.4 div), changes as small blue / orange pills with + or −; trade listings are small cards; cards lift a little under the mouse; loading shows a soft placeholder instead of a line of text.
+
 ## 1.0.103 - 2026-11-16
 
 * [WealthyExile] New look: net worth chart with your sessions, a categories donut and every item with its stash tab

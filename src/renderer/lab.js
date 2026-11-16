@@ -104,12 +104,9 @@
     const viewerRoot = h('div', { class: 'lab lab-inpage' });
     const hk = window.Hotkey ? window.Hotkey.label(s.hotkeyLab) : s.hotkeyLab;
     mount(page,
-      h('div', { class: 'row', style: { justifyContent: 'space-between', alignItems: 'baseline' } },
-        h('h1', {}, 'Daily lab'),
-        h('div', { class: 'row', style: { gap: '8px' } },
-          h('span', { class: 'small muted' }, !s.hotkeyLab ? 'Set a hotkey in Settings to show it in game' : s.labFavorite ? `In game: press ${hk} (opens your favourite)` : `In game: press ${hk}, then 1-4`),
-          h('button', { class: 'primary sm', onclick: () => call('lab:show', viewer.current?.diff || s.labLast) }, 'Show in game overlay'))),
-      h('p', { class: 'muted' }, "Today's Labyrinth layout for each difficulty, from poelab.com. Each picture is fetched once a day and kept, so it opens instantly after that."),
+      window.pageHead('Daily lab', "Today's Labyrinth layout for each difficulty, from poelab.com. Each picture is fetched once a day and kept, so it opens instantly after that.",
+        h('span', { class: 'small muted' }, !s.hotkeyLab ? 'Set a hotkey in Settings to show it in game' : s.labFavorite ? `In game: press ${hk} (opens your favourite)` : `In game: press ${hk}, then 1-4`),
+        h('button', { class: 'primary sm', onclick: () => call('lab:show', viewer.current?.diff || s.labLast) }, 'Show in game overlay')),
       viewerRoot);
     const viewer = createViewer(viewerRoot);
     viewer.setFav(s.labFavorite);

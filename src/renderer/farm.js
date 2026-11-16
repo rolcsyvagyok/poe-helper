@@ -45,7 +45,7 @@
     if (!farm || force) {
       if (loading) return;
       loading = true;
-      mount(page, h('h1', {}, 'What to farm'), h('p', { class: 'muted' }, h('span', { class: 'spin' }), ' Reading poe.ninja prices…'));
+      mount(page, window.pageHead('What to farm', null), h('div', { class: 'skeleton panel', role: 'status', 'aria-label': 'Reading poe.ninja prices' }, h('i'), h('i'), h('i')));
       try { farm = await call('farm:dashboard'); } catch (e) { loading = false; return mount(page, h('h1', {}, 'What to farm'), h('p', { class: 'bad' }, `Couldn't load prices: ${e.message}`)); }
       loading = false;
     }
@@ -79,10 +79,8 @@
       g.down.length ? [h('div', { class: 'small muted farm-sub' }, 'Falling'), h('ul', { class: 'farm-list' }, g.down.map(itemLine))] : null);
 
     mount(page,
-      h('div', { class: 'row', style: { justifyContent: 'space-between', alignItems: 'baseline' } },
-        h('h1', {}, 'What to farm'),
-        h('button', { class: 'sm', onclick: () => renderFarm(true) }, 'Refresh')),
-      h('p', { class: 'muted' }, `poe.ninja prices for ${farm.league} over the last 7 days, updated ${ago(farm.ageMs)}. Mechanics are sorted by how much their loot gained in value. Click any item for its price history.`),
+      window.pageHead('What to farm', `poe.ninja prices for ${farm.league} over the last 7 days. Mechanics are sorted by how much their loot gained in value. Click any item for its price history.`,
+        h('span', { class: 'small faint' }, `Updated ${ago(farm.ageMs)}`), h('button', { class: 'sm', onclick: () => renderFarm(true) }, window.UI.icon('refresh', { size: 15 }), 'Refresh')),
       h('h2', {}, 'By league mechanic'),
       h('div', { class: 'farm-grid' }, farm.groups.map(card)),
       h('h2', {}, 'Big price changes'),
