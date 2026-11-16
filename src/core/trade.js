@@ -344,7 +344,8 @@ function buildQuery(item, mods, opts = {}) {
   for (const m of mods) {
     if (!m.enabled || !m.id) continue;
     // a stat with options ("Added Small Passive Skills grant: …" is "enchant.stat_3948993189" option 13)
-    const opt = /^(.+)\|(\d+)$/.exec(m.id);
+    // (an imbued support is one stat of its own: "imbued.pseudo_built_in_support|3076322868" is searched whole)
+    const opt = /pseudo_built_in_support/.test(m.id) ? null : /^(.+)\|(\d+)$/.exec(m.id);
     if (opt) { q.query.stats[0].filters.push({ id: opt[1], disabled: false, value: { option: Number(opt[2]) } }); continue; }
     // any one of a few stats at this value (a jewel's single resistance: fire, cold or lightning)
     if (Array.isArray(m.anyOf) && m.anyOf.length) {

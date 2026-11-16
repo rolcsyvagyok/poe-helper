@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.123 - 2026-11-16
+
+* [Trade searches] Imbued gems are now searched with their support; the trade site showed it as "Unavailable Stat" before.
+- Price check: an imbued gem's support was sent to the trade site in a form it didn't know ("Unavailable Stat"). It is now sent as the site's own "Imbued" stat.
+
 ## 1.0.122 - 2026-11-16
 
 * [Trade searches] Imbued gems: the built-in support is now found on the trade site, so it can be ticked.
