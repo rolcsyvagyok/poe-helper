@@ -630,8 +630,11 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   if (kind === 'gem') {
     // an imbued gem sells for its built-in support ("Supported by Level 1 Spell Echo"): searched, ticked
     const all = (statsJson?.result || []).flatMap((g) => g.entries || []).filter((e) => /^imbued\./.test(e.id || ''));
+    // compared loosely (the copy can carry odd spaces or link marks): "supported by level 1 spell echo"
+    const loose = (x) => String(x || '').toLowerCase().replace(/<[^>]*>|[{}]/g, '').replace(/[^a-z0-9']+/g, ' ').trim();
+    const supOf = (x) => loose(x).replace(/^supported by level \d+ /, '').replace(/ support$/, '');
     const mods = (item.mods?.imbued || []).map((t) => {
-      const e = all.find((x) => String(x.text).toLowerCase() === t.toLowerCase());
+      const e = all.find((x) => loose(x.text) === loose(t)) || all.find((x) => supOf(x.text) === supOf(t));
       return e ? { id: e.id, text: t, statText: e.text, display: null, value: null, negate: false, type: 'imbued', group: 'imbued', enabled: true, special: true, min: null, max: null, meta: null }
         : { id: null, text: t, type: 'imbued', group: 'imbued', enabled: false, unmatched: true, meta: null };
     });

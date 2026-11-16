@@ -322,6 +322,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       if (fresh !== stats) { stats = fresh; ({ mods, props, presets } = require('../core/trade').prepareSearch(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 })); }
     }
     const kind = classify(item);
+    // an imbued support the trade site's list didn't match: its exact characters, to see why (no private data)
+    for (const m of mods) if (m.group === 'imbued' && m.unmatched) log('imbued not matched', JSON.stringify(m.text), [...String(m.text)].map((c) => c.charCodeAt(0)).filter((c) => c > 126 || c < 32).join(',') || 'plain');
     // only an identified unique is searched at once; everything else waits for Search (saves GGG requests)
     const autoSearch = settings.get('tradeAutoSearch') !== false && kind === 'unique' && !item.flags?.unidentified;
     return { mods, props, presets, kind, autoSearch, status: settings.get('tradeStatus') || 'securable' };

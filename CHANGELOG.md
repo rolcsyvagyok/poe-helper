@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.122 - 2026-11-16
+
+* [Trade searches] Imbued gems: the built-in support is now found on the trade site, so it can be ticked.
+- Price check: an imbued gem's support could show greyed out ("can't be searched") when the game's copy had odd spaces or link marks in it. It is now matched loosely, by the support's name.
+
 ## 1.0.121 - 2026-11-16
 
 * [My collection] Uniques you don't have yet are no longer hidden by your filter's cheap unique tiers.

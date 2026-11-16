@@ -255,7 +255,10 @@ function parseItem(rawText) {
     item.gemText = modSections.flat();
     modSections.length = 0;
     // an imbued gem's built-in support: the trade site lists it as an "Imbued" stat
-    for (const l of item.gemText) if (/^Supported by Level \d+ .+$/.test(l)) { item.mods.imbued.push(l); item.modMeta.imbued.push(null); }
+    for (const l of item.gemText) {
+      const t = String(l).replace(/[\u00a0\s]+/g, ' ').trim();
+      if (/^Supported by Level \d+ .+$/i.test(t)) { item.mods.imbued.push(t); item.modMeta.imbued.push(null); }
+    }
   }
 
   let headerN = 0; // one per mod (a hybrid mod has two lines under one header)

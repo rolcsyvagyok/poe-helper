@@ -485,3 +485,12 @@ test('an imbued gem is searched and priced by its built-in support', () => {
   const lines = [{ name: 'Temporal Chains', variant: 'Blasphemy', chaosValue: 177 }, { name: 'Temporal Chains', variant: 'Spell Echo', chaosValue: 50 }];
   assert.equal(P.pickGem(lines, p).best.chaosValue, 50);
 });
+
+test('an imbued support with odd spaces or link marks still matches', () => {
+  const S = { result: [{ label: 'Imbued', entries: [{ id: 'imbued.pseudo_built_in_support|3076322868', text: 'Supported by Level 1 Spell Echo', type: 'imbued' }] }] };
+  const base = require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'imbued-gem.txt'), 'utf8');
+  for (const v of ['Supported by Level 1 Spell Echo', 'Supported by Level 1 Spell Echo Support', 'Supported by Level 1 <<link>>{Spell Echo}']) {
+    const { mods } = T.prepareSearch(S, parseItem(base.replace('Supported by Level 1 Spell Echo', v)));
+    assert.equal(mods[0].id, 'imbued.pseudo_built_in_support|3076322868', v);
+  }
+});
