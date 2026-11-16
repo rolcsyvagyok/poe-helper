@@ -730,9 +730,10 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
     // fated rares (3.30) keep their rank whether identified or not: an unidentified fated rare of a lower rank
     // is hidden too (the unid item tiers are for ordinary drops)
     if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-fated-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: fated rares below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, { keyword: 'Fated', values: ['True'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
-    // unidentified rares without an item tier ("Unidentified", no "(Tier N)"): no tier rule takes them, so the
-    // Untiered choice hides their lower ranks too
-    if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-untiered-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: unidentified rares without an item tier below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, { keyword: 'Identified', values: ['False'] }, { keyword: 'UnidentifiedItemTier', op: '<', values: ['1'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
+    // unidentified rares no item tier rule takes (no tier: "Unidentified", not "Unidentified (Tier 3)"): the Untiered
+    // choice hides their lower ranks too. The game has no condition for "no tier" ("UnidentifiedItemTier < 1" matched
+    // nothing), so this block goes right after FilterBlade's item tier blocks, where only those are left
+    if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-untiered-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: unidentified rares without an item tier below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, { keyword: 'Identified', values: ['False'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true }, afterItemTiers: true });
     if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}${unidTiers ? ' (identified)' : ''}`, conditions: [...conds, ...idOnly, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
   }
   return out;
@@ -886,6 +887,20 @@ function nameChecker(baseText, verified = []) {
 }
 
 /** Copy of a rule with every BaseType value checked; null when nothing valid is left to match. */
+/** Put blocks right after the filter's last item tier block ("UnidentifiedItemTier >= N"); without one, they're left out. */
+function insertAfterItemTiers(text, rules) {
+  if (!rules.length) return text;
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  let last = -1;
+  for (let i = 0; i < lines.length; i++) if (/^\s*UnidentifiedItemTier\b/.test(lines[i])) last = i;
+  if (last < 0) return text;
+  let end = last + 1;
+  while (end < lines.length && !/^\s*(Show|Hide|Minimal)\b/.test(lines[end])) end++;
+  const block = rules.map((r) => renderBlock(r, eol)).join(eol + eol);
+  return [...lines.slice(0, end), block, '', ...lines.slice(end)].join(eol);
+}
+
 function cleanRule(rule, fix) {
   let empty = false;
   const conditions = (rule.conditions || []).map((c) => {
@@ -1081,10 +1096,11 @@ class FilterManager {
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
     // base ranks come before base visibility: they're the finer choice (per kind of drop)
     const campaign = [...campaignHideRules(this.store.get('campaignHide') || {}), ...mapHideRules(this.store.get('mapHide') || {}), ...collectedRules(this.store.get('collectedHideBases') || [])];
-    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked, ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
+    const afterTiers = ranked.filter((r) => r.afterItemTiers).map((r) => cleanRule(r, fix)).filter(Boolean);
+    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked.filter((r) => !r.afterItemTiers), ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
-    let out = finalCheck(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), fix, this.log);
+    let out = finalCheck(insertAfterItemTiers(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), afterTiers), fix, this.log);
     // Tier designer → Text size: bigger or smaller for everything, or one category, on top of the theme
     const sizes = this.store.get('sizeAdjust');
     if (sizes && Object.values(sizes).some((v) => Number(v))) out = adjustSizes(out, sizes);
@@ -1169,4 +1185,4 @@ class FilterManager {
   }
 }
 
-module.exports = { adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

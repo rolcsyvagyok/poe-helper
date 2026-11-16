@@ -456,6 +456,10 @@ test('Untiered also hides unidentified rares that have no item tier', () => {
   const out = M.rankRules({ 'Majestic Pelt': 'S' }, { rares: 'none' }, ['Majestic Pelt'], { unidTiers: true });
   const r = out.find((x) => x.id === 'rank-rares-untiered-hide');
   assert.ok(r && r.action === 'Hide');
-  assert.ok(r.conditions.some((c) => c.keyword === 'UnidentifiedItemTier' && c.op === '<' && c.values[0] === '1'));
+  assert.ok(r.afterItemTiers && !r.conditions.some((c) => c.keyword === 'UnidentifiedItemTier'));
+  // it goes right after the last item tier block, so tiered drops are taken first
+  const text = 'Show # a\n\tUnidentifiedItemTier >= 3\n\tRarity Rare\n\n#Show # off\n#\tUnidentifiedItemTier >= 2\n\nShow # rest\n\tRarity Rare\n';
+  const outText = M.insertAfterItemTiers(text, [r]);
+  assert.ok(outText.indexOf('without an item tier') > outText.indexOf('>= 3') && outText.indexOf('without an item tier') < outText.indexOf('Show # rest'));
   assert.ok(!M.rankRules({ 'Majestic Pelt': 'S' }, { rares: 'none' }, ['Majestic Pelt'], { unidTiers: false }).some((x) => x.id === 'rank-rares-untiered-hide'));
 });

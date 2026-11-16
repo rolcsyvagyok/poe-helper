@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.116 - 2026-11-16
+
+* [Base ranks] Untiered now really hides unidentified rares without an item tier, below the rank you pick.
+- Base ranks: the 1.0.115 rule for unidentified rares without an item tier matched nothing in game. It now sits right after FilterBlade's item tier rules, so it only takes what those leave.
+
 ## 1.0.115 - 2026-11-16
 
 * [Base ranks] Untiered now also hides unidentified rares that have no item tier, below the rank you pick.
