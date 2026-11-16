@@ -463,3 +463,13 @@ test('Untiered also hides unidentified rares that have no item tier', () => {
   assert.ok(outText.indexOf('without an item tier') > outText.indexOf('>= 3') && outText.indexOf('without an item tier') < outText.indexOf('Show # rest'));
   assert.ok(!M.rankRules({ 'Majestic Pelt': 'S' }, { rares: 'none' }, ['Majestic Pelt'], { unidTiers: false }).some((x) => x.id === 'rank-rares-untiered-hide'));
 });
+
+test('a map\'s yellow "Rare-only" mods are always ticked', () => {
+  const p = parseItem(['Item Class: Maps', 'Rarity: Rare', 'Cruel Abyss', 'Map (Tier 16)', '--------', 'Item Level: 83', '--------',
+    '{ Prefix Modifier "Thorny" (Tier: 1) }', 'Rare Monsters have Physical Thorns reflecting 800 Physical Damage',
+    '{ Rare-only (Tier: 1) }', 'Area contains a buried Apex Sentinel'].join('\n'));
+  const S = { result: [{ label: 'Explicit', entries: [{ id: 'explicit.stat_2788592463', text: 'Area contains a buried Apex Sentinel', type: 'explicit' }, { id: 'explicit.stat_x', text: 'Rare Monsters have Physical Thorns reflecting # Physical Damage', type: 'explicit' }] }] };
+  const { mods } = T.prepareSearch(S, p);
+  assert.equal(mods.find((m) => /Apex Sentinel/.test(m.text)).enabled, true);
+  assert.equal(mods.find((m) => /Thorns/.test(m.text)).enabled, false);
+});

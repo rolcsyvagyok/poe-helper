@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.119 - 2026-11-16
+
+* [Trade searches] A map's yellow mods (Area contains an Evocator of Ghorr, a buried Apex Sentinel, a Mirage…) are always ticked in the price check.
+- Price check: every "Rare-only" map mod (the yellow line on the map) starts ticked, since it's what the map sells for. Before, only the Mirage was.
+
 ## 1.0.118 - 2026-11-16
 
 * [Tier designer] 6-socket items always use FilterBlade's white look, whatever design you pick.

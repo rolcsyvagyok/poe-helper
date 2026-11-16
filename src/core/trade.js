@@ -539,7 +539,8 @@ function specialRules(mods, item, props, kind, tol) {
     const extra = Object.entries(ids).filter(([k]) => n(k)).map(([k, id]) => ({ id, text: `${k}: +${n(k)}%`, statText: `${k}: #%`, value: n(k), display: n(k), min: Math.floor(n(k) * (1 - tol)), max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: false }));
     if (props.mapTier) props.mapTier.on = true;
     // a Mirage (rare-only map mod) sells the map, so it is searched too
-    for (const m of mods) m.enabled = /^Area is influenced by|^Map contains .+'s Citadel$|^Area contains (an? )?(Empowered )?Mirage/i.test(m.text || '') && !m.unmatched;
+    // the yellow "Rare-only" mods (Area contains a Mirage / an Evocator / a buried Apex Sentinel…) are always searched
+    for (const m of mods) m.enabled = (/^Area is influenced by|^Map contains .+'s Citadel$|^Area contains (an? )?(Empowered )?Mirage/i.test(m.text || '') || !!m.meta?.rareOnly) && !m.unmatched;
     return [...extra, ...mods];
   }
   // heist contracts: the job and its level, and whether the target is priceless
