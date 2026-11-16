@@ -199,7 +199,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     const cb = h('input', { type: 'checkbox', checked: !!props.rareOnly.on, onchange: (e) => { props.rareOnly.on = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', props.rareOnly.on); } });
     propRows.push(h('div', { class: 'tp-mod' + (props.rareOnly.on ? ' on' : ''), 'data-k': 'rareOnly' }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, 'Rare items only', h('span', { class: 'faint' }, ' (else magic ones too)')))));
   }
-  const corr = h('select', { 'data-k': 'corrupted', 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
+  const corr = h('select', { 'data-k': 'corrupted', 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', props.twiceCorrupted ? 'Twice corrupted only' : 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
   const ident = h('select', { 'data-k': 'unid', 'aria-label': 'Identified', onchange: (e) => { props.identified = e.target.value; } }, [['any', 'Identified or not'], ['yes', 'Identified only'], ['no', 'Unidentified only']].map(([v, l]) => h('option', { value: v, selected: (props.identified || 'any') === v }, l)));
   const infl = Object.keys(props.influences || {}).map((inf) => h('label', { class: 'check small', 'data-k': `infl:${inf}` }, h('input', { type: 'checkbox', checked: props.influences[inf], onchange: (e) => { props.influences[inf] = e.target.checked; } }), `${inf} item`));
 

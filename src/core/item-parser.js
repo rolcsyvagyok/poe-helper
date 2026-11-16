@@ -24,7 +24,8 @@ const FLAG_LINES = {
   'Foulborn Item': 'foulborn',
   'Fated Item': 'fated', // 3.30 (a guess at the copy's line; the filter's "Fated True")
   'Fated': 'fated',
-  'Imbued': 'imbued', // 3.30 imbued gems: "Supported by Level 1 Spell Echo"
+  'Imbued': 'imbued',
+  'Twice Corrupted': 'twiceCorrupted', // 3.30: a second corruption (corrupted too) // 3.30 imbued gems: "Supported by Level 1 Spell Echo"
 };
 
 const INFLUENCES = ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'];
@@ -175,6 +176,7 @@ function parseItem(rawText) {
     for (const line of sec) {
       if (FLAG_LINES[line]) {
         item.flags[FLAG_LINES[line]] = true;
+        if (FLAG_LINES[line] === 'twiceCorrupted') item.flags.corrupted = true;
         continue;
       }
       // 3.30's Ctrl+Alt+C: "Unidentified (Tier 5)"
@@ -284,7 +286,7 @@ function parseItem(rawText) {
         // (a Vaal orb's "Corruption Implicit" counts too: it's what a corrupted item sells for)
         const special = /\b(Corruption|Mercenary|Imbued|Veiled|Delve|Breach|Incursion|Bestiary|Essence|Synthes\w*|Crucible|Scourge|Foulborn)\b/i.test(line)
           || (nm && SPECIAL_NAMES.has(nm[1]));
-        header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line), special, ...(/\bRare-only\b/i.test(line) ? { rareOnly: true } : {}) };
+        header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line), special, ...(/\bRare-only\b/i.test(line) ? { rareOnly: true } : {}), ...(/^\{\s*Corruption Implicit\b/i.test(line) ? { corruption: true } : {}) };
         headerKind = /\bMercenary\b/i.test(line) ? 'mercenary' : /\bImbued\b/i.test(line) ? 'imbued' : /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'
           : /\bMaster Crafted\b|\bCrafted\b/i.test(line) ? 'crafted' : /\bScourge\b/i.test(line) ? 'scourge'
           : /^\{\s*Fractured\b/i.test(line) ? 'fractured' : null; // "{ Fractured Suffix Modifier … }": the lines have no "(fractured)"

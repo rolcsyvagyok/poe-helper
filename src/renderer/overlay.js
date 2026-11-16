@@ -208,7 +208,7 @@ function render(p) {
   const F = item.flags || {};
   for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['foulborn', 'Foulborn'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) fact(word);
   if (F.unidentified) fact(item.unidTier != null ? `unidentified, item tier ${item.unidTier}` : 'unidentified', 'unid');
-  if (F.corrupted) fact('corrupted', 'corrupted');
+  if (F.corrupted) fact('corrupted', F.twiceCorrupted ? 'twice corrupted' : 'corrupted');
 
   const body = h('div', { class: 'ov-body' });
   // the facts sit in the header next to the rank badge (rare, item level 85, Hunter…)

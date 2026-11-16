@@ -276,6 +276,9 @@ class GggClient {
    * gives it for a search id; if it doesn't, the trade page itself holds it.
    */
   async tradeQuery(league, queryId) {
+    // a long link already holds the search: no request
+    const inLink = require('./trade-watch').queryFromId(queryId);
+    if (inLink) return inLink;
     const path = `${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
     let first;
     try {

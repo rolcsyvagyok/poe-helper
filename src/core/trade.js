@@ -286,6 +286,7 @@ function defaultProps(item) {
     gemLevel: { on: kind === 'gem' && !!item.gemLevel, min: item.gemLevel || null, show: kind === 'gem' },
     mapTier: { on: !!item.mapTier, min: item.mapTier || null, show: item.mapTier != null },
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
+    twiceCorrupted: !!item.flags?.twiceCorrupted,
     corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' ? 'no' : 'any',
     // unidentified items are compared with other unidentified ones
     identified: item.flags?.unidentified ? 'no' : 'any',
@@ -377,6 +378,8 @@ function buildQuery(item, mods, opts = {}) {
     if (props.quality?.on && range(props.quality)) misc.quality = range(props.quality);
     if (props.gemLevel?.on && range(props.gemLevel)) misc.gem_level = range(props.gemLevel);
     if (props.corrupted === 'yes') misc.corrupted = { option: 'true' };
+    // twice corrupted (3.30): only other twice corrupted ones compare
+    if (props.corrupted === 'yes' && (props.twiceCorrupted || item.flags?.twiceCorrupted)) misc.twice_corrupted = { option: 'true' };
     if (props.corrupted === 'no') misc.corrupted = { option: 'false' };
     if (props.identified === 'yes') misc.identified = { option: 'true' };
     if (props.identified === 'no') misc.identified = { option: 'false' };
@@ -404,6 +407,7 @@ function buildQuery(item, mods, opts = {}) {
       if (item.quality) misc.quality = { min: item.quality };
     }
     if (item.flags.corrupted) misc.corrupted = { option: 'true' };
+    if (item.flags.twiceCorrupted) misc.twice_corrupted = { option: 'true' };
     else if (kind === 'unique' || kind === 'gem') misc.corrupted = { option: 'false' };
     if (item.flags.unidentified) misc.identified = { option: 'false' };
     if (item.flags.fractured) misc.fractured_item = { option: 'true' };
@@ -757,7 +761,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   props.maxAffix = item.rarity === 'Magic' ? 1 : /jewel/i.test(`${cls} ${item.baseType || ''}`) ? 2 : 3;
   // every item is searched from its own item level up (86 and over is the same for every mod), maps excepted:
   // their tier is what counts
-  if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !/heist contract|viscera/i.test(cls)) {
+  // (identified uniques too are left out: their mods don't depend on it, and it only hides cheaper listings)
+  if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !(kind === 'unique' && !item.flags?.unidentified) && !/heist contract|viscera/i.test(cls)) {
     props.ilvl = { ...(props.ilvl || {}), on: true, min: Math.min(item.itemLevel, 86), max: null, show: true };
   }
   // Ritual bases (Stormrider Boots, Nexus Gloves, Blizzard Crown…): the base and its implicit are what sells; nothing else is ticked

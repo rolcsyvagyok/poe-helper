@@ -434,7 +434,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const url = e.url ?? (old ? TW.tradeLink(old) : '');
     const p = TW.parseTradeUrl(url);
     if (!p) throw new Error('Paste a pathofexile.com/trade link, e.g. https://www.pathofexile.com/trade/search/League/AbC123');
-    const name = String(e.name ?? old?.name ?? '').trim().slice(0, 80) || (p.live ? 'Live search' : 'Trade search');
+    const inLink = TW.queryFromId(p.id)?.query; // a long link names its item: "Nebulis Void Sceptre"
+    const name = String(e.name ?? old?.name ?? '').trim().slice(0, 80) || [inLink?.name, inLink?.type].filter((x) => typeof x === 'string').join(' ').slice(0, 80) || (p.live ? 'Live search' : 'Trade search');
     const same = old && old.league === p.league && old.id === p.id;
     const next = {
       ...(same ? old : {}),

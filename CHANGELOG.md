@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.124 - 2026-11-16
+
+* [Trade searches] Twice corrupted items are price checked as twice corrupted, by their corruption implicits.
+* [Trade searches] The trade site's new long search links can be saved.
+- Price check: "Twice Corrupted" items were read as not corrupted, so the search looked for uncorrupted ones and the flavour text showed as mods. They are now searched as twice corrupted (the trade site's own filter), with their corruption implicits ticked.
+- Price check: an identified unique is no longer searched from its item level up; it only hid cheaper listings.
+- Trade searches: the trade site's newer long links (…/trade/search/Covens/H4sI…) can be saved. The search is read from the link itself, without asking GGG, and the item's name is used when you don't give one.
+
 ## 1.0.123 - 2026-11-16
 
 * [Trade searches] Imbued gems are now searched with their support; the trade site showed it as "Unavailable Stat" before.

@@ -9,10 +9,11 @@ const MIN_EVERY = 5; // minutes between two checks of one search, at least
 const MAX_WATCHED = 10; // searches watched at once
 const REQUESTS_PER_CHECK = 2; // the search, and one fetch of the 10 cheapest when they changed (so at most 2)
 
-/** "https://www.pathofexile.com/trade/search/Mercenaries/AbC123/live" -> { league, id, live, kind } */
+/** "https://www.pathofexile.com/trade/search/Mercenaries/AbC123/live" -> { league, id, live, kind }. The id can also be
+ *  the newer long kind ("H4sI…"): the search itself, gzipped, which the app reads without asking GGG */
 function parseTradeUrl(text) {
   const s = String(text || '').trim();
-  const m = /^(?:https?:\/\/)?(?:www\.)?pathofexile\.com\/trade\/(search|exchange)\/(?:poe1\/)?([^/?#\s]+)\/([A-Za-z0-9]+)(\/live)?\/?(?:[?#].*)?$/i.exec(s);
+  const m = /^(?:https?:\/\/)?(?:www\.)?pathofexile\.com\/trade\/(search|exchange)\/(?:poe1\/)?([^/?#\s]+)\/([A-Za-z0-9_=-]+)(\/live)?\/?(?:[?#].*)?$/i.exec(s);
   if (!m) return null;
   let league;
   try { league = decodeURIComponent(m[2]); } catch { return null; }
@@ -81,4 +82,14 @@ function requestsPerDay(list) {
     .reduce((n, s) => n + Math.ceil((24 * 60) / Math.max(MIN_EVERY, Number(s.everyMin) || 30)) * REQUESTS_PER_CHECK, 0);
 }
 
-module.exports = { parseTradeUrl, tradeLink, chaosOf, maxChaos, listingsOf, priceHits, cheapestFirst, dueSearches, requestsPerDay, MIN_EVERY, MAX_WATCHED, REQUESTS_PER_CHECK };
+/** The search inside a long trade link id ("H4sI…": gzip, base64url); null for a short id */
+function queryFromId(id) {
+  if (!/^H4sI/.test(String(id || ''))) return null;
+  try {
+    const j = JSON.parse(require('zlib').gunzipSync(Buffer.from(String(id), 'base64url')).toString('utf8'));
+    const query = j?.query || j;
+    return query && typeof query === 'object' ? { query, sort: j?.sort || { price: 'asc' } } : null;
+  } catch { return null; }
+}
+
+module.exports = { queryFromId, parseTradeUrl, tradeLink, chaosOf, maxChaos, listingsOf, priceHits, cheapestFirst, dueSearches, requestsPerDay, MIN_EVERY, MAX_WATCHED, REQUESTS_PER_CHECK };

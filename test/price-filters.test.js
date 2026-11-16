@@ -494,3 +494,27 @@ test('an imbued support with odd spaces or link marks still matches', () => {
     assert.equal(mods[0].id, 'imbued.pseudo_built_in_support|3076322868', v);
   }
 });
+
+test('a twice corrupted unique is searched as twice corrupted, by its corruption implicits', () => {
+  const p = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'twice-corrupted.txt'), 'utf8'));
+  assert.equal(p.flags.corrupted, true);
+  assert.equal(p.flags.twiceCorrupted, true);
+  assert.ok(!p.mods.explicit.some((m) => /Blazing body/.test(m)));
+  const S = { result: [{ label: 'Implicit', entries: [{ id: 'implicit.stat_2843100721', text: '+# to Level of Socketed Gems', type: 'implicit' }] }] };
+  const { mods, props } = T.prepareSearch(S, p);
+  assert.equal(mods.find((m) => /Socketed Gems/.test(m.text)).enabled, true);
+  const q = T.buildQuery(p, mods, { props }).query;
+  assert.deepEqual(q.filters.misc_filters.filters.twice_corrupted, { option: 'true' });
+  assert.equal(q.filters.misc_filters.filters.ilvl, undefined);
+});
+
+test('a long trade link ("H4sI…") can be saved, and its search is read from the link', () => {
+  const TW = require('../src/core/trade-watch');
+  const q = { query: { status: { option: 'securable' }, name: 'Nebulis', type: 'Void Sceptre' }, sort: { price: 'asc' } };
+  const id = require('zlib').gzipSync(Buffer.from(JSON.stringify(q.query))).toString('base64url');
+  const p = TW.parseTradeUrl(`https://www.pathofexile.com/trade/search/Covens/${id}`);
+  assert.equal(p.league, 'Covens');
+  assert.equal(p.id, id);
+  assert.deepEqual(TW.queryFromId(id), q);
+  assert.equal(TW.queryFromId('AbC123'), null);
+});
