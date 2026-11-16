@@ -5,6 +5,16 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.109 - 2026-11-16
+
+* Price check: the base, item level and defences (or a weapon's DPS) are at the top, and ticked when a defence mod is tier 2 or better
+
+- Price check: the base, the item level and Armour / Evasion / Energy Shield at 20% quality (or a weapon's DPS) are the first lines, above the totals and mods.
+- Price check: mods with fixed numbers in their text read the right value: "6% increased Elemental Damage per 1% … above 75%" is searched as 6, not 27.3 (the average of 6, 1 and 75).
+- Synthesised items ("Synthesised Void Sceptre", like Nebulis) are read as their base (Void Sceptre) plus synthesised, so the loot filter and the trade site find them.
+- Price check: the defences start ticked when the item has a tier 1 or 2 defence mod; otherwise unticked (they said little about the price).
+- Price check: Linked sockets only shows on body armours and two-handed weapons, and the "Rare items only" line is gone (rares are searched among rares and magic items of the base, as before 1.0.104).
+
 ## 1.0.108 - 2026-11-16
 
 * [Loot filter] "Update prices" button: see what would move at today's prices, one category at a time, and apply it

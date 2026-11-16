@@ -124,7 +124,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
 
   // ---------- item properties ----------
   const propRows = [];
-  const rangeRow = (key, label, { maxToo = true } = {}) => {
+  const topRows = []; // the item's own DPS or defences: first in the list
+  const rangeRow = (key, label, { maxToo = true, top = false } = {}) => {
     const p = props[key];
     if (!p || p.show === false) return;
     const cb = h('input', { type: 'checkbox', checked: !!p.on, onchange: (e) => { p.on = e.target.checked; } });
@@ -134,13 +135,15 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       return inp;
     };
     const cbOn = cb; cbOn.addEventListener('change', () => cbOn.closest('.tp-mod')?.classList.toggle('on', p.on));
-    propRows.push(h('div', { class: 'tp-mod' + (p.on ? ' on' : ''), 'data-k': key }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, label)), mk('min', 'min'), h('span', { class: 'tp-dash' }, maxToo ? '–' : ''), maxToo ? mk('max', 'max') : h('span', { class: 'tp-num-empty' })));
+    (top ? topRows : propRows).push(h('div', { class: 'tp-mod' + (p.on ? ' on' : ''), 'data-k': key }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, label)), mk('min', 'min'), h('span', { class: 'tp-dash' }, maxToo ? '–' : ''), maxToo ? mk('max', 'max') : h('span', { class: 'tp-num-empty' })));
   };
+  // the base and the item level first, with the item's own DPS or defences: what the item is
   if (props.base?.canChange) {
-    propRows.push(h('div', { class: 'tp-mod' + (props.base.on ? ' on' : ''), 'data-k': 'base' }, h('label', { class: 'tp-mod-main' },
+    topRows.push(h('div', { class: 'tp-mod' + (props.base.on ? ' on' : ''), 'data-k': 'base' }, h('label', { class: 'tp-mod-main' },
       h('input', { type: 'checkbox', checked: props.base.on, onchange: (e) => { props.base.on = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', props.base.on); } }),
       h('span', { class: 'tp-text' }, `Same base: ${props.base.value}`, h('span', { class: 'faint' }, ' (untick for any base of this kind)')))));
   }
+  rangeRow('ilvl', 'Item level', { top: true });
   // weapons: search by its own DPS (physical, elemental or all)
   if (props.dps?.show) {
     const d = props.dps;
@@ -151,7 +154,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       [['phys', `Physical DPS (${d.values.phys}${d.values.physNow != null && d.values.physNow !== d.values.phys ? ' at 20% quality' : ''})`], ['ele', `Elemental DPS (${d.values.ele})`], ['total', `Total DPS (${d.values.total})`]].map(([v, l]) => h('option', { value: v, selected: d.mode === v }, l)));
     const row = h('div', { class: 'tp-mod' + (d.on ? ' on' : ''), title: 'The weapon\'s own DPS. Its damage and attack speed mods are left unticked: this number already counts them.' },
       h('label', { class: 'tp-mod-main' }, cb, which), minIn, h('span', { class: 'tp-dash' }), h('span', { class: 'tp-num-empty' }));
-    propRows.push(row);
+    topRows.push(row);
   }
   // armour / evasion / energy shield at 20% quality (their local mods are counted in, so they aren't listed)
   for (const d of props.defence || []) {
@@ -160,7 +163,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     minIn.addEventListener('input', () => { d.min = num(minIn.value); if (!d.on) { d.on = true; cb.checked = true; row.classList.add('on'); } });
     const row = h('div', { class: 'tp-mod' + (d.on ? ' on' : ''), title: `${d.label} at 20% quality: ${d.value}. Its armour mods are counted in this number.` },
       h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, `${d.label} ${d.value}`, h('span', { class: 'faint' }, ' at 20% quality'))), minIn, h('span', { class: 'tp-dash' }), h('span', { class: 'tp-num-empty' }));
-    propRows.push(row);
+    topRows.push(row);
   }
   // maps: quantity, rarity, pack size
   for (const d of props.mapStats || []) {
@@ -180,7 +183,6 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   if (props.priceless !== undefined && props.heist !== undefined || props.priceless) {
     propRows.push(h('div', { class: 'tp-mod' + (props.priceless ? ' on' : '') }, h('label', { class: 'tp-mod-main' }, h('input', { type: 'checkbox', checked: !!props.priceless, onchange: (e) => { props.priceless = e.target.checked; } }), h('span', { class: 'tp-text' }, 'Priceless target'))));
   }
-  rangeRow('ilvl', 'Item level');
   rangeRow('links', 'Linked sockets');
   rangeRow('quality', 'Quality');
   rangeRow('gemLevel', 'Gem level');
@@ -275,8 +277,9 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     h('div', { class: 'tp' },
       // the results first: they are what you search for, seen without scrolling past the mods
       results,
+      topRows.length ? h('div', { class: 'tp-group tp-top' }, topRows) : null,
       groups,
-      propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'Item'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
+      propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'More'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
       h('div', { class: 'row tp-go' }, go, statusSel, countEl, mods.length ? h('button', { class: 'quiet sm', title: 'Tick or untick every mod', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden || (byGen && AFFIX.includes(m.group)))) m.enabled = on; }); mountAgain(); } }, 'All / none') : null)));
   onFit();
 

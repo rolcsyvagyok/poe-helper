@@ -152,6 +152,14 @@ function parseItem(rawText) {
 
   // quality items show "Superior <base>" when their name line is the base (normal items, unidentified rares)
   if (item.baseType && /^Superior /.test(item.baseType) && item.rarity !== 'Unique') item.baseType = item.typeLine = item.baseType.slice('Superior '.length);
+  // synthesised items show "Synthesised <base>" ("Synthesised Void Sceptre"); the filter and the trade site know the
+  // base ("Void Sceptre") plus "synthesised"
+  if (item.baseType && /^Synthesised /.test(item.baseType)) {
+    const plain = item.baseType.slice('Synthesised '.length);
+    if (item.typeLine === item.baseType) item.typeLine = plain;
+    item.baseType = plain;
+    item.flags.synthesised = true;
+  }
 
   // Magic items have affixes glued to the base; we keep typeLine and let the
   // pricer/trade fall back to fuzzy matching against known bases.

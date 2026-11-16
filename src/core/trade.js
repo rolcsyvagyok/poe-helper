@@ -57,6 +57,18 @@ function indexStats(statsJson) {
   return idx;
 }
 
+/** The numbers of a mod where the trade site's text has a "#": "6% … per 1% … above 75%" is 6, not the average of 6, 1
+ *  and 75. null when the texts don't line up (the usual number-reading takes over). */
+function valuesAt(statText, modText) {
+  const lines = String(statText || '').split('\n');
+  const one = lines.find((l) => l.includes('#')) || '';
+  if ((one.match(/#/g) || []).length === 0) return null;
+  const esc = one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/#/g, '([+-]?\\d+(?:\\.\\d+)?)');
+  const m = new RegExp(`^\\+?${esc}$`, 'i').exec(String(modText || '').split('\n')[0].trim());
+  if (!m) return null;
+  return m.slice(1).map(Number);
+}
+
 function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   const table = idx[type] || {};
   let key = normTemplate(modTemplate(modText));
@@ -87,7 +99,7 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   const wantLocal = LOCAL_CLASSES.test(itemClass || '');
   // random-support uniques (Forbidden Shako...) are searched by the trade site's "support" stats
   const entry = (unique && hits.find((h) => /indexable_support/.test(h.id))) || hits.find((h) => h.local === wantLocal && !/indexable_support/.test(h.id)) || hits.find((h) => !/indexable_support/.test(h.id)) || hits[0];
-  const vals = one ? [1] : modValues(modText);
+  const vals = one ? [1] : valuesAt(entry.text, modText) || modValues(modText);
   // "Adds 10 to 20 Fire Damage" is searched by its average on trade
   const display = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
   const value = display != null && negate ? -display : display;
@@ -256,7 +268,8 @@ function defaultProps(item) {
     base: { on: true, value: item.baseType || item.typeLine, canChange: plain && !!cat },
     category: cat,
     ilvl: { on: plain && !!item.itemLevel && item.itemLevel >= 75, min: item.itemLevel ? Math.min(item.itemLevel, 86) : null, max: null, show: plain && !!item.itemLevel },
-    links: { on: (item.sockets?.links || 0) >= 5, min: item.sockets?.links || null, show: (item.sockets?.sockets || 0) > 0 },
+    // links only matter on body armours and two-handed weapons (the only items with 5 or 6 sockets)
+    links: { on: (item.sockets?.links || 0) >= 5, min: item.sockets?.links || null, show: (item.sockets?.sockets || 0) > 0 && /^(body armours|two hand|bows$|staves$|warstaves$)/i.test(String(item.itemClass || '')) },
     quality: { on: kind === 'gem' && !!item.quality, min: item.quality || null, show: item.quality != null || kind === 'gem' },
     gemLevel: { on: kind === 'gem' && !!item.gemLevel, min: item.gemLevel || null, show: kind === 'gem' },
     mapTier: { on: !!item.mapTier, min: item.mapTier || null, show: item.mapTier != null },
@@ -606,7 +619,13 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   // the item's own numbers: defences and weapon DPS at 20% quality (their local mods fold into them)
   if (plain) {
     const def = PF.defenceProps(item, rows);
-    if (def.length) props.defence = def;
+    if (def.length) {
+      // the defences are ticked (like a weapon's DPS) when a defence mod on the item is tier 2 or better;
+      // otherwise the armour number says little about the price
+      const goodDef = rows.some((r) => r.folded && ['explicit', 'crafted', 'fractured'].includes(r.group) && r.meta?.tier != null && r.meta.tier <= 2 && /armour|evasion|energy shield/i.test(r.text || ''));
+      for (const d of def) d.on = goodDef;
+      props.defence = def;
+    }
     const w = PF.weaponProps(item, rows, weaponDps(item));
     if (w && props.dps?.show) {
       props.dps.values = w;
@@ -707,7 +726,6 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   }
   // how many prefixes / suffixes the item can have (the panel's "1 of 2"), and "only rares" for the rarity chip
   props.maxAffix = item.rarity === 'Magic' ? 1 : /jewel/i.test(`${cls} ${item.baseType || ''}`) ? 2 : 3;
-  if (kind === 'rare') props.rareOnly = { on: false, show: true };
   // every item is searched from its own item level up (86 and over is the same for every mod), maps excepted:
   // their tier is what counts
   if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !/heist contract|viscera/i.test(cls)) {

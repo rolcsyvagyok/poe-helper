@@ -78,7 +78,7 @@ Item Level: 85
 --------
 { Prefix Modifier "Girded" (Tier: 5) — Defences }
 +120(101-200) to Armour
-{ Prefix Modifier "Reinforced" (Tier: 3) — Defences }
+{ Prefix Modifier "Reinforced" (Tier: 2) — Defences }
 56(43-55)% increased Armour`);
   const { mods, props } = T.prepareSearch(STATS, it);
   assert.deepEqual(props.defence, [{ key: 'ar', label: 'Armour', value: Math.round(1062 * 176 / 156), on: true, min: Math.floor(Math.round(1062 * 176 / 156) * 0.9) }]);
@@ -384,4 +384,11 @@ test('Ritual boots: only the base and its implicit are searched', () => {
   const p = T.prepareSearch(stats, it, {});
   assert.deepEqual(p.mods.filter((m) => m.enabled).map((m) => m.group), ['implicit']);
   assert.equal(T.buildQuery(it, p.mods, { props: p.props }).query.type, 'Stormrider Boots');
+});
+
+test('defences stay unticked without a tier 2 or better defence mod; no links on helmets', () => {
+  const it = parseItem('Item Class: Helmets\nRarity: Rare\nFate Corona\nHaunted Bascinet\n--------\nArmour: 300 (augmented)\nEvasion Rating: 280 (augmented)\n--------\nSockets: B-R \n--------\nItem Level: 85\n--------\n{ Prefix Modifier "Girded" (Tier: 4) — Defences }\n65(56-67)% increased Armour and Evasion\n');
+  const { props } = T.prepareSearch(STATS, it);
+  assert.ok(props.defence.every((d) => !d.on));
+  assert.equal(props.links.show, false);
 });
