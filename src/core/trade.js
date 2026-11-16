@@ -410,6 +410,9 @@ function veiledStat(idx, side) {
   return { id, text: `Veiled ${/^p/i.test(side) ? 'Prefix' : 'Suffix'}`, display: null, value: null, negate: false, type: 'veiled', min: null, max: null };
 }
 
+/** Ritual boots: their implicit makes the base; the price check searches the base and the implicit only */
+const RITUAL_BASES = new Set(['Stormrider Boots', 'Brimstone Treads', 'Dreamquest Slippers', 'Duskwalk Slippers', 'Nightwind Slippers', 'Cloudwhisper Boots', 'Windbreak Boots', 'Darksteel Treads', 'Basemetal Treads']);
+
 /** Every mod of the item as a search row, with its tier/range info (Ctrl+Alt+C) and template; nothing ticked. */
 function itemRows(idx, item, tol) {
   const PF = require('./price-filters');
@@ -705,6 +708,24 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !/heist contract|viscera/i.test(cls)) {
     props.ilvl = { ...(props.ilvl || {}), on: true, min: Math.min(item.itemLevel, 86), max: null, show: true };
   }
+  // Ritual boots (Stormrider Boots, Brimstone Treads…): the base and its implicit are what sells; nothing else is ticked
+  if (RITUAL_BASES.has(item.baseType) && ['Rare', 'Magic', 'Normal'].includes(item.rarity) && !item.flags?.unidentified) {
+    for (const m of mods) {
+      const imp = m.group === 'implicit' && m.id && !m.unmatched;
+      m.enabled = imp;
+      // the implicit is the same on every one of these boots (the roll barely moves): no number to match
+      if (imp) { m.hidden = false; m.min = null; m.max = null; }
+    }
+    if (props.base) props.base.on = true;
+    for (const k of ['quality', 'links', 'dps']) if (props[k] && typeof props[k] === 'object') props[k].on = false;
+    for (const d of props.defence || []) d.on = false;
+  }
+  // Necropolis corpses: searched by name only (their monster mods don't matter for the price)
+  if (/^corpses$/i.test(cls)) {
+    mods.length = 0;
+    if (props.ilvl) { props.ilvl.on = false; props.ilvl.show = false; }
+    props.maxAffix = 0;
+  }
   return { mods, props, presets };
 }
 
@@ -724,7 +745,7 @@ function summarizeListings(fetchJson, divineChaos, { me = '' } = {}) {
     else if (p.currency === 'divine' && divineChaos) chaos = p.amount * divineChaos;
     const acc = r.listing.account || {};
     const status = r.listing.fee != null ? 'merchant' : acc.online ? (acc.online.status === 'afk' ? 'afk' : 'online') : 'offline';
-    const x = { amount: p.amount, currency: p.currency, chaos, seller: acc.name, ign: acc.lastCharacterName || null, indexed: r.listing.indexed, status, mine: !!me && acc.name === me, times: 1 };
+    const x = { amount: p.amount, currency: p.currency, chaos, seller: acc.name, ign: acc.lastCharacterName || null, indexed: r.listing.indexed, status, mine: !!me && acc.name === me, times: 1, whisper: typeof r.listing.whisper === 'string' ? r.listing.whisper.slice(0, 400) : null };
     flat.push(x);
     const same = rows.findIndex((y, i) => y.seller === x.seller && ((y.amount === x.amount && y.currency === x.currency) || rows.length - i <= 2));
     if (rows.length && same >= 0 && status !== 'merchant') rows[same].times += 1;

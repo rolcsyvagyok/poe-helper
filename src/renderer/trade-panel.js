@@ -55,7 +55,15 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   let status = prep.status || 'securable';
   const results = h('div', { class: 'tp-results' });
 
+
   // ---------- mods ----------
+  // the mod's tier (T1 is the best) as a small badge: blue for the top tiers, orange for low ones, the number says it too
+  function tierBadge(m) {
+    const t = m.meta?.tier;
+    if (t == null || !['explicit', 'crafted', 'fractured', 'implicit'].includes(m.group)) return null;
+    const cls = t <= 2 ? 'top' : t <= 4 ? 'mid' : 'low';
+    return h('span', { class: `tp-tier ${cls}`, title: `Tier ${t} of this mod (T1 is the best)` }, `T${t}`);
+  }
   function modRow(m) {
     const cb = h('input', { type: 'checkbox', checked: !!m.enabled && !m.unmatched, disabled: !!m.unmatched, 'aria-label': `Search for ${m.text}`, onchange: (e) => { m.enabled = e.target.checked; row.classList.toggle('on', m.enabled); updateCount(); } });
     const field = (key, placeholder) => {
@@ -69,7 +77,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       return inp;
     };
     const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : m.statText || '' },
-      h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, m.text)),
+      h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text)),
       field('min', 'min'),
       h('span', { class: 'tp-dash' }, m.unmatched || m.display == null ? '' : '–'),
       field('max', 'max'));
@@ -97,7 +105,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
         // a mod already counted in a total is listed for the overview, without its own tick box
         return h('div', { class: 'tp-group' },
           h('div', { class: 'tp-ghead' }, title, h('span', { class: 'faint' }, ` (${n} of ${cap}${n < cap ? `, ${cap - n} open` : ''})`)),
-          rows.length ? rows.map((m) => { const r = modRow(m); const t = tagOf(m); if (t) r.querySelector('.tp-text')?.append(h('span', { class: 'faint' }, ` (${t})`)); return r; })
+          rows.length ? rows.map((m) => { const r = modRow(m); const t = tagOf(m); if (t) { const tx = r.querySelector('.tp-text'); tx?.append(h('span', { class: 'faint' }, ` (${t})`)); } return r; })
             : h('div', { class: 'small faint', style: { padding: '2px 4px' } }, 'None'));
       });
     }
@@ -241,7 +249,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
           h('span', { class: 'faint tp-ago' }, ago(x.indexed)),
           h('span', { class: 'spacer' }),
           x.mine ? h('span', { class: 'tp-you' }, 'You') : h('span', { class: 'faint tp-seller' }, x.seller || ''),
-          h('span', { class: `tp-st ${x.status}`, title: { online: 'Online', afk: 'AFK', offline: 'Offline', merchant: 'Merchant tab (instant buyout)' }[x.status] || '' }, { online: '● online', afk: '◑ AFK', offline: '○ offline', merchant: '◆ instant' }[x.status] || '')))) : null,
+          h('span', { class: `tp-st ${x.status}`, title: { online: 'Online', afk: 'AFK', offline: 'Offline', merchant: 'Merchant tab (instant buyout)' }[x.status] || '' }, { online: '● online', afk: '◑ AFK', offline: '○ offline', merchant: '◆ instant' }[x.status] || ''),
+          x.whisper && !x.mine && x.status !== 'merchant' ? h('button', { class: 'quiet sm tp-whisper', title: 'Copy the whisper to the seller; paste it in game chat', onclick: async (e) => { await window.poe.call('clipboard:write', x.whisper).catch(() => {}); e.currentTarget.textContent = 'Copied'; } }, 'Whisper') : null))) : null,
         !r.total ? h('div', { class: 'small muted', style: { marginTop: '4px' } }, 'Nothing listed. Untick a mod or lower a min value and search again.') : null);
     } catch (e) {
       const why = String(e?.message || '').replace(/^Error invoking remote method '[^']+': (Error: )?/, '');

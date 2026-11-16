@@ -1590,3 +1590,103 @@ html[data-ui-theme="midnight"] .farm-card:hover, html[data-ui-theme="midnight"] 
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton i { animation: none; } }
 .nw-big .delta-pill .money b { font-size: 14px; }
+/* item pictures */
+.item-pic { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 6px; background: #ffffff08; overflow: hidden; vertical-align: middle; }
+.item-pic img { width: 100%; height: 100%; object-fit: contain; }
+.item-pic:not(.has) img { visibility: hidden; }
+.fb-chip .item-pic { margin-right: 6px; background: transparent; }
+.fb-chip .item-pic:not(.has) { width: 0 !important; margin: 0; }
+.bm-cell .item-pic { margin-right: 6px; background: transparent; }
+.bm-cell .item-pic:not(.has) { width: 0 !important; margin: 0; }
+.ov-pic { align-self: center; margin-right: 10px; background: #00000040; border: 1px solid #ffffff12; padding: 3px; box-sizing: content-box; }
+.ov-pic:not(.has) { display: none; }
+
+/* ================= price check window ================= */
+.ov-head-tools { display: flex; flex-direction: column; align-items: center; gap: 2px; align-self: flex-start; }
+.ov-hprice { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-left: 10px; white-space: nowrap; }
+.ov-hprice .big .money b { font-size: 26px; letter-spacing: -0.01em; }
+.ov-hprice .big .money small { font-size: 13px; }
+.ov-conf { font-size: 11.5px; color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+.ov-conf.good span { color: #60a5fa; } .ov-conf.warn span { color: #e2b85c; } .ov-conf.bad span { color: #f0a040; }
+/* the item's rarity as a thin line on top */
+.ov { border-top: 2px solid #3a3a42; }
+.ov[data-rarity="unique"] { border-top-color: #af6025; box-shadow: 0 14px 40px #000c, 0 -12px 40px -24px #af602588 inset; }
+.ov[data-rarity="rare"] { border-top-color: #d8c95a; }
+.ov[data-rarity="magic"] { border-top-color: #8888ff; }
+.ov[data-rarity="currency"] { border-top-color: #aa9e82; }
+.ov[data-rarity="gem"] { border-top-color: #1ba29b; }
+.ov[data-rarity="divination card"] { border-top-color: #4fa3d8; }
+/* the loot filter in one line */
+.ov-filter { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; border-radius: 8px; background: #ffffff06; border: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
+.ov-filter b { color: var(--text); font-weight: 600; }
+.ov-filter-ico { color: #60a5fa; display: inline-flex; }
+.ov-filter.hidden .ov-filter-ico { color: #f0a040; }
+.ov-filter-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-filter .ov-goto { color: var(--text); }
+.ov-change { padding: 10px; border-radius: 8px; border: 1px dashed var(--line); }
+/* compact mod rows; the search stays at the bottom while the list scrolls */
+.ov .tp-mod { grid-template-columns: minmax(0, 1fr) 54px 8px 50px; gap: 5px; padding: 3px 6px; border-radius: 6px; font-size: 13px; }
+.ov .tp-mod input[type=number] { width: 54px; padding: 3px 6px; font-size: 12.5px; }
+.ov .tp-mod input[type=number]:placeholder-shown:not(:focus) { width: 50px; opacity: .45; }
+.ov .tp-ghead { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 8px 0 3px; }
+.ov .tp-go { position: sticky; bottom: -14px; z-index: 2; margin: 0 -14px -14px; padding: 10px 14px 12px; background: linear-gradient(#12121500, var(--surface) 22%); border-top: 0; }
+.ov-ground > .ov-head-main { flex: 1 1 auto; min-width: 0; }
+.ov-hprice, .ov-head-tools, .ov-pic { flex: none; }
+.ov .tp-mod input[type=number] { padding: 3px 4px 3px 6px; }
+.ov .tp-mod input[type=number]::placeholder { font-size: 11.5px; }
+.ov .tp-go { background: var(--surface); box-shadow: 0 -10px 14px -6px #000a; }
+/* the header keeps the item name whole: the sound is just its ▶ (the name of the sound is in its tooltip) */
+.ov-head-top .sound-chip { display: none; }
+.ov-head-top .play { width: 22px; height: 22px; font-size: 10px; padding: 0; }
+/* mod tier badges and roll bars */
+.tp-tier { flex: none; display: inline-grid; place-items: center; min-width: 24px; height: 17px; padding: 0 4px; border-radius: 4px; font: 650 10.5px var(--ui); letter-spacing: .02em; }
+.tp-tier.top { background: #3b82f629; color: #8fc0ff; box-shadow: inset 0 0 0 1px #3b82f666; }
+.tp-tier.mid { background: #ffffff0f; color: #b9b9c2; box-shadow: inset 0 0 0 1px #ffffff1c; }
+.tp-tier.low { background: #f08c001f; color: #f0a040; box-shadow: inset 0 0 0 1px #f08c0055; }
+.tp-roll { display: block; margin-top: 4px; height: 3px; width: 100%; max-width: 160px; border-radius: 2px; background: #ffffff10; overflow: hidden; }
+.tp-roll i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #3b82f6, #8fc0ff); }
+/* results: the price strip and the whisper button */
+.tp-spread { display: flex; align-items: flex-end; gap: 2px; height: 26px; margin-top: 6px; padding: 0 2px; }
+.tp-spread i { flex: 1; min-width: 3px; border-radius: 2px 2px 0 0; background: #3b82f655; }
+.tp-spread i:first-child { background: #60a5fa; }
+.tp-whisper { padding: 2px 8px; font-size: 12px; }
+
+/* the app's own tooltip */
+.app-tip { position: fixed; z-index: 10000; display: none; max-width: 360px; padding: 7px 10px; border-radius: 8px; background: #1c1c21; border: 1px solid #30303a; color: #e4e4e8; font: 400 12.5px/1.45 var(--ui); white-space: pre-line; box-shadow: 0 10px 28px #000b; pointer-events: none; }
+/* chart hover */
+.chart-wrap { position: relative; }
+.chart .hover-line { stroke: #ffffff40; stroke-dasharray: 3 3; }
+.chart .hover-dot { fill: #09090b; stroke: #8fc0ff; stroke-width: 2; }
+.chart-tip { position: absolute; display: none; gap: 1px; padding: 6px 10px; border-radius: 8px; background: #1c1c21f2; border: 1px solid #30303a; box-shadow: 0 10px 24px #000a; pointer-events: none; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.chart-tip b { color: var(--text); font-size: 14px; }
+
+/* dark dropdowns everywhere (Midnight) */
+html[data-ui-theme="midnight"] select {
+  -webkit-appearance: none; appearance: none; padding-right: 30px;
+  background-color: #111114;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%239a9aa3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>');
+  background-repeat: no-repeat; background-position: right 10px center; cursor: pointer;
+}
+html[data-ui-theme="midnight"] select:hover { border-color: #3a3a44; }
+html[data-ui-theme="midnight"] select option, html[data-ui-theme="midnight"] select optgroup { background: #17171b; color: #ececef; }
+html[data-ui-theme="midnight"] .nw-sess-sel { background-color: transparent; padding-right: 22px; background-position: right 2px center; }
+
+/* ================= Loot filter page (Midnight) ================= */
+html[data-ui-theme="midnight"] .fb-filebar, html[data-ui-theme="midnight"] .fb-strict, html[data-ui-theme="midnight"] .fb-pricebar { border-radius: 12px; border-color: var(--line-soft); }
+html[data-ui-theme="midnight"] .fb-tabs { border-bottom-color: #1f1f25; }
+html[data-ui-theme="midnight"] .fb-sec-title { font: 650 11px var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: left; padding: 10px 10px 4px; }
+html[data-ui-theme="midnight"] .fb-cats { position: sticky; top: 8px; align-self: start; max-height: calc(100vh - 24px); overflow-y: auto; padding-right: 4px; }
+html[data-ui-theme="midnight"] .fb-sec.card { border-radius: 10px; }
+html[data-ui-theme="midnight"] .fb-tiers { gap: 14px; }
+html[data-ui-theme="midnight"] .fb-tier { border-radius: 12px; border-color: #1f1f25; background: #121215; box-shadow: 0 6px 20px #00000033; }
+html[data-ui-theme="midnight"] .fb-tier:hover { border-color: #2a2a31; }
+html[data-ui-theme="midnight"] .fb-tier-head { border-bottom-color: #1c1c22; padding: 14px 16px; }
+html[data-ui-theme="midnight"] .fb-tier-name { font: 650 14px var(--ui); color: #f4f4f5; }
+html[data-ui-theme="midnight"] .fb-chips { gap: 6px; padding: 12px 16px 14px; }
+html[data-ui-theme="midnight"] .fb-chip { border-radius: 8px; background: #17171b; border-color: #25252c; font-family: var(--ui); }
+html[data-ui-theme="midnight"] .fb-chip:hover { border-color: #3a3a44; background: #1c1c21; }
+html[data-ui-theme="midnight"] .fb-chip.selected { border-color: #60a5fa; background: #1b2738; }
+html[data-ui-theme="midnight"] .fb-vis { border-radius: 8px; border-color: #2a2a31; }
+html[data-ui-theme="midnight"] .fb-typehead h2 { font: 650 18px var(--ui); letter-spacing: -0.01em; }
+html[data-ui-theme="midnight"] .fb-selbar-in { border-radius: 12px; background: #18181c; border-color: #2e2e36; }
+html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }

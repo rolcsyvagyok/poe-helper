@@ -377,3 +377,11 @@ test('a magic jewel: its base, magic only, its mod at its roll', () => {
   assert.equal(q.filters.type_filters.filters.rarity.option, 'magic');
   assert.deepEqual(q.stats[0].filters, [{ id: 'explicit.stat_983749596', disabled: false, value: { min: 7 } }]);
 });
+
+test('Ritual boots: only the base and its implicit are searched', () => {
+  const stats = { result: [{ id: 'implicit', entries: [{ id: 'implicit.stat_170394517', text: '#% less Accuracy Rating', type: 'implicit' }] }, { id: 'explicit', entries: [{ id: 'explicit.stat_3299347043', text: '+# to maximum Life', type: 'explicit' }] }] };
+  const it = parseItem('Item Class: Boots\nRarity: Rare\nGhoul Pace\nStormrider Boots\n--------\nItem Level: 83\n--------\n{ Implicit Modifier — Attack }\n25% less Accuracy Rating\n--------\n{ Prefix Modifier "Fawn\'s" (Tier: 1) — Life }\n+27(24-28) to maximum Life\n');
+  const p = T.prepareSearch(stats, it, {});
+  assert.deepEqual(p.mods.filter((m) => m.enabled).map((m) => m.group), ['implicit']);
+  assert.equal(T.buildQuery(it, p.mods, { props: p.props }).query.type, 'Stormrider Boots');
+});

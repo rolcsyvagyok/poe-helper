@@ -21,25 +21,37 @@ function close() {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') close();
+  // Enter searches (from a min / max box or anywhere outside a button or a list)
+  if (e.key === 'Enter' && !e.repeat && !/^(BUTTON|SELECT|TEXTAREA)$/.test(e.target?.tagName || '')) {
+    const go = root.querySelector('.tp-go button.primary');
+    if (go && !go.disabled) { e.preventDefault(); go.click(); }
+  }
 });
 
 /** Top of the overlay: the item drawn the way your filter draws it on the ground. */
-function header(item, filterHit, br = null, facts = []) { // eslint-disable-line no-param-reassign
+function header(item, filterHit, br = null, facts = [], priceEl = null) { // eslint-disable-line no-param-reassign
   const name = item ? (item.rarity === 'Unique' || item.rarity === 'Rare' ? item.name : item.typeLine) : 'Price check';
   // an unidentified item whose tier the copy doesn't show: drawn with the best look it can get
   const shownAtSomeTier = item?.unidTier == null && filterHit?.byTier?.find((x) => x.action === 'Show');
   if (shownAtSomeTier && filterHit.action === 'Hide') filterHit = { ...filterHit, action: 'Show', style: shownAtSomeTier.style };
   const hidden = filterHit?.action === 'Hide';
   // the header is the drag handle (frameless window); buttons inside it stay clickable
+  // the item's picture: a unique by its name, gear by its base, everything else by its name
+  const pic = !item ? null : item.rarity === 'Unique' && !item.flags?.unidentified ? window.UI.itemPic(item.name, { size: 48, hint: 'Unique' })
+    : ['Rare', 'Magic', 'Normal'].includes(item.rarity) && /armour|weapon|bow|wand|staff|sword|axe|mace|claw|dagger|sceptre|shield|quiver|helmet|glove|boot|bodyarmour|body armour|ring|amulet|belt|jewel|flask|tincture/i.test(item.itemClass || '') ? window.UI.itemPic(item.baseType || item.typeLine, { size: 48, hint: 'BaseType' })
+      : item.rarity === 'Unique' ? window.UI.itemPic(item.baseType || item.typeLine, { size: 48, hint: 'BaseType' }) : window.UI.itemPic(item.typeLine, { size: 48 });
+  if (pic) pic.classList.add('ov-pic');
   return h('div', { class: 'ground ov-ground ov-drag', title: 'Drag to move. The next popup opens where you leave it.' },
+    pic,
     h('div', { class: 'ov-head-main' },
       h('div', { class: 'ov-head-top' }, dropLabel(name, filterHit?.style, { rarity: item?.rarity, scale: 0.85, hidden }), filterHit ? soundButton(normalizeStyle(filterHit.style).sound) : null),
       (br || facts.length) ? h('div', { class: 'ov-headline' }, rankBadge(item, br),
         // with the badge (it says the tier and "Unidentified") the facts skip that part
         (br ? facts.filter((f) => !/^(unidentified|rare$|magic$|normal$)/.test(f.t)) : facts).map(factChip)) : null),
     h('span', { class: 'spacer' }),
-    pinButton(),
-    h('button', { class: 'ov-x', title: 'Close (Esc)', 'aria-label': 'Close', onclick: close }, '✕'));
+    priceEl,
+    h('div', { class: 'ov-head-tools' }, pinButton(),
+    h('button', { class: 'ov-x', title: 'Close (Esc)', 'aria-label': 'Close', onclick: close }, '✕')));
 }
 
 /** A header fact. One that is part of the search is a button: click it to tick or untick that line of the search. */
@@ -215,13 +227,13 @@ function render(p) {
   // --- price ---
   // rares and magic items: poe.ninja's base price says nothing about the mods, so it isn't shown; Search prices them
   const modPriced = ['Magic', 'Rare'].includes(item.rarity) && gearRarity;
+  let priceEl = null;
   if (price?.found && !modPriced) {
-    const conf = { high: ['good', 'Plenty of listings'], medium: ['warn', 'Some listings'], low: ['bad', 'Few listings'], range: ['warn', 'Variants differ'] }[price.confidence] || ['', ''];
-    body.append(h('div', { class: 'ov-price' },
+    const conf = { high: ['good', 'Plenty of listings', '●'], medium: ['warn', 'Some listings', '◐'], low: ['bad', 'Few listings', '○'], range: ['warn', 'Versions differ', '◐'] }[price.confidence] || ['', '', ''];
+    // the price is the hero: big, in the header, with how sure it is under it
+    priceEl = h('div', { class: 'ov-hprice', title: divine && price.chaos >= divine ? `${fmt(price.chaos)} chaos on poe.ninja` : 'poe.ninja price' },
       h('span', { class: 'big' }, window.UI.money(price.chaos, divine)),
-      divine && price.chaos >= divine ? h('span', { class: 'alt' }, `${fmt(price.chaos)} chaos`) : null,
-      h('span', { class: 'spacer' }),
-      conf[1] ? h('span', { class: `pill ${conf[0]}` }, conf[1]) : null));
+      conf[1] ? h('span', { class: `ov-conf ${conf[0]}` }, h('span', { 'aria-hidden': 'true' }, conf[2]), ` ${conf[1]}`) : null);
     if (price.stackSize > 1) body.append(h('div', { class: 'small' }, `Your stack of ${price.stackSize} is worth `, h('b', {}, chaosDiv(price.totalChaos, divine))));
     if (price.range) body.append(h('div', { class: 'small muted' }, item.flags?.unidentified ? `Uniques on this base sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Identify it to know which one it is.` : `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Check the mods.`));
     // an unidentified unique: every unique on its base, most valuable first (thin listings marked)
@@ -243,6 +255,7 @@ function render(p) {
   const whereText = filterWhere ? (filterWhere.tier ? `${filterWhere.text}, ${window.TierNames.tierName({ tier: filterWhere.tier.tier, type: filterWhere.tier.type, customName: filterWhere.tier.name })}` : filterWhere.text) : null;
   // gear (white, magic, rare): no filter text; the header's look, rank badge and tier say it
   const gearItem = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !!gearRarity;
+  const filterNote = h('div', { class: 'ov-filter-note' });
   if (gearItem) { /* nothing */ } else if (filterHit?.byTier && item.unidTier == null) {
     // unidentified, and the game's copy doesn't say the item tier: what the filter does at each tier
     function what(c) { return /gear->tiered/.test(c) ? 'Unid item tiers' : /hidelayer/.test(c) ? 'Hide layer' : /\$type->rr\b/.test(c) ? 'Rares by base' : (/\$type->(\S+)/.exec(c || '') || [])[1] || 'a rule'; }
@@ -252,10 +265,8 @@ function render(p) {
       if (last && last.action === x.action) { last.tiers.push(x.tier); last.whats.add(what(x.comment)); } else groups.push({ ...x, tiers: [x.tier], whats: new Set([what(x.comment)]) });
     }
     const span = (t) => (t.length === 5 ? 'Every tier' : t.length === 1 ? `Tier ${t[0]}` : t[0] === 5 ? `Tier ${t[t.length - 1]} and up` : `Tier ${t[t.length - 1]}–${t[0]}`);
-    body.append(h('div', { class: 'small muted' }, 'The game\'s copy doesn\'t show the item tier, so your filter decides by it: ',
+    filterNote.append(h('div', { class: 'small muted' }, 'The game\'s copy doesn\'t show the item tier, so your filter decides by it: ',
       groups.map((g, i) => h('span', {}, i ? '; ' : '', h('b', {}, span(g.tiers)), ` ${g.action === 'Hide' ? 'hidden' : 'shown'} (${[...g.whats].join(', ')})`)), '. The label on the ground says the tier.'));
-  } else if (filterHit?.line) {
-    body.append(h('div', { class: 'small muted' }, `${filterHit.action === 'Hide' ? 'Hidden' : 'Shown'} by line ${filterHit.line} of your filter${gearRarity ? ` (as a ${gearRarity} item)` : ''}${whereText ? `: ${whereText}` : ''}.`));
   }
 
   // your base rank: the badge in the header (its tooltip has the details)
@@ -329,10 +340,21 @@ function render(p) {
   const actions = h('div', { class: 'ov-actions' },
     gear ? h('button', { class: 'quiet sm', title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases') : null,
     inTier ? null : h('button', { class: 'quiet sm', title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
+  );
+  // the loot filter in one line: shown or hidden, by what; "Change" opens the tier controls
+  const hiddenNow = filterHit?.action === 'Hide';
+  const where = gearItem && p.baseRank ? `Base ranks, rank ${p.baseRank.rank || '–'}` : whereText;
+  const changeBox = tierControls && !gearItem ? h('div', { class: 'ov-change', hidden: true }, tierControls) : null;
+  const strip = h('div', { class: 'ov-filter' + (hiddenNow ? ' hidden' : '') },
+    h('span', { class: 'ov-filter-ico', 'aria-hidden': 'true' }, window.UI.icon(hiddenNow ? 'eyeoff' : 'eye', { size: 16 })),
+    h('span', { class: 'ov-filter-t', title: filterHit?.line ? `Line ${filterHit.line} of your filter` : '' }, h('b', {}, hiddenNow ? 'Hidden' : filterHit ? 'Shown' : 'No rule'), where ? ` · ${where}` : ''),
     h('span', { class: 'spacer' }),
-    h('button', { class: goto ? 'primary' : 'quiet', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
+    changeBox ? h('button', { class: 'quiet sm', 'aria-expanded': 'false', onclick: (e) => { changeBox.hidden = !changeBox.hidden; e.currentTarget.setAttribute('aria-expanded', String(!changeBox.hidden)); e.currentTarget.textContent = changeBox.hidden ? 'Change' : 'Close'; fit(); } }, 'Change') : null,
+    h('button', { class: 'quiet sm ov-goto', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
       onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in loot filter' : 'Open app'));
-  if (tierControls && !gearItem) body.append(tierControls);
+  body.append(strip);
+  if (filterNote.childNodes.length) body.append(filterNote);
+  if (changeBox) { body.append(changeBox); if (ti?.state === 'Off') changeBox.hidden = false; }
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });
   // currency, fragments, cards…: the live bulk exchange; rares: a price guess from poeprices.info
   const bulkBox = h('div', { class: 'ov-block' });
@@ -345,7 +367,8 @@ function render(p) {
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
   if (p.tradeable) openTrade(tradeBox);
 
-  mount(root, header(item, filterHit, p.baseRank, facts), body);
+  root.dataset.rarity = String(item.rarity || '').toLowerCase();
+  mount(root, header(item, filterHit, p.baseRank, facts, priceEl), body);
   fit();
 }
 

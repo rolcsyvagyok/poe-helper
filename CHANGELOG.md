@@ -5,6 +5,25 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.105 - 2026-11-16
+
+* Item pictures on Base ranks, in the loot filter's tiers and in the price check
+* Price check: a cleaner window with the price big in the header, the loot filter in one line, and Search always in reach
+* Price check: each mod shows its tier (T1 best); listings get a Whisper button
+* Hover a chart point for its value and time; dark dropdowns and tooltips everywhere; a cleaner Loot filter page
+
+- Price check: the price is big at the top right with how sure it is (plenty / some / few listings); the item's picture is on the left; a thin line on top in the item's rarity colour.
+- Price check: the loot filter is one line ("Shown · Currency, Tier 1") with Change (moving or hiding the tier) and Show in loot filter; the tier controls only open when you want them.
+- Price check: the Search row stays at the bottom of the window while the mods scroll; Enter searches; smaller min / max boxes, so more fits without scrolling. The sound in the header is just its ▶ (its name is in the tooltip).
+- Price check: with the Ctrl+Alt+C copy every mod shows a tier badge (T1–T2 blue, T3–T4 grey, T5 and lower orange).
+- Price check: each listing has a Whisper button that copies the message to the seller.
+- Charts (WealthyExile, Overview, What to farm): hover for the exact value and time of a snapshot.
+- Look: dropdowns and hover tooltips are dark, matching the app, instead of the plain Windows ones.
+- Loot filter page: plain section titles, tier cards with more room and softer edges, item chips in the new style, and the category list stays in view while you scroll.
+- Price check: Ritual boots (Stormrider Boots, Brimstone Treads, Dreamquest Slippers and the rest) are searched by their base and implicit only; their other mods and evasion start unticked.
+- Price check: corpses are searched by their name only, without their monster mods or item level.
+- Item pictures: every base on Base ranks, every item in the loot filter's tier lists and the item in the price check's header show their picture (from GGG's image server, found through poe.ninja's lists). Items poe.ninja has no picture for show without one.
+
 ## 1.0.104 - 2026-11-16
 
 * Price check: jewels count 2 prefixes and 2 suffixes, every mod can be ticked where it is, and "rare" in the header ticks "Rare items only"

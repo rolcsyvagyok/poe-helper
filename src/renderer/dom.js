@@ -399,6 +399,52 @@ function applyTheme(t) {
 try { applyTheme(localStorage.getItem('uiTheme')); } catch { /* no storage */ }
 if (window.poe) window.poe.on('uiTheme:changed', (t) => { applyTheme(t); document.dispatchEvent(new CustomEvent('uitheme', { detail: t })); });
 
+/**
+ * An item's picture from GGG's image server (looked up by name in poe.ninja's lists). The empty frame shows at
+ * once; the pictures are asked for in batches and filled in when they arrive. hint: the poe.ninja list to look in
+ * ("BaseType", "Currency", "Unique", …). Names without a picture keep the empty frame.
+ */
+const picCache = new Map(); // "name\thint" -> url | null
+const picWait = new Map(); // key -> [img]
+let picTimer = null;
+function flushPics() {
+  picTimer = null;
+  const keys = [...picWait.keys()].filter((k) => !picCache.has(k));
+  for (let i = 0; i < keys.length; i += 60) {
+    const batch = keys.slice(i, i + 60);
+    for (const k of batch) picCache.set(k, null);
+    (window.poe?.call ? window.poe.call('art:icons', batch.map((k) => (k.endsWith('\t') ? k.slice(0, -1) : k))) : Promise.resolve({})).then((m) => {
+      for (const k of batch) {
+        const name = k.split('\t')[0];
+        const url = m?.[name] || null;
+        picCache.set(k, url);
+        for (const img of picWait.get(k) || []) if (url) { img.src = url; img.parentElement?.classList.add('has'); }
+        picWait.delete(k);
+      }
+    }).catch(() => { for (const k of batch) picWait.delete(k); });
+  }
+}
+function itemPic(name, { size = 22, hint = '' } = {}) {
+  const span = document.createElement('span');
+  span.className = 'item-pic';
+  span.style.width = span.style.height = `${size}px`;
+  span.setAttribute('aria-hidden', 'true');
+  if (!name) return span;
+  const img = document.createElement('img');
+  img.alt = ''; img.width = size; img.height = size; img.loading = 'lazy';
+  img.onerror = () => { img.remove(); span.classList.remove('has'); };
+  span.append(img);
+  const key = `${name}\t${hint || ''}`;
+  if (picCache.has(key)) {
+    const url = picCache.get(key);
+    if (url) { img.src = url; span.classList.add('has'); } else if (picWait.has(key)) picWait.get(key).push(img);
+    return span;
+  }
+  if (!picWait.has(key)) picWait.set(key, []);
+  picWait.get(key).push(img);
+  if (!picTimer) picTimer = setTimeout(flushPics, 40);
+  return span;
+}
 /** A price as a bold number with a small grey unit ("12.4" + "div"): easier to read at a glance. */
 function money(chaos, divine, { sign = false } = {}) {
   const span = document.createElement('span');
@@ -429,5 +475,40 @@ function infoTip(text, { label = 'About this' } = {}) {
   b.addEventListener('blur', () => b.classList.remove('open'));
   return b;
 }
-window.UI = { money, infoTip, UI_THEMES, applyTheme, gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
+/* Tooltips: the app's own dark tooltip instead of the plain Windows one. Any element with a title shows it; the
+   title is set aside while the tooltip is up, so the system one doesn't show as well. */
+(function tooltips() {
+  if (typeof document === 'undefined' || window.__tips) return;
+  window.__tips = true;
+  let tip = null, cur = null, timer = null;
+  const hide = () => {
+    clearTimeout(timer);
+    if (cur && cur.dataset.tip != null) { cur.setAttribute('title', cur.dataset.tip); delete cur.dataset.tip; }
+    cur = null;
+    if (tip) tip.style.display = 'none';
+  };
+  const place = (el) => {
+    if (!tip) { tip = document.createElement('div'); tip.className = 'app-tip'; tip.setAttribute('role', 'tooltip'); document.body.append(tip); }
+    tip.textContent = el.dataset.tip;
+    tip.style.display = 'block';
+    const r = el.getBoundingClientRect(), t = tip.getBoundingClientRect();
+    let x = r.left + r.width / 2 - t.width / 2, y = r.bottom + 8;
+    if (y + t.height > window.innerHeight - 6) y = r.top - t.height - 8;
+    x = Math.max(6, Math.min(x, window.innerWidth - t.width - 6));
+    tip.style.left = `${Math.round(x)}px`; tip.style.top = `${Math.round(Math.max(6, y))}px`;
+  };
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest?.('[title]');
+    if (!el || el === cur) return;
+    hide();
+    const text = el.getAttribute('title');
+    if (!text) return;
+    cur = el; el.dataset.tip = text; el.removeAttribute('title');
+    timer = setTimeout(() => { if (cur === el) place(el); }, 350);
+  });
+  document.addEventListener('mouseout', (e) => { if (cur && !cur.contains(e.relatedTarget)) hide(); });
+  document.addEventListener('mousedown', hide, true);
+  document.addEventListener('scroll', hide, true);
+})();
+window.UI = { itemPic, money, infoTip, UI_THEMES, applyTheme, gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
 })();

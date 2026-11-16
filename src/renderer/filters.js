@@ -314,6 +314,17 @@ function renderTiers(body, view) {
     renderFilters();
   };
 
+  // the poe.ninja list a category's pictures are in (gear and unique bases: the base list)
+  const picHint = (() => {
+    const t = type.type;
+    if (/^currency/.test(t)) return 'Currency';
+    if (/^divination/.test(t)) return 'DivinationCard';
+    if (/scarab/.test(t)) return 'Scarab';
+    if (/^fragments/.test(t)) return 'Fragment';
+    if (/essence/.test(t)) return 'Essence';
+    if (/^(uniques|gear|rr|rare|exotic|crafting|influenced|jewels|flasks|chancing|exoticbases|6l|socketslinks)/.test(t)) return 'BaseType';
+    return '';
+  })();
   function chip(base, tier) {
     const key = `${type.type}\t${base}`;
     // only items that belong in another tier are coloured; the rest stay plain
@@ -337,7 +348,7 @@ function renderTiers(body, view) {
         e.dataTransfer.setData('text/x-poe-bases', JSON.stringify(bases));
         e.dataTransfer.effectAllowed = 'move';
       },
-    }, base,
+    }, window.UI.itemPic(base, { size: 20, hint: picHint }), base,
       price ? (() => {
         // uniques: the range of its versions; prices from fewer than 5 listings don't count for the top
         const top = price.maxSure ?? price.max;
@@ -1467,7 +1478,7 @@ async function renderBaseMatrix(body, view) {
       onmouseenter: () => { if (painting && !painting.includes(b.name)) { if (!moved) { moved = true; paintLocal(painting); } painting.push(b.name); paintLocal([b.name]); } },
       oncontextmenu: (e) => { e.preventDefault(); step([b.name], -1); },
       onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowUp' || e.key === '+') { e.preventDefault(); step([b.name], +1); } else if (e.key === 'ArrowDown' || e.key === '-') { e.preventDefault(); step([b.name], -1); } },
-    }, h('span', { class: 'bm-n' }, b.name), h('span', { class: 'bm-f', 'aria-hidden': 'true' }, rankOf(b.name)));
+    }, window.UI.itemPic(b.name, { size: 22, hint: 'BaseType' }), h('span', { class: 'bm-n' }, b.name), h('span', { class: 'bm-f', 'aria-hidden': 'true' }, rankOf(b.name)));
     dressRank(el, rankOf(b.name));
     if (b.name === focus) { el.classList.add('bm-focus'); el.title = `The item you price checked. ${el.title}`; }
     if (!cells.has(b.name)) cells.set(b.name, []);
