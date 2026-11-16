@@ -1497,7 +1497,7 @@ html[data-ui-theme="midnight"] {
 }
 html[data-ui-theme="midnight"] body { background: #09090b; }
 html[data-ui-theme="midnight"] .rail { background: #060608; border-right-color: #17171b; }
-html[data-ui-theme="midnight"] .rail .name { font: 650 17px/1.2 var(--ui); color: #fff; letter-spacing: -0.01em; text-shadow: none; }
+html[data-ui-theme="midnight"] .rail .name { font: 22px/1.2 var(--item); color: #f4f4f5; letter-spacing: .02em; text-shadow: 0 1px 0 #000; } /* the game font, as in Atlas */
 html[data-ui-theme="midnight"] .rail nav button { border-radius: 8px; border-left: 0; }
 html[data-ui-theme="midnight"] .rail nav button.active { background: #18181c; box-shadow: inset 2px 0 0 #60a5fa; }
 html[data-ui-theme="midnight"] h1, html[data-ui-theme="midnight"] h2 { font-family: var(--ui); text-shadow: none; letter-spacing: -0.01em; }
@@ -1690,3 +1690,15 @@ html[data-ui-theme="midnight"] .fb-vis { border-radius: 8px; border-color: #2a2a
 html[data-ui-theme="midnight"] .fb-typehead h2 { font: 650 18px var(--ui); letter-spacing: -0.01em; }
 html[data-ui-theme="midnight"] .fb-selbar-in { border-radius: 12px; background: #18181c; border-color: #2e2e36; }
 html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }
+.tp-results:not(:empty) { margin-bottom: 10px; padding: 10px; border-radius: 10px; background: #ffffff05; border: 1px solid var(--line-soft); scroll-margin-top: 8px; }
+.nw-empty { height: 230px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--faint); font-size: 13px; text-align: center; }
+/* what the last price update moved */
+.fb-moved-card { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-soft); display: grid; gap: 8px; }
+.fb-moved-head { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.fb-moved-head b { color: var(--text); font-weight: 600; }
+.fb-moved-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 18px; }
+.fb-moved-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 14px 48px; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; }
+.fb-moved-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-moved-row .r { text-align: right; }
+.fb-moved-dir { font-size: 11px; text-align: center; }
+.fb-moved-dir.up { color: #60a5fa; } .fb-moved-dir.down { color: #f0a040; }

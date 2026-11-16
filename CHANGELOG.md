@@ -5,6 +5,20 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.107 - 2026-11-16
+
+* [WealthyExile] Fixed: items listed under the wrong stash tab, and tabs read wrongly after you moved tabs
+* Price check: search results show at the top, no scrolling needed
+* [Loot filter] Cleaner tiers: prices and arrows only show when you press Check prices; a price update shows one short list of what moved
+
+- Price check: the search results show at the top, right under the item, and the window scrolls up to them when you search from further down.
+- WealthyExile: Income / d is the change over the day before each snapshot, and only shows once snapshots are an hour apart (no more one-dot charts); a session's profit per hour shows after half an hour. The time labels under a chart no longer pile up when the snapshots are minutes apart.
+- Midnight look: "PoE Helper" in the top left uses the game font, as in Atlas.
+- Loot filter: the tiers show just the items. Prices, ▲/▼ and price-spike badges, and the "items priced like a different tier" bar only show after Check prices (or Review suggestions).
+- Loot filter: after a price update (Apply all price changes, or the automatic one) a short card at the top lists what moved: the item, its old tier → new tier, ▲ or ▼ and its price, most valuable first. Undo puts them all back; ✕ hides the card until the next update.
+- Loot filter: Divination Cards have Check prices and Set category prices too, like currency and fragments.
+- WealthyExile: the tabs you track are remembered by GGG's tab id, not by their position, and each snapshot reads the tab list as it is now (1 more request, none if the list is less than a minute old). Before, moving or adding a tab made a snapshot read the wrong tabs and put items under the wrong tab names. Snapshots taken before this keep their wrong tab names; the next ones are right.
+
 ## 1.0.106 - 2026-11-16
 
 - Price check: every Ritual base is searched by its base and implicit only, the helmets (Blizzard Crown, Archdemon Crown, Sorrow Mask…) and gloves (Nexus, Aetherwind and Leyline Gloves) as well as the boots.

@@ -106,6 +106,15 @@ class GggClient {
     return tabs;
   }
 
+  /** Was the tab list fetched within the last maxAgeMs? */
+  tabsFresh(league, maxAgeMs) { return this.cache.isFresh(`ggg_tabs_${league}_${this.getAccountName()}`, maxAgeMs); }
+
+  /** The tab list last fetched (no request), or [] */
+  cachedTabs(league) {
+    const e = this.cache.get(`ggg_tabs_${league}_${this.getAccountName()}`);
+    return Array.isArray(e?.data) ? e.data : [];
+  }
+
   /** Items of one tab. `maxAgeMs` lets a snapshot reuse a very recent fetch instead of calling again. */
   async stashTabItems(league, tabIndex, { maxAgeMs = 0 } = {}) {
     const key = `ggg_tab_${league}_${tabIndex}`;

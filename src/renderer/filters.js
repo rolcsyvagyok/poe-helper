@@ -220,7 +220,9 @@ async function renderFiltersNow() {
     h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)));
 
   const body = h('div', { class: 'fb-body' });
-  const show = () => mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, body);
+  const movedBox = h('div');
+  if (FB.tab === 'tiers') fillMoved(movedBox);
+  const show = () => mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, movedBox, body);
   // the tier pages are built first and put on screen in one go: showing an empty page while the
   // cluster or base data loads made the page collapse, which threw you back to the top
   if (FB.tab === 'tiers' && info.base && !info.missing && view?.types?.length) {
@@ -349,15 +351,15 @@ function renderTiers(body, view) {
         e.dataTransfer.effectAllowed = 'move';
       },
     }, window.UI.itemPic(base, { size: 20, hint: picHint }), base,
-      price ? (() => {
+      price && FB.priceColors ? (() => {
         // uniques: the range of its versions; prices from fewer than 5 listings don't count for the top
         const top = price.maxSure ?? price.max;
         const vers = (price.versions || []).map((v) => `${v.name}${v.variant ? ` (${v.variant})` : ''}: ${fmtC(v.chaos)}${v.listings != null && v.listings < 5 ? ` (only ${v.listings} listed)` : ''}`);
         const title = vers.length ? `Uniques on this base, most valuable first:\n${vers.join('\n')}` : price.max && price.max > price.chaos ? `Uniques on this base: ${fmtC(price.chaos)} to ${fmtC(price.max)}` : 'Current poe.ninja price';
         return h('span', { class: 'fb-price', title }, top && top > price.chaos * 2 ? `${fmtC(price.chaos)}–${fmtC(top)}` : fmtC(price.chaos));
       })() : null,
-      price?.big ? h('span', { class: `fb-spike ${price.trend.change > 0 ? 'up' : 'down'}`, title: `${window.Farm.pct(price.trend.change)} this week: ${fmtC(price.trend.old)} → ${fmtC(price.chaos)}. See "Big price changes" above for its graph.` }, window.Farm.pct(price.trend.change)) : null,
-      sugg ? h('span', { class: `fb-sugg ${sugg.direction}`, title: `Worth ${fmtC(sugg.chaos)} now. Typical for ${tierName({ tier: sugg.to })} (${fmtC(sugg.typicalTo)}), not ${tierName({ tier: sugg.from })} (${fmtC(sugg.typicalFrom)}).` }, sugg.direction === 'up' ? '▲' : '▼') : null,
+      FB.priceColors && price?.big ? h('span', { class: `fb-spike ${price.trend.change > 0 ? 'up' : 'down'}`, title: `${window.Farm.pct(price.trend.change)} this week: ${fmtC(price.trend.old)} → ${fmtC(price.chaos)}. See "Big price changes" above for its graph.` }, window.Farm.pct(price.trend.change)) : null,
+      sugg && FB.priceColors ? h('span', { class: `fb-sugg ${sugg.direction}`, title: `Worth ${fmtC(sugg.chaos)} now. Typical for ${tierName({ tier: sugg.to })} (${fmtC(sugg.typicalTo)}), not ${tierName({ tier: sugg.from })} (${fmtC(sugg.typicalFrom)}).` }, sugg.direction === 'up' ? '▲' : '▼') : null,
       from !== undefined ? h('span', { class: 'fb-moved', 'aria-label': 'moved by you' }) : null);
     if (tier.tier === HIDDEN_TIER || from !== undefined) {
       return h('span', { class: 'fb-chip-wrap' }, el, h('button', { class: 'fb-undo', title: 'Put it back where the filter had it', 'aria-label': `Undo move of ${base}`, onclick: async () => { await call('tiers:reset', { type: type.type, base }); renderFilters(); } }, '×'));
@@ -669,6 +671,8 @@ function renderTiers(body, view) {
   }
 
   function priceBanner() {
+    // prices only show when you ask for them (Check prices / Review suggestions): the tiers stay clean otherwise
+    if (!FB.priceColors && !FB.showSuggestions) return null;
     // a view of some items (Threads): only their prices and suggestions
     if (pricing && !pricing.error && type.baseView) {
       const inView = new Set(type.baseView);
@@ -1813,7 +1817,8 @@ const PRICED_GROUPS = new Set(['Currency', 'Fragments', 'League mechanics']);
 function pricedGroup(type) {
   const cat = categoryOf(type);
   const group = CATEGORIES.find(([, cats]) => cats.some((c) => c.id === cat?.id))?.[0];
-  return PRICED_GROUPS.has(group);
+  // divination cards have a market price of their own too (gems don't: their tiers go by level and quality)
+  return PRICED_GROUPS.has(group) || cat?.id === 'divination';
 }
 
 // ---------------------------------------------------------------- sidebar
@@ -2470,6 +2475,40 @@ const MARGINS = [[1, 'At the exact price boundary'], [1.5, 'Only clearly misplac
 const selKey = (type, base) => `${type}\t${base}`;
 
 /** Every price move in every category at once (same rules as Price review). Undo it on Price review. */
+/** What the last price update moved (yours or the automatic one), once: a short list you can undo or dismiss. */
+async function fillMoved(box) {
+  let log = [];
+  try { log = await call('review:log'); } catch { return; }
+  const last = log?.[0];
+  let seen = 0;
+  try { seen = Number(localStorage.getItem('priceLogSeen')) || 0; } catch { /* no storage */ }
+  if (!last?.moves?.length || last.at <= seen) return mount(box);
+  const tierNo = (t) => { const m = /(\d+)/.exec(String(t || '')); return m ? Number(m[1]) : 99; };
+  const moves = [...last.moves].sort((a, b) => (b.chaos || 0) - (a.chaos || 0));
+  const LIMIT = 8;
+  let all = false;
+  const draw = () => mount(box, h('div', { class: 'fb-moved-card' },
+    h('div', { class: 'fb-moved-head' },
+      window.UI.icon('refresh', { size: 16 }),
+      h('b', {}, `${last.auto ? 'Automatic price update' : 'Price update'}: ${moves.length} ${moves.length === 1 ? 'item' : 'items'} moved`),
+      h('span', { class: 'small faint' }, ago(Date.now() - last.at)),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'quiet sm', title: 'Put every item back where it was', onclick: async () => { try { const r = await call('review:undo'); toast(`Put back ${r.undone} items`); } catch { /* toast */ } try { localStorage.setItem('priceLogSeen', String(Date.now())); } catch { /* none */ } renderFilters(); } }, 'Undo'),
+      h('button', { class: 'quiet sm', 'aria-label': 'Dismiss', title: 'Got it', onclick: () => { try { localStorage.setItem('priceLogSeen', String(last.at)); } catch { /* none */ } mount(box); } }, '✕')),
+    h('div', { class: 'fb-moved-list' }, (all ? moves : moves.slice(0, LIMIT)).map((m) => {
+      const up = m.from && tierNo(m.to) < tierNo(m.from);
+      const hide = /hide/i.test(String(m.to));
+      return h('div', { class: 'fb-moved-row' },
+        window.UI.itemPic(m.base, { size: 20 }),
+        h('span', { class: 'n' }, m.base),
+        h('span', { class: 'small muted' }, m.from ? tierName({ tier: m.from }) : 'new', ' → ', h('b', {}, hide ? 'hidden' : tierName({ tier: m.to }))),
+        h('span', { class: `fb-moved-dir ${hide ? 'down' : up ? 'up' : 'down'}`, 'aria-label': up ? 'worth more' : 'worth less' }, hide ? '▼' : up ? '▲' : '▼'),
+        m.chaos != null ? h('span', { class: 'small faint r' }, fmtC(m.chaos)) : h('span'));
+    })),
+    moves.length > LIMIT && !all ? h('button', { class: 'quiet sm', onclick: () => { all = true; draw(); } }, `Show all ${moves.length}`) : null));
+  draw();
+}
+
 async function applyAllPrices() {
   FB.applyingAll = true;
   renderFilters();

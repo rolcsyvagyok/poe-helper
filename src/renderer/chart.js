@@ -26,7 +26,7 @@ window.lineChart = function lineChart(points, { divine, height = 220, bands = []
   const xs = points.map((p) => p.ts);
   const ys = points.map(val);
   const x0 = Math.min(...xs);
-  const x1 = Math.max(...xs) || x0 + 1;
+  const x1 = Math.max(...xs) > x0 ? Math.max(...xs) : x0 + 1;
   let y0 = Math.min(...ys);
   let y1 = Math.max(...ys);
   if (y0 === y1) { y0 -= 1; y1 += 1; }
@@ -65,9 +65,11 @@ window.lineChart = function lineChart(points, { divine, height = 220, bands = []
     const d = new Date(t);
     return x1 - x0 > 2 * 86400000 ? `${d.getMonth() + 1}/${d.getDate()}` : d.toTimeString().slice(0, 5);
   };
-  for (let i = 0; i <= 4; i++) {
-    const t = x0 + ((x1 - x0) * i) / 4;
-    el('text', { x: X(t), y: H - 6, 'text-anchor': i === 0 ? 'start' : i === 4 ? 'end' : 'middle', class: 'axis' }, fmtT(t));
+  // time labels: five across a long span, fewer when they would repeat the same minute
+  const nT = x1 - x0 < 5 * 60000 ? 0 : x1 - x0 < 30 * 60000 ? 1 : 4;
+  for (let i = 0; i <= nT; i++) {
+    const t = nT ? x0 + ((x1 - x0) * i) / nT : x0;
+    el('text', { x: nT ? X(t) : W / 2, y: H - 6, 'text-anchor': !nT ? 'middle' : i === 0 ? 'start' : i === nT ? 'end' : 'middle', class: 'axis' }, fmtT(t));
   }
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${X(p.ts).toFixed(1)},${Y(val(p)).toFixed(1)}`).join(' ');
   el('path', { d: `${d} L${X(xs[xs.length - 1])},${H - pad.b} L${X(xs[0])},${H - pad.b} Z`, class: 'area' });

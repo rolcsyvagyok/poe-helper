@@ -158,11 +158,20 @@ class NetWorthTracker {
       const league = await this.getLeague();
       const selected = this.store.get('selectedTabs') || [];
       if (!selected.length) throw new Error('Pick at least one stash tab to track in the Net worth page.');
-      const tabsMeta = await this.ggg.stashTabs(league);
+      // the tab list as it is now (1 request; it brings tab 0's items too): a tab you moved keeps its id but gets
+      // another number, and an old list would read the wrong tab under the wrong name
+      const oldMeta = this.ggg.cachedTabs ? this.ggg.cachedTabs(league) : [];
+      const tabsMeta = await this.ggg.stashTabs(league, { force: !(this.ggg.tabsFresh && this.ggg.tabsFresh(league, 60 * 1000)) });
+      let ids = this.store.get('selectedTabIds') || [];
+      if (!ids.length) ids = selected.map((i) => oldMeta.find((t) => t.index === i)?.id).filter(Boolean);
+      const metas = ids.length ? ids.map((id) => tabsMeta.find((t) => t.id === id)).filter(Boolean) : selected.map((i) => tabsMeta.find((t) => t.index === i)).filter(Boolean);
+      if (ids.length) {
+        this.store.set('selectedTabIds', metas.map((m) => m.id));
+        this.store.set('selectedTabs', metas.map((m) => m.index));
+      }
       const tabs = [];
-      for (const index of selected) {
-        const meta = tabsMeta.find((t) => t.index === index);
-        if (!meta) continue;
+      for (const meta of metas) {
+        const index = meta.index;
         // Re-use items fetched in the last 60 seconds (e.g. tab 0 came with the tab list).
         const items = await this.ggg.stashTabItems(league, index, { maxAgeMs: 60 * 1000 });
         tabs.push({ name: meta.name, index, items });

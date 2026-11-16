@@ -688,13 +688,21 @@ async function renderNetworthNow() {
     const base = [...all].reverse().find((p) => p.ts <= sess.start + 60000) || all.find((p) => p.ts >= sess.start);
     const inS = all.filter((p) => p.ts >= (base?.ts ?? sess.start) && p.ts <= (sess.end ? sess.end + 120000 : Infinity));
     const profit = inS.map((p) => ({ ts: p.ts, chaos: p.chaos - (base?.chaos || 0), divine: p.divine }));
-    pts = nwMode === 'rate' ? profit.filter((p) => p.ts - profit[0].ts > 10 * 60000).map((p) => ({ ...p, chaos: p.chaos / ((p.ts - profit[0].ts) / 3600000) })) : profit;
+    pts = nwMode === 'rate' ? profit.filter((p) => p.ts - profit[0].ts >= 30 * 60000).map((p) => ({ ...p, chaos: p.chaos / ((p.ts - profit[0].ts) / 3600000) })) : profit;
     const last = profit[profit.length - 1];
     head = last ? window.UI.money(last.chaos, d, { sign: true }) : '–';
     title = [['total', 'Profit'], ['rate', 'Profit / h']];
   } else {
     pts = all;
-    if (nwMode === 'rate') pts = all.slice(1).map((p) => ({ ...p, chaos: (p.chaos - all[0].chaos) / Math.max(1 / 24, (p.ts - all[0].ts) / 86400000) }));
+    // income per day: the change over the day before each snapshot (or since the first one), only once at
+    // least an hour lies between them; a few minutes don't say anything about a day
+    if (nwMode === 'rate') {
+      pts = all.map((p) => {
+        const from = all.find((q) => q.ts >= p.ts - 86400000) || all[0];
+        const days = (p.ts - from.ts) / 86400000;
+        return days >= 1 / 24 ? { ...p, chaos: (p.chaos - from.chaos) / days } : null;
+      }).filter(Boolean);
+    }
     const first = all[0];
     head = latest ? window.UI.money(latest.totalChaos, d) : '–';
     title = [['total', 'Net worth'], ['rate', 'Income / d']];
@@ -706,7 +714,8 @@ async function renderNetworthNow() {
     h('div', { class: 'nw-ph' },
       h('div', { class: 'seg' }, title.map(([k, l]) => h('button', { class: nwMode === k ? 'on' : '', 'aria-pressed': nwMode === k ? 'true' : 'false', onclick: () => { nwMode = k; renderNetworth(); } }, l))),
       h('span', { class: 'spacer' }), h('b', { class: 'nw-big' }, head)),
-    window.lineChart(pts, { divine: d, height: 230, bands, unit, zero: !!sess || nwMode === 'rate' }));
+    pts.length ? window.lineChart(pts, { divine: d, height: 230, bands, unit, zero: !!sess || nwMode === 'rate' })
+      : h('div', { class: 'nw-empty' }, window.UI.icon('chart', { size: 28 }), h('span', {}, nwMode === 'rate' ? (sess ? 'Profit per hour shows after the session has run for half an hour.' : 'Income per day needs snapshots at least an hour apart.') : 'Take a snapshot to start the chart.')));
 
   // ---- categories ----
   const groups = new Map();

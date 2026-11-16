@@ -857,7 +857,13 @@ function registerIpc() {
   handle('price:guess', (args) => services.pricePredict(args || {}));
 
   handle('networth:tabs', async (force) => services.ggg.stashTabs(await services.getLeague(), { force: !!force }));
-  handle('networth:select', (indices) => { s.set('selectedTabs', (indices || []).map(Number).filter(Number.isInteger)); return s.get('selectedTabs'); });
+  handle('networth:select', async (indices) => {
+    const idx = (indices || []).map(Number).filter(Number.isInteger);
+    s.set('selectedTabs', idx);
+    // remember the tabs by id too: moving a tab in the stash changes its number, not its id
+    try { const tabs = await services.ggg.stashTabs(await services.getLeague()); s.set('selectedTabIds', idx.map((i) => tabs.find((t) => t.index === i)?.id).filter(Boolean)); } catch { /* ids next snapshot */ }
+    return s.get('selectedTabs');
+  });
   handle('networth:snapshot', () => snapshotNow('manual'));
   // a farming session: a snapshot when it starts and when it stops, so its profit is measured
   handle('networth:session', async (action) => {

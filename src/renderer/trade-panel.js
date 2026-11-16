@@ -233,6 +233,13 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     go.disabled = true;
     mount(results, h('div', { class: 'small muted' }, h('span', { class: 'spin' }), ' Searching'));
     onFit();
+    const showResults = () => requestAnimationFrame(() => {
+      onFit();
+      // scroll only the list (not the whole window): the results come to the top
+      const sc = results.closest('.ov-body');
+      if (sc) sc.scrollTo({ top: sc.scrollTop + results.getBoundingClientRect().top - sc.getBoundingClientRect().top - 8, behavior: 'smooth' });
+      else results.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
     try {
       prep.status = status;
       const r = await window.poe.call('trade:search', { text, mods, props, opts: { status } }); // errors shown below, not as a toast over the buttons
@@ -260,16 +267,17 @@ function renderPanel(box, prep, { text, divine, onFit }) {
         h('div', {}, h('button', { class: 'sm', onclick: () => window.poe.call('trade:openSite', { text, mods, props, opts: { status } }).catch(() => {}) }, 'Open on trade site'))));
     }
     go.disabled = false;
-    onFit();
+    showResults();
   }
 
   // (the "Search as: finished item / crafting base" choice is gone: the price check searches the finished item)
   mount(box,
     h('div', { class: 'tp' },
+      // the results first: they are what you search for, seen without scrolling past the mods
+      results,
       groups,
       propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'Item'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
-      h('div', { class: 'row tp-go' }, go, statusSel, countEl, mods.length ? h('button', { class: 'quiet sm', title: 'Tick or untick every mod', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden || (byGen && AFFIX.includes(m.group)))) m.enabled = on; }); mountAgain(); } }, 'All / none') : null),
-      results));
+      h('div', { class: 'row tp-go' }, go, statusSel, countEl, mods.length ? h('button', { class: 'quiet sm', title: 'Tick or untick every mod', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden || (byGen && AFFIX.includes(m.group)))) m.enabled = on; }); mountAgain(); } }, 'All / none') : null)));
   onFit();
 
   function mountAgain() {

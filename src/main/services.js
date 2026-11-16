@@ -113,6 +113,7 @@ const DEFAULT_SETTINGS = {
   clientLogPath: '',
   autoSnapshotMin: 0,
   selectedTabs: [],
+  selectedTabIds: [], // the same tabs by GGG's tab id: a tab keeps its id when you move it, its number changes
   minItemChaos: 0,
   tradeTolerance: 0.1,
   tradeStatus: 'securable', // Instant Buyout only
@@ -219,8 +220,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // Net worth uses the snapshot store but reads tab selection from settings
   const nwStore = {
-    get: (k) => (k === 'selectedTabs' || k === 'minItemChaos' ? settings.get(k) : snapshots.get(k)),
-    set: (k, v) => (k === 'selectedTabs' || k === 'minItemChaos' ? settings.set(k, v) : snapshots.set(k, v)),
+    get: (k) => (['selectedTabs', 'selectedTabIds', 'minItemChaos'].includes(k) ? settings.get(k) : snapshots.get(k)),
+    set: (k, v) => (['selectedTabs', 'selectedTabIds', 'minItemChaos'].includes(k) ? settings.set(k, v) : snapshots.set(k, v)),
   };
   const networth = new NetWorthTracker({ ggg, ninja, store: nwStore, getLeague, log });
   const userSoundsDir = path.join(dataDir, 'sounds');
@@ -698,7 +699,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // game sound copies, the lab pages, and the one-time upgrades that already ran.
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
-    'clientLogPath', 'selectedTabs', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
+    'clientLogPath', 'selectedTabs', 'selectedTabIds', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
     'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2'];
   function resetAll() {
     const before = structuredClone(settings.get());
