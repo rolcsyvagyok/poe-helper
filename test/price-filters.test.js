@@ -411,3 +411,11 @@ test('a Wickerman part: a buff wrapped onto two lines is one mod; its trade name
   assert.equal(T.partTradeType(list("Hag's Stomach"), "Greater Hag's Stomach"), "Hag's Stomach");
   assert.equal(T.partTradeType(list('Other'), 'Greater Golemic Stone'), null);
 });
+
+test('a Wickerman part buff is searched as an implicit', () => {
+  const p = parseItem("Item Class: Viscera\nHydra's Head\n--------\nHead\n--------\nItem Level: 83\n--------\n{ Implicit Modifier }\nArrows Pierce all Targets after Forking — Unscalable Value\n--------\nTake this to the Wickerman in a town or hideout to attach it.");
+  const S = { result: [{ label: 'Explicit', entries: [{ id: 'explicit.stat_2138799639', text: 'Arrows Pierce all Targets after Forking', type: 'explicit' }] }] };
+  const { mods, props } = T.prepareSearch(S, p);
+  const q = T.buildQuery(p, mods, { props });
+  assert.deepEqual(q.query.stats[0].filters.map((f) => f.id), ['implicit.stat_2138799639']);
+});

@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.113 - 2026-11-16
+
+* [Trade searches] Wickerman parts are searched by their buff as an implicit, as the trade site lists them.
+- Price check: a Wickerman part's buff (Hydra's Head: "Arrows Pierce all Targets after Forking") was searched as an explicit mod, so the search found nothing. It is now searched as an implicit.
+
 ## 1.0.112 - 2026-11-16
 
 * [Trade searches] Wickerman parts like Greater Golemic Stone can be price checked.

@@ -501,7 +501,9 @@ function specialRules(mods, item, props, kind, tol) {
   if (cls === 'Viscera') {
     props.base.on = true;
     if (props.ilvl) props.ilvl.on = false;
-    return mods.filter((m) => m.group !== 'pseudo').map((m) => (m.group === 'implicit' && !m.unmatched ? { ...m, enabled: true } : m));
+    // the buff is an implicit on the trade site, even when the stat list we have only knows it as an explicit
+    return mods.filter((m) => m.group !== 'pseudo').map((m) => (m.group === 'implicit' && !m.unmatched
+      ? { ...m, enabled: true, ...(/^explicit\./.test(m.id || '') ? { id: m.id.replace(/^explicit\./, 'implicit.'), type: 'implicit' } : {}) } : m));
   }
   // flasks: the exact base; top-tier mods ticked; enchantments (harvest, instilling) hidden; no totals
   if (/flask/i.test(cls)) {
