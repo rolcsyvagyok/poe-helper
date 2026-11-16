@@ -1715,3 +1715,15 @@ html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }
 .fb-modal-in { width: min(1100px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: var(--ink, #09090b); border: 1px solid #2a2a31; border-radius: 14px; box-shadow: 0 30px 80px #000; padding: 16px 20px 0; }
 .fb-modal-head { position: sticky; top: -16px; z-index: 3; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0 10px; margin-top: -12px; background: var(--ink, #09090b); border-bottom: 1px solid #1f1f25; }
 .fb-modal-head h2 { margin: 0; }
+/* listings: a long seller name is cut short (…) instead of pushing the window wider */
+.ov-body { overflow-x: hidden; }
+.ov-body > *, .ov .tp, .ov .tp-results, .ov .tp-listings { min-width: 0; max-width: 100%; }
+.tp-li { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
+.tp-li .spacer { display: none; }
+.tp-li .tp-seller, .tp-li .tp-you { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.tp-li .tp-st { white-space: nowrap; }
+.tp-li .tp-whisper:empty { display: none; }
+.ov-filter { min-width: 0; }
+.ov-filter .ov-goto, .ov-filter button { flex: none; }
+.tp-listings:not(.all) .tp-li.more { display: none; }
+.tp-more-btn { justify-self: start; margin-top: 2px; }

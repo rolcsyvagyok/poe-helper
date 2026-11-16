@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.110 - 2026-11-16
+
+* [Trade searches] Price check shows the 3 cheapest listings first. Click Show more to see the rest.
+- Price check: the loot filter line (Shown · …) moved to the bottom, under the search.
+- Price check: the results show the 3 cheapest listings, with a Show more button for the rest.
+- Price check: a long seller name is cut short (hover it for the whole name) instead of pushing the window wider and cutting off the buttons on the right.
+
 ## 1.0.109 - 2026-11-16
 
 * Price check: the base, item level and defences (or a weapon's DPS) are at the top, and ticked when a defence mod is tier 2 or better

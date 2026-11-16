@@ -253,13 +253,14 @@ function renderPanel(box, prep, { text, divine, onFit }) {
           l?.median != null && l.prices.length > 2 ? h('span', { class: 'muted' }, `typical ${chaosDiv(l.median, divine)}`) : null,
           h('span', { class: 'spacer' }),
           h('button', { class: 'sm', onclick: () => call('shell:open', r.url) }, 'Open on trade site')),
-        l?.prices?.length ? h('div', { class: 'tp-listings', style: { marginTop: '6px' } }, l.prices.map((x) => h('div', { class: 'tp-li' + (x.mine ? ' mine' : '') },
+        l?.prices?.length ? h('div', { class: 'tp-listings', style: { marginTop: '6px' } }, l.prices.map((x, i) => h('div', { class: 'tp-li' + (x.mine ? ' mine' : '') + (i >= 3 ? ' more' : '') },
           h('span', { class: 'tp-price money' }, h('b', {}, String(x.amount)), h('small', {}, x.currency), x.times > 1 ? h('span', { class: 'tp-times', title: `${x.times} listings from this seller` }, `×${x.times}`) : null),
           h('span', { class: 'faint tp-ago' }, ago(x.indexed)),
           h('span', { class: 'spacer' }),
-          x.mine ? h('span', { class: 'tp-you' }, 'You') : h('span', { class: 'faint tp-seller' }, x.seller || ''),
+          x.mine ? h('span', { class: 'tp-you' }, 'You') : h('span', { class: 'faint tp-seller', title: x.seller || '' }, x.seller || ''),
           h('span', { class: `tp-st ${x.status}`, title: { online: 'Online', afk: 'AFK', offline: 'Offline', merchant: 'Merchant tab (instant buyout)' }[x.status] || '' }, { online: '● online', afk: '◑ AFK', offline: '○ offline', merchant: '◆ instant' }[x.status] || ''),
           x.whisper && !x.mine && x.status !== 'merchant' ? h('button', { class: 'quiet sm tp-whisper', title: 'Copy the whisper to the seller; paste it in game chat', onclick: async (e) => { await window.poe.call('clipboard:write', x.whisper).catch(() => {}); e.currentTarget.textContent = 'Copied'; } }, 'Whisper') : null))) : null,
+        l?.prices?.length > 3 ? h('button', { class: 'quiet sm tp-more-btn', onclick: (e) => { const box = e.currentTarget.previousElementSibling; const open = box.classList.toggle('all'); e.currentTarget.textContent = open ? 'Show fewer' : `Show ${l.prices.length - 3} more`; onFit(); } }, `Show ${l.prices.length - 3} more`) : null,
         !r.total ? h('div', { class: 'small muted', style: { marginTop: '4px' } }, 'Nothing listed. Untick a mod or lower a min value and search again.') : null);
     } catch (e) {
       const why = String(e?.message || '').replace(/^Error invoking remote method '[^']+': (Error: )?/, '');

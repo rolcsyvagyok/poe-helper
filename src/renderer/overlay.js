@@ -352,9 +352,7 @@ function render(p) {
     changeBox ? h('button', { class: 'quiet sm', 'aria-expanded': 'false', onclick: (e) => { changeBox.hidden = !changeBox.hidden; e.currentTarget.setAttribute('aria-expanded', String(!changeBox.hidden)); e.currentTarget.textContent = changeBox.hidden ? 'Change' : 'Close'; fit(); } }, 'Change') : null,
     h('button', { class: 'quiet sm ov-goto', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
       onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in loot filter' : 'Open app'));
-  body.append(strip);
-  if (filterNote.childNodes.length) body.append(filterNote);
-  if (changeBox) { body.append(changeBox); if (ti?.state === 'Off') changeBox.hidden = false; }
+  if (changeBox && ti?.state === 'Off') changeBox.hidden = false;
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });
   // currency, fragments, cards…: the live bulk exchange; rares: a price guess from poeprices.info
   const bulkBox = h('div', { class: 'ov-block' });
@@ -363,7 +361,8 @@ function render(p) {
   if (p.guess) guessSection(guessBox);
   body.append(...(p.bulk ? [bulkBox] : []), ...(p.guess ? [guessBox] : []));
   // the mods and the search first; "Show in loot filter" and the other buttons at the bottom
-  body.append(tradeBox, actions, quickBox);
+  // the loot filter line last: the price and the search come first
+  body.append(tradeBox, strip, ...(filterNote.childNodes.length ? [filterNote] : []), ...(changeBox ? [changeBox] : []), actions, quickBox);
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
   if (p.tradeable) openTrade(tradeBox);
 
