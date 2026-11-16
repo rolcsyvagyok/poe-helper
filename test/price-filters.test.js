@@ -419,3 +419,34 @@ test('a Wickerman part buff is searched as an implicit', () => {
   const q = T.buildQuery(p, mods, { props });
   assert.deepEqual(q.query.stats[0].filters.map((f) => f.id), ['implicit.stat_2138799639']);
 });
+
+test('the filter look of a cluster jewel reads its passive count and kind', () => {
+  const { evalCondition } = require('../src/core/filter/matcher');
+  const item = { itemClass: 'Jewels', mods: { enchant: ['Adds 8 Passive Skills', 'Added Small Passive Skills grant: 12% increased Attack Damage while Dual Wielding'] } };
+  assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNum', values: ['8'] }, item, []), true);
+  assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNum', op: '>=', values: ['10'] }, item, []), false);
+  assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNode', values: ['Attack Damage while Dual Wielding', 'Bow Damage'] }, item, []), true);
+  assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNode', values: ['Physical Damage'] }, item, []), false);
+});
+
+test('a stat whose number is fixed text ("in the past 2 seconds") is searched without a number', () => {
+  const idx = T.indexStats({ result: [{ label: 'Implicit', entries: [{ id: 'implicit.stat_2755326667', text: "You cannot be Stunned if you've been Stunned or Blocked\na Stunning Hit in the past 2 seconds", type: 'implicit' }] }] });
+  const m = T.matchMod(idx, "You cannot be Stunned if you've been Stunned or Blocked a Stunning Hit in the past 2 seconds", 'implicit', 'Viscera');
+  assert.equal(m.id, 'implicit.stat_2755326667');
+  assert.equal(m.value, null);
+});
+
+test('a "{ Fractured Suffix Modifier }" line is a fractured mod and is searched as one', () => {
+  const p = parseItem(['Item Class: Body Armours', 'Rarity: Magic', "Legend's Full Wyvernscale of the Protector", '--------', 'Item Level: 85', '--------',
+    '{ Prefix Modifier "Legend\'s" (Tier: 2) — Defences, Armour, Evasion }', '99(92-100)% increased Armour and Evasion',
+    '{ Fractured Suffix Modifier "of the Protector" (Tier: 2) — Physical }', '7% additional Physical Damage Reduction', '--------', 'Fractured Item'].join('\n'));
+  assert.deepEqual(p.mods.fractured, ['7% additional Physical Damage Reduction']);
+  assert.deepEqual(p.mods.explicit, ['99% increased Armour and Evasion']);
+});
+
+test('a negative "damage taken" roll is searched as a maximum', () => {
+  const S = { result: [{ label: 'Implicit', entries: [{ id: 'implicit.stat_3277537093', text: '+# Physical Damage taken from Hits by Animals', type: 'implicit' }] }] };
+  const p = parseItem("Item Class: Viscera\nLesser Poacher's Leg\n--------\nLeg\n--------\nItem Level: 83\n--------\n{ Implicit Modifier }\n-25 Physical Damage taken from Hits by Animals\n--------\nTake this to the Wickerman in a town or hideout to attach it.");
+  const { mods, props } = T.prepareSearch(S, p);
+  assert.deepEqual(T.buildQuery(p, mods, { props }).query.stats[0].filters[0].value, { max: -22 });
+});

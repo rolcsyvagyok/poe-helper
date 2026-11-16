@@ -308,12 +308,19 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   }
 
   let bulkTag = async () => null;
+  let statsRetryAt = 0; // the last time an unknown mod asked for a new stat list (at most once an hour, even when it fails)
   async function tradePrepare(text) {
     const item = readItem(text);
     if (!item) throw new Error('Not an item.');
-    const stats = await ggg.tradeStats(); // 1 request per week at most
+    let stats = await ggg.tradeStats(); // 1 request per week at most
     // the search Awakened PoE Trade would make: totals, the item's own numbers at 20% quality, what to tick
-    const { mods, props, presets } = require('../core/trade').prepareSearch(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 });
+    let { mods, props, presets } = require('../core/trade').prepareSearch(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 });
+    // a mod the list doesn't know may be new this league: a list over a day old is fetched again (1 request a day at most)
+    if (mods.some((m) => m.unmatched) && Date.now() - statsRetryAt > 60 * 60 * 1000) {
+      statsRetryAt = Date.now();
+      const fresh = await ggg.tradeStats({ maxAge: 24 * 60 * 60 * 1000 }).catch(() => stats);
+      if (fresh !== stats) { stats = fresh; ({ mods, props, presets } = require('../core/trade').prepareSearch(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 })); }
+    }
     const kind = classify(item);
     // only an identified unique is searched at once; everything else waits for Search (saves GGG requests)
     const autoSearch = settings.get('tradeAutoSearch') !== false && kind === 'unique' && !item.flags?.unidentified;

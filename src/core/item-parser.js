@@ -280,7 +280,8 @@ function parseItem(rawText) {
           || (nm && SPECIAL_NAMES.has(nm[1]));
         header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line), special };
         headerKind = /\bMercenary\b/i.test(line) ? 'mercenary' : /\bImbued\b/i.test(line) ? 'imbued' : /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'
-          : /\bMaster Crafted\b|\bCrafted\b/i.test(line) ? 'crafted' : /\bScourge\b/i.test(line) ? 'scourge' : null;
+          : /\bMaster Crafted\b|\bCrafted\b/i.test(line) ? 'crafted' : /\bScourge\b/i.test(line) ? 'scourge'
+          : /^\{\s*Fractured\b/i.test(line) ? 'fractured' : null; // "{ Fractured Suffix Modifier … }": the lines have no "(fractured)"
         continue;
       }
       // Ctrl+Alt+C writes roll ranges into the line: "+45(40-49) to maximum Life" -> "+45 to maximum Life"

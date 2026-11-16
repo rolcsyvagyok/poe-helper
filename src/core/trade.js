@@ -101,7 +101,8 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   // random-skill uniques (Replica Dragonfang's Flight) by the "skill" stats; a gem listed twice is searched as either
   const skills = unique ? hits.filter((h) => /indexable_skill/.test(h.id)) : [];
   const entry = (unique && hits.find((h) => /indexable_support/.test(h.id))) || skills[0] || hits.find((h) => h.local === wantLocal && !/indexable_support/.test(h.id)) || hits.find((h) => !/indexable_support/.test(h.id)) || hits[0];
-  const vals = one ? [1] : valuesAt(entry.text, modText) || modValues(modText);
+  // a stat without a "#" ("…in the past 2 seconds") has no number to search
+  const vals = one ? [1] : !/#/.test(entry.text || '') && /\d/.test(entry.text || '') ? [] : valuesAt(entry.text, modText) || modValues(modText);
   // "Adds 10 to 20 Fire Damage" is searched by its average on trade
   const display = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
   const value = display != null && negate ? -display : display;
@@ -191,6 +192,14 @@ function matchItemMods(statsJson, item, { tolerance = 0.1 } = {}) {
 }
 
 /** Ticks and starting min values a player would usually want. */
+/** "-25 Physical Damage taken from Hits": lower is better, so it is searched as a maximum (-25 -> -22 and lower) */
+function takenAsMax(m, tolerance) {
+  if (!(m.display < 0) || !/\btaken\b/i.test(m.statText || m.text || '')) return;
+  const hi = m.display * (1 - tolerance);
+  m.max = Number.isInteger(m.display) ? Math.ceil(hi) : Math.ceil(hi * 100) / 100;
+  m.min = null;
+}
+
 function applyDefaults(mods, item, tolerance = 0.1) {
   const kind = classify(item);
   const isRes = (m) => /resistances?$/i.test(m.text) && !/maximum/i.test(m.text);
@@ -203,6 +212,7 @@ function applyDefaults(mods, item, tolerance = 0.1) {
       const lo = m.display >= 0 ? m.display * (1 - tolerance) : m.display * (1 + tolerance);
       m.min = Number.isInteger(m.display) ? Math.floor(lo) : Math.floor(lo * 100) / 100;
       m.max = null;
+      takenAsMax(m, tolerance);
     }
     if (kind === 'unique') {
       // a unique is searched by name; only the roll that decides its price is ticked (Mageblood: how many flasks),
@@ -457,7 +467,7 @@ function itemRows(idx, item, tol) {
       // league mods (mercenary, imbued, Breach, eldritch…) make the item: they start ticked
       if (['scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'].includes(kind) || meta?.special || vp) { row.special = true; if (!row.unmatched) row.enabled = true; }
       row.tpl = PF.tplOf(m);
-      if (row.display != null) { row.min = PF.minOf(row.display, tol); row.max = null; }
+      if (row.display != null) { row.min = PF.minOf(row.display, tol); row.max = null; takenAsMax(row, tol); }
       out.push(row);
     });
   }
@@ -528,7 +538,8 @@ function specialRules(mods, item, props, kind, tol) {
     const ids = { 'More Scarabs': 'pseudo.pseudo_map_more_scarab_drops', 'More Currency': 'pseudo.pseudo_map_more_currency_drops', 'More Divination Cards': 'pseudo.pseudo_map_more_card_drops', 'More Maps': 'pseudo.pseudo_map_more_map_drops' };
     const extra = Object.entries(ids).filter(([k]) => n(k)).map(([k, id]) => ({ id, text: `${k}: +${n(k)}%`, statText: `${k}: #%`, value: n(k), display: n(k), min: Math.floor(n(k) * (1 - tol)), max: null, negate: false, type: 'pseudo', group: 'pseudo', enabled: false }));
     if (props.mapTier) props.mapTier.on = true;
-    for (const m of mods) m.enabled = /^Area is influenced by|^Map contains .+'s Citadel$/i.test(m.text || '') && !m.unmatched;
+    // a Mirage (rare-only map mod) sells the map, so it is searched too
+    for (const m of mods) m.enabled = /^Area is influenced by|^Map contains .+'s Citadel$|^Area contains (an? )?(Empowered )?Mirage/i.test(m.text || '') && !m.unmatched;
     return [...extra, ...mods];
   }
   // heist contracts: the job and its level, and whether the target is priceless

@@ -76,7 +76,7 @@ function syncFacts() {
   }
 }
 
-/** Your base rank as a badge in its rank colours, and the item tier ("Tier 5 - Unidentified", "Tier 0 - Normal item"). */
+/** Your base rank as a badge in its rank colours, and the item tier ("Tier 5 - Unidentified", "Untiered - Normal item"). */
 function rankBadge(item, br) {
   if (!item || !br) return null;
   const rgb = (a) => (a ? `rgb(${a[0]},${a[1]},${a[2]})` : '');
@@ -89,7 +89,7 @@ function rankBadge(item, br) {
   const rareNote = br.rareTier ? ` Rares of it go into the filter's rare Tier ${br.rareTier.tier.replace(/^t/, '')}${br.rareTier.state === 'Off' ? ' (switched off at your strictness)' : ''}.` : '';
   return h('span', { class: 'ov-rank', title: `Base rank ${br.rank} for ${br.base}${br.group ? ` (${br.group})` : ''}.${unidNote}${rareNote}` },
     h('span', { class: 'ov-rank-box', style: { background: rgb(bg), color: rgb(lk.text), borderColor: rgb(lk.border) } }, br.rank),
-    h('span', { class: 'ov-rank-tier', style: { color: light(bg) ? rgb(bg) : rgb(lk.text) } }, `Tier ${tier} - ${what}`));
+    h('span', { class: 'ov-rank-tier', style: { color: light(bg) ? rgb(bg) : rgb(lk.text) } }, `${tier ? `Tier ${tier}` : 'Untiered'} - ${what}`));
 }
 
 function collectionBlock(c) {

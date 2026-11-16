@@ -119,6 +119,18 @@ function evalCondition(c, item, assumed) {
       if (c.count != null) return cmp(c.op || '>=', hits, c.count);
       return hits > 0;
     }
+    // cluster jewels: "Adds 8 Passive Skills" and the small passives' kind ("…grant: 12% increased Attack Damage while Dual Wielding")
+    case 'EnchantmentPassiveNum': {
+      const n = (item.mods?.enchant || []).map((t) => /^Adds (\d+) Passive Skills?/i.exec(t)).find(Boolean);
+      return n ? numCond(c.op, v, Number(n[1])) : unknownCondition(c, assumed);
+    }
+    case 'EnchantmentPassiveNode': {
+      const grants = (item.mods?.enchant || []).filter((t) => /^Added Small Passive Skills grant:/i.test(t)).map((t) => t.replace(/^Added Small Passive Skills grant:\s*/i, ''));
+      if (!grants.length) return unknownCondition(c, assumed);
+      const names = grants.map((g) => (/^Minions deal .*increased Damage$/i.test(g) ? 'minion damage' : (/increased (.+)$/i.exec(g)?.[1] || g.replace(/^[+-]?\d+%?\s*(to\s+)?/i, '')).toLowerCase()));
+      // "Fire Damage" is the node of "12% increased Fire Damage"; a longer grant ("…Reservation Efficiency of Skills") holds its name
+      return v.some((x) => { const want = x.toLowerCase(); return names.some((n) => n === want || (c.op !== '==' && ` ${n} `.includes(` ${want} `))); });
+    }
     case 'HasEnchantment': return stringList(null, v, (item.mods?.enchant || []).join('\n'));
     case 'HasImplicitMod': return boolCond(v, (item.mods?.implicit || []).length > 0);
     case 'Foulborn': return boolCond(v, item.flags?.foulborn);

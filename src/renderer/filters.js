@@ -1018,7 +1018,7 @@ const RARE_LOOK_GROUPS = [
     ['unid2', 'Item tier 2 (and 1)', 'Unidentified gear of item tier 2, and Tier 1 if you show it', [[/^gear->tiered$/, /^t2r\d$/]]],
     ['unidany', 'Any base', 'FilterBlade\'s "any base" item tier rules', [[/^gear->tiered$/, /^(any\d|specialclasses)$/]]],
   ]],
-  ['Rares without an item tier (Tier 0)', [
+  ['Rares without an item tier (Untiered)', [
     ['rr1', 'Rares by base: Tier 1', 'Your rank S bases (Fated ones too)', [[/^rr(->|$)/, /^t1f?$/]]],
     ['rr2', 'Rares by base: Tier 2', 'Your rank A bases', [[/^rr(->|$)/, /^t2f?$/]]],
     ['rr3', 'Rares by base: Tier 3', 'Your rank B bases', [[/^rr(->|$)/, /^t3$/]]],
@@ -1561,25 +1561,27 @@ async function renderBaseMatrix(body, view) {
     const save = async (v) => { const r = await call('ranks:kind', { unidTiers: v }); unidTiers = r.unidTiers; S.settings.rankUnidTier = unidTiers; renderFilters(); };
     const mode = null; // always your choice (no "Filter decides")
     const bt = byTier(unidTiers || DEFAULT_UNID);
-    // a choice is copied to every lower tier (Tier 0 too), so a stricter Tier 5 is one click;
-    // a higher tier still shows at least what a lower one does
+    // a lower tier never shows more than a higher one: a choice narrows the lower tiers that show more (one set to
+    // Nothing stays Nothing), and a higher tier still shows at least what a lower one does. Tier 1 narrows Untiered.
+    const wide = (w) => (w ? order.indexOf(w) + 1 : 0); // Nothing 0, S 1 … every base 4
     const set = async (tier, who) => {
-      const next = { ...bt };
-      for (const t of TIERS) if (t <= tier) next[t] = who;
+      const next = { ...bt, [tier]: who };
+      for (const t of TIERS) if (t < tier && wide(next[t]) > wide(who)) next[t] = who;
       for (const t of [2, 3, 4, 5]) { const lower = next[t - 1]; if (lower && (!next[t] || order.indexOf(next[t]) < order.indexOf(lower))) next[t] = lower; }
-      const r0 = { S: 'S', A: 'A', B: 'B', C: 'D', '': 'none' }[who];
-      if (r0 && r0 !== ((!kinds.rares || kinds.rares === 'off') ? 'D' : kinds.rares)) {
+      const cur0 = (!kinds.rares || kinds.rares === 'off') ? 'D' : kinds.rares;
+      const wide0 = { S: 1, A: 2, B: 3, D: 4, none: 0 };
+      const r0 = { S: 'S', A: 'A', B: 'B', C: 'D', '': 'none' }[next[1]];
+      if (r0 && wide0[cur0] > wide0[r0]) {
         const r = await call('ranks:kind', { kind: 'rares', min: r0 }); kinds = r.kinds; S.settings.rankKinds = kinds;
       }
-      const lower = TIERS.filter((t) => t < tier).length;
-      toast(lower ? `Tier ${tier} and every lower tier: ${WHO.find(([v]) => v === who)[1].toLowerCase()}` : `Tier ${tier}: ${WHO.find(([v]) => v === who)[1].toLowerCase()}`);
+      toast(`Tier ${tier}: ${WHO.find(([v]) => v === who)[1].toLowerCase()}`);
       save(toRanks(next));
     };
     // Tier 0: plain rares without an item tier (identified, or from before 3.30): the "Rares" rank choice
     // the same order as the item tiers (best first); "Every base" is what FilterBlade does on its own
     const R0 = [['S', 'Only S bases'], ['A', 'A and up'], ['B', 'B and up'], ['C', 'C and up'], ['D', 'Every base'], ['none', 'Nothing']];
-    const tier0 = h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } }, h('span', { title: 'Plain rares without an item tier: identified ones, and any the item tier rules don\'t take' }, 'Tier 0'),
-      h('select', { 'aria-label': 'Tier 0, plain rares without an item tier: which bases are shown', onchange: async (e) => { const r = await call('ranks:kind', { kind: 'rares', min: e.target.value }); kinds = r.kinds; S.settings.rankKinds = kinds; toast('Tier 0 rares saved'); } },
+    const tier0 = h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } }, h('span', { title: 'Plain rares without an item tier: identified ones, and any the item tier rules don\'t take' }, 'Untiered'),
+      h('select', { 'aria-label': 'Untiered, plain rares without an item tier: which bases are shown', onchange: async (e) => { const r = await call('ranks:kind', { kind: 'rares', min: e.target.value }); kinds = r.kinds; S.settings.rankKinds = kinds; toast('Untiered rares saved'); } },
         R0.map(([v, l]) => h('option', { value: v, selected: ((!kinds.rares || kinds.rares === 'off') ? 'D' : kinds.rares) === v }, l))));
     const per = h('div', { class: 'row', style: { gap: '10px 22px', flexWrap: 'wrap', gridColumn: '1 / -1' } }, TIERS.map((t) => h('label', { class: 'row small', style: { gap: '8px', flexWrap: 'nowrap' } },
       h('span', {}, t === 5 ? 'Tier 5' : `Tier ${t}`),
@@ -1587,7 +1589,7 @@ async function renderBaseMatrix(body, view) {
         WHO.map(([v, l]) => h('option', { value: v, selected: bt[t] === v }, l))),
       )), tier0);
     return h('div', { class: 'bm-kind' }, h('b', {}, 'Unid item tier'),
-      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A choice is copied to every lower tier, and a higher tier always shows at least what a lower one does. Tier 0 is plain rares without a tier (identified ones): lower ranks are hidden, the look stays FilterBlade\'s.'), mode, per);
+      h('span', { class: 'small muted' }, 'Unidentified items of item level 68+ show their item tier (the "(Tier 3)" on the label). For each tier, pick which bases you want to see; FilterBlade\'s looks stay. A lower tier never shows more than a higher one: a choice narrows the lower tiers (and Untiered, from Tier 1) that show more. Untiered is plain rares without a tier (identified ones): lower ranks are hidden, the look stays FilterBlade\'s.'), mode, per);
   })() : null;
 
   // 3.30 Memory Strand gear: FilterBlade's rows with your ranks. Per rank the fewest strands that show it

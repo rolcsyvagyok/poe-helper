@@ -1727,3 +1727,8 @@ html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }
 .ov-filter .ov-goto, .ov-filter button { flex: none; }
 .tp-listings:not(.all) .tp-li.more { display: none; }
 .tp-more-btn { justify-self: start; margin-top: 2px; }
+
+/* fractured mods: the game's fractured colour, plus a small "fractured" mark */
+.tp-mod.fractured .tp-text { color: #a29162; }
+.tp-mod.fractured.on .tp-text { color: #c8b47a; }
+.tp-frac { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid #a2916280; border-radius: 3px; font-size: 10.5px; line-height: 15px; color: #a29162; vertical-align: 1px; }

@@ -76,8 +76,10 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       });
       return inp;
     };
-    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : m.statText || '' },
-      h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text)),
+    // a fractured mod in the game's fractured colour, with a mark so it doesn't rest on colour alone
+    const frac = m.group === 'fractured';
+    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : '') + (frac ? ' fractured' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : frac ? `Fractured mod: ${m.statText || m.text}` : m.statText || '' },
+      h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text, frac ? h('span', { class: 'tp-frac' }, 'fractured') : null)),
       field('min', 'min'),
       h('span', { class: 'tp-dash' }, m.unmatched || m.display == null ? '' : '–'),
       field('max', 'max'));
@@ -95,7 +97,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   const byGen = own.some((m) => m.meta?.gen) && own.every((m) => m.meta?.gen || m.unmatched);
   const cap = props.maxAffix || 3;
   const used = (gen) => new Set(own.filter((m) => m.meta?.gen === gen).map((m) => m.meta.n)).size;
-  const tagOf = (m) => (m.group === 'crafted' ? 'crafted' : m.group === 'fractured' ? 'fractured' : null);
+  const tagOf = (m) => (m.group === 'crafted' ? 'crafted' : null); // fractured rows carry their own mark
   const drawGroups = () => mount(groupsBox, GROUPS.flatMap(([g, label]) => {
     if (byGen && AFFIX.includes(g)) {
       if (g !== 'explicit') return [];

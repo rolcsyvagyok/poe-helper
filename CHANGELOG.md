@@ -5,6 +5,22 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.114 - 2026-11-16
+
+* [Trade searches] Maps with "Area contains a Mirage" are searched with the Mirage ticked.
+* [Trade searches] Fractured mods on magic items are searched as fractured, and fractured mods show in the game's fractured colour.
+* [Base ranks] Changing an item tier no longer widens the lower tiers: a tier set to Nothing stays Nothing. Tier 0 is now called Untiered.
+* [Trade searches] Price check shows cluster jewels with the same loot filter look as in the game.
+- Price check: the loot filter look of a cluster jewel now reads its number of passives and its small passive kind (for example "Attack Damage while Dual Wielding"), as the filter does.
+- Base ranks, Unid item tier: a choice only narrows the lower tiers that show more than it. Setting Tier 5 to Only S leaves a lower tier at Nothing; setting Tier 1 to Nothing sets Untiered to Nothing too.
+- Base ranks: Tier 0 (rares without an item tier) is renamed Untiered, here and on the price check.
+- Price check: a Wickerman buff with a fixed number in its text ("…in the past 2 seconds", Greater Golemic Stone) is searched without that number as a minimum.
+- Price check: a fractured mod copied with Ctrl+Alt+C ("{ Fractured Suffix Modifier … }") was read as a normal mod, so a fractured magic item was searched without its fractured mod. It is now searched as fractured.
+- Price check: fractured mods are shown in the game's fractured colour, with a small "fractured" mark.
+- Price check: a negative "damage taken" roll (Lesser Poacher's Leg: "-25 Physical Damage taken from Hits by Animals") is searched as a maximum, since lower is better. It used to find worse rolls too.
+- Price check: "Area contains a Mirage" on a map is ticked, like the map's influence.
+- Price check: when a mod isn't in the trade site's mod list (often a mod new this league), the app gets a new list, at most once a day.
+
 ## 1.0.113 - 2026-11-16
 
 * [Trade searches] Wickerman parts are searched by their buff as an implicit, as the trade site lists them.

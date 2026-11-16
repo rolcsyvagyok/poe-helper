@@ -174,9 +174,9 @@ class GggClient {
 
   // ---------- Trade (rares, on demand) ----------
 
-  async tradeStats() {
+  async tradeStats({ maxAge = STATS_TTL } = {}) {
     const key = 'ggg_trade_stats';
-    if (this.cache.isFresh(key, STATS_TTL)) return this.cache.get(key).data;
+    if (this.cache.isFresh(key, maxAge)) return this.cache.get(key).data;
     try {
       const json = await this._request('trade-data', `${WEB}/api/trade/data/stats`);
       this.cache.set(key, json);
