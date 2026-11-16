@@ -1130,7 +1130,12 @@ function renderRareLooks(body, view) {
       h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('sparkle', { size: 22 })), h('h2', {}, 'Rare looks'),
         h('span', { class: 'small muted' }, 'One look for each kind of rare and gear drop. A look here goes on every FilterBlade rule of that kind; which bases show stays with Base ranks and your filter.'),
         h('span', { class: 'spacer' }),
-        h('button', { class: 'sm', title: 'Give every card here the colours of your Tier designer theme: the best kinds get its Tier 2 look, then Tier 3, 4, 5, 6. Applying a theme in the Tier designer does this too.',
+        // plain rares (tiered and untiered): the game's rare yellow, or the theme's colours
+        h('label', { class: 'row small', style: { gap: '6px' }, title: 'Game rare yellow: plain rares (with or without an item tier) in yellow, stronger for better ranks and higher tiers, so they never look like currency. Influenced, fractured and other rares keep your theme.' },
+          h('span', { class: 'muted' }, 'Rares'),
+          h('select', { 'aria-label': 'Rare colours', onchange: async (e) => { const r = await call('rarelooks:theme', { style: e.target.value }); S.settings.rareStyle = e.target.value; toast(`${r.count} rare rules updated. Select the filter in game again`); renderFilters(); } },
+            [['yellow', 'Game rare yellow'], ['theme', 'My theme\'s colours']].map(([v, l]) => h('option', { value: v, selected: (S.settings.rareStyle || 'yellow') === v }, l)))),
+        h('button', { class: 'sm', title: 'Give every card here the colours of your Tier designer theme again (plain rares follow the Rares choice). Applying a theme in the Tier designer does this too.',
           onclick: async () => { const r = await call('rarelooks:theme'); toast(`${r.count} rare rules use your theme's colours now. Select the filter in game again`); renderFilters(); } }, 'Use my theme\'s colours')),
       sections)));
 }

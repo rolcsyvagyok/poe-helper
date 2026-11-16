@@ -197,9 +197,10 @@ function rareRank(type, tier) {
 const RANK_BORDER = { S: [255, 200, 90], A: [200, 208, 222], B: [125, 130, 142] };
 /** A design level's look for one target: Tier 0 ranks keep the level's look with their rank's border (and S/A the
  *  next level's minimap icon, so the best bases are still found on the map). */
-function lookFor(t, levels) {
+function lookFor(t, levels, { rareStyle = 'yellow' } = {}) {
   const st = levels[t.level];
   if (!st) return null;
+  if (rareStyle === 'yellow') { const y = rareYellowLook(t, levels); if (y) return y; }
   const out = fullLook(withLevelSound(JSON.parse(JSON.stringify(st)), t.level));
   if (t.rank && RANK_BORDER[t.rank]) {
     out.border = [...RANK_BORDER[t.rank], 255];
@@ -207,6 +208,44 @@ function lookFor(t, levels) {
     if ((t.rank === 'S' || t.rank === 'A') && up?.icon && !out.icon) out.icon = { ...up.icon, size: 2 };
   }
   return out;
+}
+
+/**
+ * Rare looks → "Game rare yellow": unidentified tiered rares (FilterBlade "t5r1": item tier 5, rank 1) and untiered
+ * rares (Tier 0 ranks S/A/B/C) in the game's rare yellow, so they never look like currency or fragments. The base rank
+ * sets how strong the yellow is, the item tier makes it louder; untiered ones are a step quieter than Tier 1.
+ * Size and sound stay the design level's. Other rare kinds (influenced, fractured…) keep the theme.
+ */
+const RARE_YELLOW = [255, 216, 74];
+const YELLOW_STEPS = [
+  { background: [...RARE_YELLOW, 255], text: [20, 16, 0, 255], border: [255, 255, 255, 255], icon: { size: 0, color: 'Yellow', shape: 'Diamond' } },
+  { background: [48, 40, 6, 255], text: [...RARE_YELLOW, 255], border: [...RARE_YELLOW, 255], icon: { size: 1, color: 'Yellow', shape: 'Diamond' } },
+  { background: [24, 20, 4, 240], text: [236, 206, 96, 255], border: [120, 100, 30, 255], icon: { size: 2, color: 'Yellow', shape: 'Diamond' } },
+  { background: [10, 9, 4, 220], text: [190, 170, 100, 255] },
+];
+const RANK_STRENGTH = { 1: 1, 2: 0.7, 3: 0.4, S: 1, A: 0.7, B: 0.4, C: 0.25 };
+/** null when the target isn't a plain (tiered or untiered) rare */
+function rareYellowStep(t) {
+  let tier = null;
+  let rank = null;
+  const m = /^t(\d)r(\d)$/.exec(t.tier || '');
+  if (/^gear->tiered$/.test(t.type) && m) { tier = Number(m[1]); rank = Number(m[2]); }
+  else if (/^gear->tiered$/.test(t.type) && /^(any\d|specialclasses)$/.test(t.tier || '')) { tier = 1; rank = 2; }
+  else if (/^rr(->|$)/.test(t.type) && t.rank) { tier = 0; rank = t.rank; }
+  else return null;
+  const s = Math.min(1, (RANK_STRENGTH[rank] ?? 0.4) * (tier ? 0.55 + tier * 0.09 : 0.45));
+  return { step: s > 0.85 ? 0 : s > 0.55 ? 1 : s > 0.35 ? 2 : 3, beam: tier >= 4 && s > 0.55 };
+}
+function rareYellowLook(t, levels) {
+  const y = rareYellowStep(t);
+  const st = levels[t.level];
+  if (!y || !st) return null;
+  const base = fullLook(withLevelSound(JSON.parse(JSON.stringify(st)), t.level));
+  const look = { ...base, ...JSON.parse(JSON.stringify(YELLOW_STEPS[y.step])) };
+  if (!YELLOW_STEPS[y.step].border) delete look.border;
+  if (!YELLOW_STEPS[y.step].icon) delete look.icon;
+  if (y.beam) look.beam = { color: 'Yellow', ...(y.step ? { temp: true } : {}) }; else delete look.beam;
+  return look;
 }
 
 function targetsFor(view, groups = null) {
@@ -228,12 +267,12 @@ function targetsFor(view, groups = null) {
 }
 
 /** Returns a new patch with the design's styles written into every target tier. */
-function applyDesign(view, patch, levels, { groups = null, origView = null } = {}) {
+function applyDesign(view, patch, levels, { groups = null, origView = null, rareStyle = 'yellow' } = {}) {
   const styles = { ...(patch.styles || {}) };
   const targets = targetsFor(view, groups);
   let count = 0;
   for (const t of targets) {
-    const look = lookFor(t, levels);
+    const look = lookFor(t, levels, { rareStyle });
     if (!look) continue;
     styles[t.key] = look;
     count++;
@@ -373,4 +412,4 @@ function paletteColours(origView, styles, levels) {
   return n;
 }
 
-module.exports = { RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { rareYellowStep, rareYellowLook, RARE_YELLOW, RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

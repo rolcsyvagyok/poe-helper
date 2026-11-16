@@ -719,3 +719,16 @@ test('3.30: fated rares below the rare rank are hidden, identified or not', () =
   assert.equal(explain(doc, item('--------\nFated Item\n')).comment, 'fated');
   assert.equal(explain(doc, item('')).comment, 'rest');
 });
+
+test('Rare looks "Game rare yellow": plain rares turn yellow by rank and item tier, other rares keep the theme', () => {
+  const D = require('../src/core/filter/designer');
+  const lv = D.lockTier1(D.fullLevels(D.PRESETS[0].levels));
+  const best = D.lookFor({ type: 'gear->tiered', tier: 't5r1', level: 2 }, lv);
+  assert.deepEqual(best.background.slice(0, 3), D.RARE_YELLOW);
+  assert.equal(best.icon.shape, 'Diamond');
+  const untieredS = D.lookFor({ type: 'rr->amuring', tier: 't1', level: 6, rank: 'S' }, lv);
+  assert.deepEqual(untieredS.text.slice(0, 3), [236, 206, 96]);
+  assert.notDeepEqual(D.lookFor({ type: 'influenced', tier: 't1', level: 3 }, lv).background.slice(0, 3), D.RARE_YELLOW);
+  // "My theme's colours" leaves them on the theme
+  assert.notDeepEqual(D.lookFor({ type: 'gear->tiered', tier: 't5r1', level: 2 }, lv, { rareStyle: 'theme' }).background.slice(0, 3), D.RARE_YELLOW);
+});

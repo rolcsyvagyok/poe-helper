@@ -721,7 +721,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'selectedTabIds', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -2012,13 +2012,15 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     settings.set('designerUndo', { styles: patch.styles || {}, at: Date.now() });
     let origView = null;
     try { origView = tiers.tierView(filters.readBase(), {}); } catch { /* colours of the other items stay */ }
-    const r = designer.applyDesign(view, patch, lv, { groups, origView });
+    const r = designer.applyDesign(view, patch, lv, { groups, origView, rareStyle: settings.get('rareStyle') || 'yellow' });
     const { target } = savePatch(r.patch);
     return { count: r.count, categories: r.categories, target };
   }
 
   /** Loot filter → Rare looks → "Use my theme's colours": the current design's levels on every rare / gear kind only. */
-  function rareLooksFromTheme() {
+  function rareLooksFromTheme({ style } = {}) {
+    if (style) settings.set('rareStyle', style === 'theme' ? 'theme' : 'yellow');
+    const rareStyle = settings.get('rareStyle') || 'yellow';
     const view = tierViewNow();
     if (!view) throw new Error('Choose your filter on the Loot filter page first.');
     const d = settings.get('designer') || {};
@@ -2029,7 +2031,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     let count = 0;
     for (const t of designer.targetsFor(view)) {
       if (designer.rareLevel(t.type, t.tier) === undefined || !levels[t.level]) continue;
-      styles[t.key] = designer.lookFor(t, levels);
+      styles[t.key] = designer.lookFor(t, levels, { rareStyle });
       count++;
     }
     const { target } = savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
@@ -2345,10 +2347,15 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         const patch = settings.get('tierPatch') || {};
         const styles = { ...(patch.styles || {}) };
         let n = 0;
-        for (const t of designer.targetsFor(view)) if (t.rank && levels[t.level]) { styles[t.key] = designer.lookFor(t, levels); n++; }
+        for (const t of designer.targetsFor(view)) if (t.rank && levels[t.level]) { styles[t.key] = designer.lookFor(t, levels, { rareStyle: 'theme' }); n++; }
         if (n) savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
       }
     } catch (e) { log('rare tiers v2', e.message); }
+  }
+  // 1.0.117: plain rares (tiered and untiered) in the game's rare yellow, so they don't look like currency; once
+  if (!settings.get('rareYellowV1')) {
+    settings.set('rareYellowV1', true);
+    try { if (filters.basePath()) rareLooksFromTheme({ style: 'yellow' }); } catch (e) { log('rare yellow', e.message); }
   }
   if (!settings.get('rareThemeV1')) {
     settings.set('rareThemeV1', true);

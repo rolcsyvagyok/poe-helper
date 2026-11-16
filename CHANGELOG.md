@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.117 - 2026-11-16
+
+* [Rare looks] Rares are now shown in the game's rare yellow, so they never look like currency or fragments. Better ranks and higher item tiers get a stronger yellow, a beam and a yellow diamond on the minimap.
+* [Base ranks] High ilvl bases now also hides unidentified magic and normal items without an item tier, below the rank you pick.
+- Rare looks: new "Rares" choice: Game rare yellow (new default) or My theme's colours. Plain rares, with or without an item tier, use the yellow; the base rank sets how strong it is and the item tier makes it louder (Tier 4 and 5 of the best ranks get a beam). Untiered rares are a step quieter. Influenced, fractured and other rares keep your theme.
+- Base ranks: an unidentified magic or normal item without an item tier (like a magic Majestic Pelt) was left to FilterBlade. Your High ilvl bases choice now hides its lower ranks too.
+
 ## 1.0.116 - 2026-11-16
 
 * [Base ranks] Untiered now really hides unidentified rares without an item tier, below the rank you pick.

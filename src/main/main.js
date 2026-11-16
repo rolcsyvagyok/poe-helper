@@ -1409,7 +1409,7 @@ function registerIpc() {
   handle('font:clear', () => { s.set('labelFontPath', ''); overlay?.webContents.reload(); return true; });
   handle('tiers:move', ({ type, bases, to, force }) => services.moveBases(String(type), (bases || []).map(String), String(to), { force: !!force }));
   handle('tiers:style', ({ key, style }) => services.setTierStyle(String(key), style || null));
-  handle('rarelooks:theme', () => services.rareLooksFromTheme());
+  handle('rarelooks:theme', (o) => services.rareLooksFromTheme(o || {}));
   handle('tiers:styles', ({ keys, style }) => services.setTierStyles(Array.isArray(keys) ? keys : [], style || null));
   handle('tiers:reset', (args) => services.resetTiers(args || {}));
   handle('themes:list', () => services.themes());
