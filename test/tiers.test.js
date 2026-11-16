@@ -639,7 +639,7 @@ test('3.30: fragment rules with a base list also take "Stackable Currency" (Divi
 
 test('3.30: with unidentified item tiers, base rank hiding only takes identified rares', () => {
   const M = require('../src/core/filter/manager');
-  const hide = (o) => M.rankRules({ 'Vaal Regalia': 'S' }, { rares: 'A' }, ['Vaal Regalia', 'Silk Robe'], o).find((r) => r.action === 'Hide' && r.id !== 'rank-rares-fated-hide');
+  const hide = (o) => M.rankRules({ 'Vaal Regalia': 'S' }, { rares: 'A' }, ['Vaal Regalia', 'Silk Robe'], o).find((r) => r.action === 'Hide' && !['rank-rares-fated-hide', 'rank-rares-untiered-hide'].includes(r.id));
   assert.ok(hide({ unidTiers: true }).conditions.some((c) => c.keyword === 'Identified' && c.values[0] === 'True'));
   assert.ok(!hide({}).conditions.some((c) => c.keyword === 'Identified'));
 });

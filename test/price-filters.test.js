@@ -450,3 +450,12 @@ test('a negative "damage taken" roll is searched as a maximum', () => {
   const { mods, props } = T.prepareSearch(S, p);
   assert.deepEqual(T.buildQuery(p, mods, { props }).query.stats[0].filters[0].value, { max: -22 });
 });
+
+test('Untiered also hides unidentified rares that have no item tier', () => {
+  const M = require('../src/core/filter/manager');
+  const out = M.rankRules({ 'Majestic Pelt': 'S' }, { rares: 'none' }, ['Majestic Pelt'], { unidTiers: true });
+  const r = out.find((x) => x.id === 'rank-rares-untiered-hide');
+  assert.ok(r && r.action === 'Hide');
+  assert.ok(r.conditions.some((c) => c.keyword === 'UnidentifiedItemTier' && c.op === '<' && c.values[0] === '1'));
+  assert.ok(!M.rankRules({ 'Majestic Pelt': 'S' }, { rares: 'none' }, ['Majestic Pelt'], { unidTiers: false }).some((x) => x.id === 'rank-rares-untiered-hide'));
+});

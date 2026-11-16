@@ -730,6 +730,9 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
     // fated rares (3.30) keep their rank whether identified or not: an unidentified fated rare of a lower rank
     // is hidden too (the unid item tiers are for ordinary drops)
     if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-fated-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: fated rares below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, { keyword: 'Fated', values: ['True'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
+    // unidentified rares without an item tier ("Unidentified", no "(Tier N)"): no tier rule takes them, so the
+    // Untiered choice hides their lower ranks too
+    if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-untiered-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: unidentified rares without an item tier below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, { keyword: 'Identified', values: ['False'] }, { keyword: 'UnidentifiedItemTier', op: '<', values: ['1'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
     if (drop.length) out.push({ id: `rank-${k.id}-hide`, enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: ${k.name.toLowerCase()} below ${min === 'none' ? 'any rank' : `rank ${min}`}${unidTiers ? ' (identified)' : ''}`, conditions: [...conds, ...idOnly, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
   }
   return out;

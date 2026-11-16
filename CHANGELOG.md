@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.115 - 2026-11-16
+
+* [Base ranks] Untiered now also hides unidentified rares that have no item tier, below the rank you pick.
+- Base ranks: an unidentified rare with no item tier (its copy says "Unidentified", not "Unidentified (Tier 3)") was left to FilterBlade, because no item tier choice takes it. Your Untiered choice now hides its lower ranks too.
+
 ## 1.0.114 - 2026-11-16
 
 * [Trade searches] Maps with "Area contains a Mirage" are searched with the Mirage ticked.
