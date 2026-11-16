@@ -269,14 +269,19 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         });
       }
     } catch { /* no filter configured */ }
-    const tradeable = ['rare', 'magic', 'unique', 'normal', 'gem', 'unique-map', 'map'].includes(kind) || /^corpses$/i.test(item.itemClass || '');
+    let tradeable = ['rare', 'magic', 'unique', 'normal', 'gem', 'unique-map', 'map'].includes(kind) || /^corpses$/i.test(item.itemClass || '');
     const entry = { at: Date.now(), name: item.name !== item.typeLine && item.name ? `${item.name} ${item.typeLine}` : item.typeLine, kind, chaos: price.chaos ?? null, total: price.totalChaos ?? null };
     const hist = [entry, ...(settings.get('history') || [])].slice(0, 100);
     settings.set('history', hist);
     const tierInfo = tierInfoFor(item, filterHit);
     const weapon = require('../core/trade').weaponDps(item);
     // bulk items get the live exchange; identified rares a poeprices.info guess (both as Awakened shows them)
-    const bulk = ['currency', 'divination', 'fragment'].includes(kind);
+    // bulk items get the live exchange, if the exchange lists them; an item it doesn't list (a Blood-filled
+    // Vessel holds its own monster) gets the normal trade search by name instead
+    let bulk = ['currency', 'divination', 'fragment'].includes(kind);
+    if (bulk && kind === 'fragment') {
+      try { if (!PF.exchangeTag(await ggg.tradeStatic(), item.typeLine || item.baseType || item.name)) { bulk = false; tradeable = true; } } catch { /* keep the exchange */ }
+    }
     const guess = false; // poeprices.info is gone: no price guess
     // your base rank for this base, and the rare tier of the filter it puts rares in
     let baseRank = null;

@@ -217,12 +217,14 @@ async function renderFiltersNow() {
   })();
 
   const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['check', 'Check an item']].map(([id, label]) =>
-    h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)));
+    h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)),
+    h('span', { class: 'spacer' }),
+    view?.types?.length ? h('button', { class: 'primary sm fb-update-btn', title: 'Compare every tier with poe.ninja, see what would move, and move it', onclick: openPriceUpdate }, window.UI.icon('refresh', { size: 15 }), 'Update prices') : null);
 
   const body = h('div', { class: 'fb-body' });
   const movedBox = h('div');
   if (FB.tab === 'tiers') fillMoved(movedBox);
-  const show = () => mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, movedBox, body);
+  const show = () => { mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, movedBox, body); if (FB.reviewModal) el.append(priceUpdateModal()); };
   // the tier pages are built first and put on screen in one go: showing an empty page while the
   // cluster or base data loads made the page collapse, which threw you back to the top
   if (FB.tab === 'tiers' && info.base && !info.missing && view?.types?.length) {
@@ -2475,6 +2477,29 @@ const MARGINS = [[1, 'At the exact price boundary'], [1.5, 'Only clearly misplac
 const selKey = (type, base) => `${type}\t${base}`;
 
 /** Every price move in every category at once (same rules as Price review). Undo it on Price review. */
+/** "Update prices": a popup with what would move at today's prices, category by category, and Apply. */
+async function openPriceUpdate() {
+  FB.reviewModal = true;
+  if (!FB.review && !FB.reviewBusy) {
+    FB.reviewBusy = true; renderFilters();
+    try { await runReview(); } catch { /* toast */ }
+    FB.reviewBusy = false;
+  }
+  renderFilters();
+}
+function priceUpdateModal() {
+  const close = () => { FB.reviewModal = false; renderFilters(); };
+  if (!window.fbModalKey) { window.fbModalKey = true; document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && FB.reviewModal) { FB.reviewModal = false; renderFilters(); } }); }
+  const inner = h('div', { class: 'fb-modal-body' });
+  renderReview(inner, { popup: true });
+  return h('div', { class: 'fb-modal', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
+    h('div', { class: 'fb-modal-in', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Update prices' },
+      h('div', { class: 'fb-modal-head' }, h('h2', {}, 'Update prices'), h('span', { class: 'small faint' }, 'What would move at today\'s poe.ninja prices. Pick a category to see only its changes.'), h('span', { class: 'spacer' }),
+        h('button', { class: 'quiet sm', disabled: FB.reviewBusy, onclick: async () => { FB.reviewBusy = true; renderFilters(); try { await runReview(); } catch { /* toast */ } FB.reviewBusy = false; renderFilters(); } }, window.UI.icon('refresh', { size: 14 }), 'Check again'),
+        h('button', { class: 'quiet sm', 'aria-label': 'Close', onclick: close }, '✕')),
+      inner));
+}
+
 /** What the last price update moved (yours or the automatic one), once: a short list you can undo or dismiss. */
 async function fillMoved(box) {
   let log = [];
@@ -2546,7 +2571,7 @@ async function runReview(types = null) {
   }
 }
 
-async function renderReview(body, { only = null } = {}) {
+async function renderReview(body, { only = null, popup = false } = {}) {
   const log = await call('review:log').catch(() => []);
   const cfg = FB.review?.cfg || S.settings.priceReview || {};
   const saveCfg = async (patch) => { const next = await call('review:config', patch); if (FB.review) FB.review.cfg = next; };
@@ -2576,7 +2601,7 @@ async function renderReview(body, { only = null } = {}) {
     return mount(body, h('div', { class: 'panel empty' }, h('span', { class: 'spin' }), ' Checking poe.ninja prices for this category…'));
   }
   if (FB.reviewBusy) {
-    mount(body, head, h('div', { class: 'panel empty', style: { marginTop: '14px' } }, h('span', { class: 'spin' }), ' Checking poe.ninja prices for every category. The first check takes a few seconds; after that prices come from the cache.'));
+    mount(body, popup ? null : head, h('div', { class: 'panel empty', style: { marginTop: '14px' } }, h('span', { class: 'spin' }), ' Checking poe.ninja prices for every category. The first check takes a few seconds; after that prices come from the cache.'));
     return;
   }
   if (!FB.review) {
@@ -2610,20 +2635,29 @@ async function renderReview(body, { only = null } = {}) {
         renderFilters();
       } }, `Apply ${mine.length} ${mine.length === 1 ? 'move' : 'moves'}`)) : null);
   }
-  const cards = r.categories.map((c) => categoryCard(c));
-  const bar = h('div', { class: 'fb-selbar' }, selected.length ? h('div', { class: 'fb-selbar-in' },
-    h('b', {}, `${selected.length} of ${total} moves selected`),
+  // one category at a time: a chip per category with changes; "All" shows them all
+  if (FB.reviewCat && !r.categories.some((c) => c.type === FB.reviewCat && c.moves.length)) FB.reviewCat = null;
+  const withMoves = r.categories.filter((c) => c.moves.length).sort((a, b) => b.moves.length - a.moves.length);
+  const chips = withMoves.length > 1 ? h('div', { class: 'rv-cats', role: 'tablist', 'aria-label': 'Category' },
+    h('button', { role: 'tab', class: 'rv-cat' + (!FB.reviewCat ? ' on' : ''), 'aria-selected': !FB.reviewCat ? 'true' : 'false', onclick: () => { FB.reviewCat = null; renderFilters(); } }, 'All', h('span', { class: 'n' }, String(total))),
+    withMoves.map((c) => h('button', { role: 'tab', class: 'rv-cat' + (FB.reviewCat === c.type ? ' on' : ''), 'aria-selected': FB.reviewCat === c.type ? 'true' : 'false', onclick: () => { FB.reviewCat = c.type; FB.reviewOpen.add(c.type); FB.reviewOpen.delete('!' + c.type); renderFilters(); } }, catIcon(c.type), c.label, h('span', { class: 'n' }, String(c.moves.length))))) : null;
+  const shownCats = FB.reviewCat ? r.categories.filter((c) => c.type === FB.reviewCat) : r.categories;
+  const cards = shownCats.map((c) => categoryCard(c));
+  const selectedHere = FB.reviewCat ? selected.filter((m) => m.type === FB.reviewCat) : selected;
+  const catLabel = FB.reviewCat ? r.categories.find((c) => c.type === FB.reviewCat)?.label : null;
+  const bar = h('div', { class: 'fb-selbar' }, selectedHere.length ? h('div', { class: 'fb-selbar-in' },
+    h('b', {}, catLabel ? `${selectedHere.length} ${selectedHere.length === 1 ? 'move' : 'moves'} selected in ${catLabel}` : `${selected.length} of ${total} moves selected`),
     h('span', { class: 'spacer' }),
     h('button', { class: 'quiet', onclick: () => { FB.reviewSel.clear(); renderFilters(); } }, 'Select none'),
     h('button', { class: 'primary', onclick: async () => {
-      const res = await call('review:apply', selected.map(({ type, base, from, to, chaos }) => ({ type, base, from, to, chaos })));
+      const res = await call('review:apply', selectedHere.map(({ type, base, from, to, chaos }) => ({ type, base, from, to, chaos })));
       toast(`Moved ${res.count} items. Your "(helper)" filter is updated; zone or reload it in game.`);
       FB.prices = {};
       await runReview();
       renderFilters();
-    } }, `Apply ${selected.length} ${selected.length === 1 ? 'move' : 'moves'}`)) : null);
+    } }, `Apply ${selectedHere.length} ${selectedHere.length === 1 ? 'move' : 'moves'}`)) : null);
 
-  mount(body, head, summary, h('div', { class: 'stack', style: { marginTop: '14px', gap: '10px', paddingBottom: '80px' } }, cards), bar);
+  mount(body, popup ? null : head, summary, chips, h('div', { class: 'stack', style: { marginTop: '14px', gap: '10px', paddingBottom: '80px' } }, cards), bar);
 
   function categoryCard(c) {
     const open = FB.reviewOpen.has(c.type) || (c.moves.length > 0 && c.moves.length <= 12 && !FB.reviewOpen.has('!' + c.type));

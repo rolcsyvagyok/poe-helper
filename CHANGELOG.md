@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.108 - 2026-11-16
+
+* [Loot filter] "Update prices" button: see what would move at today's prices, one category at a time, and apply it
+
+- Loot filter: an "Update prices" button next to the Tiers / Price review / Check an item tabs opens a popup with every change poe.ninja's prices suggest. Pick a category (Currency, Divination cards, Fragments…) to see only its changes, untick what you want to keep, and apply them.
+- Price review: the same category chips at the top; Apply moves only the category you're looking at.
+- Price check: fragments the currency exchange doesn't list (Blood-filled Vessels) get the normal trade search by name instead of an empty exchange search.
+
 ## 1.0.107 - 2026-11-16
 
 * [WealthyExile] Fixed: items listed under the wrong stash tab, and tabs read wrongly after you moved tabs
