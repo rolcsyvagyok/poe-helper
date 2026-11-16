@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.120 - 2026-11-16
+
+* [Trade searches] Imbued gems can be price checked: the search finds the same gem with the same built-in support.
+- Price check: an imbued gem's built-in support ("Supported by Level 1 Spell Echo") is read, shown under "Imbued support" and ticked, so the search finds the same gem with that support. Its poe.ninja price is the one for that support, not another one.
+- Price check: league mods the trade site lists on their own (veiled, mercenary, imbued, Delve) are now shown in the price check; before, they were searched but not shown.
+
 ## 1.0.119 - 2026-11-16
 
 * [Trade searches] A map's yellow mods (Area contains an Evocator of Ghorr, a buried Apex Sentinel, a Mirage…) are always ticked in the price check.

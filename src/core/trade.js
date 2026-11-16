@@ -626,8 +626,17 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   const PF = require('./price-filters');
   const kind = classify(item);
   const props = defaultProps(item);
-  if (kind === 'gem') return { mods: [], props, presets: null };
   const idx = indexStats(statsJson);
+  if (kind === 'gem') {
+    // an imbued gem sells for its built-in support ("Supported by Level 1 Spell Echo"): searched, ticked
+    const all = (statsJson?.result || []).flatMap((g) => g.entries || []).filter((e) => /^imbued\./.test(e.id || ''));
+    const mods = (item.mods?.imbued || []).map((t) => {
+      const e = all.find((x) => String(x.text).toLowerCase() === t.toLowerCase());
+      return e ? { id: e.id, text: t, statText: e.text, display: null, value: null, negate: false, type: 'imbued', group: 'imbued', enabled: true, special: true, min: null, max: null, meta: null }
+        : { id: null, text: t, type: 'imbued', group: 'imbued', enabled: false, unmatched: true, meta: null };
+    });
+    return { mods, props, presets: null };
+  }
   const rows = itemRows(idx, item, tolerance);
   const plain = kind === 'rare' || kind === 'magic' || kind === 'normal';
   const cls = String(item.itemClass || '');

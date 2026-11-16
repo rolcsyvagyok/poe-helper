@@ -90,7 +90,9 @@ function categoriesFor(item) {
 function pickGem(lines, item) {
   const name = norm(item.typeLine);
   const vaal = name.startsWith('vaal ');
-  const cands = lines.filter((l) => norm(l.name) === name);
+  // imbued gems (poe.ninja's ImbuedGem lines): the variant is the built-in support ("Supported by Level 1 Spell Echo")
+  const sup = (item.mods?.imbued || []).map((t) => /^Supported by Level \d+ (.+)$/.exec(t)?.[1]).find(Boolean);
+  const cands = lines.filter((l) => norm(l.name) === name && (sup ? norm(l.variant) === norm(sup) : !l.variant || l.gemLevel != null));
   if (!cands.length) return { best: null, cands };
   const lvl = item.gemLevel ?? 1;
   const q = item.quality ?? 0;

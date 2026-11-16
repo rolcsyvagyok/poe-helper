@@ -473,3 +473,15 @@ test('a map\'s yellow "Rare-only" mods are always ticked', () => {
   assert.equal(mods.find((m) => /Apex Sentinel/.test(m.text)).enabled, true);
   assert.equal(mods.find((m) => /Thorns/.test(m.text)).enabled, false);
 });
+
+test('an imbued gem is searched and priced by its built-in support', () => {
+  const p = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'imbued-gem.txt'), 'utf8'));
+  assert.deepEqual(p.mods.imbued, ['Supported by Level 1 Spell Echo']);
+  const S = { result: [{ label: 'Imbued', entries: [{ id: 'imbued.pseudo_built_in_support|3076322868', text: 'Supported by Level 1 Spell Echo', type: 'imbued' }] }] };
+  const { mods, props } = T.prepareSearch(S, p);
+  assert.equal(mods[0].enabled, true);
+  assert.deepEqual(T.buildQuery(p, mods, { props }).query.stats[0].filters[0], { id: 'imbued.pseudo_built_in_support', disabled: false, value: { option: 3076322868 } });
+  const P = require('../src/core/pricer');
+  const lines = [{ name: 'Temporal Chains', variant: 'Blasphemy', chaosValue: 177 }, { name: 'Temporal Chains', variant: 'Spell Echo', chaosValue: 50 }];
+  assert.equal(P.pickGem(lines, p).best.chaosValue, 50);
+});

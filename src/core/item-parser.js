@@ -24,6 +24,7 @@ const FLAG_LINES = {
   'Foulborn Item': 'foulborn',
   'Fated Item': 'fated', // 3.30 (a guess at the copy's line; the filter's "Fated True")
   'Fated': 'fated',
+  'Imbued': 'imbued', // 3.30 imbued gems: "Supported by Level 1 Spell Echo"
 };
 
 const INFLUENCES = ['Shaper', 'Elder', 'Crusader', 'Hunter', 'Redeemer', 'Warlord'];
@@ -253,6 +254,8 @@ function parseItem(rawText) {
   if (item.rarity === 'Gem') {
     item.gemText = modSections.flat();
     modSections.length = 0;
+    // an imbued gem's built-in support: the trade site lists it as an "Imbued" stat
+    for (const l of item.gemText) if (/^Supported by Level \d+ .+$/.test(l)) { item.mods.imbued.push(l); item.modMeta.imbued.push(null); }
   }
 
   let headerN = 0; // one per mod (a hybrid mod has two lines under one header)

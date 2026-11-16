@@ -14,6 +14,11 @@ const GROUPS = [
   ['crafted', 'Crafted'],
   ['scourge', 'Scourge'],
   ['crucible', 'Crucible'],
+  // league mods the trade site lists on their own (they start ticked)
+  ['veiled', 'Veiled'],
+  ['mercenary', 'Mercenary'],
+  ['imbued', 'Imbued support'],
+  ['delve', 'Delve'],
 ];
 const STATUSES = [['securable', 'Instant buyout'], ['available', 'Instant buyout + in person'], ['online', 'In person, online'], ['any', 'Any']];
 

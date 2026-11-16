@@ -1,0 +1,36 @@
+Item Class: Skill Gems
+Rarity: Gem
+Temporal Chains
+--------
+Spell, AoE, Duration, Curse, Hex
+Level: 1
+Cost: 16 Mana
+Cast Time: 0.50 sec
+Quality: +19% (augmented)
+--------
+Requirements:
+Level: 24
+Dex: 37
+Int: 25
+--------
+Curses all enemies in an area, lowering their action speed and making other effects on them expire more slowly.
+--------
+Base duration is 5.00 seconds
+50% less Effect of Curse against Players
+Cursed Normal and Magic Enemies have 15% less Action Speed
+Other effects on Cursed enemies expire 25% slower
+(Effects cannot be slowed below 25% of their normal expiry rate)
+Cursed Rare and Unique Enemies have 9% less Action Speed
+
+Additional Effects From Quality:
+19(0-20)% increased Curse Duration
+--------
+Experience: 1/118 383
+--------
+Supported by Level 1 Spell Echo
+--------
+Place into an item socket to gain this skill. Right click to remove from a socket.
+--------
+Corrupted
+--------
+Imbued
