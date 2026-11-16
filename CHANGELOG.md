@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.121 - 2026-11-16
+
+* [My collection] Uniques you don't have yet are no longer hidden by your filter's cheap unique tiers.
+- Loot filter: FilterBlade hides cheap unique tiers by base (Lakishu's Blade on an Elegant Sword at Semi-Strict). With a unique collection, a base that has a unique you don't have yet is now shown with the same look. It goes by base: another unique on that base shows too.
+
 ## 1.0.120 - 2026-11-16
 
 * [Trade searches] Imbued gems can be price checked: the search finds the same gem with the same built-in support.

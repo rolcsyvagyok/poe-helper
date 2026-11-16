@@ -752,3 +752,14 @@ test('magic items get a blue copy of FilterBlade\'s shared gear rules', () => {
   // a rare-only block is left alone
   assert.equal(Mg.magicBlue(src.replace('Normal Magic Rare', 'Rare')), src.replace('Normal Magic Rare', 'Rare'));
 });
+
+test('a base with a unique you don\'t have is shown out of FilterBlade\'s hidden unique tiers', () => {
+  const Mg = require('../src/core/filter/manager');
+  const src = 'Hide # %H3 $type->uniques $tier->hideable2 !uniques_c\n\tRarity Unique\n\tBaseType == "Elegant Ringmail" "Elegant Sword"\n\tSetFontSize 36\n\tDisableDropSound\n\nShow # rest\n\tRarity Unique\n';
+  const out = Mg.showMissingUniques(src, ['Elegant Sword']);
+  assert.match(out, /^Show # Uniques: one you don't have yet[^\n]*\n\tRarity Unique\n\tBaseType == "Elegant Sword"\n\tSetFontSize 36\n/);
+  assert.match(out, /Hide # %H3[^\n]*\n\tRarity Unique\n\tBaseType == "Elegant Ringmail"\n/);
+  assert.equal(Mg.showMissingUniques(src, []), src);
+  // every base missing: the Hide block is switched off
+  assert.match(Mg.showMissingUniques(src, ['Elegant Sword', 'Elegant Ringmail']), /#Hide # %H3/);
+});

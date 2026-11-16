@@ -751,7 +751,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
   // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
-  const FILTER_KEYS = ['sizeAdjust', 'collectHide', 'uniqueCollection', 'collectHideBelow', 'collectedHideBases', 'rankUnidRarity', 'rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
+  const FILTER_KEYS = ['sizeAdjust', 'collectHide', 'uniqueCollection', 'collectHideBelow', 'collectedHideBases', 'collectMissingBases', 'rankUnidRarity', 'rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
@@ -1672,9 +1672,12 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const hide = [];
     const on = settings.get('collectHide') !== false;
     if (on) for (const [base, list] of idx) if (list.length && list.every((u) => have[u.name]) && list.every((u) => u.chaos <= max)) hide.push(base);
-    const before = JSON.stringify(settings.get('collectedHideBases') || []);
+    // bases with a unique you're missing: FilterBlade's hidden (cheap) unique tiers show them again
+    const missing = on && Object.keys(have).length ? [...idx].filter(([, list]) => list.some((u) => !have[u.name])).map(([b]) => b).sort() : [];
+    const before = JSON.stringify([settings.get('collectedHideBases') || [], settings.get('collectMissingBases') || []]);
     settings.set('collectedHideBases', hide.sort());
-    if (write && before !== JSON.stringify(hide) && filters.basePath()) filters.write();
+    settings.set('collectMissingBases', missing);
+    if (write && before !== JSON.stringify([hide, missing]) && filters.basePath()) filters.write();
     return { count: Object.keys(have).length, hidden: hide, max, on };
   }
   async function collectionFor(base) {
