@@ -410,8 +410,13 @@ function veiledStat(idx, side) {
   return { id, text: `Veiled ${/^p/i.test(side) ? 'Prefix' : 'Suffix'}`, display: null, value: null, negate: false, type: 'veiled', min: null, max: null };
 }
 
-/** Ritual boots: their implicit makes the base; the price check searches the base and the implicit only */
-const RITUAL_BASES = new Set(['Stormrider Boots', 'Brimstone Treads', 'Dreamquest Slippers', 'Duskwalk Slippers', 'Nightwind Slippers', 'Cloudwhisper Boots', 'Windbreak Boots', 'Darksteel Treads', 'Basemetal Treads']);
+/** Ritual bases (3.13 helmets, gloves and boots): their implicit makes the base; the price check searches the base
+ *  and the implicit only */
+const RITUAL_BASES = new Set([
+  'Blizzard Crown', 'Winter Crown', 'Gale Crown', 'Archdemon Crown', 'Demon Crown', 'Imp Crown', 'Atonement Mask', 'Penitent Mask', 'Sorrow Mask',
+  'Nexus Gloves', 'Aetherwind Gloves', 'Leyline Gloves',
+  'Stormrider Boots', 'Brimstone Treads', 'Dreamquest Slippers', 'Duskwalk Slippers', 'Nightwind Slippers', 'Cloudwhisper Boots', 'Windbreak Boots', 'Darksteel Treads', 'Basemetal Treads',
+]);
 
 /** Every mod of the item as a search row, with its tier/range info (Ctrl+Alt+C) and template; nothing ticked. */
 function itemRows(idx, item, tol) {
@@ -708,7 +713,7 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !/heist contract|viscera/i.test(cls)) {
     props.ilvl = { ...(props.ilvl || {}), on: true, min: Math.min(item.itemLevel, 86), max: null, show: true };
   }
-  // Ritual boots (Stormrider Boots, Brimstone Treads…): the base and its implicit are what sells; nothing else is ticked
+  // Ritual bases (Stormrider Boots, Nexus Gloves, Blizzard Crown…): the base and its implicit are what sells; nothing else is ticked
   if (RITUAL_BASES.has(item.baseType) && ['Rare', 'Magic', 'Normal'].includes(item.rarity) && !item.flags?.unidentified) {
     for (const m of mods) {
       const imp = m.group === 'implicit' && m.id && !m.unmatched;

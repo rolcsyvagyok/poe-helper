@@ -5,6 +5,10 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.106 - 2026-11-16
+
+- Price check: every Ritual base is searched by its base and implicit only, the helmets (Blizzard Crown, Archdemon Crown, Sorrow Mask…) and gloves (Nexus, Aetherwind and Leyline Gloves) as well as the boots.
+
 ## 1.0.105 - 2026-11-16
 
 * Item pictures on Base ranks, in the loot filter's tiers and in the price check
