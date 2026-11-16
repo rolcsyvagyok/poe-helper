@@ -794,4 +794,16 @@ function gemTradeType(itemsJson, name) {
   return null;
 }
 
-module.exports = { gemTradeType, prepareSearch, weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };
+/** The trade site's name for a Wickerman part: the plain name ("Hag's Stomach") when it lists that, else the full
+ *  name ("Greater Golemic Stone"); null when its item list has neither */
+function partTradeType(itemsJson, typeLine) {
+  const full = String(typeLine || '');
+  const plain = full.replace(/^(Lesser|Greater|Grand|Superior|Perfect|Imperfect)\s+/i, '');
+  const names = new Set();
+  for (const g of itemsJson?.result || []) for (const e of g.entries || []) names.add(String(e.type || e.text || '').toLowerCase());
+  if (names.has(plain.toLowerCase())) return plain;
+  if (names.has(full.toLowerCase())) return full;
+  return null;
+}
+
+module.exports = { gemTradeType, partTradeType, prepareSearch, weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };

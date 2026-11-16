@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.112 - 2026-11-16
+
+* [Trade searches] Wickerman parts like Greater Golemic Stone can be price checked.
+- Price check: Wickerman parts are searched by the name the trade site uses. Some, like Greater Golemic Stone, are listed by their full name, others ("Hag's Stomach") without Lesser / Greater.
+- Price check: a long Wickerman buff that the game copies on two lines is shown as one line.
+
 ## 1.0.111 - 2026-11-16
 
 * [Trade searches] Price check finds the gem on Replica Dragonfang's Flight (and other "+3 to Level of all … Gems" items) and searches for it.

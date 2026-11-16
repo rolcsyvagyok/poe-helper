@@ -329,6 +329,10 @@ function parseItem(rawText) {
     for (const kind of Object.keys(item.mods || {})) {
       const list = item.mods[kind];
       if (!Array.isArray(list)) continue;
+      // a long buff wraps onto a second line that starts in lower case ("…Stunned or Blocked" / "a Stunning Hit in…")
+      for (let i = list.length - 1; i > 0; i--) {
+        if (/^[a-z]/.test(list[i])) { list[i - 1] = `${list[i - 1]} ${list[i]}`; list.splice(i, 1); item.modMeta?.[kind]?.splice?.(i, 1); }
+      }
       const meta = item.modMeta?.[kind] || [];
       const idx = list.map((m, i) => i).filter((i) => keep(list[i]));
       if (idx.length === list.length) continue;

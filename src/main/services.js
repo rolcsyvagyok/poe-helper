@@ -320,6 +320,13 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { mods, props, presets, kind, autoSearch, status: settings.get('tradeStatus') || 'securable' };
   }
 
+  /** Wickerman parts: the trade site lists some by their plain name ("Hag's Stomach"), some by the full one
+   *  ("Greater Golemic Stone"); its item list (cached) says which */
+  async function fixPartType(item) {
+    if (item.itemClass !== 'Viscera') return;
+    try { item.baseType = require('../core/trade').partTradeType(await ggg.tradeItems(), item.typeLine) || item.baseType; } catch (e) { log('trade item list', e.message); }
+  }
+
   /** The same search as a trade site link (pathofexile.com/trade/search/<league>?q=...), without asking GGG's API. */
   async function tradeSiteUrl({ text, mods, props = null, opts = {} }) {
     const item = readItem(text);
@@ -330,6 +337,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (classify(item) === 'gem' && / of /.test(item.typeLine || '')) {
       try { gemType = require('../core/trade').gemTradeType(await ggg.tradeItems(), item.typeLine); } catch { /* base name */ }
     }
+    await fixPartType(item);
     const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}) });
     return `https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify({ query: query.query, sort: query.sort }))}`;
   }
@@ -343,6 +351,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (classify(item) === 'gem' && / of /.test(item.typeLine || '')) {
       try { gemType = require('../core/trade').gemTradeType(await ggg.tradeItems(), item.typeLine); } catch (e) { log('trade item list', e.message); }
     }
+    await fixPartType(item);
     const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}) });
     const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 }).catch((e) => {
       // the trade site doesn't know this item (new league items it doesn't list yet, like Wickerman parts)

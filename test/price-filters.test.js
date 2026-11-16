@@ -402,3 +402,12 @@ test('a skill-choice mod shortened to "(...)" is read and searched', () => {
   const skill = mods.find((m) => m.id === 'explicit.indexable_skill_63');
   assert.ok(skill && skill.enabled && !skill.hidden);
 });
+
+test('a Wickerman part: a buff wrapped onto two lines is one mod; its trade name comes from the item list', () => {
+  const p = parseItem("Item Class: Viscera\nGreater Golemic Stone\n--------\nTorso\n--------\nItem Level: 83\n--------\n{ Implicit Modifier }\nYou cannot be Stunned if you've been Stunned or Blocked\na Stunning Hit in the past 2 seconds\n--------\nTake this to the Wickerman in a town or hideout to attach it.");
+  assert.deepEqual(p.mods.implicit, ["You cannot be Stunned if you've been Stunned or Blocked a Stunning Hit in the past 2 seconds"]);
+  const list = (n) => ({ result: [{ id: 'viscera', entries: [{ type: n, text: n }] }] });
+  assert.equal(T.partTradeType(list('Greater Golemic Stone'), 'Greater Golemic Stone'), 'Greater Golemic Stone');
+  assert.equal(T.partTradeType(list("Hag's Stomach"), "Greater Hag's Stomach"), "Hag's Stomach");
+  assert.equal(T.partTradeType(list('Other'), 'Greater Golemic Stone'), null);
+});
