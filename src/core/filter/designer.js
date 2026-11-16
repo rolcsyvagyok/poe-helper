@@ -197,7 +197,12 @@ function rareRank(type, tier) {
 const RANK_BORDER = { S: [255, 200, 90], A: [200, 208, 222], B: [125, 130, 142] };
 /** A design level's look for one target: Tier 0 ranks keep the level's look with their rank's border (and S/A the
  *  next level's minimap icon, so the best bases are still found on the map). */
+/** 6-socket items (vendor recipe): FilterBlade's white look in every design, so they never pass for a rare or currency */
+const SIX_SOCKET_LOOK = { fontSize: FULL_SIZE, text: [255, 255, 255, 255], border: [255, 255, 255, 255], background: [155, 138, 138, 255], sound: { id: 2, volume: 300 }, beam: { color: 'Grey' }, icon: { size: 2, color: 'Grey', shape: 'Hexagon' } };
+const isSixSockets = (t) => /^socketslinks$/.test(t.type || '') && /^6sockets/.test(t.tier || '');
+
 function lookFor(t, levels, { rareStyle = 'yellow' } = {}) {
+  if (isSixSockets(t)) return JSON.parse(JSON.stringify(SIX_SOCKET_LOOK));
   const st = levels[t.level];
   if (!st) return null;
   if (rareStyle === 'yellow') { const y = rareYellowLook(t, levels); if (y) return y; }
@@ -412,4 +417,4 @@ function paletteColours(origView, styles, levels) {
   return n;
 }
 
-module.exports = { rareYellowStep, rareYellowLook, RARE_YELLOW, RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+module.exports = { SIX_SOCKET_LOOK, isSixSockets, rareYellowStep, rareYellowLook, RARE_YELLOW, RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

@@ -732,3 +732,23 @@ test('Rare looks "Game rare yellow": plain rares turn yellow by rank and item ti
   // "My theme's colours" leaves them on the theme
   assert.notDeepEqual(D.lookFor({ type: 'gear->tiered', tier: 't5r1', level: 2 }, lv, { rareStyle: 'theme' }).background.slice(0, 3), D.RARE_YELLOW);
 });
+
+test('6-socket items keep FilterBlade\'s white look in every design', () => {
+  const D = require('../src/core/filter/designer');
+  for (const p of D.PRESETS) {
+    const lv = D.lockTier1(D.fullLevels(p.levels));
+    for (const tier of ['6sockets', '6sockets4h']) assert.deepEqual(D.lookFor({ type: 'socketslinks', tier, level: 5 }, lv).background, [155, 138, 138, 255]);
+  }
+});
+
+test('magic items get a blue copy of FilterBlade\'s shared gear rules', () => {
+  const Mg = require('../src/core/filter/manager');
+  const src = 'Show # %D8 $type->gear->tiered $tier->t5r1 !exotics_t1\n\tUnidentifiedItemTier >= 5\n\tRarity Normal Magic Rare\n\tBaseType == "Vaal Regalia"\n\tSetTextColor 20 16 0 255\n\tSetBackgroundColor 255 216 74 255\n\tPlayEffect Yellow\n\tMinimapIcon 0 Yellow Diamond\n\nShow # $type->currency $tier->t1\n\tClass "Currency"\n';
+  const out = Mg.magicBlue(src);
+  const blue = out.indexOf('Magic in blue');
+  assert.ok(blue >= 0 && blue < out.indexOf('Show # %D8'));
+  assert.match(out, /Rarity Magic\n[\s\S]*PlayEffect Blue[\s\S]*SetBackgroundColor 136 136 255 255[\s\S]*MinimapIcon 0 Blue Circle/);
+  assert.equal((out.match(/Magic in blue/g) || []).length, 1);
+  // a rare-only block is left alone
+  assert.equal(Mg.magicBlue(src.replace('Normal Magic Rare', 'Rare')), src.replace('Normal Magic Rare', 'Rare'));
+});

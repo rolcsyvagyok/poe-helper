@@ -787,6 +787,47 @@ function showAllCurrency(text) {
  * Text size steps on top of every look: { all: -4, currency: 2, uniques: 0, … } (font size points; the game
  * takes 1 to 45). A rule's category is its "$type->" group; your own rules follow "all" only.
  */
+/**
+ * Magic items in the game's magic blue (Rare looks → Game colours): FilterBlade's gear rules take "Rarity Normal
+ * Magic Rare" in one block, so magic drops looked like rares. A Magic-only copy in blue goes right before each such
+ * block (first match wins), its strength from the block's item tier like the rare yellow.
+ */
+const MAGIC_STEPS = [
+  { text: '10 10 40 255', border: '255 255 255 255', bg: '136 136 255 255', icon: '0 Blue Circle' },
+  { text: '150 150 255 255', border: '150 150 255 255', bg: '16 16 56 255', icon: '1 Blue Circle' },
+  { text: '130 130 230 255', border: '60 60 130 255', bg: '10 10 32 240', icon: '2 Blue Circle' },
+  { text: '120 120 200 255', border: null, bg: '6 6 16 220', icon: null },
+];
+const MAGIC_TYPES = /\$type->(gear->tiered|gear->memorystrand|crafting->[a-z0-9]+)\b/i;
+function magicStep(head) {
+  const m = /\$tier->t(\d)r(\d)\b/.exec(head);
+  if (!m) return 2;
+  const s = Math.min(1, ({ 1: 1, 2: 0.7, 3: 0.4 }[m[2]] ?? 0.4) * (0.55 + Number(m[1]) * 0.09));
+  return s > 0.85 ? 0 : s > 0.55 ? 1 : s > 0.35 ? 2 : 3;
+}
+function magicBlue(text) {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const out = [];
+  for (let i = 0; i < lines.length;) {
+    if (!/^Show\b/.test(lines[i]) || !MAGIC_TYPES.test(lines[i])) { out.push(lines[i]); i++; continue; }
+    let j = i + 1;
+    while (j < lines.length && /^\s+\S/.test(lines[j])) j++;
+    const block = lines.slice(i, j);
+    const r = block.findIndex((l) => /^\s+Rarity\b/.test(l));
+    const rar = r > 0 ? block[r].trim().split(/\s+/).slice(1) : [];
+    if (r > 0 && rar.includes('Magic') && !rar.some((x) => /[<>=]/.test(x))) {
+      const st = MAGIC_STEPS[magicStep(block[0])];
+      const ind = (block[1].match(/^\s+/) || ['\t'])[0];
+      const body = block.slice(1).filter((l) => !/^\s+(SetTextColor|SetBorderColor|SetBackgroundColor|MinimapIcon)\b/.test(l)).map((l) => (/^\s+Rarity\b/.test(l) ? `${ind}Rarity Magic` : /^\s+PlayEffect\s+(?!None)/.test(l) ? l.replace(/PlayEffect\s+\w+/, 'PlayEffect Blue') : l));
+      out.push(block[0].replace(/^Show\s*#?\s*/, 'Show # Magic in blue: '), ...body, `${ind}SetTextColor ${st.text}`, ...(st.border ? [`${ind}SetBorderColor ${st.border}`] : []), `${ind}SetBackgroundColor ${st.bg}`, ...(st.icon ? [`${ind}MinimapIcon ${st.icon}`] : []), '');
+    }
+    out.push(...block);
+    i = j;
+  }
+  return out.join(eol);
+}
+
 const SIZE_MIN = 12;
 function adjustSizes(text, adj = {}) {
   const all = Number(adj.all) || 0;
@@ -1104,6 +1145,7 @@ class FilterManager {
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
     let out = finalCheck(insertAfterItemTiers(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), afterTiers), fix, this.log);
     // Tier designer → Text size: bigger or smaller for everything, or one category, on top of the theme
+    if ((this.store.get('rareStyle') || 'yellow') === 'yellow') out = magicBlue(out);
     const sizes = this.store.get('sizeAdjust');
     if (sizes && Object.values(sizes).some((v) => Number(v))) out = adjustSizes(out, sizes);
     const target = helperPathFor(base);
@@ -1187,4 +1229,4 @@ class FilterManager {
   }
 }
 
-module.exports = { insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { magicBlue, insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

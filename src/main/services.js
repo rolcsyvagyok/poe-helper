@@ -721,7 +721,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'selectedTabIds', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1', 'sixSocketWhiteV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -2351,6 +2351,20 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         if (n) savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
       }
     } catch (e) { log('rare tiers v2', e.message); }
+  }
+  // 1.0.118: 6-socket items in FilterBlade's white look, whatever the design; once
+  if (!settings.get('sixSocketWhiteV1')) {
+    settings.set('sixSocketWhiteV1', true);
+    try {
+      const view = filters.basePath() ? tierViewNow() : null;
+      if (view) {
+        const patch = settings.get('tierPatch') || {};
+        const styles = { ...(patch.styles || {}) };
+        let n = 0;
+        for (const t of view.types) if (t.type === 'socketslinks') for (const tier of t.tiers) if (designer.isSixSockets({ type: t.type, tier: tier.tier })) { styles[tier.key] = JSON.parse(JSON.stringify(designer.SIX_SOCKET_LOOK)); n++; }
+        if (n) savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
+      }
+    } catch (e) { log('six sockets white', e.message); }
   }
   // 1.0.117: plain rares (tiered and untiered) in the game's rare yellow, so they don't look like currency; once
   if (!settings.get('rareYellowV1')) {

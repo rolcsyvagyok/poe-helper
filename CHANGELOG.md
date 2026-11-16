@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.118 - 2026-11-16
+
+* [Tier designer] 6-socket items always use FilterBlade's white look, whatever design you pick.
+* [Rare looks] Magic items are now shown in the game's magic blue, like rares in yellow.
+- Loot filter: 6-socket items (the 7 Jeweller's Orbs vendor recipe) keep FilterBlade's white look (white text and border on grey, grey beam and minimap hexagon) in every Tier designer theme, so they don't pass for a rare or currency.
+- Rare looks: with Game rare yellow on, magic items get the game's magic blue (blue text or label, blue beam, blue circle on the minimap). FilterBlade's gear and crafting base rules take normal, magic and rare items in one rule; a magic-only blue copy now goes before each, stronger for better ranks and higher item tiers. "My theme's colours" turns it off.
+
 ## 1.0.117 - 2026-11-16
 
 * [Rare looks] Rares are now shown in the game's rare yellow, so they never look like currency or fragments. Better ranks and higher item tiers get a stronger yellow, a beam and a yellow diamond on the minimap.
