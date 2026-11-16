@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.111 - 2026-11-16
+
+* [Trade searches] Price check finds the gem on Replica Dragonfang's Flight (and other "+3 to Level of all … Gems" items) and searches for it.
+- Price check: "+3 to Level of all Purity of Elements(...) Gems" was not recognised because of the "(...)" the game adds. It is now read, shown and ticked, since the gem sets the price.
+- Price check: on Replica Dragonfang's Flight every one of the 287 gems is searched with the trade site's own Dragonfang stat. Raise Spectre and Raise Zombie used to search a different item's stat, and Kinetic Fusillade (listed twice on the trade site) now finds either.
+
 ## 1.0.110 - 2026-11-16
 
 * [Trade searches] Price check shows the 3 cheapest listings first. Click Show more to see the rest.

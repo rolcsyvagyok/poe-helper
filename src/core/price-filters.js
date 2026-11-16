@@ -178,6 +178,8 @@ function uniqueRolls(rows, item, tol) {
     if (r.unmatched || r.group === 'pseudo') continue;
     if (r.group === 'implicit' && !corrupted && !/jewel/i.test(item.itemClass || '')) { r.hidden = true; r.enabled = false; continue; }
     if (r.group !== 'explicit') continue;
+    // a mod that picks one of many skills (Replica Dragonfang's Flight): the skill sets the price, so it is always searched
+    if (/indexable_skill/.test(r.id || '')) { r.enabled = true; continue; }
     const rolls = r.meta?.rolls || [];
     if (!item.advanced) continue; // a plain copy has no ranges: everything stays shown
     const varies = rolls.some((x) => x.min !== x.max);
@@ -189,7 +191,7 @@ function uniqueRolls(rows, item, tol) {
     if (r.display != null) r.min = perfect ? r.display : Math.floor((r.display - Math.abs(x.max - x.min) * tol) * 100) / 100;
     r.goodness = x.max === x.min ? 1 : (x.value - x.min) / (x.max - x.min);
   }
-  const visible = rows.filter((r) => !r.hidden && !r.unmatched && r.id);
+  const visible = rows.filter((r) => !r.hidden && !r.unmatched && r.id && !/indexable_skill/.test(r.id));
   if (item.advanced && visible.length && visible.length <= 3) for (const r of visible) r.enabled = true;
 }
 

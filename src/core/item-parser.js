@@ -286,7 +286,9 @@ function parseItem(rawText) {
       // Ctrl+Alt+C writes roll ranges into the line: "+45(40-49) to maximum Life" -> "+45 to maximum Life"
       const clean = line.replace(/\s*—\s*Unscalable Value$/, '').replace(/(\d)\((?:-?\d+(?:\.\d+)?)(?:-(?:-?\d+(?:\.\d+)?))?\)/g, '$1')
         // and the possible choices for random mods: "Level 30 Ice Bite(Greater Multiple Projectiles-Hallow)" -> "Level 30 Ice Bite"
-        .replace(/([A-Za-z])\([^()]*[A-Za-z][^()]*-[^()]*\)/g, '$1');
+        .replace(/([A-Za-z])\([^()]*[A-Za-z][^()]*-[^()]*\)/g, '$1')
+        // a long list of choices is shortened to "(...)": "Purity of Elements(...) Gems" -> "Purity of Elements Gems"
+        .replace(/([A-Za-z])\(\.\.\.\)/g, '$1');
       const stripped = stripModSuffix(clean);
       const modText = stripped.text;
       const type = stripped.type === 'explicit' && headerKind ? headerKind : stripped.type;
@@ -371,7 +373,7 @@ function modValues(mod) {
 function plainItemText(text) {
   return String(text || '').replace(/\r/g, '').split('\n')
     .filter((l) => !isAdvancedHeader(l))
-    .map((l) => l.replace(/(\d)\((?:-?\d+(?:\.\d+)?)(?:-(?:-?\d+(?:\.\d+)?))?\)/g, '$1').replace(/\s*—\s*Unscalable Value$/, ''))
+    .map((l) => l.replace(/(\d)\((?:-?\d+(?:\.\d+)?)(?:-(?:-?\d+(?:\.\d+)?))?\)/g, '$1').replace(/([A-Za-z])\(\.\.\.\)/g, '$1').replace(/\s*—\s*Unscalable Value$/, ''))
     .join('\n');
 }
 

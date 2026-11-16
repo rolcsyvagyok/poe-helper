@@ -392,3 +392,13 @@ test('defences stay unticked without a tier 2 or better defence mod; no links on
   assert.ok(props.defence.every((d) => !d.on));
   assert.equal(props.links.show, false);
 });
+
+test('a skill-choice mod shortened to "(...)" is read and searched', () => {
+  const p = parseItem(['Item Class: Amulets', 'Rarity: Unique', "Replica Dragonfang's Flight", 'Onyx Amulet', '--------', 'Item Level: 85', '--------',
+    '{ Unique Modifier }', '+3 to Level of all Purity of Elements(...) Gems', '{ Unique Modifier — Elemental, Resistance }', '+7(5-10)% to all Elemental Resistances'].join('\n'));
+  assert.ok(p.mods.explicit.includes('+3 to Level of all Purity of Elements Gems'));
+  const S = { result: [{ label: 'Explicit', entries: [{ id: 'explicit.indexable_skill_63', text: '+# to Level of all Purity of Elements Gems', type: 'explicit' }, { id: 'explicit.stat_2901986750', text: '+#% to all Elemental Resistances', type: 'explicit' }] }] };
+  const { mods } = T.prepareSearch(S, p);
+  const skill = mods.find((m) => m.id === 'explicit.indexable_skill_63');
+  assert.ok(skill && skill.enabled && !skill.hidden);
+});

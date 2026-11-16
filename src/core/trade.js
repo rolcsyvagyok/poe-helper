@@ -98,12 +98,14 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   if (!hits) return null;
   const wantLocal = LOCAL_CLASSES.test(itemClass || '');
   // random-support uniques (Forbidden Shako...) are searched by the trade site's "support" stats
-  const entry = (unique && hits.find((h) => /indexable_support/.test(h.id))) || hits.find((h) => h.local === wantLocal && !/indexable_support/.test(h.id)) || hits.find((h) => !/indexable_support/.test(h.id)) || hits[0];
+  // random-skill uniques (Replica Dragonfang's Flight) by the "skill" stats; a gem listed twice is searched as either
+  const skills = unique ? hits.filter((h) => /indexable_skill/.test(h.id)) : [];
+  const entry = (unique && hits.find((h) => /indexable_support/.test(h.id))) || skills[0] || hits.find((h) => h.local === wantLocal && !/indexable_support/.test(h.id)) || hits.find((h) => !/indexable_support/.test(h.id)) || hits[0];
   const vals = one ? [1] : valuesAt(entry.text, modText) || modValues(modText);
   // "Adds 10 to 20 Fire Damage" is searched by its average on trade
   const display = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
   const value = display != null && negate ? -display : display;
-  return { id: entry.id, text: modText, statText: entry.text, value, display, negate, type };
+  return { id: entry.id, text: modText, statText: entry.text, value, display, negate, type, ...(skills.length > 1 ? { anyOf: skills.map((h) => h.id) } : {}) };
 }
 
 // ---------- pseudo totals (what the trade site calls "pseudo" stats) ----------
