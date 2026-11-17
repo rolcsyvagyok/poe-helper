@@ -9,7 +9,8 @@ const DATA = require('./beasts.json');
 
 const MAX = 250;
 // text on an itemised beast that isn't its name; a piece must not match any of it
-const NOISE = ['captured beast', 'right click to add this to your bestiary.', 'bestiary', 'monster level', 'genus', 'group', 'family', 'itemised', 'rare', 'unique',
+// the Bestiary search also matches the beast's mods ("Fenumal Presence" holds "l p") and its level line
+const NOISE = ['level: 8', 'level: 7', 'level: 6', ...(DATA.modNoise || []), 'captured beast', 'right click to add this to your bestiary.', 'bestiary', 'monster level', 'genus', 'group', 'family', 'itemised', 'rare', 'unique',
   ...new Set(DATA.beasts.flatMap((b) => [b.family, b.group]))].map((s) => s.toLowerCase());
 
 const plain = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');

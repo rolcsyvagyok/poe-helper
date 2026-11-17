@@ -23,3 +23,14 @@ test('beast search: price limit, hand picks and 250-character strings', () => {
   assert.ok(r.strings.length > 1 && r.strings.every((s) => s.text.length <= 250));
   assert.strictEqual(r.strings.reduce((a, s) => a + s.count, 0), r.count);
 });
+
+test('no beast piece matches a beast mod (the Bestiary search matches mods too)', () => {
+  const b = require('../src/core/regex/beasts');
+  const mods = require('../src/core/regex/beasts.json').modNoise.map((m) => m.toLowerCase());
+  for (const [name, piece] of b.piecesByName()) {
+    const p = piece.replace(/^\^|\$$/g, '');
+    const hit = mods.find((m) => (piece.startsWith('^') && piece.endsWith('$') ? m === p : piece.startsWith('^') ? m.startsWith(p) : piece.endsWith('$') ? m.endsWith(p) : m.includes(p)));
+    assert.ok(!hit, `${name}: "${piece}" matches the mod "${hit}"`);
+  }
+  assert.strictEqual(b.piecesByName().get('Fenumal Plagued Arachnid') === 'l p', false);
+});

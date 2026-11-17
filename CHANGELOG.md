@@ -5,6 +5,10 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.135 - 2026-11-17
+
+- Regex → Beasts: the search no longer picks up beasts by their mods (Gorechewer's "Fenumal Presence" matched the piece for Fenumal Plagued Arachnid). Pieces now avoid every beast mod name, so a few are a letter longer.
+
 ## 1.0.134 - 2026-11-17
 
 * [Loot filter] Cluster jewels have four steps now: S tier, A tier, FilterBlade's basic look, then hidden. Auto-tier by price sets all of them.
