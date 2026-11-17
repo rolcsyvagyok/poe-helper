@@ -1781,3 +1781,12 @@ tr.cj-focus th .cj-rowhead { color: #fff; font-weight: 700; box-shadow: inset 3p
 tr.cj-focus td { outline: 1px solid rgba(74,144,217,.55); outline-offset: -1px; }
 td.cj-here { outline: 2px solid #4a90d9 !important; outline-offset: -1px; border-radius: 6px; }
 td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
+
+/* Loot filter → Talismans */
+.tal-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 6px; margin-top: 12px; }
+.tal-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.tal-row .n { flex: 1; }
+.tal-row.tal-top { border-color: var(--cj-top-bd, #f06400); }
+.tal-row.tal-good { border-color: var(--cj-good-bd, #f0a060); }
+.tal-row.tal-hide .n { text-decoration: line-through; color: var(--faint); }
+.tal-row.tal-rest { border-style: dashed; }

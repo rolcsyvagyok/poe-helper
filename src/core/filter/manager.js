@@ -763,12 +763,14 @@ function fragmentsAsCurrency(text) {
   });
 }
 
-function showAllCurrency(text) {
+function showAllCurrency(text, keepHidden = new Set()) {
   const lines = text.split(/\r?\n/);
+  // tiers you hid yourself stay hidden (this only undoes the filter's own hiding)
+  const mine = (l) => { const m = /\$type->(\S+)\s+\$tier->(\S+)/.exec(l); return m && keepHidden.has(`${m[1]}|${m[2]}`); };
   const isHead = (l) => /^#?\s*(Show|Hide|Minimal)\b/.test(l);
   const currency = (l) => /\$type->currency(->|\s|$)/.test(l) || /\$type->currency\b/.test(l);
   for (let i = 0; i < lines.length; i += 1) {
-    if (!isHead(lines[i]) || !currency(lines[i])) continue;
+    if (!isHead(lines[i]) || !currency(lines[i]) || mine(lines[i])) continue;
     const off = /^#/.test(lines[i]);
     let k = i;
     for (; k < lines.length && lines[k].trim() !== ''; k += 1) {
@@ -1012,7 +1014,12 @@ function idModsFirst(text) {
       j++;
     }
     b.push(...ID_MOD_LOOK);
-    blocks.push(b.join(eol));
+    // only rules for identified items by their mods (the same sections also hold quality, item tier and
+    // Memory Strand rules, which Base ranks decide)
+    // veiled-only rules (Betrayal drops with a veiled mod) are left to Base ranks → Veiled
+    const modLines = b.filter((l) => /^\s*HasExplicitMod\b/.test(l));
+    const veilOnly = modLines.length && modLines.every((l) => (l.match(/"[^"]+"/g) || []).every((n) => /^"(Veil|Veiled|of the Veil)"$/.test(n)));
+    if (b.some((l) => /^\s*Identified\s+True\b/.test(l)) && !veilOnly) blocks.push(b.join(eol));
     i = j - 1;
   }
   if (!blocks.length) return text;
@@ -1195,7 +1202,7 @@ class FilterManager {
     const patch = withStrictness(baseText, { ...patch0, moves }, levelFor(this.store.get('strictness'), baseText, base));
     // Your tier moves and tier looks are applied to a fresh copy of the base filter every time.
     let text = applyTierPatch(baseText, patch);
-    if (this.store.get('showAllCurrency')) text = showAllCurrency(text);
+    if (this.store.get('showAllCurrency')) text = showAllCurrency(text, new Set(Object.entries(patch.actions || {}).filter(([, a]) => a === 'Hide').map(([k]) => k)));
     text = fragmentsAsCurrency(text);
     text = colourLifeforce(text);
     if (this.store.get('categoryIcons2') !== false) text = categoryIconShapes(text);
@@ -1233,11 +1240,20 @@ class FilterManager {
       }
       clusterBlocks = cluster.clusterRules(clusterState, looks);
     }
+    // Talismans: your own tiers for the beast talisman bases
+    let talismanBlocks = [];
+    if (Object.keys(this.store.get('talismans') || {}).length || this.store.get('talismanRest')) {
+      try {
+        const tal = require('../talismans');
+        const dl = require('./designer').clusterLooks((k) => this.store.get(k));
+        talismanBlocks = tal.talismanRules(this.store.get('talismans') || {}, { rest: !!this.store.get('talismanRest'), all: tal.talismanBases(baseText), looks: dl });
+      } catch (e) { this.log?.('talismans', e.message); }
+    }
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
     // base ranks come before base visibility: they're the finer choice (per kind of drop)
     const campaign = [...campaignHideRules(this.store.get('campaignHide') || {}), ...mapHideRules(this.store.get('mapHide') || {}), ...collectedRules(this.store.get('collectedHideBases') || [])];
     const afterTiers = ranked.filter((r) => r.afterItemTiers).map((r) => cleanRule(r, fix)).filter(Boolean);
-    const overrides = [...clusterBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked.filter((r) => !r.afterItemTiers), ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
+    const overrides = [...clusterBlocks, ...talismanBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked.filter((r) => !r.afterItemTiers), ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
     let out = finalCheck(insertAfterItemTiers(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), afterTiers), fix, this.log);

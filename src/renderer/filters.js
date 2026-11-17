@@ -276,6 +276,7 @@ function renderTiers(body, view) {
   if (FB.type === CLUSTER_GRID) return renderClusterGrid(body, view);
   if (FB.type === CAMPAIGN_HIDE) return renderCampaignHide(body, view);
   if (FB.type === RARE_LOOKS) return renderRareLooks(body, view);
+  if (FB.type === TALISMANS) return renderTalismans(body, view);
   if (!FB.type || !view.types.some((t) => t.key === FB.type)) FB.type = view.types[0].key;
   // a merged subcategory opens its last-used part (Cloaks, Brooches, ...)
   const merge = mergeOf(FB.type);
@@ -1008,6 +1009,50 @@ const BASE_MATRIX = '__basematrix__';
 const CLUSTER_GRID = '__clustergrid__';
 const CAMPAIGN_HIDE = '__campaignhide__';
 const RARE_LOOKS = '__rarelooks__';
+const TALISMANS = '__talismans__';
+// Loot filter → Talismans: your own tier for each beast talisman base
+async function renderTalismans(body, view) {
+  const cats = sidebar(view, new Set());
+  let data = await call('talisman:get');
+  const T = [['top', 'S tier'], ['good', 'A tier'], [null, 'Filter'], ['hide', 'Hide']];
+  const set = async (bases, value, extra = {}) => { data = await call('talisman:set', { bases, value, ...extra }); S.settings.talismans = data.state; S.settings.talismanRest = data.rest; draw(); drawList(); };
+  const sample = (look, name) => dropLabel(name, look, { rarity: 'Rare', scale: 0.55, game: true });
+  const find = h('input', { type: 'search', placeholder: 'Find a talisman', value: FB.talFind || '', style: { width: '220px' }, oninput: (e) => { FB.talFind = e.target.value; drawList(); } });
+  const list = h('div', { class: 'tal-list' });
+  const drawList = () => {
+    const q = (FB.talFind || '').toLowerCase();
+    const shown = data.bases.filter((b) => !q || b.toLowerCase().includes(q));
+    mount(list, shown.length ? shown.map((b) => {
+      const v = data.state[b] || null;
+      return h('div', { class: 'tal-row' + (v ? ` tal-${v}` : data.rest ? ' tal-hide tal-rest' : '') },
+        window.UI.itemPic(b, { size: 28 }),
+        h('span', { class: 'n' }, b),
+        h('div', { class: 'fb-parts', role: 'radiogroup', 'aria-label': b, style: { margin: 0 } }, T.map(([id, label]) => h('button', {
+          class: 'fb-part' + (v === id ? ' on' : ''), role: 'radio', 'aria-checked': v === id ? 'true' : 'false',
+          title: id === null ? (data.rest ? 'Not picked: hidden (Hide the rest is on)' : 'Your filter decides') : label,
+          onclick: () => set([b], id),
+        }, label))));
+    }) : h('div', { class: 'small muted' }, data.bases.length ? 'No talisman matches.' : 'Your filter has no talismans (pick a filter first).'));
+  };
+  const count = () => { const v = Object.values(data.state); return `${v.filter((x) => x === 'top').length} S, ${v.filter((x) => x === 'good').length} A, ${v.filter((x) => x === 'hide').length} hidden`; };
+  const draw = () => mount(body, h('div', { class: 'fb' },
+    h('aside', {}, cats),
+    h('div', {},
+      h('div', { class: 'fb-typehead' }, h('span', { class: 'fb-iconbtn' }, window.UI.icon('ring', { size: 22 })), h('h2', {}, 'Talismans'),
+        h('span', { class: 'small muted' }, 'Beast talisman amulets. FilterBlade shows them in its special bases; give each one your own tier here.')),
+      h('div', { class: 'panel bm-tools' },
+        h('div', { class: 'row small', style: { gap: '10px', flexWrap: 'wrap' } },
+          h('span', { class: 'cj-cell cj-top' }, 'S tier'), sample(data.looks?.t1, 'Flame Hellion Talisman'),
+          h('span', { class: 'cj-cell cj-good' }, 'A tier'), sample(data.looks?.t2, 'Flame Hellion Talisman'),
+          h('span', { class: 'faint' }, 'Filter: FilterBlade\'s own look. Hide: not shown (normal, magic and rare; uniques always show).')),
+        h('div', { class: 'row small', style: { gap: '10px' } },
+          toggle(!!data.rest, (v) => set([], undefined, { rest: v }), 'Hide every talisman I haven\'t picked'),
+          h('span', { class: 'spacer' }), find,
+          h('span', { class: 'small muted' }, count()),
+          h('button', { class: 'quiet sm', onclick: () => { const ks = Object.keys(data.state); if (ks.length && confirm(`Clear your ${ks.length} talisman choices?`)) set(ks, null); } }, 'Reset'))),
+      list)));
+  draw(); drawList();
+}
 // Loot filter → Rare looks: one look per kind of rare / gear drop, set on every FilterBlade rule of that kind
 // (the base lists stay FilterBlade's and Base ranks'). [id, name, about, [[type regex, tier regex], ...]]
 const RARE_LOOK_GROUPS = [
@@ -1895,6 +1940,7 @@ const CATEGORIES = [
     { id: 'chancing', inTable: true, name: 'Chancing bases', match: ['chancing'], art: 'Orb of Chance', icon: 'ring' },
     { id: 'raretiers', inTable: true, name: 'Rares by base', match: ['rr'], art: 'Chaos Orb', icon: 'sword' },
     { id: 'rarelooks', name: 'Rare looks', match: [], special: 'rarelooks', art: 'Orb of Alchemy', icon: 'sparkle' },
+    { id: 'talismans', name: 'Talismans', match: [], special: 'talismans', art: ['Flame Hellion Talisman'], icon: 'ring' },
     { id: 'unidgear', inTable: true, name: 'Unidentified & stranded gear', match: ['gear->tiered', 'gear->memorystrand'], art: 'Scroll of Wisdom', icon: 'sword' },
     { id: 'recipes', name: 'Vendor recipes', match: ['6l', 'socketslinks', 'endgamergb'], art: 'Chromatic Orb', icon: 'link' },
     { id: 'flasks', name: 'Flasks & tinctures', match: ['endgameflasks', 'endgametinctures', 'flasks'], art: "Glassblower's Bauble", icon: 'flask' },
@@ -2258,6 +2304,13 @@ function sidebar(view, changedTypes) {
         h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
         h('span', { class: 'n' }, cat.name))));
 
+  const talismanRow = (cat) => h('div', { class: 'fb-cat' + (FB.type === TALISMANS ? ' current' : '') },
+    h('div', { class: 'fb-cat-bar' + (FB.type === TALISMANS ? ' active' : '') },
+      h('button', { class: 'fb-cat-main', title: cat.name, onclick: () => select(TALISMANS) },
+        h('span', { class: 'fb-cat-ic' }, window.UI.icon(catIconId(cat), { size: 26, fallback: cat.icon })),
+        h('span', { class: 'n' }, cat.name),
+        h('span', { class: 'c small faint' }, String(Object.keys(S.settings.talismans || {}).length || '')))));
+
   const campaignRow = (cat) => h('div', { class: 'fb-cat' + (FB.type === CAMPAIGN_HIDE ? ' current' : '') },
     h('div', { class: 'fb-cat-bar' + (FB.type === CAMPAIGN_HIDE ? ' active' : '') },
       h('button', { class: 'fb-cat-main', title: cat.name, onclick: () => select(CAMPAIGN_HIDE) },
@@ -2354,7 +2407,7 @@ function sidebar(view, changedTypes) {
         const present = cats.filter((c) => (byCat.has(c.id) || c.special) && !c.inTable);
         if (!present.length) return null;
         return h('div', { class: 'fb-sec', title }, h('div', { class: 'fb-sec-title' }),
-          h('div', { class: 'fb-sec-body' }, present.map((c) => (c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : catRow(c, byCat.get(c.id))))));
+          h('div', { class: 'fb-sec-body' }, present.map((c) => (c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : c.special === 'talismans' ? talismanRow(c) : catRow(c, byCat.get(c.id))))));
       })));
   }
   return withResizer(h('nav', { class: 'fb-cats fb-cats-v2' + (editing ? ' edit' : ''), 'data-keep-scroll': 'cats', 'aria-label': 'Categories' }, h('div', { class: 'fb-search-row' }, searchBox(), miniBtn), editBar,
@@ -2364,7 +2417,7 @@ function sidebar(view, changedTypes) {
       const present = editing ? cats : cats.filter((c) => (byCat.has(c.id) || c.special) && !c.inTable);
       if (!present.length) return null;
       return h('div', { class: 'fb-sec' }, h('div', { class: 'fb-sec-title' }, title),
-        h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : catRow(c, byCat.get(c.id))))),
+        h('div', { class: 'fb-sec-body' }, present.map((c, i) => (editing ? editRow(c, byCat.get(c.id) || [], title, i, present.length) : c.special === 'mybases' ? myBasesRow(c) : c.special === 'matrix' ? matrixRow(c) : c.special === 'clustergrid' ? clusterRow(c) : c.special === 'campaignhide' ? campaignRow(c) : c.special === 'rarelooks' ? rareLooksRow(c) : c.special === 'talismans' ? talismanRow(c) : catRow(c, byCat.get(c.id))))),
         editing ? addBox(title) : null);
     })));
 
@@ -2824,7 +2877,7 @@ window.showInFilter = (g) => {
   FB.tab = 'tiers';
   FB.revealNav = true;
   // PoE Helper's own pages (My bases, Base ranks, Cluster jewels, Campaign)
-  const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE, rarelooks: RARE_LOOKS }[g.special];
+  const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE, rarelooks: RARE_LOOKS, talismans: TALISMANS }[g.special];
   if (special) { FB.goto = null; FB.type = special; FB.matrixFocus = special === BASE_MATRIX && g.base ? g.base : null; FB.cjFocus = special === CLUSTER_GRID ? g.cluster || null : null; return; }
   // the cluster jewel rules aren't shown as tiers: their price table instead
   if (/^jewels->cluster/.test(g.type || '')) { FB.goto = null; FB.type = CLUSTER_GRID; FB.cjFocus = null; return; }

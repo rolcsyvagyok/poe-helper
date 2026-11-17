@@ -997,6 +997,8 @@ function registerIpc() {
   handle('stream:source', () => streamSource());
   handle('stream:open', () => { openStreamWin(); return true; });
   handle('cluster:set', (a) => services.setCluster(a || {}));
+  handle('talisman:get', () => services.talismanView());
+  handle('talisman:set', (a) => services.setTalisman(a || {}));
   handle('cluster:auto', async (a) => { const r = await services.setClusterAuto(a || {}); applyAutoTier(); return r; });
   handle('matrix:set', (a) => services.setBaseMatrix(a || {}));
   handle('regex:mapView', (a) => services.regexMapView(a || {}));

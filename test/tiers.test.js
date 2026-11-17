@@ -787,10 +787,35 @@ test('cluster jewel tiers follow the Tier designer design', () => {
 
 test('identified items with great mods keep showing above the Base ranks hide', () => {
   const { idModsFirst } = require('../src/core/filter/manager');
-  const t = ['# [[0600]] IDENTIFIED MOD FILTERING', 'Hide # Base ranks: rares below any rank (identified)', '\tRarity Rare', '', '# [[0600]] IDENTIFIED MOD FILTERING - COMBINATIONS', 'Show # $type->rareid $tier->x', '\tIdentified True', '\tHasExplicitMod "Merciless"', '\tSetFontSize 45', '', '# [[1200]] Exotic Item Classes', 'Show', '\tClass "Fishing Rods"', ''].join('\n');
+  const t = ['# [[0600]] IDENTIFIED MOD FILTERING', 'Hide # Base ranks: rares below any rank (identified)', '\tRarity Rare', '', '# [[0600]] IDENTIFIED MOD FILTERING - COMBINATIONS', 'Show # $type->rareid $tier->x', '\tIdentified True', '\tHasExplicitMod "Merciless"', '\tSetFontSize 45', '', 'Show # $type->rareid $tier->quality', '\tQuality >= 28', '', '# [[1200]] Exotic Item Classes', 'Show', '\tClass "Fishing Rods"', ''].join('\n');
   const o = idModsFirst(t);
   const hide = o.indexOf('Hide # Base ranks');
   const copy = o.indexOf('HasExplicitMod "Merciless"');
   assert.ok(copy > 0 && copy < hide);
   assert.ok(!o.slice(0, hide).includes('Fishing Rods'));
+});
+
+test('only identified mod rules are copied, not quality or Memory Strand rules', () => {
+  const { idModsFirst } = require('../src/core/filter/manager');
+  const t = ['Hide # Base ranks: rares below any rank (identified)', '\tRarity Rare', '', '# [[0600]] IDENTIFIED', 'Show # a', '\tIdentified True', '\tHasExplicitMod "Merciless"', '', 'Show # b', '\tMemoryStrands >= 1', '\tRarity Rare', '', '# [[1200]] Exotic', ''].join('\n');
+  const o = idModsFirst(t);
+  const head = o.slice(0, o.indexOf('Hide # Base ranks'));
+  assert.ok(head.includes('Merciless'));
+  assert.ok(!head.includes('MemoryStrands'));
+});
+
+test('veiled-only identified rules are left to Base ranks', () => {
+  const { idModsFirst } = require('../src/core/filter/manager');
+  const t = ['Hide # Base ranks: veiled below rank S (identified)', '\tRarity Rare', '', '# [[0600]] IDENTIFIED', 'Show # duoveil', '\tIdentified True', '\tHasExplicitMod "Veiled"', '\tHasExplicitMod "of the Veil"', '', 'Show # inc', '\tIdentified True', '\tHasExplicitMod "Matatl\'s"', '', '# [[1200]] Exotic', ''].join('\n');
+  const head = idModsFirst(t).split('Hide # Base ranks')[0];
+  assert.ok(head.includes("Matatl's"));
+  assert.ok(!head.includes('"of the Veil"'));
+});
+
+test('showing every currency tier keeps the tiers you hid yourself hidden', () => {
+  const { showAllCurrency } = require('../src/core/filter/manager');
+  const t = ['Hide # $type->currency->trial->omen $tier->t4', '\tBaseType == "Omen of Return"', '', 'Hide # $type->currency $tier->t6', '\tBaseType == "Orb of Transmutation"', ''].join('\n');
+  const o = showAllCurrency(t, new Set(['currency->trial->omen|t4']));
+  assert.ok(/^Hide # \$type->currency->trial->omen/m.test(o));
+  assert.ok(/^Show # \$type->currency \$tier->t6/m.test(o));
 });

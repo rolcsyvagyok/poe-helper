@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.137 - 2026-11-17
+
+* [Loot filter] New Talismans page (Rare items): give each beast talisman base an S tier, A tier, FilterBlade's look or hide it, and hide every one you haven't picked.
+- Loot filter: the identified mod looks from 1.0.136 also caught quality, item tier and Memory Strand rules, and FilterBlade's low priority veiled rules, so too many items showed in the blue look. Now only rules for identified items with great mods are used; veiled items are left to Base ranks → Veiled.
+- Currency → "every currency tier shows" no longer shows tiers you hid yourself (e.g. Omen tiers).
+
 ## 1.0.136 - 2026-11-17
 
 * [Loot filter] Identified items with great mods (FilterBlade's identified mod rules) are no longer hidden by Base ranks, and have their own look: yellow label with a blue border, blue beam, blue star on the minimap.
