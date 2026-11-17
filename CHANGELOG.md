@@ -5,6 +5,10 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.142 - 2026-11-17
+
+- Price check: normal cluster jewels get their poe.ninja price (by their enchantment, passive count and item level).
+
 ## 1.0.141 - 2026-11-17
 
 * Mercenary Warrants are searched the way Awakened PoE Trade does it: primary skills always, supports only on their own skill and at their tier or better, weak "brick" skills left out.

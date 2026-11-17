@@ -20,3 +20,12 @@ test('WealthyExile prices invitations, shards, 3.30 maps, normal cluster jewels 
   assert.strictEqual(v({ frameType: 0, typeLine: 'Large Cluster Jewel', ilvl: 83, enchantMods: ['Adds 8 Passive Skills', '2 Added Passive Skills are Jewel Sockets', 'Added Small Passive Skills grant: Staff Attacks deal 12% increased Damage with Hits and Ailments\nAdded Small Passive Skills grant: Mace or Sceptre Attacks deal 12% increased Damage with Hits and Ailments'] }), 250);
   assert.strictEqual(v({ frameType: 15, typeLine: 'Defaced Bust', ilvl: 83, implicitMods: [{ description: '27% increased Stun and Block Recovery' }] }), 1);
 });
+
+test('price check: a normal cluster jewel by its grants, passives and item level bracket', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const { pickCluster } = require('../src/core/pricer');
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'cluster-normal-two-grants.txt'), 'utf8'));
+  const name = 'Staff Attacks deal 12% increased Damage with Hits and Ailments, Mace or Sceptre Attacks deal 12% increased Damage with Hits and Ailments';
+  const L = (lvl, chaos, v = '8 passives') => ({ name, baseType: 'Large Cluster Jewel', variant: v, levelRequired: lvl, chaos });
+  assert.strictEqual(pickCluster([L(84, 300), L(75, 250), L(68, 220), L(75, 10, '9 passives')], it).best.chaos, 250);
+});

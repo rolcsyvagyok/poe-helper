@@ -193,6 +193,18 @@ function pickViscera(lines, name, mods = []) {
   return { best: hit || sorted[0], cands: hit ? [hit] : sorted.slice(0, 4) };
 }
 
+/** A normal cluster jewel: poe.ninja's line for its small passives' grant(s), passive count and item level bracket. */
+function pickCluster(lines, item) {
+  const ench = item.mods?.enchant || [];
+  const n = Number((ench.map((t) => /^Adds (\d+) Passive Skills$/.exec(t)).find(Boolean) || [])[1]);
+  const grants = ench.map((t) => (/^Added Small Passive Skills grant: (.+)$/.exec(t) || [])[1]).filter(Boolean).join(', ');
+  const base = norm(item.baseType || item.typeLine);
+  const cands = lines.filter((l) => norm(l.baseType || '') === base && l.variant === `${n} passives` && norm(l.name) === norm(grants))
+    .sort((a, b) => (b.levelRequired ?? 0) - (a.levelRequired ?? 0));
+  const ok = cands.filter((l) => (l.levelRequired ?? 0) <= (item.itemLevel || 0));
+  return { best: ok[0] || null, cands: (ok.length ? ok : cands).slice(0, 3) };
+}
+
 function pickByName(lines, item) {
   const raw = item.typeLine || item.baseType || item.name;
   const name = norm(raw);
@@ -232,6 +244,7 @@ class Pricer {
       else if (kind === 'unique') pick = pickUnique(lines, item);
       else if (kind === 'map' || kind === 'unique-map') pick = kind === 'map' ? pickMap(lines, item) : pickByName(lines, { typeLine: item.name });
       else if (cat === 'BaseType') pick = pickBase(lines, item);
+      else if (cat === 'ClusterJewel') pick = pickCluster(lines, item);
       else if (cat === 'Viscera') pick = pickViscera(lines, item.typeLine || item.baseType, [...(item.mods?.implicit || []), ...(item.mods?.explicit || [])]);
       else pick = pickByName(lines, item);
 
@@ -266,4 +279,4 @@ function slim(l) {
   return o;
 }
 
-module.exports = { pickViscera, Pricer, categoriesFor, pickGem, pickUnique, pickMap, pickBase, uniqueCategories };
+module.exports = { pickCluster, pickViscera, Pricer, categoriesFor, pickGem, pickUnique, pickMap, pickBase, uniqueCategories };
