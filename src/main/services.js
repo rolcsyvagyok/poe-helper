@@ -750,7 +750,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'selectedTabIds', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1', 'sixSocketWhiteV1'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1', 'sixSocketWhiteV1', 'clusterDesignV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -1369,7 +1369,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     } catch (e) { log('cluster prices', e.message); }
     const units = await getLeague().then((lg) => currencyUnits(lg)).catch(() => ({ chaos: 1 }));
     const enchants = Object.fromEntries(cl.SIZES.map((z) => [z.id, [...cl.ENCHANTS[z.id], ...fromFilter.extra[z.id].filter((e) => cl.ALL_ENCHANTS.includes(e) && !cl.ENCHANTS[z.id].includes(e))]]));
-    return { sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, bySize, looks: { ...cl.DEFAULT_LOOKS, ...(fromFilter.looks.Large || {}) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
+    return { sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, bySize, looks: { ...cl.DEFAULT_LOOKS, ...designer.clusterLooks((k) => settings.get(k)) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
   }
   /** Set cells: value 'top' | 'good' | 'hide' | null (back to the filter). */
   function setCluster({ keys = [], value = null } = {}) {
@@ -2383,6 +2383,21 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         if (n) savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
       }
     } catch (e) { log('rare tiers v2', e.message); }
+  }
+  // 1.0.132: cluster jewel tiers (by enchantment) in your design's Tier 1 / Tier 2 looks; once
+  if (!settings.get('clusterDesignV1')) {
+    settings.set('clusterDesignV1', true);
+    try {
+      const view = filters.basePath() ? tierViewNow() : null;
+      if (view) {
+        const lv = designer.currentLevels((k) => settings.get(k));
+        const patch = settings.get('tierPatch') || {};
+        const styles = { ...(patch.styles || {}) };
+        let n = 0;
+        for (const t of designer.targetsFor(view)) if (/^jewels->cluster(eco)?$/.test(t.type)) { const l = designer.lookFor(t, lv); if (l) { styles[t.key] = l; n++; } }
+        if (n) savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
+      }
+    } catch (e) { log('cluster design', e.message); }
   }
   // 1.0.118: 6-socket items in FilterBlade's white look, whatever the design; once
   if (!settings.get('sixSocketWhiteV1')) {

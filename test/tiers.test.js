@@ -772,3 +772,15 @@ test('Voices (the only unique Large Cluster Jewel) goes to the top unique tier',
   assert.match(out, /tier->t2[^\n]*\n\tRarity Unique\n\tBaseType == "Heavy Belt"\n/);
   assert.match(out, /#\tBaseType == "Large Cluster Jewel"/);
 });
+
+test('cluster jewel tiers follow the Tier designer design', () => {
+  const D = require('../src/core/filter/designer');
+  assert.equal(D.rareLevel('jewels->clustereco', 'n4_i84_t1'), 1);
+  assert.equal(D.rareLevel('jewels->clustereco', 'n12_i75_t2'), 2);
+  assert.equal(D.rareLevel('jewels->cluster', 'optimalhighlarge'), 3);
+  assert.equal(D.rareLevel('jewels->cluster', 'highsmall'), 4);
+  assert.equal(D.rareLevel('jewels->cluster', 'large'), 5);
+  const L = D.clusterLooks((k) => ({ designer: { presetId: D.PRESETS[0].id } })[k]);
+  const lv = D.currentLevels((k) => ({ designer: { presetId: D.PRESETS[0].id } })[k]);
+  assert.deepEqual(L.t2.background, lv[2].background);
+});

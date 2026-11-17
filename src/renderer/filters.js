@@ -1207,6 +1207,15 @@ async function renderClusterGrid(body, view) {
     el.style.borderColor = look ? (col(look.border) || 'transparent') : '';
     return el;
   };
+  // Top and Good in your Tier designer design's looks (Tier 1, Tier 2)
+  const lk = (l) => (l ? window.UI.normalizeStyle(l, 'Rare') : null);
+  const T1 = lk(data.looks?.t1);
+  const T2 = lk(data.looks?.t2);
+  if (body?.style) for (const [n, l] of [['top', T1], ['good', T2]]) if (l) {
+    body.style.setProperty(`--cj-${n}-bg`, col(l.background) || 'transparent');
+    body.style.setProperty(`--cj-${n}-tx`, col(l.text) || '#fff');
+    body.style.setProperty(`--cj-${n}-bd`, col(l.border) || 'transparent');
+  }
   const sizeTierName = (st) => (st ? tierName({ tier: st.tier, type: 'jewels->cluster' }) : '');
   const cellTitle = (size, e, p, k) => {
     const own = state[k];
@@ -1334,8 +1343,8 @@ async function renderClusterGrid(body, view) {
           h('span', { class: 'spacer' }), count,
           h('button', { class: 'quiet sm', onclick: async () => { const ks = Object.keys(state); if (!ks.length || !confirm(`Clear all ${ks.length} cluster jewel choices? Your filter decides again.`)) return; await call('cluster:set', { keys: ks, value: null }); renderFilters(); } }, 'Reset all'))),
       h('div', { class: 'cj-legend small' },
-        h('span', { class: 'cj-cell cj-top' }, 'Top'), sample(data.sizeLooks?.Large?.t1 || data.looks.t1, 'Large Cluster Jewel'),
-        h('span', { class: 'cj-cell cj-good' }, 'Good'), sample(data.sizeLooks?.Large?.t2 || data.looks.t2, 'Large Cluster Jewel'),
+        h('span', { class: 'cj-cell cj-top' }, 'Top'), sample(data.looks.t1, 'Large Cluster Jewel'),
+        h('span', { class: 'cj-cell cj-good' }, 'Good'), sample(data.looks.t2, 'Large Cluster Jewel'),
         h('span', { class: 'cj-cell cj-hide' }, 'Hidden'),
         (() => { const st = Object.values(data.bySize || {}).find((x) => x.action !== 'Hide' && x.style); const el = h('span', { class: 'cj-cell cj-size' }, 'By size'); if (st) { const lk = window.UI.normalizeStyle(st.style, 'Rare'); el.style.color = col(lk.text); el.style.background = col(lk.background) || 'rgba(0,0,0,0.72)'; el.style.borderColor = col(lk.border) || 'transparent'; } return el; })(),
         h('span', { class: 'faint' }, 'filter\'s size tiers (e.g. Large: 12 passives, item level 84+)'),

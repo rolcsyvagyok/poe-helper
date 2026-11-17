@@ -701,8 +701,8 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .cj-cell { display: inline-block; min-width: 74px; padding: 5px 8px; border-radius: 4px; border: 1px solid var(--line-soft); background: var(--surface); color: var(--faint); font: 12.5px var(--ui); font-variant-numeric: tabular-nums; text-align: center; cursor: crosshair; position: relative; }
 td > .cj-cell { width: 100%; }
 .cj-cell.rich { color: #f2d48b; font-weight: 600; }
-.cj-cell.cj-top { background: #f4f1ea; color: #8a1a10; border-color: #f06400; font-weight: 600; }
-.cj-cell.cj-good { background: #b3550f; color: #fff; border-color: #f0a060; }
+.cj-cell.cj-top { background: var(--cj-top-bg, #f4f1ea); color: var(--cj-top-tx, #8a1a10); border-color: var(--cj-top-bd, #f06400); font-weight: 600; }
+.cj-cell.cj-good { background: var(--cj-good-bg, #b3550f); color: var(--cj-good-tx, #fff); border-color: var(--cj-good-bd, #f0a060); }
 .cj-cell.cj-hide { background: #2a1a19; color: #8d6a66; text-decoration: line-through; border-color: #4a2a27; }
 .cj-cell.cj-size { font-weight: 600; }
 .cj-cell.cj-fhide { color: #6e5552; text-decoration: line-through; border-style: dashed; }

@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.132 - 2026-11-17
+
+* [Tier designer] Cluster jewels now use your design's looks, in the filter and in the Cluster jewels table.
+- Loot filter: cluster jewel tiers follow your Tier designer design: by enchantment, Top is Tier 1 and Good is Tier 2; by size, the best passive counts are Tier 3, high item level Tier 4, the rest Tier 5. Your current filter is switched once, when the app updates.
+- Cluster jewels table: Top and Good cells (and the jewels you set yourself) use your design's Tier 1 and Tier 2 looks, not FilterBlade's orange.
+
 ## 1.0.131 - 2026-11-17
 
 * [Trade searches] Cluster jewels show the same loot filter look as in game for every kind of small passive.

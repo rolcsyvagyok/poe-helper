@@ -184,6 +184,10 @@ const RARE_LEVELS = [
   [/^exoticbases$/, /./, 4], [/^(rareid|rareblendid|corruptedid|magicid)$/, /./, 4],
   [/^crafting->(qualityperfection|generalgear)$/, /./, 5], [/^exotic->(corruptions|enchanted|crucible|sockets)$/, /./, 5],
   [/^(6l|socketslinks)$/, /./, 5], [/^chancing$/, /./, 5],
+  // cluster jewels by enchantment (the Cluster jewels price table): top is Tier 1, good is Tier 2
+  [/^jewels->clustereco$/, /_t1$/, 1], [/^jewels->clustereco$/, /_t2$/, 2],
+  // cluster jewels by size (what the table falls back to): best passive counts Tier 3, high item level Tier 4, the rest Tier 5
+  [/^jewels->cluster$/, /^optimal/, 3], [/^jewels->cluster$/, /^high/, 4], [/^jewels->cluster$/, /^(large|medium|small)$/, 5],
 ];
 const NO_DESIGN = /^decorators(->|$)/; // FilterBlade's size highlights: only their own look
 function rareLevel(type, tier) {
@@ -417,4 +421,17 @@ function paletteColours(origView, styles, levels) {
   return n;
 }
 
-module.exports = { SIX_SOCKET_LOOK, isSixSockets, rareYellowStep, rareYellowLook, RARE_YELLOW, RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+/** The looks of your current Tier designer design, by level (1 white … 6), from the settings */
+function currentLevels(get) {
+  const d = get('designer') || {};
+  const preset = PRESETS.find((p) => p.id === (d.presetId || 'classic')) || PRESETS[0];
+  return lockTier1(fullLevels(d.levels || preset.levels));
+}
+/** The Cluster jewels table's two looks (top, good) in your design */
+function clusterLooks(get) {
+  const lv = currentLevels(get);
+  const look = (n) => (lv[n] ? fullLook(withLevelSound(JSON.parse(JSON.stringify(lv[n])), n)) : null);
+  return { t1: look(1), t2: look(2) };
+}
+
+module.exports = { currentLevels, clusterLooks, SIX_SOCKET_LOOK, isSixSockets, rareYellowStep, rareYellowLook, RARE_YELLOW, RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };

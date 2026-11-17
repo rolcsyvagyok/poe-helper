@@ -1188,8 +1188,9 @@ class FilterManager {
     const clusterState = this.store.get('clusterGrid') || {};
     let clusterBlocks = [];
     if (Object.keys(clusterState).length) {
+      // your choices in the Cluster jewels table look like your Tier designer design (top: Tier 1, good: Tier 2)
       let looks = {};
-      try { looks = cluster.readFilter(tierView(baseText, patch).types.find((t) => t.type === 'jewels->clustereco')).looks; } catch { looks = {}; }
+      try { const dl = require('./designer').clusterLooks((k) => this.store.get(k)); looks = Object.fromEntries(cluster.SIZES.map((z) => [z.id, dl])); } catch { looks = {}; }
       clusterBlocks = cluster.clusterRules(clusterState, looks);
     }
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
