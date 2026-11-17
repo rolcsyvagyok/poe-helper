@@ -28,6 +28,15 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+/** The search's price in the header (an unidentified unique): typical, from the listings. */
+window.OverlayTradePrice = (l, divine) => {
+  const el = document.querySelector('.ov-hprice[data-trade-price]');
+  if (!el) return;
+  const v = l?.median ?? l?.min;
+  mount(el, v != null ? h('span', { class: 'big' }, window.UI.money(v, divine)) : h('span', { class: 'big faint' }, '–'),
+    h('span', { class: 'ov-conf' }, v != null ? `unidentified, ${l.total ?? l.prices?.length ?? 0} listed` : 'none listed unidentified'));
+};
+
 /** Top of the overlay: the item drawn the way your filter draws it on the ground. */
 function header(item, filterHit, br = null, facts = [], priceEl = null) { // eslint-disable-line no-param-reassign
   const name = item ? (item.rarity === 'Unique' || item.rarity === 'Rare' ? item.name : item.typeLine) : 'Price check';
@@ -228,7 +237,22 @@ function render(p) {
   // rares and magic items: poe.ninja's base price says nothing about the mods, so it isn't shown; Search prices them
   const modPriced = ['Magic', 'Rare'].includes(item.rarity) && gearRarity;
   let priceEl = null;
-  if (price?.found && !modPriced) {
+  const unidU = item.rarity === 'Unique' && item.flags?.unidentified;
+  // an unidentified unique: poe.ninja prices identified ones only. Its price is what unidentified ones are listed for
+  // (the search below puts it top right); when its base has one unique (Voices), each identified version is listed
+  if (unidU) {
+    const ms = price?.matches || [];
+    if (ms.length > 1 && new Set(ms.map((m) => m.name)).size === 1) {
+      const label = (m) => m.variant || (m.name === 'Voices' ? '1 passive' : 'other');
+      const order = (m) => (/(\d+)/.exec(label(m)) ? Number(/(\d+)/.exec(label(m))[1]) : 99);
+      body.append(h('div', { class: 'ov-block' }, h('div', { class: 't' }, `Identified ${ms[0].name}, by version`),
+        h('div', { class: 'ov-list' }, [...ms].sort((a, b) => order(a) - order(b)).map((m) => h('div', { class: 'li' },
+          h('span', { class: 'muted', title: m.listingCount != null ? `${m.listingCount} listed` : '' }, label(m), m.listingCount != null && m.listingCount < 5 ? h('span', { class: 'faint' }, ` · only ${m.listingCount} listed`) : null),
+          h('span', { class: 'spacer' }), h('span', {}, chaosDiv(m.chaos, divine)))))));
+    }
+    priceEl = h('div', { class: 'ov-hprice', 'data-trade-price': '1', title: 'What unidentified ones are listed for (the search below)' },
+      h('span', { class: 'big faint' }, '…'), h('span', { class: 'ov-conf' }, 'unidentified'));
+  } else if (price?.found && !modPriced) {
     const conf = { high: ['good', 'Plenty of listings', '●'], medium: ['warn', 'Some listings', '◐'], low: ['bad', 'Few listings', '○'], range: ['warn', 'Versions differ', '◐'] }[price.confidence] || ['', '', ''];
     // the price is the hero: big, in the header, with how sure it is under it
     priceEl = h('div', { class: 'ov-hprice', title: divine && price.chaos >= divine ? `${fmt(price.chaos)} chaos on poe.ninja` : 'poe.ninja price' },

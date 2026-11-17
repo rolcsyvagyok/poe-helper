@@ -254,6 +254,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       prep.status = status;
       const r = await window.poe.call('trade:search', { text, mods, props, opts: { status } }); // errors shown below, not as a toast over the buttons
       const l = r.listings;
+      // an unidentified unique: the price top right is what unidentified ones are listed for
+      if (prep.uniqueChoices?.length && (prep.uniqueChoices.length === 1 || props.uniqueName)) window.OverlayTradePrice?.({ ...(l || {}), total: r.total }, divine);
       mount(results,
         h('div', { class: 'row', style: { gap: '8px' } },
           h('b', {}, `${r.total} ${r.total === 1 ? 'listing' : 'listings'}`),
@@ -301,11 +303,23 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     : choices.length > 1 && props.uniqueName ? h('div', { class: 'tp-which one' }, window.UI.itemPic(props.uniqueName, { size: 34, hint: 'Unique' }),
       h('div', { class: 'row', style: { gap: '10px' } }, h('div', {}, h('b', {}, props.uniqueName), h('div', { class: 'small muted' }, 'Searched as unidentified ones.')),
         h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => pick(null) }, 'Change')))
-    : choices.length > 1 ? h('div', { class: 'tp-which' },
-      h('div', { class: 'tp-ghead' }, 'Which unique is it?'),
-      h('div', { class: 'tp-which-grid' }, choices.map((n) => h('button', { class: 'tp-which-btn', onclick: () => pick(n) },
-        window.UI.itemPic(n, { size: 30, hint: 'Unique' }), h('span', {}, n)))),
-      h('div', { class: 'small faint' }, 'Pick one to see its prices.'))
+    : choices.length > 1 ? (() => {
+      // a search over the names: the grid shows only the matching ones (Enter picks the first)
+      const grid = h('div', { class: 'tp-which-grid' }, choices.map((n) => h('button', { class: 'tp-which-btn', 'data-n': n.toLowerCase(), onclick: () => pick(n) },
+        window.UI.itemPic(n, { size: 30, hint: 'Unique' }), h('span', {}, n))));
+      const none = h('div', { class: 'small muted', hidden: true }, 'No unique on this base has that name.');
+      const find = h('input', { type: 'search', class: 'tp-which-find', placeholder: `Find among ${choices.length} uniques…`, 'aria-label': 'Find a unique',
+        oninput: (e) => {
+          const q = e.target.value.trim().toLowerCase();
+          let shown = 0;
+          for (const b of grid.children) { const on = !q || b.dataset.n.includes(q); b.hidden = !on; if (on) shown++; }
+          none.hidden = shown > 0;
+        },
+        onkeydown: (e) => { if (e.key === 'Enter') { const first = [...grid.children].find((b) => !b.hidden); if (first) first.click(); } } });
+      setTimeout(() => find.focus(), 0);
+      return h('div', { class: 'tp-which' }, h('div', { class: 'tp-ghead' }, 'Which unique is it?'), find, grid, none,
+        h('div', { class: 'small faint' }, 'Pick one to see its prices.'));
+    })()
     : null;
   // (the "Search as: finished item / crafting base" choice is gone: the price check searches the finished item)
   mount(box,

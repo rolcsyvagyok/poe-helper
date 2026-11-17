@@ -288,10 +288,12 @@ async function copyItemFromGame({ advanced = false, accelerator = '' } = {}) {
 }
 
 async function priceCheck({ advanced = false, accelerator = '', compare = false } = {}) {
-  // If you clicked into the popup, hide it so the copy goes to the game, not to the popup.
-  if (overlay?.isVisible() && overlay.isFocused()) {
-    overlay.hide();
-    await new Promise((r) => setTimeout(r, 80));
+  // If you clicked into the popup (or the app's window has the focus, e.g. right after an update restarted it),
+  // give the focus back first, so the copy keys go to the game, not to the app.
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused) {
+    if (focused === overlay) overlay.hide(); else focused.blur();
+    await new Promise((r) => setTimeout(r, 150));
   }
   let text = null;
   try { text = await copyItemFromGame({ advanced, accelerator }); } catch (e) { log('price check: copy failed', e.message); }

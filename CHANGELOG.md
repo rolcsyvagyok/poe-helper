@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.129 - 2026-11-17
+
+* [Trade searches] Unidentified Voices: the price top right is what unidentified ones sell for, and each identified version (1, 3, 5, 7 passives) has its own price.
+* [Trade searches] "Which unique is it?" has a search box.
+- Price check: an unidentified unique's price top right comes from the search for unidentified ones (typical price and how many are listed), not poe.ninja's range of identified versions ("Versions differ" is gone).
+- Price check: when the base has one unique (Voices), its identified versions are listed by passives, each with its own poe.ninja price.
+- Price check: "Which unique is it?" has a search box: type part of a name and only those show; Enter picks the first.
+- Price check: the hotkey sometimes said "The game didn't copy an item" when one of the app's windows had the focus (after clicking in the price check, or right after an update restarted the app). The app now gives the focus back to the game before copying.
+
 ## 1.0.128 - 2026-11-17
 
 * [Trade searches] "Which unique is it?" shows each unique's picture; unidentified uniques no longer list every unique and its price.
