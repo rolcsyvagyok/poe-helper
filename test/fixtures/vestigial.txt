@@ -1,0 +1,32 @@
+Item Class: Helmets
+Rarity: Unique
+Fairgraves' Tricorne
+Vestigial Tricorne
+--------
+Evasion Rating: 109 (augmented)
+--------
+Requirements:
+Level: 50
+Dex: 27
+--------
+Sockets: W 
+--------
+Item Level: 73
+--------
+{ Vestigial Implicit Modifier — Attack, Speed, Minion }
+2% increased Minion Attack Speed per 50 Dexterity
+--------
+{ Unique Modifier — Defences, Evasion }
+70% increased Evasion Rating
+{ Unique Modifier — Damage, Elemental, Cold, Attack }
+Adds 15 to 25 Cold Damage to Attacks
+{ Unique Modifier — Elemental, Lightning, Resistance }
++25(20-30)% to Lightning Resistance
+{ Unique Modifier }
+Cannot be Shocked — Unscalable Value
+{ Unique Modifier }
+You can be Touched by Tormented Spirits — Unscalable Value
+--------
+Fairgraves' trusty tricorne accompanied him far across
+the seas, deep under the ground, and even beyond death.
+--------

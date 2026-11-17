@@ -5,6 +5,20 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.130 - 2026-11-17
+
+* [Trade searches] Fixed the price check failing ("The game didn't copy an item") right after an update, and an older search changing the next item's price.
+* [Trade searches] The price check's top is tidier: the item's whole name on its own line, then its picture, details and price.
+* [Trade searches] Foulborn uniques and vestigial items are priced and searched as what they are.
+- After an update restarts the app, its window opens without taking the focus from the game, so the next price check copies the item.
+- Price check: a search still running when you check the next item (an unidentified unique like Split Personality) no longer changes the new item's price or picture.
+- Price check: the "Which unique is it?" search box no longer takes the keyboard by itself; click it to type.
+- Price check: the top of the window is rearranged. The item's name has a line of its own across the window and is never cut short (a long name wraps); under it are the picture, the details in one row, and the price on the right. Pin and close sit next to the name.
+- Price check: a twice corrupted item now says "twice corrupted" at the top.
+- Price check: a Foulborn unique ("Foulborn The Infinite Pursuit") is priced as poe.ninja's Foulborn version with the same Foulborn mods (not the normal one), searched by its name with the trade site's Foulborn filter, and its Foulborn mods start ticked.
+- Price check: a vestigial item ("Vestigial Tricorne") is searched as its base (Tricorne) with the trade site's Vestigial filter, and its vestigial implicit starts ticked. Before, the trade site didn't know the base name.
+- Price check: an unidentified unique jewel shows a unique's picture until you pick which one it is: The Red Dream (Crimson), The Green Nightmare (Viridian), Apex Mode (Cobalt), Emperor's Mastery (Prismatic), Lethal Pride (Timeless), Natural Affinity (Small Cluster).
+
 ## 1.0.129 - 2026-11-17
 
 * [Trade searches] Unidentified Voices: the price top right is what unidentified ones sell for, and each identified version (1, 3, 5, 7 passives) has its own price.

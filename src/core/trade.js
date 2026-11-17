@@ -390,6 +390,8 @@ function buildQuery(item, mods, opts = {}) {
     // twice corrupted (3.30): only other twice corrupted ones compare
     if (props.corrupted === 'yes' && (props.twiceCorrupted || item.flags?.twiceCorrupted)) misc.twice_corrupted = { option: 'true' };
     if (props.corrupted === 'no') misc.corrupted = { option: 'false' };
+    if (item.flags?.foulborn) misc.mutated = { option: 'true' }; // Foulborn: the trade site's "mutated"
+    if (item.flags?.vestigial) misc.vestigial = { option: 'true' }; // a vestigial base ("Vestigial Tricorne")
     if (props.identified === 'yes') misc.identified = { option: 'true' };
     if (props.identified === 'no') misc.identified = { option: 'false' };
     for (const [inf, on] of Object.entries(props.influences || {})) if (on) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };
@@ -417,6 +419,8 @@ function buildQuery(item, mods, opts = {}) {
     }
     if (item.flags.corrupted) misc.corrupted = { option: 'true' };
     if (item.flags.twiceCorrupted) misc.twice_corrupted = { option: 'true' };
+    if (item.flags.foulborn) misc.mutated = { option: 'true' }; // the trade site calls Foulborn "mutated"
+    if (item.flags.vestigial) misc.vestigial = { option: 'true' };
     else if (kind === 'unique' || kind === 'gem') misc.corrupted = { option: 'false' };
     if (item.flags.unidentified) misc.identified = { option: 'false' };
     if (item.flags.fractured) misc.fractured_item = { option: 'true' };
@@ -793,6 +797,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     if (props.ilvl) { props.ilvl.on = false; props.ilvl.show = false; }
     props.maxAffix = 0;
   }
+  // a vestigial implicit is what sets a vestigial item apart: always searched
+  for (const m of mods) if (m.meta?.vestigial && !m.unmatched) m.enabled = true;
   return { mods, props, presets };
 }
 

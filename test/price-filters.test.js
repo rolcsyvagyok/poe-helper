@@ -546,3 +546,30 @@ test('an unidentified unique, once picked, is searched by its name, unidentified
   assert.equal(q.type, 'Large Cluster Jewel');
   assert.deepEqual(q.filters.misc_filters.filters.identified, { option: 'false' });
 });
+
+test('a Foulborn unique is priced as its Foulborn version and searched as "mutated"', () => {
+  const p = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'foulborn.txt'), 'utf8'));
+  assert.equal(p.name, 'The Infinite Pursuit');
+  assert.equal(p.flags.foulborn, true);
+  const P = require('../src/core/pricer');
+  const lines = [{ name: 'The Infinite Pursuit', chaos: 1, listingCount: 28 }, { name: 'Foulborn The Infinite Pursuit', variant: 'Bleed Immune', chaos: 1, listingCount: 530 }, { name: 'Foulborn The Infinite Pursuit', variant: 'Bleed Armour', chaos: 2, listingCount: 646 }, { name: 'Foulborn The Infinite Pursuit', variant: 'Bleed Armour, Bleed Immune', chaos: 9, listingCount: 14 }];
+  assert.equal(P.pickUnique(lines, p).best.variant, 'Bleed Armour');
+  const S = { result: [{ label: 'Explicit', entries: [{ id: 'explicit.stat_2466912132', text: '#% increased Armour while Bleeding', type: 'explicit' }] }] };
+  const { mods, props } = T.prepareSearch(S, p);
+  assert.equal(mods.find((m) => /Armour while Bleeding/.test(m.text)).enabled, true);
+  const q = T.buildQuery(p, mods, { props }).query;
+  assert.equal(q.name, 'The Infinite Pursuit');
+  assert.deepEqual(q.filters.misc_filters.filters.mutated, { option: 'true' });
+});
+
+test('a vestigial base is searched as the base, vestigial, with its implicit ticked', () => {
+  const p = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'vestigial.txt'), 'utf8'));
+  assert.equal(p.baseType, 'Tricorne');
+  assert.equal(p.flags.vestigial, true);
+  const S = { result: [{ label: 'Implicit', entries: [{ id: 'implicit.stat_4047895119', text: '#% increased Minion Attack Speed per 50 Dexterity', type: 'implicit' }] }] };
+  const { mods, props } = T.prepareSearch(S, p);
+  assert.equal(mods.find((m) => /Minion Attack Speed/.test(m.text)).enabled, true);
+  const q = T.buildQuery(p, mods, { props }).query;
+  assert.equal(q.type, 'Tricorne');
+  assert.deepEqual(q.filters.misc_filters.filters.vestigial, { option: 'true' });
+});

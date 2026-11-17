@@ -255,6 +255,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       const r = await window.poe.call('trade:search', { text, mods, props, opts: { status } }); // errors shown below, not as a toast over the buttons
       const l = r.listings;
       // an unidentified unique: the price top right is what unidentified ones are listed for
+      // a search that ends after you checked another item doesn't touch that item's window
+      if (!box.isConnected) return;
       if (prep.uniqueChoices?.length && (prep.uniqueChoices.length === 1 || props.uniqueName)) window.OverlayTradePrice?.({ ...(l || {}), total: r.total }, divine);
       mount(results,
         h('div', { class: 'row', style: { gap: '8px' } },
@@ -288,7 +290,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   const choices = prep.uniqueChoices || [];
   // once it's known which unique it is, the window's picture is that unique's
   const chosen = choices.length === 1 ? choices[0] : props.uniqueName || null;
-  if (chosen) {
+  // (only while this panel is still the one on screen: a newer price check has its own picture)
+  if (chosen && box.isConnected) {
     const head = document.querySelector('.ov-pic');
     if (head && head.dataset.unique !== chosen) {
       const pic = window.UI.itemPic(chosen, { size: 48, hint: 'Unique' });
@@ -316,7 +319,6 @@ function renderPanel(box, prep, { text, divine, onFit }) {
           none.hidden = shown > 0;
         },
         onkeydown: (e) => { if (e.key === 'Enter') { const first = [...grid.children].find((b) => !b.hidden); if (first) first.click(); } } });
-      setTimeout(() => find.focus(), 0);
       return h('div', { class: 'tp-which' }, h('div', { class: 'tp-ghead' }, 'Which unique is it?'), find, grid, none,
         h('div', { class: 'small faint' }, 'Pick one to see its prices.'));
     })()

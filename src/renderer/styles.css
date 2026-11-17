@@ -1757,3 +1757,19 @@ html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }
 
 .tp-which-find { width: 100%; box-sizing: border-box; }
 .tp-which-btn[hidden] { display: none; }
+
+/* price check header: the name on its own line, full width; then picture, facts, price */
+.ov-ground.ov-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "name name tools" "pic facts price"; align-items: center; column-gap: 12px; row-gap: 10px; padding: 12px 12px 12px 14px; }
+.ov-head .ov-name { grid-area: name; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ov-head .ov-name .drop-label { flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; }
+.ov-head .ov-name .drop-label * { white-space: normal; overflow: visible; text-overflow: clip; }
+.ov-head .ov-name .sound-chip { display: none; }
+.ov-head .ov-name .play { width: 22px; height: 22px; font-size: 10px; padding: 0; flex: none; }
+.ov-head .ov-head-tools { grid-area: tools; flex-direction: row; align-self: start; gap: 4px; }
+.ov-head .ov-pic { grid-area: pic; margin: 0; width: 40px !important; height: 40px !important; }
+.ov-head .ov-pic img { width: 40px; height: 40px; }
+.ov-head > span:empty:nth-child(3) { grid-area: pic; }
+.ov-head .ov-headline { grid-area: facts; gap: 5px; }
+.ov-head .ov-fact, .ov-head button.ov-fact.ov-fact-btn { font-size: 12px; padding: 1px 7px; }
+.ov-head .ov-hprice { grid-area: price; padding-left: 0; }
+.ov-head > span:empty:last-child { grid-area: price; }

@@ -110,7 +110,26 @@ function pickGem(lines, item) {
   return { best: sorted[0], cands: sorted.slice(0, 6) };
 }
 
+/** poe.ninja's Foulborn versions are named "Foulborn X" with tags of their Foulborn mods ("Bleed Armour, Bleed
+ *  Immune"): the one with as many tags as the item has Foulborn mods, whose words best match them */
+function pickFoulborn(lines, item) {
+  const name = norm(`Foulborn ${item.name}`);
+  const cands = lines.filter((l) => norm(l.name) === name);
+  if (!cands.length) return { best: null, cands: [] };
+  const fm = (item.mods.explicit || []).filter((_, i) => item.modMeta?.explicit?.[i]?.foulborn).map((t) => t.toLowerCase());
+  const words = (t) => t.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3);
+  const score = (l) => {
+    const tags = String(l.variant || '').split(',').map((x) => x.trim()).filter(Boolean);
+    let hit = 0;
+    for (const tag of tags) if (words(tag).every((w) => fm.some((m) => m.split(/[^a-z]+/).some((x) => x.startsWith(w.slice(0, 4)))))) hit++;
+    return (tags.length === fm.length ? 100 : 0) + hit * 10 - Math.abs(tags.length - fm.length);
+  };
+  const ranked = [...cands].sort((a, b) => score(b) - score(a) || b.listingCount - a.listingCount);
+  return { best: fm.length ? ranked[0] : null, cands: ranked.slice(0, 8), range: null };
+}
+
 function pickUnique(lines, item) {
+  if (item.flags?.foulborn && !item.flags.unidentified) { const f = pickFoulborn(lines, item); if (f.cands.length) return f; }
   const name = norm(item.name);
   const base = norm(item.baseType);
   const unid = !!item.flags.unidentified;

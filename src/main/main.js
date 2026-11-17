@@ -110,7 +110,9 @@ function createMainWindow() {
   });
   mainWin.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // Started with Windows: stay in the tray until you open it.
-  mainWin.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) mainWin.show(); });
+  // after an update restarts the app (often mid-game) the window shows without taking the focus from the game,
+  // or the next price check's copy keys would go to the app ("The game didn't copy an item")
+  mainWin.once('ready-to-show', () => { if (process.argv.includes('--hidden')) return; if (process.argv.includes('--updated')) mainWin.showInactive(); else mainWin.show(); });
   mainWin.on('close', (e) => {
     if (!quitting) {
       e.preventDefault();

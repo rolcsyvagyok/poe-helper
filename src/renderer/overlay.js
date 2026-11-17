@@ -37,6 +37,9 @@ window.OverlayTradePrice = (l, divine) => {
     h('span', { class: 'ov-conf' }, v != null ? `unidentified, ${l.total ?? l.prices?.length ?? 0} listed` : 'none listed unidentified'));
 };
 
+/** An unidentified unique jewel's picture until you pick which one it is: a unique of that base you chose */
+const UNID_JEWEL_PIC = { 'Crimson Jewel': 'The Red Dream', 'Viridian Jewel': 'The Green Nightmare', 'Cobalt Jewel': 'Apex Mode', 'Prismatic Jewel': "Emperor's Mastery", 'Timeless Jewel': 'Lethal Pride', 'Small Cluster Jewel': 'Natural Affinity' };
+
 /** Top of the overlay: the item drawn the way your filter draws it on the ground. */
 function header(item, filterHit, br = null, facts = [], priceEl = null) { // eslint-disable-line no-param-reassign
   const name = item ? (item.rarity === 'Unique' || item.rarity === 'Rare' ? item.name : item.typeLine) : 'Price check';
@@ -48,19 +51,20 @@ function header(item, filterHit, br = null, facts = [], priceEl = null) { // esl
   // the item's picture: a unique by its name, gear by its base, everything else by its name
   const pic = !item ? null : item.rarity === 'Unique' && !item.flags?.unidentified ? window.UI.itemPic(item.name, { size: 48, hint: 'Unique' })
     : ['Rare', 'Magic', 'Normal'].includes(item.rarity) && /armour|weapon|bow|wand|staff|sword|axe|mace|claw|dagger|sceptre|shield|quiver|helmet|glove|boot|bodyarmour|body armour|ring|amulet|belt|jewel|flask|tincture/i.test(item.itemClass || '') ? window.UI.itemPic(item.baseType || item.typeLine, { size: 48, hint: 'BaseType' })
+      : item.rarity === 'Unique' && UNID_JEWEL_PIC[item.baseType || item.typeLine] ? window.UI.itemPic(UNID_JEWEL_PIC[item.baseType || item.typeLine], { size: 48, hint: 'Unique' })
       : item.rarity === 'Unique' ? window.UI.itemPic(item.baseType || item.typeLine, { size: 48, hint: 'BaseType' }) : window.UI.itemPic(item.typeLine, { size: 48 });
   if (pic) pic.classList.add('ov-pic');
-  return h('div', { class: 'ground ov-ground ov-drag', title: 'Drag to move. The next popup opens where you leave it.' },
-    pic,
-    h('div', { class: 'ov-head-main' },
-      h('div', { class: 'ov-head-top' }, dropLabel(name, filterHit?.style, { rarity: item?.rarity, scale: 0.85, hidden }), filterHit ? soundButton(normalizeStyle(filterHit.style).sound) : null),
-      (br || facts.length) ? h('div', { class: 'ov-headline' }, rankBadge(item, br),
-        // with the badge (it says the tier and "Unidentified") the facts skip that part
-        (br ? facts.filter((f) => !/^(unidentified|rare$|magic$|normal$)/.test(f.t)) : facts).map(factChip)) : null),
-    h('span', { class: 'spacer' }),
-    priceEl,
+  // the name on a line of its own, across the whole window (never cut short); under it the picture, the facts
+  // in one wrapping row, and the price on the right
+  return h('div', { class: 'ground ov-ground ov-head ov-drag', title: 'Drag to move. The next popup opens where you leave it.' },
+    h('div', { class: 'ov-name' }, dropLabel(name, filterHit?.style, { rarity: item?.rarity, scale: 0.85, hidden }), filterHit ? soundButton(normalizeStyle(filterHit.style).sound) : null),
     h('div', { class: 'ov-head-tools' }, pinButton(),
-    h('button', { class: 'ov-x', title: 'Close (Esc)', 'aria-label': 'Close', onclick: close }, '✕')));
+      h('button', { class: 'ov-x', title: 'Close (Esc)', 'aria-label': 'Close', onclick: close }, '✕')),
+    pic || h('span'),
+    (br || facts.length) ? h('div', { class: 'ov-headline' }, rankBadge(item, br),
+      // with the badge (it says the tier and "Unidentified") the facts skip that part
+      (br ? facts.filter((f) => !/^(unidentified|rare$|magic$|normal$)/.test(f.t)) : facts).map(factChip)) : h('span'),
+    priceEl || h('span'));
 }
 
 /** A header fact. One that is part of the search is a button: click it to tick or untick that line of the search. */
@@ -215,9 +219,9 @@ function render(p) {
   if (item.mapTier) fact(`tier ${item.mapTier}`, 'mapTier');
   for (const inf of item.influences || []) fact(inf, `infl:${inf}`);
   const F = item.flags || {};
-  for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['foulborn', 'Foulborn'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) fact(word);
+  for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['foulborn', 'Foulborn'], ['vestigial', 'vestigial'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) fact(word);
   if (F.unidentified) fact(item.unidTier != null ? `unidentified, item tier ${item.unidTier}` : 'unidentified', 'unid');
-  if (F.corrupted) fact('corrupted', F.twiceCorrupted ? 'twice corrupted' : 'corrupted');
+  if (F.corrupted) fact(F.twiceCorrupted ? 'twice corrupted' : 'corrupted', 'corrupted');
 
   const body = h('div', { class: 'ov-body' });
   // the facts sit in the header next to the rank badge (rare, item level 85, Hunter…)

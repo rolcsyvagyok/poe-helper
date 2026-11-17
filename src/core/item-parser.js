@@ -142,6 +142,10 @@ function parseItem(rawText) {
   }
   if (!item.rarity && item.itemClass) item.rarity = 'Normal'; // no rarity line (Viscera)
   const names = header.slice(hi);
+  // 3.30 Foulborn uniques: "Foulborn The Infinite Pursuit" is The Infinite Pursuit with Foulborn mods
+  if (item.rarity === 'Unique' && names.length >= 2 && /^Foulborn /.test(names[0])) { names[0] = names[0].slice('Foulborn '.length); item.flags.foulborn = true; }
+  // 3.30 vestigial bases: "Vestigial Tricorne" is a Tricorne with a vestigial implicit
+  { const bi = names.length >= 2 ? 1 : 0; if (names[bi] && /^Vestigial /.test(names[bi])) { names[bi] = names[bi].slice('Vestigial '.length); item.flags.vestigial = true; } }
   if (names.length >= 2) {
     item.name = names[0];
     item.baseType = names[1];
@@ -286,7 +290,7 @@ function parseItem(rawText) {
         // (a Vaal orb's "Corruption Implicit" counts too: it's what a corrupted item sells for)
         const special = /\b(Corruption|Mercenary|Imbued|Veiled|Delve|Breach|Incursion|Bestiary|Essence|Synthes\w*|Crucible|Scourge|Foulborn)\b/i.test(line)
           || (nm && SPECIAL_NAMES.has(nm[1]));
-        header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line), special, ...(/\bRare-only\b/i.test(line) ? { rareOnly: true } : {}), ...(/^\{\s*Corruption Implicit\b/i.test(line) ? { corruption: true } : {}) };
+        header = { n: headerN, tier: tierM ? Number(tierM[1]) : null, gen: /\bPrefix\b/.test(line) ? 'prefix' : /\bSuffix\b/.test(line) ? 'suffix' : null, unique: /\bUnique Modifier\b/.test(line), special, ...(/\bRare-only\b/i.test(line) ? { rareOnly: true } : {}), ...(/^\{\s*Corruption Implicit\b/i.test(line) ? { corruption: true } : {}), ...(/^\{\s*Foulborn\b/i.test(line) ? { foulborn: true } : {}), ...(/^\{\s*Vestigial\b/i.test(line) ? { vestigial: true } : {}) };
         headerKind = /\bMercenary\b/i.test(line) ? 'mercenary' : /\bImbued\b/i.test(line) ? 'imbued' : /\bImplicit Modifier\b/i.test(line) ? 'implicit' : /\bEnchant(?:ment)? Modifier\b/i.test(line) ? 'enchant'
           : /\bMaster Crafted\b|\bCrafted\b/i.test(line) ? 'crafted' : /\bScourge\b/i.test(line) ? 'scourge'
           : /^\{\s*Fractured\b/i.test(line) ? 'fractured' : null; // "{ Fractured Suffix Modifier … }": the lines have no "(fractured)"
