@@ -16,6 +16,21 @@ const NOISE = ['level: 8', 'level: 7', 'level: 6', ...(DATA.modNoise || []), 'ca
 const plain = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const OK = /^[a-z0-9 ',-]+$/;
 
+/**
+ * Could the piece be part of a rare beast's own name? Those are one made-up word, maybe followed by
+ * "the <word>" (Gristlebite the Hulking), so any piece of plain letters can turn up in one. A piece is
+ * safe when it holds a comma or a digit, or a space that can't line up with " the ".
+ */
+function inRareName(piece) {
+  const q = piece.replace(/^\^|\$$/g, '');
+  if (/[,0-9]/.test(q)) return false;
+  const seg = q.split(' ');
+  if (seg.length === 1) return true;
+  if (seg.length === 2) return 'the'.startsWith(seg[1]) || 'the'.endsWith(seg[0]);
+  if (seg.length === 3) return seg[1] === 'the';
+  return false;
+}
+
 /** The shortest piece of `name` that only matches `name` among `names` (lower case); "^" pins it to the start. */
 function shortestPiece(name, names, noise = NOISE) {
   const me = plain(name);
@@ -23,7 +38,7 @@ function shortestPiece(name, names, noise = NOISE) {
   const real = name.toLowerCase();
   let best = null;
   const score = (p) => p.length + (/^ | $/.test(p) ? 0.5 : 0) + (/^\^|\$$/.test(p) ? 0.25 : 0);
-  const consider = (p) => { if (!best || score(p) < score(best)) best = p; };
+  const consider = (p) => { if (!/^\^.*\$$/.test(p) && inRareName(p)) return; if (!best || score(p) < score(best)) best = p; };
   for (let len = 2; len <= me.length; len += 1) {
     if (best && len > best.length + 2) break;
     for (let i = 0; i + len <= me.length; i += 1) {
@@ -110,4 +125,4 @@ function beastView(prices = []) {
   };
 }
 
-module.exports = { shortestPiece, beastList, beastView, buildBeastRegex, joinPieces, piecesByName, MAX };
+module.exports = { inRareName, shortestPiece, beastList, beastView, buildBeastRegex, joinPieces, piecesByName, MAX };

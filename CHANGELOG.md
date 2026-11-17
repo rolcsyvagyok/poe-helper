@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.136 - 2026-11-17
+
+* [Loot filter] Identified items with great mods (FilterBlade's identified mod rules) are no longer hidden by Base ranks, and have their own look: yellow label with a blue border, blue beam, blue star on the minimap.
+- Loot filter: Base ranks hid identified rares on low-rank bases before FilterBlade's identified mod rules could show them (e.g. a weapon with Merciless, Tyrannical and of Celebration). Those rules now come first, with their own look; FilterBlade's sounds stay.
+- Regex → Beasts: rare beasts with made-up names (Gristlebite the Hulking) no longer match the search; every piece now has a space or comma that can't be in such a name.
+
 ## 1.0.135 - 2026-11-17
 
 - Regex → Beasts: the search no longer picks up beasts by their mods (Gorechewer's "Fenumal Presence" matched the piece for Fenumal Plagued Arachnid). Pieces now avoid every beast mod name, so a few are a letter longer.

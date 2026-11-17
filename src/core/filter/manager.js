@@ -987,6 +987,38 @@ function nameChecker(baseText, verified = []) {
 
 /** Copy of a rule with every BaseType value checked; null when nothing valid is left to match. */
 /** Put blocks right after the filter's last item tier block ("UnidentifiedItemTier >= N"); without one, they're left out. */
+/**
+ * FilterBlade's identified mod rules ([[0600]] to [[1100]]: identified items with great mods) sit below the
+ * Base ranks hide rules, which would hide a great identified item on a low-rank base. Copies of their Show
+ * blocks go right above the first "(identified)" Base ranks hide, so those items keep showing.
+ */
+const ID_MOD_LOOK = ['\tSetFontSize 45', '\tSetTextColor 20 16 0 255', '\tSetBorderColor 40 120 255 255', '\tSetBackgroundColor 255 216 74 255', '\tPlayEffect Blue', '\tMinimapIcon 0 Blue Star'];
+function idModsFirst(text) {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const lastIdx = (re) => { let k = -1; for (let i = 0; i < lines.length; i++) if (re.test(lines[i])) k = i; return k; };
+  const from = lastIdx(/^#.*\[\[0600\]\]/);
+  const to = lastIdx(/^#.*\[\[1200\]\]/);
+  const at = lines.findIndex((l) => /^Hide # Base ranks: .*\(identified\)/.test(l));
+  if (from < 0 || to <= from || at < 0 || at > from) return text;
+  const blocks = [];
+  for (let i = from; i < to; i++) {
+    if (!/^Show\b/.test(lines[i])) continue;
+    const b = ['Show # PoE Helper: FilterBlade\'s identified mod rule, above Base ranks'];
+    let j = i + 1;
+    // their own look (FilterBlade's sound stays): game rare yellow with a blue border, blue beam and blue star
+    while (j < to && lines[j].trim() !== '' && !/^(Show|Hide|Minimal)\b/.test(lines[j])) {
+      if (!/^\s*#?\s*(SetFontSize|SetTextColor|SetBorderColor|SetBackgroundColor|PlayEffect|MinimapIcon)\b/.test(lines[j])) b.push(lines[j]);
+      j++;
+    }
+    b.push(...ID_MOD_LOOK);
+    blocks.push(b.join(eol));
+    i = j - 1;
+  }
+  if (!blocks.length) return text;
+  return [...lines.slice(0, at), '# PoE Helper: identified items with great mods keep showing (FilterBlade\'s identified mod rules)', '', blocks.join(eol + eol), '', ...lines.slice(at)].join(eol);
+}
+
 function insertAfterItemTiers(text, rules) {
   if (!rules.length) return text;
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
@@ -1211,6 +1243,7 @@ class FilterManager {
     let out = finalCheck(insertAfterItemTiers(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), afterTiers), fix, this.log);
     // Tier designer → Text size: bigger or smaller for everything, or one category, on top of the theme
     out = voicesTop(out);
+    out = idModsFirst(out);
     out = showMissingUniques(out, this.store.get('collectMissingBases') || []);
     if ((this.store.get('rareStyle') || 'yellow') === 'yellow') out = magicBlue(out);
     const sizes = this.store.get('sizeAdjust');
@@ -1296,4 +1329,4 @@ class FilterManager {
   }
 }
 
-module.exports = { voicesTop, showMissingUniques, magicBlue, insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { idModsFirst, voicesTop, showMissingUniques, magicBlue, insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

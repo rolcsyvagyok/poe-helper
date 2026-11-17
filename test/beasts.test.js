@@ -34,3 +34,12 @@ test('no beast piece matches a beast mod (the Bestiary search matches mods too)'
   }
   assert.strictEqual(b.piecesByName().get('Fenumal Plagued Arachnid') === 'l p', false);
 });
+
+test('no beast piece can turn up in a rare beast\'s own name (Gristlebite the Hulking)', () => {
+  const b = require('../src/core/regex/beasts');
+  for (const [name, piece] of b.piecesByName()) {
+    if (/^\^.*\$$/.test(piece)) continue;
+    assert.ok(!b.inRareName(piece), `${name}: "${piece}"`);
+  }
+  assert.ok(!'gristlebite the hulking'.includes(b.piecesByName().get('Wild Bristle Matron')));
+});

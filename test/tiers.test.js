@@ -784,3 +784,13 @@ test('cluster jewel tiers follow the Tier designer design', () => {
   const lv = D.currentLevels((k) => ({ designer: { presetId: D.PRESETS[0].id } })[k]);
   assert.deepEqual(L.t2.background, lv[2].background);
 });
+
+test('identified items with great mods keep showing above the Base ranks hide', () => {
+  const { idModsFirst } = require('../src/core/filter/manager');
+  const t = ['# [[0600]] IDENTIFIED MOD FILTERING', 'Hide # Base ranks: rares below any rank (identified)', '\tRarity Rare', '', '# [[0600]] IDENTIFIED MOD FILTERING - COMBINATIONS', 'Show # $type->rareid $tier->x', '\tIdentified True', '\tHasExplicitMod "Merciless"', '\tSetFontSize 45', '', '# [[1200]] Exotic Item Classes', 'Show', '\tClass "Fishing Rods"', ''].join('\n');
+  const o = idModsFirst(t);
+  const hide = o.indexOf('Hide # Base ranks');
+  const copy = o.indexOf('HasExplicitMod "Merciless"');
+  assert.ok(copy > 0 && copy < hide);
+  assert.ok(!o.slice(0, hide).includes('Fishing Rods'));
+});
