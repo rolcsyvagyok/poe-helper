@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, collection: () => window.CollectionView.render(), regex: () => window.RegexView.renderRegexPage(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, collection: () => window.CollectionView.render(), regex: () => window.RegexView.renderRegexPage(), craft: () => window.CraftView.render(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -245,6 +245,7 @@ const NOTE_PLACES = [
   [/Trade searches/i, 'Trade searches', { page: 'trade' }],
   [/Settings/, 'Settings', { page: 'settings' }],
   [/Chat macros/, 'Chat macros', { page: 'macros' }],
+  [/Crafting/, 'Crafting', { page: 'craft' }],
 ];
 function noteGo(t) {
   if (t.page) return go(t.page);
@@ -1366,7 +1367,10 @@ window.poe.on('toast', (m) => toast(m));
 window.poe.on('networth:updated', () => { if (currentPage === 'networth' || currentPage === 'dashboard') go(currentPage); });
 window.poe.on('filter:rebuilt', () => { if (currentPage === 'filters') go('filters'); });
 // "Show in app" from the price check: the Loot filter at the item's tier, the item picked
-window.poe.on('app:goto', (g) => { if (g?.page === 'filters') { window.showInFilter?.(g); go('filters'); } });
+window.poe.on('app:goto', (g) => {
+  if (g?.page === 'filters') { window.showInFilter?.(g); go('filters'); }
+  if (g?.page === 'craft') { window.CraftView?.load(g.text); go('craft'); }
+});
 window.poe.on('history:updated', () => { if (currentPage === 'dashboard') refreshState(); });
 // a levelling guide or build was added in the background (the default guides): the PoB page shows it
 window.poe.on('pob:buildsChanged', () => { if (currentPage === 'pob') window.PobView?.render(); });

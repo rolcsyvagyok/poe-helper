@@ -35,7 +35,9 @@ for (const [id, m] of Object.entries(mods)) {
   if (!DOMAINS.includes(m.domain) || !['prefix', 'suffix'].includes(m.generation_type) || m.is_essence_only) continue;
   const w = (m.spawn_weights || []).map((x) => [x.tag, x.weight]);
   if (!w.some(([, n]) => n > 0) || !m.text) continue;
-  modList.push({ id, aff: m.generation_type[0], dom: m.domain, type: m.type, name: m.name || '', lvl: m.required_level || 1, text: m.text.replace(/\r/g, ''), w });
+  // tags: the mod's own tags (Fire, Attack, Life…) as the game shows them; grp: mods in one group can't roll together
+  const tags = (m.implicit_tags || []).filter((t) => t !== 'default');
+  modList.push({ id, aff: m.generation_type[0], dom: m.domain, type: m.type, name: m.name || '', lvl: m.required_level || 1, text: m.text.replace(/\r/g, ''), w, ...(tags.length ? { tags } : {}), ...(m.groups?.length ? { grp: m.groups[0] } : {}) });
 }
 
 const influence = {};

@@ -369,6 +369,7 @@ function render(p) {
   const gear = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !!(item.baseType || item.typeLine) && !['currency', 'divination', 'gem', 'map', 'fragment'].includes(p.kind);
   const actions = h('div', { class: 'ov-actions' },
     gear ? h('button', { class: 'quiet sm', title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases') : null,
+    gear ? h('button', { class: 'quiet sm', title: 'Open Crafting with this item: what can still roll on it, and how likely', onclick: () => call('app:show', { goto: { page: 'craft', text: item.raw } }) }, 'Craft') : null,
     inTier ? null : h('button', { class: 'quiet sm', title: 'Choose rarities and item levels, then hide', onclick: () => openQuick('hide', quickBox) }, 'Hide…'),
   );
   // the loot filter in one line: shown or hidden, by what; "Change" opens the tier controls

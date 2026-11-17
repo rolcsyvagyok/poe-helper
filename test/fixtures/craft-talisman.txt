@@ -1,0 +1,21 @@
+Item Class: Amulets
+Rarity: Rare
+Sorrow Pendant
+Flame Hellion Talisman
+--------
+Requirements:
+Level: 46
+--------
+Item Level: 85
+--------
++4% to maximum Fire Resistance (enchant)
+(Maximum Resistances cannot be raised above 90%) (enchant)
+--------
+{ Prefix Modifier "Glinting" (Tier: 9) — Damage, Physical, Attack }
+Adds 1 to 2 Physical Damage to Attacks
+{ Suffix Modifier "of Penetrating" (Tier: 2) — Critical }
+32(30-34)% increased Global Critical Strike Chance
+{ Suffix Modifier "of the Student" (Tier: 8) — Attribute }
++16(13-17) to Intelligence
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 4) — Elemental, Resistance }
++11(9-11)% to all Elemental Resistances

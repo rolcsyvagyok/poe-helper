@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.139 - 2026-11-17
+
+* [Crafting] New Crafting page, like Craft of Exile: every mod a base can roll at an item level, how likely each one is, every tier, and the mods' tags.
+* [Crafting] Load your own item (paste it, or press Craft on a price check) to see which mods it has, what can still roll and how likely.
+- Crafting: pick a base on the left (or find one), set the item level and up to two influences. Prefixes and suffixes are side by side with the chance that a new one is each mod; click a mod for its tiers. Click a tag (Life, Fire, Attack…) to see how likely a new mod has it.
+- Your item: its mods are marked with their tier, the kinds already on it can't roll again (the others' chances go up), and each side shows its free slots.
+- Regex → Items: mod list updated from the latest game data.
+
 ## 1.0.138 - 2026-11-17
 
 - Loot filter: Syndicate drops no longer show in the identified-mod look (yellow with a blue border) when they fall. Items with a veiled mod are left to Base ranks → Veiled.
