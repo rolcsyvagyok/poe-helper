@@ -26,6 +26,8 @@ const DEFAULT_SETTINGS = {
   leagueOverride: '',
   uiTheme: 'midnight', // the app's look: 'midnight' (default), 'atlas', 'hideout' or 'dark'
   accountName: '',
+  collectAutoHours: 3, // My collection: tick new uniques from the Unique stash tab every N hours (0: only on the button)
+  collectAutoAt: 0,
   sessionEnc: null, // encrypted POESESSID
   contact: '', // optional contact for User-Agent, e.g. a GitHub URL
   hotkeyPrice: 'Alt+E',
@@ -773,7 +775,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // Only these go in the file: hotkeys, chat macros, overlay and price check choices, the Regex page,
   // saved trade searches, the lab overlay. Never your account, login (POESESSID), league, folders on
   // your PC (Path of Exile, Path of Building, the filter), history, net worth or caches.
-  const APP_KEYS = ['uiTheme', 'hotkeyPrice', 'hotkeySnapshot', 'hotkeyPobTest', 'chatMacrosOn', 'chatMacroClear', 'chatMacros', 'pobCompareOn',
+  const APP_KEYS = ['uiTheme', 'collectAutoHours', 'hotkeyPrice', 'hotkeySnapshot', 'hotkeyPobTest', 'chatMacrosOn', 'chatMacroClear', 'chatMacros', 'pobCompareOn',
     'hotkeyLab', 'labFavorite', 'labOpacity', 'clipboardMode', 'restoreClipboard', 'overlayCloseOnMouseAway', 'minimizeToTray',
     'appIconStyle', 'regexMaps', 'regexGems', 'regexGemClass', 'regexCampaign', 'regexItems', 'regexBeasts', 'regexFavMods',
     'regexTrade', 'regexPresets', 'dailyGggBudget', 'ninjaTtlMin', 'autoSnapshotMin', 'minItemChaos', 'tradeTolerance',

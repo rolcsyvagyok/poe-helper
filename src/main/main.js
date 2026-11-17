@@ -668,6 +668,22 @@ async function collectedTick() {
 }
 setTimeout(collectedTick, 2 * 60 * 1000);
 setInterval(collectedTick, 3 * 60 * 60 * 1000);
+// My collection: tick new uniques from your Unique stash tab (through PoE Ladder, not GGG) every few hours (Off in My collection)
+async function collectionAutoTick() {
+  try {
+    const hours = Number(services.settings.get('collectAutoHours') ?? 3);
+    if (!(hours > 0) || !String(services.settings.get('accountName') || '').trim()) return;
+    if (Date.now() - (services.settings.get('collectAutoAt') || 0) < hours * 60 * 60 * 1000) return;
+    services.settings.set('collectAutoAt', Date.now());
+    const r = await services.collectionFromStash();
+    if (r.added?.length) {
+      notify(`My collection: ${r.added.length} new unique${r.added.length === 1 ? '' : 's'} ticked from your Unique stash tab.`);
+      mainWin?.webContents.send('filter:rebuilt');
+    }
+  } catch (e) { log('collection auto', e.message); }
+}
+setTimeout(collectionAutoTick, 3 * 60 * 1000);
+setInterval(collectionAutoTick, 15 * 60 * 1000);
 
 function applyFilterWatch() {
   if (services.settings.get('autoWatchFilter') && services.filters.basePath()) {

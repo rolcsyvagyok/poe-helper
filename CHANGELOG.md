@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.126 - 2026-11-17
+
+* [My collection] Your Unique stash tab is checked by itself every 3 hours; pick how often (or only on the button) next to "Tick from my Unique stash tab".
+* [WealthyExile] Stash tabs are now on top: click a tab to see only it. The chart, categories and items all follow.
+* [WealthyExile] Fragments like An Audience With The King are now counted.
+- My collection: new "Check" choice: only when you press the button, or every 1, 3 (new default), 6, 12 or 24 hours. It goes through PoE Ladder (no GGG requests), only adds ticks, and tells you when it ticked new uniques. It needs your account name in Settings.
+- WealthyExile: the stash tabs moved from beside the item list to a bar on top. The first click shows only that tab; then click tabs to add or leave them out. The net worth chart, its total, the categories and the items all show only the chosen tabs.
+- WealthyExile: fragments the game keeps as normal items (An Audience With The King, and others poe.ninja prices by name) were left out of snapshots. They are counted now.
+
 ## 1.0.125 - 2026-11-17
 
 * [Trade searches] Facetor's Lens can be price checked, by the experience stored in it.

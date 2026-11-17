@@ -528,3 +528,11 @@ test('a Facetor\'s Lens is searched by its stored experience', () => {
   assert.equal(q.type, "Facetor's Lens");
   assert.deepEqual(q.filters.misc_filters.filters.stored_experience, { min: 135000000 });
 });
+
+test('net worth prices fragments that are normal items (An Audience With The King)', () => {
+  const N = require('../src/core/networth');
+  const idx = N.buildIndex({ Fragment: [{ name: 'An Audience With The King', chaos: 250 }] });
+  assert.deepEqual(N.valueItem({ frameType: 0, typeLine: 'An Audience With The King', stackSize: 8 }, idx), { name: 'An Audience With The King', qty: 8, each: 250, category: 'Fragment' });
+  assert.equal(N.valueItem({ frameType: 0, typeLine: 'Vaal Regalia', ilvl: 84 }, idx), null);
+  assert.ok(N.neededCategories([{ frameType: 0, typeLine: 'An Audience With The King' }]).includes('Fragment'));
+});

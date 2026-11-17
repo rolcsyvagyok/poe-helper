@@ -96,6 +96,11 @@
           h('span', { class: 'muted' }, 'Sort'), seg('sort', [['group', 'Name'], ['base', 'Base'], ['price', 'Price']]),
           search,
           h('button', { class: 'sm', title: 'Reads your Unique stash tab through PoE Ladder (poeladder.com) and ticks every unique in it. It never unticks one. GGG only shows that tab to approved sites, so you join PoE Ladder once with your Path of Exile account.', onclick: fromStash }, 'Tick from my Unique stash tab'),
+          // checked again by itself every few hours
+          h('label', { class: 'row small', style: { gap: '6px' }, title: 'Ticks new uniques from your Unique stash tab by itself (through PoE Ladder, not GGG). It never unticks one.' },
+            h('span', { class: 'muted' }, 'Check'),
+            h('select', { 'aria-label': 'Check the Unique stash tab', onchange: async (e) => { await call('settings:set', { collectAutoHours: Number(e.target.value) }); S.settings.collectAutoHours = Number(e.target.value); toast(Number(e.target.value) ? `Your Unique tab is checked every ${e.target.value} hour${e.target.value === '1' ? '' : 's'}` : 'Your Unique tab is only checked when you press the button'); } },
+              [[0, 'Only when I press it'], [1, 'Every hour'], [3, 'Every 3 hours'], [6, 'Every 6 hours'], [12, 'Every 12 hours'], [24, 'Once a day']].map(([v, l]) => h('option', { value: v, selected: Number(S.settings?.collectAutoHours ?? 3) === v }, l)))),
           h('span', { class: 'spacer' }),
           h('label', { class: 'check', title: 'A base where you have every unique and none is worth more than the limit is hidden in your filter' },
             h('input', { type: 'checkbox', checked: d.on, onchange: async (e) => { const r = await call('collection:set', { on: e.target.checked }); d.on = r.on; const hid = new Set(r.hidden); for (const x of all) x.hiddenBase = hid.has(x.base); d.hiddenBases = r.hidden; toast(r.on ? `Collected cheap bases are removed from your filter (${r.hidden.length})` : 'Collected bases show again'); draw(); } }),

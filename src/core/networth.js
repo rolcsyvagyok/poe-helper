@@ -47,6 +47,7 @@ function neededCategories(items) {
     else if (k === 'unique') UNIQUE_CATS.forEach((c) => need.add(c));
     else if (k === 'unique-map') need.add('UniqueMap');
     else if (k === 'map') need.add('Map');
+    else if (k === 'other' && !it.ilvl) STACK_CATS.forEach((c) => need.add(c)); // a fragment kept as a normal item (An Audience With The King)
   }
   return [...need];
 }
@@ -95,6 +96,12 @@ function valueItem(it, idx) {
     const ok = lines.filter((l) => (l.gemLevel ?? 1) <= lvl && (l.gemQuality ?? 0) <= q && !!l.corrupted === !!it.corrupted)
       .sort((a, b) => (b.gemLevel - a.gemLevel) || (b.gemQuality - a.gemQuality));
     return ok[0] ? { name: `${typeLine} ${lvl}/${q}`, qty: 1, each: ok[0].chaos, category: 'Gem' } : null;
+  }
+  // normal-rarity items poe.ninja prices by name: fragments like An Audience With The King, invitations, memories
+  // (not gear: gear has an item level)
+  if (kind === 'other' && !it.ilvl) {
+    const l = idx.byName.get(norm(typeLine));
+    return l ? { name: typeLine, qty, each: l.chaos, category: l.category } : null;
   }
   if (kind === 'map') {
     const tier = parseInt(prop(it, 'Map Tier'), 10);

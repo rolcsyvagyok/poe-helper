@@ -602,7 +602,8 @@ function nwItems(latest, tabNames, snapBtn) {
     for (const i of lack) nwArt[wxBase(i.n)] = null;
     call('art:icons', missing).then((m) => { let any = false; for (const [k, v] of Object.entries(m || {})) if (v) { nwArt[k] = v; any = true; } if (any && currentPage === 'networth') renderNetworth(); }).catch(() => {});
   }
-  const inTab = (i) => !i.t?.length || i.t.some((t) => !nwOffTabs.has(t));
+  // with tabs picked, an item counts only when the snapshot knows its tab
+  const inTab = (i) => (i.t?.length ? i.t.some((t) => !nwOffTabs.has(t)) : !nwOffTabs.size);
   const q = nwFind.trim().toLowerCase();
   const shown = items.filter((i) => inTab(i) && (!nwCat || (i.c || 'Other') === nwCat) && (!q || i.n.toLowerCase().includes(q)));
   const key = { name: (i) => i.n.toLowerCase(), qty: (i) => i.q, each: (i) => i.e, total: (i) => i.q * i.e }[nwSort.k];
@@ -610,19 +611,11 @@ function nwItems(latest, tabNames, snapBtn) {
   const sum = shown.reduce((a, i) => a + i.q * i.e, 0);
   const th = (k, label, cls = '') => h('th', { class: cls, 'aria-sort': nwSort.k === k ? (nwSort.dir < 0 ? 'descending' : 'ascending') : 'none' },
     h('button', { class: 'nw-sort', onclick: () => { nwSort = { k, dir: nwSort.k === k ? -nwSort.dir : (k === 'name' ? 1 : -1) }; renderNetworth(); } }, label, nwSort.k === k ? (nwSort.dir < 0 ? ' ↓' : ' ↑') : ''));
-  const byTab = latest.byTab || {};
-  const tabList = h('div', { class: 'nw-tabs panel' },
-    h('div', { class: 'nw-tabs-head' }, h('b', {}, 'Stash tabs'), h('span', { class: 'spacer' }),
-      h('button', { class: 'quiet sm', onclick: () => { nwOffTabs = nwOffTabs.size ? new Set() : new Set(tabNames); renderNetworth(); } }, nwOffTabs.size ? 'All' : 'None')),
-    tabNames.map((t) => h('label', { class: 'nw-tab' },
-      h('input', { type: 'checkbox', checked: !nwOffTabs.has(t), onchange: (e) => { e.target.checked ? nwOffTabs.delete(t) : nwOffTabs.add(t); renderNetworth(); } }),
-      h('span', { class: 'n' }, t), h('span', { class: 'v small muted' }, chaosDiv(byTab[t] || 0, d)))),
-    !(latest.items || []).some((i) => i.t) ? h('p', { class: 'small faint' }, 'Snapshots from before this update don\'t know each item\'s tab.') : null);
   const find = h('input', { type: 'search', placeholder: 'Search…', value: nwFind, 'aria-label': 'Search items', oninput: (e) => { nwFind = e.target.value; clearTimeout(window.wxFindT); window.wxFindT = setTimeout(() => { renderNetworth(); }, 250); } });
   const LIMIT = 100;
   return h('div', { class: 'nw-panel nw-items-box' },
-    h('div', { class: 'nw-ph' }, h('h2', {}, 'Items recorded in the last snapshot'), h('span', { class: 'small faint' }, `${shown.length} items · ${chaosDiv(sum, d)}`)),
-    h('div', { class: 'nw-items-grid' }, tabList,
+    h('div', { class: 'nw-ph' }, h('h2', {}, nwOffTabs.size ? 'Items in the chosen tabs' : 'Items recorded in the last snapshot'), h('span', { class: 'small faint' }, `${shown.length} items · ${chaosDiv(sum, d)}`)),
+    h('div', { class: 'nw-items-grid one' },
       h('div', { style: { minWidth: 0 } },
         h('div', { class: 'nw-toolbar' }, find,
           nwCat ? h('button', { class: 'pill-btn on', onclick: () => { nwCat = null; renderNetworth(); }, title: 'Show every category' }, `${wxName(nwCat)} ✕`) : null,
@@ -682,31 +675,62 @@ async function renderNetworthNow() {
     sessBtn,
     h('button', { class: 'quiet nw-more' + (nwSetup ? ' on' : ''), 'aria-expanded': nwSetup ? 'true' : 'false', title: 'Tracked tabs, automatic snapshots, history', 'aria-label': 'Settings for WealthyExile', onclick: () => { nwSetup = !nwSetup; renderNetworth(); } }, window.UI.icon('dots', { size: 18 })));
 
+  // ---- stash tabs: pick tabs, and the whole page (chart, categories, items) shows only them ----
+  const tabNames = Object.keys(latest?.byTab || {}).sort((a, b) => (latest.byTab[b] || 0) - (latest.byTab[a] || 0));
+  for (const t of [...nwOffTabs]) if (!tabNames.includes(t)) nwOffTabs.delete(t);
+  const onTab = (t) => !nwOffTabs.has(t);
+  const tabsOn = tabNames.filter(onTab);
+  // a snapshot's value in the chosen tabs (older snapshots without tab values count whole)
+  const inTabs = (p) => (nwOffTabs.size && p.tabs ? Object.entries(p.tabs).reduce((a, [t, v]) => a + (onTab(t) ? v : 0), 0) : p.chaos);
+  const allFiltered = all.map((p) => ({ ...p, chaos: inTabs(p) }));
+  const latestTotal = nwOffTabs.size ? tabsOn.reduce((a, t) => a + (latest.byTab[t] || 0), 0) : latest?.totalChaos;
+  const tabBar = latest && tabNames.length ? h('div', { class: 'nw-panel nw-tabbar-top' },
+    h('div', { class: 'nw-ph' }, h('h2', {}, 'Stash tabs'),
+      h('span', { class: 'small faint' }, nwOffTabs.size ? `Showing ${tabsOn.length} of ${tabNames.length} tabs: ${chaosDiv(latestTotal || 0, d)}` : `Showing all ${tabNames.length} tabs. Click a tab to see only it.`),
+      h('span', { class: 'spacer' }),
+      nwOffTabs.size ? h('button', { class: 'quiet sm', onclick: () => { nwOffTabs = new Set(); renderNetworth(); } }, 'Show all tabs') : null),
+    !(latest.items || []).some((i) => i.t?.length) ? h('p', { class: 'small faint' }, 'This snapshot is older than tab tracking: take a new one to see each tab\'s items.') : null,
+    h('div', { class: 'nw-tabchips', role: 'group', 'aria-label': 'Stash tabs to show' }, tabNames.map((t) => {
+      const on = onTab(t);
+      const only = nwOffTabs.size && tabsOn.length === 1 && on;
+      return h('button', { class: 'nw-tabchip' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false',
+        title: nwOffTabs.size ? (on ? 'Click to leave this tab out' : 'Click to add this tab') : 'Click to see only this tab',
+        onclick: () => {
+          if (!nwOffTabs.size) nwOffTabs = new Set(tabNames.filter((x) => x !== t)); // first click: only this tab
+          else if (on && !only) nwOffTabs.add(t);
+          else if (on && only) nwOffTabs = new Set(); // the last one: back to every tab
+          else nwOffTabs.delete(t);
+          renderNetworth();
+        } },
+        h('span', { class: 'chk', 'aria-hidden': 'true' }, on ? '✓' : '+'), h('span', { class: 'n' }, t), h('span', { class: 'v' }, chaosDiv(latest.byTab[t] || 0, d)));
+    }))) : null;
+
   // ---- chart ----
   let pts, title, unit, head;
   if (sess) {
     const base = [...all].reverse().find((p) => p.ts <= sess.start + 60000) || all.find((p) => p.ts >= sess.start);
-    const inS = all.filter((p) => p.ts >= (base?.ts ?? sess.start) && p.ts <= (sess.end ? sess.end + 120000 : Infinity));
-    const profit = inS.map((p) => ({ ts: p.ts, chaos: p.chaos - (base?.chaos || 0), divine: p.divine }));
+    const inS = allFiltered.filter((p) => p.ts >= (base?.ts ?? sess.start) && p.ts <= (sess.end ? sess.end + 120000 : Infinity));
+    const baseV = base ? inTabs(base) : 0;
+    const profit = inS.map((p) => ({ ts: p.ts, chaos: p.chaos - baseV, divine: p.divine }));
     pts = nwMode === 'rate' ? profit.filter((p) => p.ts - profit[0].ts >= 30 * 60000).map((p) => ({ ...p, chaos: p.chaos / ((p.ts - profit[0].ts) / 3600000) })) : profit;
     const last = profit[profit.length - 1];
     head = last ? window.UI.money(last.chaos, d, { sign: true }) : '–';
     title = [['total', 'Profit'], ['rate', 'Profit / h']];
   } else {
-    pts = all;
+    pts = allFiltered;
     // income per day: the change over the day before each snapshot (or since the first one), only once at
     // least an hour lies between them; a few minutes don't say anything about a day
     if (nwMode === 'rate') {
-      pts = all.map((p) => {
-        const from = all.find((q) => q.ts >= p.ts - 86400000) || all[0];
+      pts = allFiltered.map((p) => {
+        const from = allFiltered.find((q) => q.ts >= p.ts - 86400000) || allFiltered[0];
         const days = (p.ts - from.ts) / 86400000;
         return days >= 1 / 24 ? { ...p, chaos: (p.chaos - from.chaos) / days } : null;
       }).filter(Boolean);
     }
-    const first = all[0];
-    head = latest ? window.UI.money(latest.totalChaos, d) : '–';
-    title = [['total', 'Net worth'], ['rate', 'Income / d']];
-    if (first && latest && first.ts !== latest.ts) { const g = latest.totalChaos - first.chaos; head = [h('span', { class: 'delta-pill ' + (g >= 0 ? 'up' : 'down') }, window.UI.money(g, d, { sign: true })), head]; }
+    const first = allFiltered[0];
+    head = latest ? window.UI.money(latestTotal, d) : '–';
+    title = [['total', nwOffTabs.size ? 'Worth in these tabs' : 'Net worth'], ['rate', 'Income / d']];
+    if (first && latest && first.ts !== latest.ts) { const g = latestTotal - first.chaos; head = [h('span', { class: 'delta-pill ' + (g >= 0 ? 'up' : 'down') }, window.UI.money(g, d, { sign: true })), head]; }
   }
   unit = d && Math.max(1, ...pts.map((p) => Math.abs(p.chaos))) > d * 3 ? 'd' : 'c';
   const bands = sess ? [] : sessions.map((s) => ({ from: s.start, to: s.end || Date.now(), label: s.name, on: s.id === running?.id }));
@@ -719,7 +743,7 @@ async function renderNetworthNow() {
 
   // ---- categories ----
   const groups = new Map();
-  for (const i of latest?.items || []) { const c = i.c || 'Other'; if (!groups.has(c)) groups.set(c, { id: c, total: 0, items: [] }); const g = groups.get(c); g.total += i.q * i.e; g.items.push(i); }
+  for (const i of (latest?.items || []).filter((i) => (i.t?.length ? i.t.some(onTab) : !nwOffTabs.size))) { const c = i.c || 'Other'; if (!groups.has(c)) groups.set(c, { id: c, total: 0, items: [] }); const g = groups.get(c); g.total += i.q * i.e; g.items.push(i); }
   const cats = [...groups.values()].sort((a, b) => b.total - a.total);
   const tot = cats.reduce((a, g) => a + g.total, 0) || 1;
   const pct = (v) => { const x = Math.round((v / tot) * 1000) / 10; return x > 0 ? `${x}%` : '<0.1%'; };
@@ -730,7 +754,7 @@ async function renderNetworthNow() {
     h('div', { class: 'nw-ph' }, h('h2', {}, 'Categories'), h('span', { class: 'spacer' }),
       h('div', { class: 'seg' }, [['donut', 'Donut'], ['list', 'List']].map(([k, l]) => h('button', { class: nwCatView === k ? 'on' : '', onclick: () => { nwCatView = k; renderNetworth(); } }, l)))),
     cats.length ? h('div', { class: 'nw-cats-body' + (nwCatView === 'list' ? ' list' : '') },
-      nwCatView === 'donut' ? h('div', { class: 'nw-donut-wrap' }, nwDonut(cats, tot), h('div', { class: 'nw-donut-mid' }, h('span', { class: 'small muted' }, 'Total'), window.UI.money(latest.totalChaos || tot, d))) : null,
+      nwCatView === 'donut' ? h('div', { class: 'nw-donut-wrap' }, nwDonut(cats, tot), h('div', { class: 'nw-donut-mid' }, h('span', { class: 'small muted' }, 'Total'), window.UI.money(nwOffTabs.size ? tot : (latest.totalChaos || tot), d))) : null,
       h('div', { class: 'nw-cat-list' }, cats.map(catRow))) : h('p', { class: 'small muted' }, 'Take a snapshot to see your categories.'));
 
   // ---- a session: its result and what each tab gained ----
@@ -781,11 +805,11 @@ async function renderNetworthNow() {
       h('span', { class: 'spacer' }),
       h('button', { class: 'danger sm', onclick: async () => { if (confirm(`Delete all snapshots for ${S.league}?`)) { await call('networth:clear'); nwSession = null; renderNetworth(); } } }, 'Delete history'))) : null;
 
-  const tabNames = Object.keys(latest?.byTab || {});
   mount(el,
     h('div', { class: 'nw-page' },
       bar,
       setup,
+      tabBar,
       h('div', { class: 'nw-top' }, chartBox, catBox),
       sessBox,
       latest ? null : h('div', { class: 'nw-panel row' }, snapBtn, h('span', { class: 'small muted' }, 'Your net worth, categories and items show up here after your first snapshot.')),

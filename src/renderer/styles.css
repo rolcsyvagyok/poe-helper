@@ -1732,3 +1732,15 @@ html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }
 .tp-mod.fractured .tp-text { color: #a29162; }
 .tp-mod.fractured.on .tp-text { color: #c8b47a; }
 .tp-frac { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid #a2916280; border-radius: 3px; font-size: 10.5px; line-height: 15px; color: #a29162; vertical-align: 1px; }
+
+/* WealthyExile: the stash tab bar on top; it filters the whole page */
+.nw-items-grid.one { grid-template-columns: minmax(0, 1fr); }
+.nw-tabbar-top .nw-ph { flex-wrap: wrap; gap: 10px; }
+.nw-tabchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.nw-tabchip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px 5px 8px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; }
+.nw-tabchip:hover { border-color: var(--accent, #4a90d9); color: var(--text); }
+.nw-tabchip .chk { width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; border: 1px solid currentColor; opacity: .7; }
+.nw-tabchip .v { color: var(--faint); font-variant-numeric: tabular-nums; }
+.nw-tabchip.on { color: var(--text); border-color: #4a90d9; background: rgba(74,144,217,.14); }
+.nw-tabchip.on .chk { background: #4a90d9; border-color: #4a90d9; color: #fff; opacity: 1; }
+.nw-tabchip.on .v { color: var(--muted); }
