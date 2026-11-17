@@ -1013,6 +1013,9 @@ function idModsFirst(text) {
       if (!/^\s*#?\s*(SetFontSize|SetTextColor|SetBorderColor|SetBackgroundColor|PlayEffect|MinimapIcon)\b/.test(lines[j])) b.push(lines[j]);
       j++;
     }
+    // veiled items (Syndicate drops) are left to Base ranks → Veiled: the game matched some of these rules on
+    // a Syndicate member's fresh drop but not once you dropped it yourself
+    b.push('\tHasExplicitMod =0 "Veil"');
     b.push(...ID_MOD_LOOK);
     // only rules for identified items by their mods (the same sections also hold quality, item tier and
     // Memory Strand rules, which Base ranks decide)

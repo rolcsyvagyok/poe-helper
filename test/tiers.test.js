@@ -819,3 +819,10 @@ test('showing every currency tier keeps the tiers you hid yourself hidden', () =
   assert.ok(/^Hide # \$type->currency->trial->omen/m.test(o));
   assert.ok(/^Show # \$type->currency \$tier->t6/m.test(o));
 });
+
+test('copied identified mod rules leave veiled items to Base ranks', () => {
+  const { idModsFirst } = require('../src/core/filter/manager');
+  const t = ['Hide # Base ranks: rares below any rank (identified)', '\tRarity Rare', '', '# [[0600]] IDENTIFIED', 'Show # a', '\tIdentified True', '\tHasExplicitMod "Merciless"', '', '# [[1200]] Exotic', ''].join('\n');
+  const head = idModsFirst(t).split('Hide # Base ranks')[0];
+  assert.ok(head.includes('HasExplicitMod =0 "Veil"'));
+});

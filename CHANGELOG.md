@@ -5,6 +5,10 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.138 - 2026-11-17
+
+- Loot filter: Syndicate drops no longer show in the identified-mod look (yellow with a blue border) when they fall. Items with a veiled mod are left to Base ranks → Veiled.
+
 ## 1.0.137 - 2026-11-17
 
 * [Loot filter] New Talismans page (Rare items): give each beast talisman base an S tier, A tier, FilterBlade's look or hide it, and hide every one you haven't picked.
