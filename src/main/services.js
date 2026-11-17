@@ -785,7 +785,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'selectedTabIds', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
-    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1', 'sixSocketWhiteV1', 'clusterDesignV1'];
+    'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1', 'sixSocketWhiteV1', 'clusterDesignV1', 'stackedDeckStacksV1'];
   function resetAll() {
     const before = structuredClone(settings.get());
     // one level of undo, in case it was a misclick
@@ -2492,6 +2492,28 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         if (n) savePatch({ ...patch, moves: { ...(patch.moves || {}) }, styles });
       }
     } catch (e) { log('rare tiers v2', e.message); }
+  }
+  // 1.0.143: your Stacked Deck tier also for stacks of Stacked Decks (FilterBlade's stacked currency), same look; once
+  if (!settings.get('stackedDeckStacksV1')) {
+    settings.set('stackedDeckStacksV1', true);
+    try {
+      const patch = settings.get('tierPatch') || {};
+      const look = (patch.styles || {})['currency|poehelper-stackeddeck'];
+      const view = look && filters.basePath() ? tierViewNow() : null;
+      if (view) {
+        const T = require('../core/filter/tiers');
+        let p = patch;
+        for (const ty of view.types.filter((t) => /^currency->stacked/.test(t.type))) {
+          const holder = ty.tiers.find((t) => t.bases.includes('Stacked Deck'));
+          if (!holder || (p.newTiers || []).some((x) => x.type === ty.type && x.name === 'Stacked Deck')) continue;
+          const [np, tier] = T.withNewTier(p, { type: ty.type, name: 'Stacked Deck', copyFrom: holder.tier, before: holder.tier });
+          np.moves[`${ty.type}\tStacked Deck`] = tier;
+          np.styles[`${ty.type}|${tier}`] = structuredClone(look);
+          p = np;
+        }
+        if (p !== patch) savePatch(p);
+      }
+    } catch (e) { log('stacked deck stacks', e.message); }
   }
   // 1.0.132: cluster jewel tiers (by enchantment) in your design's Tier 1 / Tier 2 looks; once
   if (!settings.get('clusterDesignV1')) {
