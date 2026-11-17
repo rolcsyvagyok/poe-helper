@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.125 - 2026-11-17
+
+* [Trade searches] Facetor's Lens can be price checked, by the experience stored in it.
+- Price check: a Facetor's Lens is searched on the trade site (not the currency exchange, which doesn't list it) by its stored experience, from 10% below yours, in millions.
+
 ## 1.0.124 - 2026-11-16
 
 * [Trade searches] Twice corrupted items are price checked as twice corrupted, by their corruption implicits.

@@ -518,3 +518,13 @@ test('a long trade link ("H4sI…") can be saved, and its search is read from th
   assert.deepEqual(TW.queryFromId(id), q);
   assert.equal(TW.queryFromId('AbC123'), null);
 });
+
+test('a Facetor\'s Lens is searched by its stored experience', () => {
+  const p = parseItem("Item Class: Stackable Currency\nRarity: Currency\nFacetor's Lens\n--------\nStored Experience: 150 000 000\n--------\nAdds stored experience to a gem, up to its maximum level\n--------\nRight click this item then left click a gem to apply it.");
+  const { mods, props } = T.prepareSearch({ result: [] }, p);
+  assert.equal(mods.length, 0);
+  assert.equal(props.storedExp.min, 135);
+  const q = T.buildQuery(p, mods, { props }).query;
+  assert.equal(q.type, "Facetor's Lens");
+  assert.deepEqual(q.filters.misc_filters.filters.stored_experience, { min: 135000000 });
+});

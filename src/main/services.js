@@ -279,6 +279,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     // bulk items get the live exchange, if the exchange lists them; an item it doesn't list (a Blood-filled
     // Vessel holds its own monster) gets the normal trade search by name instead
     let bulk = ['currency', 'divination', 'fragment'].includes(kind);
+    // a Facetor's Lens holds its own experience: searched by that, not on the exchange
+    if (bulk && item.properties?.['Stored Experience']) { bulk = false; tradeable = true; }
     if (bulk && kind === 'fragment') {
       try { if (!PF.exchangeTag(await ggg.tradeStatic(), item.typeLine || item.baseType || item.name)) { bulk = false; tradeable = true; } } catch { /* keep the exchange */ }
     }

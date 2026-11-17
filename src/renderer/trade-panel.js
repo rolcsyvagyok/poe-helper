@@ -193,6 +193,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   rangeRow('links', 'Linked sockets');
   rangeRow('quality', 'Quality');
   rangeRow('gemLevel', 'Gem level');
+  rangeRow('storedExp', 'Stored experience (million)');
   rangeRow('mapTier', 'Map tier');
   // "rare" in the header: only rares (else rares and magic items of the base)
   if (props.rareOnly?.show) {

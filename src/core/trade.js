@@ -284,6 +284,8 @@ function defaultProps(item) {
     links: { on: (item.sockets?.links || 0) >= 5, min: item.sockets?.links || null, show: (item.sockets?.sockets || 0) > 0 && /^(body armours|two hand|bows$|staves$|warstaves$)/i.test(String(item.itemClass || '')) },
     quality: { on: kind === 'gem' && !!item.quality, min: item.quality || null, show: item.quality != null || kind === 'gem' },
     gemLevel: { on: kind === 'gem' && !!item.gemLevel, min: item.gemLevel || null, show: kind === 'gem' },
+    // Facetor's Lens: what it sells for is the experience stored in it
+    storedExp: (() => { const v = Number(String(item.properties?.['Stored Experience'] || '').replace(/[^\d]/g, '')); return v > 0 ? { on: true, min: Math.floor(v * 0.9 / 1e5) / 10, max: null, show: true } : { on: false, show: false }; })(), // in millions
     mapTier: { on: !!item.mapTier, min: item.mapTier || null, show: item.mapTier != null },
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
@@ -377,6 +379,7 @@ function buildQuery(item, mods, opts = {}) {
     if (props.ilvl?.on && range(props.ilvl)) misc.ilvl = range(props.ilvl);
     if (props.quality?.on && range(props.quality)) misc.quality = range(props.quality);
     if (props.gemLevel?.on && range(props.gemLevel)) misc.gem_level = range(props.gemLevel);
+    if (props.storedExp?.on && range(props.storedExp)) { const r = range(props.storedExp); misc.stored_experience = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, Math.round(v * 1e6)])); }
     if (props.corrupted === 'yes') misc.corrupted = { option: 'true' };
     // twice corrupted (3.30): only other twice corrupted ones compare
     if (props.corrupted === 'yes' && (props.twiceCorrupted || item.flags?.twiceCorrupted)) misc.twice_corrupted = { option: 'true' };
@@ -632,6 +635,7 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   const kind = classify(item);
   const props = defaultProps(item);
   const idx = indexStats(statsJson);
+  if (props.storedExp?.show) return { mods: [], props, presets: null }; // a Facetor's Lens has no mods, only its experience
   if (kind === 'gem') {
     // an imbued gem sells for its built-in support ("Supported by Level 1 Spell Echo"): searched, ticked
     const all = (statsJson?.result || []).flatMap((g) => g.entries || []).filter((e) => /^imbued\./.test(e.id || ''));
