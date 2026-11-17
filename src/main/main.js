@@ -942,6 +942,7 @@ function registerIpc() {
   handle('matrix:get', () => services.baseMatrixView());
   handle('cluster:get', () => services.clusterView());
   handle('cluster:set', (a) => services.setCluster(a || {}));
+  handle('cluster:auto', async (a) => { const r = await services.setClusterAuto(a || {}); applyAutoTier(); return r; });
   handle('matrix:set', (a) => services.setBaseMatrix(a || {}));
   handle('regex:mapView', (a) => services.regexMapView(a || {}));
   handle('regex:mapBuild', (a) => services.regexMapBuild(a || {}));

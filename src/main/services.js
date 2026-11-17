@@ -65,6 +65,8 @@ const DEFAULT_SETTINGS = {
   gigaDone: false, // the default Giga tier in currency was set up once
   fbSideMini: false, // the category list folded down to its icons
   fbSideWidth: 300, // width of the loot filter's category list
+  clusterAuto: { on: true, top: '1 div', good: '20c', hide: true }, // Cluster jewels: by poe.ninja price, kept up to date
+  clusterAutoCells: {}, // what that price rule set last time: { key: 'top'|'good'|'hide' }
   clusterGrid: {}, // cluster jewels: { "Large|Fire Damage|12|84": 'top' | 'good' | 'hide' }
   baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
   baseMatrixOpts: { mapsOnly: true, keepIlvl: null },
@@ -780,7 +782,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
   // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
-  const FILTER_KEYS = ['sizeAdjust', 'collectHide', 'uniqueCollection', 'collectHideBelow', 'collectedHideBases', 'collectMissingBases', 'rankUnidRarity', 'rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
+  const FILTER_KEYS = ['sizeAdjust', 'collectHide', 'uniqueCollection', 'collectHideBelow', 'collectedHideBases', 'collectMissingBases', 'rankUnidRarity', 'rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'clusterAuto', 'clusterAutoCells', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
@@ -1369,7 +1371,53 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     } catch (e) { log('cluster prices', e.message); }
     const units = await getLeague().then((lg) => currencyUnits(lg)).catch(() => ({ chaos: 1 }));
     const enchants = Object.fromEntries(cl.SIZES.map((z) => [z.id, [...cl.ENCHANTS[z.id], ...fromFilter.extra[z.id].filter((e) => cl.ALL_ENCHANTS.includes(e) && !cl.ENCHANTS[z.id].includes(e))]]));
-    return { sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, bySize, looks: { ...cl.DEFAULT_LOOKS, ...designer.clusterLooks((k) => settings.get(k)) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
+    // first time only: the hourly auto-tier keeps it up to date after that
+    if (!Object.keys(settings.get('clusterAutoCells') || {}).length) { try { await clusterAutoRun({ prices, divine: units.divine }); } catch (e) { log('cluster auto', e.message); } }
+    return { auto: settings.get('clusterAuto') || {}, autoCells: settings.get('clusterAutoCells') || {}, sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, bySize, looks: { ...cl.DEFAULT_LOOKS, ...designer.clusterLooks((k) => settings.get(k)) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
+  }
+  // "1 div" / "20c" / "35" -> chaos
+  function clusterChaos(v, divine) {
+    const m = /^\s*(\d+(?:[.,]\d+)?)\s*(c|chaos|d|div|divine)?\s*$/i.exec(String(v ?? ''));
+    if (!m) return null;
+    const n = Number(m[1].replace(',', '.'));
+    return /^d/i.test(m[2] || '') ? (divine ? n * divine : null) : n;
+  }
+  /** The price rule: recomputed from poe.ninja (cached) prices. Returns the changes as auto-tier moves
+   *  ({type: 'cluster', key, base, from, to, chaos}); rewrites the filter when write is set and something changed. */
+  async function clusterAutoRun({ prices, divine, write = true } = {}) {
+    const cl = require('../core/cluster');
+    const a = settings.get('clusterAuto') || {};
+    let cells = {};
+    if (a.on) {
+      const league = await getLeague();
+      if (!prices) prices = cl.priceCells(await ninja.category(league, 'ClusterJewel'), { total: 0, missed: [] });
+      if (divine == null) divine = (await currencyUnits(league).catch(() => ({}))).divine;
+      const top = clusterChaos(a.top, divine); const good = clusterChaos(a.good, divine);
+      if (top == null || good == null || !Object.keys(prices).length) return null; // keep what was set until prices come back
+      cells = cl.autoCells(prices, { top, good, hide: a.hide !== false });
+    }
+    const old = settings.get('clusterAutoCells') || {};
+    const same = Object.keys(old).length === Object.keys(cells).length && Object.entries(cells).every(([k, v]) => old[k] === v);
+    if (same) return { changed: 0, moves: [] };
+    const bands = Object.fromEntries(cl.BANDS.map((b) => [b.id, b.name]));
+    const moves = !Object.keys(old).length ? [] : [...new Set([...Object.keys(old), ...Object.keys(cells)])].filter((k) => old[k] !== cells[k]).map((k) => {
+      const [size, e, p, band] = k.split('|');
+      return { type: 'cluster', key: k, base: `${size} Cluster Jewel: ${p} passives, ${e} (${(bands[band] || '').toLowerCase()})`, from: old[k] || null, to: cells[k] || null, chaos: prices?.[k] ?? null };
+    });
+    settings.set('clusterAutoCells', cells);
+    if (write && filters.basePath()) filters.write();
+    return { changed: Object.keys(cells).length, moves };
+  }
+  async function setClusterAuto(opts = {}) {
+    const a = { ...(settings.get('clusterAuto') || {}) };
+    for (const k of ['on', 'hide']) if (k in opts) a[k] = !!opts[k];
+    for (const k of ['top', 'good']) if (k in opts) a[k] = String(opts[k]).trim();
+    const lg = await getLeague().catch(() => null);
+    const divine = lg ? (await currencyUnits(lg).catch(() => ({}))).divine : null;
+    if (a.on && (clusterChaos(a.top, divine) == null || clusterChaos(a.good, divine) == null)) throw new Error('Type prices like 1 div or 20c.');
+    settings.set('clusterAuto', a);
+    await clusterAutoRun();
+    return { auto: a, autoCells: settings.get('clusterAutoCells') || {} };
   }
   /** Set cells: value 'top' | 'good' | 'hide' | null (back to the filter). */
   function setCluster({ keys = [], value = null } = {}) {
@@ -1946,6 +1994,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   function applyReviewMoves(moves, { auto = false } = {}) {
     const groups = new Map();
     for (const m of moves) {
+      if (m.type === 'cluster') continue; // already set by the cluster price rule
       const k = `${m.type}\u0000${m.to}`;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(m.base);
@@ -1969,6 +2018,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const last = logList.shift();
     if (!last) throw new Error('Nothing to undo.');
     for (const m of last.moves) {
+      if (m.type === 'cluster') {
+        // pinned as your own choice, so the next price check doesn't change it straight back
+        if (m.from) setCluster({ keys: [m.key], value: m.from });
+        continue;
+      }
       if (m.from) moveBases(m.type, [m.base], m.from);
       else resetTiers({ type: m.type, base: m.base });
     }
@@ -1979,7 +2033,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   /** Automatic mode: apply every planned move in enabled categories. Returns the moves made. */
   function autoTierWanted() {
     const cfg = reviewCfg();
-    return !!cfg.auto || Object.values(cfg.categories || {}).some((c) => c?.auto === true);
+    return !!cfg.auto || Object.values(cfg.categories || {}).some((c) => c?.auto === true) || !!(settings.get('clusterAuto') || {}).on;
   }
 
   /** 3.30 threads (Abyss Thread, Breach Thread...): FilterBlade has them all in one fragment tier. Once,
@@ -1999,8 +2053,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (!autoTierWanted() || !filters.basePath()) return [];
     const r = await priceReview();
     const moves = r.categories.filter((c) => c.auto).flatMap((c) => c.moves.map((m) => ({ ...m, type: c.type })));
-    if (moves.length) applyReviewMoves(moves, { auto: true });
-    return moves;
+    // cluster jewels by price (Loot filter → Cluster jewels), in the same run and the same undo
+    let cm = [];
+    try { cm = (await clusterAutoRun({ write: !moves.length }))?.moves || []; } catch (e) { log('cluster auto', e.message); }
+    if (moves.length || cm.length) applyReviewMoves([...moves, ...cm], { auto: true });
+    return [...moves, ...cm];
   }
 
   // ---------- tier designer ----------
@@ -2485,7 +2542,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

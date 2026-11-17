@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.133 - 2026-11-17
+
+* [Loot filter] Cluster jewels are auto-tiered by price every hour, like your other auto-tier categories: top look from 1 div, good look from 20c, cheaper ones hidden.
+- Loot filter → Cluster jewels: "Auto-tier by price" sets every priced jewel at every item level from its poe.ninja price, and can hide the cheaper ones. Your own clicks still win.
+- It runs with the hourly auto-tier; what moved shows in the price update card and can be undone. Turn it on or off on the Price review tab.
+- "By size" is now called "Size rule": your filter's own rule for jewels poe.ninja has no price for.
+
 ## 1.0.132 - 2026-11-17
 
 * [Tier designer] Cluster jewels now use your design's looks, in the filter and in the Cluster jewels table.

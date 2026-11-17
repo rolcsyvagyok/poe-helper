@@ -1188,7 +1188,9 @@ async function renderClusterGrid(body, view) {
   let state = data.state || {};
   const d = data.divine;
   const fmtP = (c) => (c == null ? '' : d && c >= d * 0.95 ? `${+(c / d).toFixed(c >= d * 10 ? 0 : 1)} div` : `${c >= 10 ? Math.round(c) : +c.toFixed(1)}c`);
-  const eff = (k) => state[k] || (data.filter[k] === 't1' ? 'top' : data.filter[k] === 't2' ? 'good' : null);
+  // the price rule (poe.ninja prices, kept up to date), under your own clicks
+  const auto = data.auto?.on ? data.autoCells || {} : {};
+  const eff = (k) => state[k] || auto[k] || (data.filter[k] === 't1' ? 'top' : data.filter[k] === 't2' ? 'good' : null);
   // cells no economy tier or choice of yours covers fall back to the filter's "by size" tiers
   const sizeTier = (k) => { const [sz, , p, b] = k.split('|'); return data.bySize?.[`${sz}|*|${p}|${b}`] || null; };
   const col = (a) => (a ? `rgba(${+a[0] || 0},${+a[1] || 0},${+a[2] || 0},${((a[3] == null ? 255 : +a[3]) / 255).toFixed(3)})` : '');
@@ -1222,7 +1224,7 @@ async function renderClusterGrid(body, view) {
     const ns = data.filter[k];
     return `${size} cluster, ${p} passives, ${e}, ${data.bands.find((b) => b.id === FB.cjBand).name.toLowerCase()}.\n` +
       `${data.prices[k] ? `poe.ninja: ${fmtP(data.prices[k])}. ` : 'No poe.ninja price. '}` +
-      `Your filter: ${ns === 't1' ? 'top look' : ns === 't2' ? 'good look' : sizeTier(k) ? `${sizeTier(k).action === 'Hide' ? 'hidden by' : 'shown by'} the "${sizeTierName(sizeTier(k))}" tier` : 'no special tier'}.${own ? ` You set: ${own === 'top' ? 'top look' : own === 'good' ? 'good look' : 'hidden'}.` : ''}`;
+      `${auto[k] ? `Price rule: ${auto[k] === 'top' ? 'top look' : auto[k] === 'good' ? 'good look' : 'hidden'}. ` : ''}Your filter: ${ns === 't1' ? 'top look' : ns === 't2' ? 'good look' : sizeTier(k) ? `${sizeTier(k).action === 'Hide' ? 'hidden by' : 'shown by'} the "${sizeTierName(sizeTier(k))}" tier` : 'no special tier'}.${own ? ` You set: ${own === 'top' ? 'top look' : own === 'good' ? 'good look' : 'hidden'}.` : ''}`;
   };
 
   const els = new Map();
@@ -1241,14 +1243,15 @@ async function renderClusterGrid(body, view) {
   // left click steps a cell up the ladder, right click steps it down: hidden, filter decides (cheap,
   // by size), good look, top look. Dragging over cells still paints them with the brush.
   const LADDER = ['hide', null, 'good', 'top'];
-  const filterOwn = (k) => (data.filter[k] === 't1' ? 'top' : data.filter[k] === 't2' ? 'good' : null);
+  const filterOwn = (k) => auto[k] || (data.filter[k] === 't1' ? 'top' : data.filter[k] === 't2' ? 'good' : null);
   const step = async (keys, dir) => {
     const byValue = new Map();
     for (const k of keys) {
+      const lad = auto[k] ? ['hide', 'good', 'top'] : LADDER; // the price rule already decides: no "filter decides" step
       const cur = state[k] || filterOwn(k);
-      const i = Math.max(0, Math.min(LADDER.length - 1, LADDER.indexOf(cur) + dir));
-      let v = LADDER[i];
-      if (v === filterOwn(k)) v = null; // that's what the filter does anyway
+      const i = Math.max(0, Math.min(lad.length - 1, lad.indexOf(cur) + dir));
+      let v = lad[i];
+      if (v === filterOwn(k)) v = null; // that's what the price rule or the filter does anyway
       if (v) state[k] = v; else delete state[k];
       for (const el of els.get(k) || []) cellLook(el, k);
       if (!byValue.has(v)) byValue.set(v, []);
@@ -1303,26 +1306,22 @@ async function renderClusterGrid(body, view) {
   }
   drawCount();
 
-  // mark by price: every priced cell in this item level band
-  const topIn = h('input', { type: 'text', value: FB.cjTop ?? (d ? '1 div' : '150c'), style: { width: '76px' }, 'aria-label': 'Top look from this price' });
-  const goodIn = h('input', { type: 'text', value: FB.cjGood ?? '20c', style: { width: '76px' }, 'aria-label': 'Good look from this price' });
-  const toChaos = (v) => { const m = /^\s*(\d+(?:[.,]\d+)?)\s*(c|chaos|d|div|divine)?\s*$/i.exec(v || ''); if (!m) return null; const n = Number(m[1].replace(',', '.')); return /^d/i.test(m[2] || '') ? (d ? n * d : null) : n; };
-  const byPrice = async () => {
-    FB.cjTop = topIn.value; FB.cjGood = goodIn.value;
-    const top = toChaos(topIn.value); const good = toChaos(goodIn.value);
-    if (top == null || good == null) return toast('Type prices like 1 div or 20c.', true);
-    const tops = []; const goods = [];
-    for (const size of data.sizes) for (const e of data.enchants[size.id]) for (const p of size.passives) {
-      const k = `${size.id}|${e}|${p}|${FB.cjBand}`;
-      const c = data.prices[k];
-      if (c >= top) tops.push(k); else if (c >= good) goods.push(k);
-    }
-    if (!tops.length && !goods.length) return toast('No priced jewels over those prices in this item level band.');
-    if (tops.length) await call('cluster:set', { keys: tops, value: 'top' });
-    if (goods.length) await call('cluster:set', { keys: goods, value: 'good' });
-    toast(`${tops.length} set to the top look, ${goods.length} to the good look`);
-    renderFilters();
+  // the price rule: every priced jewel (all item levels) by its poe.ninja price, kept up to date
+  const A = data.auto || {};
+  const topIn = h('input', { type: 'text', value: A.top ?? (d ? '1 div' : '150c'), style: { width: '76px' }, 'aria-label': 'Top look from this price' });
+  const goodIn = h('input', { type: 'text', value: A.good ?? '20c', style: { width: '76px' }, 'aria-label': 'Good look from this price' });
+  const onBox = h('input', { type: 'checkbox', checked: !!A.on });
+  const hideBox = h('input', { type: 'checkbox', checked: A.hide !== false });
+  const saveAuto = async () => {
+    try {
+      const r = await call('cluster:auto', { on: onBox.checked, hide: hideBox.checked, top: topIn.value, good: goodIn.value });
+      S.settings.clusterAuto = r.auto;
+      const n = Object.values(r.autoCells || {});
+      toast(r.auto.on ? `By price: ${n.filter((x) => x === 'top').length} top, ${n.filter((x) => x === 'good').length} good, ${n.filter((x) => x === 'hide').length} hidden` : 'By price is off: your filter decides again');
+      renderFilters();
+    } catch (e) { toast(e.message, true); }
   };
+  for (const el of [onBox, hideBox, topIn, goodIn]) el.addEventListener('change', saveAuto);
 
   const sample = (look, name) => dropLabel(name, look, { rarity: 'Rare', scale: 0.55, game: true });
   mount(body, h('div', { class: 'fb' },
@@ -1338,20 +1337,21 @@ async function renderClusterGrid(body, view) {
           h('span', { class: 'spacer' }),
           h('div', { class: 'bm-brushes', role: 'radiogroup', 'aria-label': 'Brush' }, CJ_BRUSHES.map((b) => h('button', { class: `bm-brush cj-b-${b.id || 'none'}` + (FB.cjBrush === b.id ? ' on' : ''), role: 'radio', 'aria-checked': FB.cjBrush === b.id ? 'true' : 'false', title: b.title, onclick: () => { FB.cjBrush = b.id; renderFilters(); } }, b.label)))),
         h('div', { class: 'row small', style: { gap: '10px' } },
-          h('b', {}, 'By price:'), 'top look from', topIn, 'good look from', goodIn,
-          h('button', { class: 'sm', onclick: byPrice, title: 'Uses poe.ninja prices for the item level band you are looking at' }, 'Apply to this item level'),
+          h('label', { class: 'row', style: { gap: '5px' }, title: 'Every jewel poe.ninja has a price for, at every item level. Re-tiered every hour with your other auto-tiers (Price review shows what moved, and can undo it). Your own clicks win.' }, onBox, h('b', {}, 'Auto-tier by price')),
+          'top look from', topIn, 'good look from', goodIn,
+          h('label', { class: 'row', style: { gap: '5px' } }, hideBox, 'hide cheaper ones'),
           h('span', { class: 'spacer' }), count,
           h('button', { class: 'quiet sm', onclick: async () => { const ks = Object.keys(state); if (!ks.length || !confirm(`Clear all ${ks.length} cluster jewel choices? Your filter decides again.`)) return; await call('cluster:set', { keys: ks, value: null }); renderFilters(); } }, 'Reset all'))),
       h('div', { class: 'cj-legend small' },
         h('span', { class: 'cj-cell cj-top' }, 'Top'), sample(data.looks.t1, 'Large Cluster Jewel'),
         h('span', { class: 'cj-cell cj-good' }, 'Good'), sample(data.looks.t2, 'Large Cluster Jewel'),
         h('span', { class: 'cj-cell cj-hide' }, 'Hidden'),
-        (() => { const st = Object.values(data.bySize || {}).find((x) => x.action !== 'Hide' && x.style); const el = h('span', { class: 'cj-cell cj-size' }, 'By size'); if (st) { const lk = window.UI.normalizeStyle(st.style, 'Rare'); el.style.color = col(lk.text); el.style.background = col(lk.background) || 'rgba(0,0,0,0.72)'; el.style.borderColor = col(lk.border) || 'transparent'; } return el; })(),
-        h('span', { class: 'faint' }, 'filter\'s size tiers (e.g. Large: 12 passives, item level 84+)'),
+        (() => { const st = Object.values(data.bySize || {}).find((x) => x.action !== 'Hide' && x.style); const el = h('span', { class: 'cj-cell cj-size' }, 'Size rule'); if (st) { const lk = window.UI.normalizeStyle(st.style, 'Rare'); el.style.color = col(lk.text); el.style.background = col(lk.background) || 'rgba(0,0,0,0.72)'; el.style.borderColor = col(lk.border) || 'transparent'; } return el; })(),
+        h('span', { class: 'faint' }, 'no price: your filter\'s own rule by size (e.g. Large with 12 passives, item level 84+)'),
         h('span', { class: 'cj-cell cj-fhide' }, 'hidden by size'),
         h('span', { class: 'cj-cell' }, '·'), h('span', { class: 'faint' }, 'no tier'),
         h('span', { class: 'cj-cell cj-top mine' }, 'set by you'),
-        h('div', { class: 'faint', style: { flexBasis: '100%' } }, `Numbers are poe.ninja prices${data.ageMs != null ? `, updated ${ago(data.ageMs)}` : ''}; a dot means no price. Left click a cell to move it one step up (hidden → filter decides → good → top), right click one step down; an enchantment or a passive count does the same for its whole row or column. Drag over cells to paint them with the brush. Uniques are never affected.`)),
+        h('div', { class: 'faint', style: { flexBasis: '100%' } }, `Numbers are poe.ninja prices${data.ageMs != null ? `, updated ${ago(data.ageMs)}` : ''}; a dot means no price. With By price on, priced jewels get their look from the price; the rest follow your filter's size rule. Left click a cell to move it one step up (hidden → filter decides → good → top), right click one step down; an enchantment or a passive count does the same for its whole row or column. Drag over cells to paint them with the brush. Uniques are never affected.`)),
       data.hasFilterTiers ? null : h('div', { class: 'panel small muted' }, 'Your filter has no economy cluster tiers, so only your own choices are shown.'),
       data.priceStats ? h('details', { class: 'small muted cj-stats' },
         h('summary', {}, data.priceStats.total ? `poe.ninja lists ${data.priceStats.total} cluster jewels; ${data.priceStats.matched} matched a cell${data.priceStats.missed.length ? ` (${data.priceStats.total - data.priceStats.matched} didn't — open to see them)` : '.'}` : 'poe.ninja sent no cluster jewel prices.'),
@@ -2542,12 +2542,15 @@ async function fillMoved(box) {
       h('button', { class: 'quiet sm', title: 'Put every item back where it was', onclick: async () => { try { const r = await call('review:undo'); toast(`Put back ${r.undone} items`); } catch { /* toast */ } try { localStorage.setItem('priceLogSeen', String(Date.now())); } catch { /* none */ } renderFilters(); } }, 'Undo'),
       h('button', { class: 'quiet sm', 'aria-label': 'Dismiss', title: 'Got it', onclick: () => { try { localStorage.setItem('priceLogSeen', String(last.at)); } catch { /* none */ } mount(box); } }, '✕')),
     h('div', { class: 'fb-moved-list' }, (all ? moves : moves.slice(0, LIMIT)).map((m) => {
-      const up = m.from && tierNo(m.to) < tierNo(m.from);
-      const hide = /hide/i.test(String(m.to));
+      const CJ = { top: ['top look', 1], good: ['good look', 2], hide: ['hidden', 4] };
+      const cj = m.type === 'cluster';
+      const up = cj ? (CJ[m.to]?.[1] ?? 3) < (CJ[m.from]?.[1] ?? 3) : m.from && tierNo(m.to) < tierNo(m.from);
+      const hide = cj ? m.to === 'hide' : /hide/i.test(String(m.to));
+      const nm = (t) => (cj ? CJ[t]?.[0] || 'size rule' : t ? tierName({ tier: t }) : 'new');
       return h('div', { class: 'fb-moved-row' },
-        window.UI.itemPic(m.base, { size: 20 }),
+        window.UI.itemPic(cj ? m.base.split(':')[0] : m.base, { size: 20 }),
         h('span', { class: 'n' }, m.base),
-        h('span', { class: 'small muted' }, m.from ? tierName({ tier: m.from }) : 'new', ' → ', h('b', {}, hide ? 'hidden' : tierName({ tier: m.to }))),
+        h('span', { class: 'small muted' }, nm(m.from), ' → ', h('b', {}, hide ? 'hidden' : nm(m.to))),
         h('span', { class: `fb-moved-dir ${hide ? 'down' : up ? 'up' : 'down'}`, 'aria-label': up ? 'worth more' : 'worth less' }, hide ? '▼' : up ? '▲' : '▼'),
         m.chaos != null ? h('span', { class: 'small faint r' }, fmtC(m.chaos)) : h('span'));
     })),
@@ -2614,6 +2617,14 @@ async function renderReview(body, { only = null, popup = false } = {}) {
       toggle(!!cfg.includeNew, async (v) => { await saveCfg({ includeNew: v }); if (FB.review) { await runReview(); renderFilters(); } }, 'Also tier items your filter doesn\'t list yet (new league items)'),
       h('span', { class: 'spacer' }),
       h('span', { class: 'small muted' }, 'Tick "Auto-update" on a category to re-tier it every hour.')),
+    (() => {
+      const ca = S.settings.clusterAuto || {};
+      return h('div', { class: 'row small' },
+        toggle(!!ca.on, async (v) => { try { const r = await call('cluster:auto', { on: v }); S.settings.clusterAuto = r.auto; toast(v ? 'Cluster jewels are re-tiered every hour' : 'Cluster jewels: your filter decides again'); } catch (e) { toast(e.message, true); } renderFilters(); },
+          `Auto-update cluster jewels: top look from ${ca.top || '1 div'}, good look from ${ca.good || '20c'}${ca.hide !== false ? ', cheaper ones hidden' : ''}`),
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'quiet sm', onclick: () => { window.showInFilter({ special: 'clustergrid' }); renderFilters(); } }, 'Change'));
+    })(),
     last ? h('div', { class: 'row small', style: { borderTop: '1px solid var(--line-soft)', paddingTop: '10px' } },
       h('span', { class: 'muted', style: { flex: 1 } }, `Last run ${ago(Date.now() - last.at)}${last.auto ? ' (automatic)' : ''}: moved ${last.moves.length} ${last.moves.length === 1 ? 'item' : 'items'}${last.moves.length ? ', for example ' + last.moves.slice(0, 3).map((m) => m.base).join(', ') : ''}.`),
       h('button', { class: 'sm', onclick: async () => { const r = await call('review:undo'); toast(`Put back ${r.undone} items`); FB.prices = {}; if (FB.review) await runReview(); renderFilters(); } }, 'Undo last run')) : null);

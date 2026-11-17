@@ -201,4 +201,15 @@ function clusterRules(state = {}, looks = {}) {
   });
 }
 
-module.exports = { readSizeTiers, STAT_TEXT, SIZES, BANDS, ENCHANTS, ALL_ENCHANTS, cellKey, readFilter, priceCells, clusterRules, DEFAULT_LOOKS };
+/** Price rule -> choices for every priced cell: top from `top` chaos, good from `good`, cheaper ones hidden (when hide). */
+function autoCells(prices = {}, { top, good, hide = true } = {}) {
+  const out = {};
+  if (!(top > 0) || !(good >= 0)) return out;
+  for (const [k, c] of Object.entries(prices)) {
+    if (!(c > 0)) continue;
+    if (c >= top) out[k] = 'top'; else if (c >= good) out[k] = 'good'; else if (hide) out[k] = 'hide';
+  }
+  return out;
+}
+
+module.exports = { autoCells, readSizeTiers, STAT_TEXT, SIZES, BANDS, ENCHANTS, ALL_ENCHANTS, cellKey, readFilter, priceCells, clusterRules, DEFAULT_LOOKS };

@@ -1185,7 +1185,8 @@ class FilterManager {
     const matrix = matrixRules(this.store.get('baseMatrix') || {}, this.store.get('baseMatrixOpts') || {});
     const ranked = rankRules(this.store.get('baseRanks') || {}, this.store.get('rankKinds') || {}, RANKED_NAMES, { mapsOnly: (this.store.get('baseMatrixOpts') || {}).mapsOnly !== false, craftIlvl: this.store.get('rankCraftIlvl') || 82, ilvls: this.store.get('rankIlvl') || {}, unidTiers: /^\s*UnidentifiedItemTier\b/m.test(text), strands: /^\s*MemoryStrands\b/m.test(text), kindLooks: kindLooksOf(text) });
     const unid = []; // (unidentified item tiers are FilterBlade's own rules now, see rankUnidTiers)
-    const clusterState = this.store.get('clusterGrid') || {};
+    // the price rule's choices, under your own clicks
+    const clusterState = { ...((this.store.get('clusterAuto') || {}).on ? this.store.get('clusterAutoCells') || {} : {}), ...(this.store.get('clusterGrid') || {}) };
     let clusterBlocks = [];
     if (Object.keys(clusterState).length) {
       // your choices in the Cluster jewels table look like your Tier designer design (top: Tier 1, good: Tier 2)
