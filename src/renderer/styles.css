@@ -1744,3 +1744,13 @@ html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }
 .nw-tabchip.on { color: var(--text); border-color: #4a90d9; background: rgba(74,144,217,.14); }
 .nw-tabchip.on .chk { background: #4a90d9; border-color: #4a90d9; color: #fff; opacity: 1; }
 .nw-tabchip.on .v { color: var(--muted); }
+
+/* price check: which unique an unidentified one is */
+.tp-which { display: grid; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.tp-which.one { grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
+.tp-which-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.tp-which-btn { display: flex; align-items: center; gap: 8px; padding: 5px 8px; text-align: left; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; }
+.tp-which-btn:hover { border-color: #4a90d9; }
+.tp-which-btn.on { border-color: #4a90d9; background: rgba(74,144,217,.16); box-shadow: inset 3px 0 0 #4a90d9; }
+.tp-which-grid { max-height: 260px; overflow-y: auto; }
+.tp-which-btn { justify-content: flex-start; }

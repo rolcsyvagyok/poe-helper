@@ -843,6 +843,31 @@ function adjustSizes(text, adj = {}) {
 }
 
 /**
+ * Voices: the only unique Large Cluster Jewel, so every unique (unidentified too) on that base is Voices. It goes to
+ * the top unique tier (its look and its tink), out of whatever tier FilterBlade had it in.
+ */
+const TOP_UNIQUE_BASES = ['Large Cluster Jewel'];
+function voicesTop(text) {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  let top = -1;
+  let moved = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^(Show|Hide)\b.*\$type->uniques \$tier->(\w+)/.test(lines[i])) continue;
+    const isTop = /^Show\b.*\$type->uniques \$tier->t1\b/.test(lines[i]);
+    for (let j = i + 1; j < lines.length && /^\s+\S/.test(lines[j]); j++) {
+      if (!/^\s+BaseType\b/.test(lines[j])) continue;
+      if (isTop && top < 0) { top = j; continue; }
+      const kept = lines[j].replace(new RegExp(` "(${TOP_UNIQUE_BASES.join('|')})"`, 'g'), '');
+      if (kept !== lines[j]) { lines[j] = /BaseType\s*(==)?\s*$/.test(kept) ? `#${lines[j]}` : kept; moved = true; }
+    }
+  }
+  if (top < 0 || !moved) return text; // a filter that doesn't tier it by base: left as it is
+  for (const b of TOP_UNIQUE_BASES) if (!lines[top].includes(`"${b}"`)) lines[top] += ` "${b}"`;
+  return lines.join(eol);
+}
+
+/**
  * Unique collection: FilterBlade hides cheap unique tiers by base ("hideable2: Elegant Sword…"). A base with a
  * unique you don't have yet is taken out of those Hide blocks and shown with the same look, right before them.
  */
@@ -1176,6 +1201,7 @@ class FilterManager {
     if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
     let out = finalCheck(insertAfterItemTiers(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), afterTiers), fix, this.log);
     // Tier designer → Text size: bigger or smaller for everything, or one category, on top of the theme
+    out = voicesTop(out);
     out = showMissingUniques(out, this.store.get('collectMissingBases') || []);
     if ((this.store.get('rareStyle') || 'yellow') === 'yellow') out = magicBlue(out);
     const sizes = this.store.get('sizeAdjust');
@@ -1261,4 +1287,4 @@ class FilterManager {
   }
 }
 
-module.exports = { showMissingUniques, magicBlue, insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { voicesTop, showMissingUniques, magicBlue, insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

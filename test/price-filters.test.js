@@ -536,3 +536,13 @@ test('net worth prices fragments that are normal items (An Audience With The Kin
   assert.equal(N.valueItem({ frameType: 0, typeLine: 'Vaal Regalia', ilvl: 84 }, idx), null);
   assert.ok(N.neededCategories([{ frameType: 0, typeLine: 'An Audience With The King' }]).includes('Fragment'));
 });
+
+test('an unidentified unique, once picked, is searched by its name, unidentified only', () => {
+  const p = parseItem('Item Class: Jewels\nRarity: Unique\nLarge Cluster Jewel\n--------\nItem Level: 79\n--------\nUnidentified\n--------\nCorrupted');
+  const { mods, props } = T.prepareSearch({ result: [] }, p);
+  props.uniqueName = 'Voices';
+  const q = T.buildQuery(p, mods, { props }).query;
+  assert.equal(q.name, 'Voices');
+  assert.equal(q.type, 'Large Cluster Jewel');
+  assert.deepEqual(q.filters.misc_filters.filters.identified, { option: 'false' });
+});

@@ -336,6 +336,12 @@ function buildQuery(item, mods, opts = {}) {
   if (kind === 'unique' && !item.flags.unidentified) {
     q.query.name = item.name;
     q.query.type = item.baseType;
+  } else if (kind === 'unique' && props?.uniqueName) {
+    // an unidentified unique, once you said which one it is (Awakened PoE Trade does the same): that unique,
+    // unidentified ones only (an identified one can roll lower)
+    q.query.name = props.uniqueName;
+    q.query.type = item.baseType || item.typeLine;
+    q.query.filters.misc_filters = { filters: { ...(q.query.filters.misc_filters?.filters || {}), identified: { option: 'false' } } };
   } else if (kind === 'gem') {
     // a transfigured gem is its base gem with a "discriminator" ("Ethereal Knives of the Massacre" ->
     // { option: 'Ethereal Knives', discriminator: 'alt_x' }), from the trade site's item list

@@ -763,3 +763,12 @@ test('a base with a unique you don\'t have is shown out of FilterBlade\'s hidden
   // every base missing: the Hide block is switched off
   assert.match(Mg.showMissingUniques(src, ['Elegant Sword', 'Elegant Ringmail']), /#Hide # %H3/);
 });
+
+test('Voices (the only unique Large Cluster Jewel) goes to the top unique tier', () => {
+  const Mg = require('../src/core/filter/manager');
+  const src = 'Show # $type->uniques $tier->t1 !apex\n\tRarity Unique\n\tBaseType == "Fishing Rod"\n\tPlayAlertSound 6 300\n\nShow # %H8 $type->uniques $tier->t2 !a\n\tRarity Unique\n\tBaseType == "Heavy Belt" "Large Cluster Jewel"\n\nHide # $type->uniques $tier->hideable\n\tRarity Unique\n\tBaseType == "Large Cluster Jewel"\n';
+  const out = Mg.voicesTop(src);
+  assert.match(out, /tier->t1[^\n]*\n\tRarity Unique\n\tBaseType == "Fishing Rod" "Large Cluster Jewel"\n/);
+  assert.match(out, /tier->t2[^\n]*\n\tRarity Unique\n\tBaseType == "Heavy Belt"\n/);
+  assert.match(out, /#\tBaseType == "Large Cluster Jewel"/);
+});

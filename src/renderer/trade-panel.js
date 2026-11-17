@@ -281,9 +281,22 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     showResults();
   }
 
+  // an unidentified unique: which one it is (as Awakened PoE Trade asks). One possible (Voices): said, and searched.
+  // More: pick one, and it's searched as that unique, unidentified ones only
+  const choices = prep.uniqueChoices || [];
+  const which = choices.length === 1
+    ? h('div', { class: 'tp-which one' }, window.UI.itemPic(choices[0], { size: 34 }), h('div', {}, h('b', {}, choices[0]), h('div', { class: 'small muted' }, 'The only unique on this base. Searched as unidentified ones.')))
+    : choices.length > 1 ? h('div', { class: 'tp-which' },
+      h('div', { class: 'tp-ghead' }, 'Which unique is it?'),
+      h('div', { class: 'tp-which-grid' }, choices.map((n) => h('button', { class: 'tp-which-btn' + (props.uniqueName === n ? ' on' : ''), 'aria-pressed': props.uniqueName === n ? 'true' : 'false',
+        onclick: () => { props.uniqueName = props.uniqueName === n ? null : n; mountAgain(); if (props.uniqueName) setTimeout(() => box.querySelector('.tp-go button.primary')?.click(), 0); } },
+        window.UI.itemPic(n, { size: 30 }), h('span', {}, n)))),
+      h('div', { class: 'small faint' }, props.uniqueName ? `Searching ${props.uniqueName}, unidentified ones only. Click it again to search any unique on this base.` : 'Pick one to search it; until then the search finds any unique on this base.'))
+    : null;
   // (the "Search as: finished item / crafting base" choice is gone: the price check searches the finished item)
   mount(box,
     h('div', { class: 'tp' },
+      which,
       // the results first: they are what you search for, seen without scrolling past the mods
       results,
       topRows.length ? h('div', { class: 'tp-group tp-top' }, topRows) : null,

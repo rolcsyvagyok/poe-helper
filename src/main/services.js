@@ -329,8 +329,20 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     // an imbued support the trade site's list didn't match: its exact characters, to see why (no private data)
     for (const m of mods) if (m.group === 'imbued' && m.unmatched) log('imbued not matched', JSON.stringify(m.text), [...String(m.text)].map((c) => c.charCodeAt(0)).filter((c) => c > 126 || c < 32).join(',') || 'plain');
     // only an identified unique is searched at once; everything else waits for Search (saves GGG requests)
-    const autoSearch = settings.get('tradeAutoSearch') !== false && kind === 'unique' && !item.flags?.unidentified;
-    return { mods, props, presets, kind, autoSearch, status: settings.get('tradeStatus') || 'securable' };
+    // an unidentified unique: which uniques its base can be (the trade site's item list, cached). One (Voices on a
+    // Large Cluster Jewel): that's it. More: you pick, as in Awakened PoE Trade
+    let uniqueChoices = null;
+    if (kind === 'unique' && item.flags?.unidentified) {
+      try {
+        const base = item.baseType || item.typeLine;
+        const names = [];
+        for (const g of (await ggg.tradeItems())?.result || []) for (const e of g.entries || []) if (e.name && e.type === base && e.flags?.unique && !names.includes(e.name)) names.push(e.name);
+        uniqueChoices = names;
+        if (names.length === 1) props.uniqueName = names[0];
+      } catch (e) { log('unique choices', e.message); }
+    }
+    const autoSearch = settings.get('tradeAutoSearch') !== false && kind === 'unique' && (!item.flags?.unidentified || !!props.uniqueName);
+    return { mods, props, presets, kind, autoSearch, uniqueChoices, status: settings.get('tradeStatus') || 'securable' };
   }
 
   /** Wickerman parts: the trade site lists some by their plain name ("Hag's Stomach"), some by the full one

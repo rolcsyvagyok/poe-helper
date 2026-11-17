@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.127 - 2026-11-17
+
+* [Loot filter] Voices (any unique Large Cluster Jewel, unidentified too) now gets the top unique look and its tink.
+* [Trade searches] Unidentified uniques: pick which unique it is and the price check searches that one, as Awakened PoE Trade does. An unidentified Voices is recognised by itself.
+- Loot filter: Voices is the only unique Large Cluster Jewel, so every unique on that base, identified or not, is moved to the top unique tier (its look, beam and tink sound), whatever tier FilterBlade had it in.
+- Price check: an unidentified unique shows "Which unique is it?" with every unique its base can be (the trade site's own list), like Awakened PoE Trade. Pick one and it's searched by name, unidentified ones only. When the base has only one unique (Voices on a Large Cluster Jewel), it's picked and searched at once.
+
 ## 1.0.126 - 2026-11-17
 
 * [My collection] Your Unique stash tab is checked by itself every 3 hours; pick how often (or only on the button) next to "Tick from my Unique stash tab".
