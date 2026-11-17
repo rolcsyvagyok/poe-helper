@@ -601,12 +601,31 @@ test('Mercenary Warrant: searched by its build and skills; supports listed under
   assert.deepStrictEqual(T.warrantTradeType(items, 'Combatant'), { option: 'MeleeAOEStrikeDuelistRangeStrikes', discriminator: 'mercenary_warrant' });
 });
 
-test('Mercenary Warrant analysis: what ticking a support does to the cheapest match', () => {
+test('Mercenary Warrant search, as Awakened PoE Trade: primary skills, supports on their skill, bricks left out', () => {
+  const { parseItem } = require('../src/core/item-parser');
   const M = require('../src/core/merc');
-  const skills = [{ name: 'Static Strike', id: 'mercenary.skill_1', on: true, supports: [{ name: 'Chain', tier: 2, id: 'mercenary.support_9', on: false }, { name: 'Added Cold', tier: 2, id: 'mercenary.support_8', on: false }] }];
-  const L = (chaos, ids) => ({ chaos, ids: new Set(ids) });
-  const a = M.analyze(skills, [L(5, ['mercenary.skill_1']), L(12, ['mercenary.skill_1', 'mercenary.support_9']), L(20, ['mercenary.skill_1', 'mercenary.support_9'])]);
-  assert.strictEqual(a.cheapest, 5);
-  assert.deepStrictEqual([skills[0].supports[0].delta, skills[0].supports[0].count], [7, 2]);
-  assert.deepStrictEqual([skills[0].supports[1].delta, skills[0].supports[1].count], [null, 0]);
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'mercenary-warrant.txt'), 'utf8'));
+  const m = M.model(it.warrant, {});
+  const by = Object.fromEntries(m.skills.map((s) => [s.name, s]));
+  assert.strictEqual(by['Inspiring Cry'].type, 'primary');
+  assert.strictEqual(by['Inspiring Cry'].on, true);
+  assert.strictEqual(by['Static Strike'].on, false);
+  assert.strictEqual(by['Spectral Helix'].type, 'brick');
+  assert.ok(m.missing.find((x) => x.name === 'Wild Strike').on);
+  // "More Duration" (Tier 2) also finds "Greater More Duration"
+  assert.strictEqual(by['Static Strike'].supports.find((x) => x.name === 'More Duration').ids.length, 2);
+  const q0 = M.warrantQuery(m, null);
+  assert.deepStrictEqual(q0.query.stats[0].filters.map((f) => f.id).sort(), [by['Herald of Ice'].id, by['Inspiring Cry'].id].sort());
+  assert.ok(q0.query.stats.some((g) => g.type === 'not'));
+  // tick Chain on Static Strike: one "mercenary" group, the skill and its support
+  const m2 = M.model(it.warrant, { skills: { [by['Static Strike'].id]: { on: true, sup: { [by['Static Strike'].supports.find((x) => x.name === 'Chain').id]: true } } } });
+  const g = M.warrantQuery(m2, null).query.stats.find((x) => x.type === 'mercenary');
+  assert.deepStrictEqual(g.value, { min: 2 });
+  // what ticking a support does: only listings with it on that skill count
+  const L = (chaos, skills) => ({ chaos, skills: new Map(skills) });
+  const ss = m2.skills.find((s) => s.name === 'Static Strike');
+  const dur = ss.supports.find((x) => x.name === 'More Duration');
+  const n = (id) => Number(id.split('_').pop());
+  M.analyze(m2, [L(5, [[n(ss.id), new Set()]]), L(12, [[n(ss.id), new Set([n(dur.ids[1])])]]), L(9, [[n(by['Inspiring Cry'].id), new Set([n(dur.ids[0])])]])]);
+  assert.deepStrictEqual([dur.delta, dur.count], [7, 1]);
 });

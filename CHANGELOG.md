@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.141 - 2026-11-17
+
+* Mercenary Warrants are searched the way Awakened PoE Trade does it: primary skills always, supports only on their own skill and at their tier or better, weak "brick" skills left out.
+* [WealthyExile] Threads, invitations, Wickerman parts, 3.30 maps, normal cluster jewels and shards are now counted.
+- Warrant price check: skills tagged Primary, Secondary, Utility or Brick; tick secondary and utility skills and their supports to compare against closer listings. A skill with all 5 supports can be searched as "all 5, at least N at Tier 3". Your build's skills that yours lacks can be ruled out (bricks are, from the start), and your mercenary level can be required. Each support still shows what ticking it does to the cheapest match.
+- WealthyExile: Abyss, Bestiary, Ultimatum… Threads (poe.ninja's new Thread prices), Incandescent and Polaric Invitations, Wickerman parts by their buff, "Blighted Map (Tier 1)" style maps, normal cluster jewels by their enchantment, and Alteration / Transmutation Shards and Scroll Fragments.
+- Price check: Threads and Wickerman parts get their poe.ninja price.
+
 ## 1.0.140 - 2026-11-17
 
 * Price check a Mercenary Warrant: see what warrants like yours are listed for, and what each of its supports does to the price.

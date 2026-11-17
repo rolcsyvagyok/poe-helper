@@ -47,7 +47,13 @@ function neededCategories(items) {
     else if (k === 'unique') UNIQUE_CATS.forEach((c) => need.add(c));
     else if (k === 'unique-map') need.add('UniqueMap');
     else if (k === 'map') need.add('Map');
-    else if (k === 'other' && !it.ilvl) STACK_CATS.forEach((c) => need.add(c)); // a fragment kept as a normal item (An Audience With The King)
+    else if (k === 'other') {
+      const t = it.typeLine || it.baseType || '';
+      if (it.frameType === 15) { need.add('Viscera'); need.add('Corpse'); } // Wickerman parts, Necropolis corpses
+      else if (/\(Tier \d+\)$/.test(t)) ['Map', 'BlightedMap', 'BlightRavagedMap'].forEach((c) => need.add(c)); // 3.30 maps: "Blighted Map (Tier 1)"
+      else if (/Cluster Jewel$/.test(t) && it.enchantMods?.length) need.add('ClusterJewel');
+      else if (it.frameType === 0) STACK_CATS.forEach((c) => need.add(c)); // fragments kept as normal items (An Audience With The King, invitations)
+    }
   }
   return [...need];
 }
@@ -57,22 +63,32 @@ function buildIndex(catData) {
   const uniques = new Map(); // name -> [lines]
   const gems = new Map();
   const maps = new Map();
+  const clusters = [];
+  const viscera = [];
   for (const [cat, lines] of Object.entries(catData)) {
     for (const l of lines) {
       const n = norm(l.name);
       if (UNIQUE_CATS.includes(cat)) (uniques.get(n) || uniques.set(n, []).get(n)).push(l);
       else if (cat === 'SkillGem') (gems.get(n) || gems.set(n, []).get(n)).push(l);
+      else if (cat === 'ClusterJewel') clusters.push(l);
+      else if (cat === 'Viscera') viscera.push(l);
       else if (cat === 'Map') (maps.get(norm(l.baseType || l.name)) || maps.set(norm(l.baseType || l.name), []).get(norm(l.baseType || l.name))).push(l);
       else if (!byName.has(n) || (byName.get(n).volume ?? 0) < (l.volume ?? 0)) byName.set(n, { ...l, category: cat });
     }
   }
-  return { byName, uniques, gems, maps };
+  return { byName, uniques, gems, maps, clusters, viscera };
 }
 
 function valueItem(it, idx) {
   const kind = stashKind(it);
   const qty = it.stackSize || 1;
   const typeLine = it.typeLine || it.baseType || '';
+  // shards: a twentieth of their orb; a Scroll Fragment a fifth of a Scroll of Wisdom
+  const part = { 'transmutation shard': ['orb of transmutation', 20], 'alteration shard': ['orb of alteration', 20], 'scroll fragment': ['scroll of wisdom', 5], 'alchemy shard': ['orb of alchemy', 20], 'regal shard': ['regal orb', 20], 'chaos shard': ['chaos orb', 20] }[norm(typeLine)];
+  if (part) {
+    const l = idx.byName.get(part[0]) || (part[0] === 'chaos orb' ? { chaos: 1 } : null);
+    return l ? { name: typeLine, qty, each: l.chaos / part[1], category: 'Currency' } : null;
+  }
   if (kind === 'stack' || kind === 'divination') {
     const l = idx.byName.get(norm(typeLine));
     return l ? { name: typeLine, qty, each: l.chaos, category: l.category } : null;
@@ -97,11 +113,25 @@ function valueItem(it, idx) {
       .sort((a, b) => (b.gemLevel - a.gemLevel) || (b.gemQuality - a.gemQuality));
     return ok[0] ? { name: `${typeLine} ${lvl}/${q}`, qty: 1, each: ok[0].chaos, category: 'Gem' } : null;
   }
-  // normal-rarity items poe.ninja prices by name: fragments like An Audience With The King, invitations, memories
-  // (not gear: gear has an item level)
-  if (kind === 'other' && !it.ilvl) {
-    const l = idx.byName.get(norm(typeLine));
-    return l ? { name: typeLine, qty, each: l.chaos, category: l.category } : null;
+  if (kind === 'other') {
+    // a normal cluster jewel: poe.ninja prices it by its enchantment, passive count and item level
+    if (/Cluster Jewel$/.test(typeLine) && it.frameType === 0 && it.enchantMods?.length) {
+      const n = Number((/Adds (\d+) Passive Skills/.exec(it.enchantMods.join('\n')) || [])[1]);
+      const grants = it.enchantMods.join('\n').split('\n').map((x) => (/^Added Small Passive Skills grant: (.+)$/.exec(x.trim()) || [])[1]).filter(Boolean).join(', ');
+      const cands = (idx.clusters || []).filter((l) => norm(l.baseType) === norm(typeLine) && l.variant === `${n} passives` && norm(l.name) === norm(grants) && (l.levelRequired ?? 0) <= (it.ilvl || 0))
+        .sort((a, b) => (b.levelRequired ?? 0) - (a.levelRequired ?? 0));
+      return cands[0] ? { name: `${typeLine} (${n}, ${grants.split(',')[0]})`, qty: 1, each: cands[0].chaos, category: 'Cluster' } : null;
+    }
+    // Wickerman parts: by name and the buff they carry
+    if (it.frameType === 15 && idx.viscera?.length) {
+      const p = require('./pricer').pickViscera(idx.viscera, typeLine, [...(it.implicitMods || []), ...(it.explicitMods || [])].map((m) => (typeof m === 'string' ? m : m?.description || '')));
+      if (p.best) return { name: typeLine, qty, each: p.best.chaos, category: 'Viscera' };
+    }
+    // normal items poe.ninja prices by name: fragments, invitations, memories, corpses, 3.30 maps ("Blighted Map (Tier 1)")
+    if (it.frameType === 0 || it.frameType === 15) {
+      const l = idx.byName.get(norm(typeLine)) || (idx.maps.get(norm(typeLine)) || [])[0];
+      return l ? { name: typeLine, qty, each: l.chaos, category: l.category || 'Map' } : null;
+    }
   }
   if (kind === 'map') {
     const tier = parseInt(prop(it, 'Map Tier'), 10);

@@ -21,6 +21,7 @@ const NAME_ROUTES = [
   [/^(Deafening|Shrieking|Screaming|Wailing|Weeping|Muttering|Whispering)? ?Essence of |^Remnant of Corruption$/, 'Essence'],
   [/ Delirium Orb$/, 'DeliriumOrb'],
   [/^Omen of /, 'Omen'],
+  [/ Thread$/, 'Thread'],
   [/^Tattoo of /, 'Tattoo'],
   [/^Runegraft of /, 'Runegraft'],
   [/ Scarab( of .+)?$/, 'Scarab'],
@@ -36,7 +37,7 @@ const NAME_ROUTES = [
   [/'s Memory of |Memory of /, 'Memory'],
 ];
 
-const CURRENCY_FALLBACK = ['Currency', 'Fragment', 'Scarab', 'Oil', 'Fossil', 'Essence', 'Resonator', 'DeliriumOrb', 'Omen', 'Tattoo', 'Runegraft', 'AllflameEmber', 'DjinnCoin', 'Ducat', 'EnshroudingCrystal', 'Artifact', 'Astrolabe'];
+const CURRENCY_FALLBACK = ['Currency', 'Fragment', 'Thread', 'Scarab', 'Oil', 'Fossil', 'Essence', 'Resonator', 'DeliriumOrb', 'Omen', 'Tattoo', 'Runegraft', 'AllflameEmber', 'DjinnCoin', 'Ducat', 'EnshroudingCrystal', 'Artifact', 'Astrolabe'];
 
 function uniqueCategories(item) {
   const cls = norm(item.itemClass);
@@ -61,6 +62,7 @@ function categoriesFor(item) {
   if (norm(item.itemClass) === 'corpses') return ['Corpse'];
   // captured beasts (a rare "Stackable Currency" with Genus / Group / Family): poe.ninja lists them by beast name
   if (isBeast(item)) return ['Beast'];
+  if (norm(item.itemClass) === 'viscera') return ['Viscera'];
   // Mercenary Warrants aren't on poe.ninja: the trade search prices them
   if (/^Mercenary Warrant$/.test(item.typeLine || '')) return [];
   switch (kind) {
@@ -178,6 +180,19 @@ function pickBase(lines, item) {
   return { best: ok[0] || null, cands: ok.slice(0, 5) };
 }
 
+/** Wickerman parts (Viscera): poe.ninja has a line per name and buff ("#% increased Stun and Block Recovery"):
+ *  the one whose buff the item has, else the cheapest of that name. */
+function pickViscera(lines, name, mods = []) {
+  const n = norm(name);
+  const cands = lines.filter((l) => norm(l.name) === n);
+  if (!cands.length) return { best: null, cands: [] };
+  const tpl = (t) => String(t || '').replace(/\([^)]*\)/g, '#').replace(/[+-]?\d+(\.\d+)?/g, '#').replace(/#+/g, '#').toLowerCase().trim();
+  const want = new Set(mods.map(tpl));
+  const hit = cands.find((l) => l.variant && want.has(tpl(l.variant)));
+  const sorted = [...cands].sort((a, b) => a.chaos - b.chaos);
+  return { best: hit || sorted[0], cands: hit ? [hit] : sorted.slice(0, 4) };
+}
+
 function pickByName(lines, item) {
   const raw = item.typeLine || item.baseType || item.name;
   const name = norm(raw);
@@ -217,6 +232,7 @@ class Pricer {
       else if (kind === 'unique') pick = pickUnique(lines, item);
       else if (kind === 'map' || kind === 'unique-map') pick = kind === 'map' ? pickMap(lines, item) : pickByName(lines, { typeLine: item.name });
       else if (cat === 'BaseType') pick = pickBase(lines, item);
+      else if (cat === 'Viscera') pick = pickViscera(lines, item.typeLine || item.baseType, [...(item.mods?.implicit || []), ...(item.mods?.explicit || [])]);
       else pick = pickByName(lines, item);
 
       if (pick.best || pick.cands.length) {
@@ -250,4 +266,4 @@ function slim(l) {
   return o;
 }
 
-module.exports = { Pricer, categoriesFor, pickGem, pickUnique, pickMap, pickBase, uniqueCategories };
+module.exports = { pickViscera, Pricer, categoriesFor, pickGem, pickUnique, pickMap, pickBase, uniqueCategories };

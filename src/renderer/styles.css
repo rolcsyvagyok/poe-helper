@@ -1898,24 +1898,37 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .tp-mod.tp-sub { margin-left: 22px; }
 .tp-mod.tp-sub .tp-text { font-size: 12.5px; color: var(--muted); }
 
-/* Mercenary Warrant price check */
-.mp { display: grid; gap: 8px; }
+/* Mercenary Warrant price check (laid out like Awakened PoE Trade) */
+.mp { display: grid; gap: 6px; }
 .mp.busy { opacity: .6; pointer-events: none; }
 .mp-head { display: flex; align-items: center; gap: 18px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .mp-k { font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--faint); }
 .mp-v { font-size: 20px; font-weight: 700; color: #6fb0ff; }
 .mp-why { line-height: 1.45; }
 .mp-err { color: #f0a060; }
-.mp-cards { display: grid; gap: 6px; }
-.mp-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.mp-skill { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
-.mp-skill b { color: #e8b04a; flex: 1; font-weight: 600; }
-.mp-card:not(.on) .mp-skill b { color: var(--muted); }
-.mp-sup { display: grid; grid-template-columns: 18px 1fr 60px 34px; gap: 6px; align-items: center; padding: 3px 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.mp-sec { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+.mp-list { display: grid; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.mp-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.mp-row:hover { background: #ffffff08; }
+.mp-ico { width: 24px; height: 24px; border-radius: 4px; flex: none; background: var(--ink); object-fit: contain; }
+.mp-name { flex: 1; font-size: 13px; color: var(--muted); }
+.mp-skill.on > .mp-row .mp-name, .mp-not.on .mp-name, .mp-level:has(input:checked) .mp-name { color: var(--text); font-weight: 600; }
+.mp-tag { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 1px 6px; border-radius: 8px; border: 1px solid; }
+.mp-primary { color: #f3dfae; border-color: #c8a96a; }
+.mp-secondary { color: #9fc6ff; border-color: #4f8bff; }
+.mp-utility { color: var(--muted); border-color: var(--line); }
+.mp-brick { color: #f0a060; border-color: #f0a060; border-style: dashed; }
+.mp-more { min-width: 52px; text-align: right; }
+.mp-sups { margin: 0 0 4px 30px; border-left: 2px solid var(--line); padding-left: 6px; }
+.mp-sup { display: grid; grid-template-columns: 18px 1fr auto 52px 26px; gap: 6px; align-items: center; padding: 2px 4px; font-size: 12.5px; color: var(--muted); cursor: pointer; border-radius: 4px; }
 .mp-sup:hover { background: #ffffff08; }
 .mp-sup.on { color: var(--text); font-weight: 600; }
 .mp-sup.unknown { opacity: .5; }
-.mp-tier { color: var(--faint); font-weight: 400; font-size: 11px; }
+.mp-full { grid-template-columns: 18px 1fr 44px auto; }
+.mp-t3 { width: 44px; padding: 2px 4px; }
+.mp-pips { display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; color: var(--faint); }
+.mp-pips i { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--faint); }
+.mp-pips i.on { background: #e8b04a; border-color: #e8b04a; }
 .mp-delta { text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); }
 .mp-delta.up { color: #6fb0ff; }
 .mp-delta.down { color: #f0a060; }

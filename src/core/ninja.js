@@ -18,13 +18,14 @@ const EXCHANGE_TYPES = [
   'Currency', 'Fragment', 'Runegraft', 'AllflameEmber', 'Tattoo', 'Omen', 'DjinnCoin', 'Ducat',
   'EnshroudingCrystal', 'DivinationCard', 'Artifact', 'Oil', 'DeliriumOrb', 'Scarab', 'Astrolabe',
   'Fossil', 'Resonator', 'Essence',
+  'Thread', // 3.30: Abyss Thread, Bestiary Thread… (map device threads)
 ];
 
 const ITEM_TYPES = [
   'Wombgift', 'Corpse', 'Incubator', 'UniqueWeapon', 'UniqueArmour', 'UniqueAccessory', 'UniqueFlask',
   'UniqueJewel', 'ForbiddenJewel', 'ShrineBelt', 'UniqueTincture', 'UniqueRelic', 'SkillGem', 'ImbuedGem',
   'ClusterJewel', 'Map', 'BlightedMap', 'BlightRavagedMap', 'UniqueMap', 'ValdoMap', 'Invitation', 'Memory',
-  'IncursionTemple', 'ScryingOrb', 'BaseType', 'Flask', 'Beast', 'Vial',
+  'IncursionTemple', 'ScryingOrb', 'BaseType', 'Flask', 'Beast', 'Vial', 'Viscera',
 ];
 
 const DEFAULT_TTL = 20 * 60 * 1000;

@@ -551,7 +551,7 @@ const nwArt = {}; // item name -> picture, for snapshots taken before pictures w
 const WX_CATS = {
   Currency: 'Currency', Fragment: 'Fragments', Scarab: 'Scarabs', Essence: 'Essences', Fossil: 'Fossils', Resonator: 'Resonators', Oil: 'Oils',
   DeliriumOrb: 'Delirium orbs', DivinationCard: 'Divination cards', Unique: 'Uniques', Gem: 'Gems', Map: 'Maps', UniqueMap: 'Unique maps',
-  BlightedMap: 'Blighted maps', Omen: 'Omens', Tattoo: 'Tattoos', Artifact: 'Expedition', Incubator: 'Incubators', Invitation: 'Invitations',
+  BlightedMap: 'Blighted maps', Omen: 'Omens', Thread: 'Threads', Viscera: 'Wickerman parts', Cluster: 'Cluster jewels', Corpse: 'Corpses', Tattoo: 'Tattoos', Artifact: 'Expedition', Incubator: 'Incubators', Invitation: 'Invitations',
   Memory: 'Memories', Vial: 'Vials', Runegraft: 'Runegrafts', AllflameEmber: 'Allflame embers', Astrolabe: 'Astrolabes',
   EnshroudingCrystal: 'Enshrouding crystals', DjinnCoin: 'Djinn coins', Beast: 'Beasts', Ducat: 'Ducats', Corpse: 'Corpses', KalguuranRune: 'Runes',
 };

@@ -181,4 +181,5 @@ The Overview background (`assets/overview-bg.jpg`) is *The Abbey in the Oakwood*
 ## Credits
 
 - The price check's search is modelled on [Awakened PoE Trade](https://github.com/SnosMe/awakened-poe-trade) (MIT).
+- Mercenary Warrants are searched the way Awakened PoE Trade does it, with its build and support data (src/core/merc-data.json, made by scripts/build-merc-data.js; MIT).
 - `src/core/special-mod-names.json` (mod names that only a league mechanic, essence or influence gives) comes from [PoE Overlay Community Fork](https://github.com/PoE-Overlay-Community/PoE-Overlay-Community-Fork)'s `mod-icons.json`, MIT License, Copyright (c) 2020 Nicklas Ronge.

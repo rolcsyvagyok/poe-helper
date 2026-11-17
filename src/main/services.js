@@ -416,20 +416,16 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   }
 
   // ---------- Mercenary Warrants: priced against the listed ones like yours ----------
-  /** on: { skills: [stat id], supports: [stat id] } what you ticked (default: every skill, no support). */
-  async function warrantAnalyze({ text, on = null, status = null } = {}) {
+  /** choices: what you ticked (see core/merc.js model); empty = Awakened PoE Trade's start (primary skills only). */
+  async function warrantAnalyze({ text, choices = {}, status = null } = {}) {
     const M = require('../core/merc');
     const item = readItem(text);
     if (!item?.warrant) throw new Error('Not a Mercenary Warrant.');
     const league = await getLeague();
-    const stats = await ggg.tradeStats();
-    const skills = M.warrantStats(stats, item.warrant);
-    const pick = on || { skills: skills.map((x) => x.id).filter(Boolean), supports: [] };
-    for (const sk of skills) { sk.on = pick.skills.includes(sk.id); for (const sup of sk.supports) sup.on = !!sup.id && pick.supports.includes(sup.id); }
+    const m = M.model(item.warrant, choices);
     let type = null;
     try { type = require('../core/trade').warrantTradeType(await ggg.tradeItems(), item.warrant.build); } catch (e) { log('trade item list', e.message); }
-    const ids = [...new Set([...pick.skills, ...pick.supports])].filter(Boolean);
-    const query = M.warrantQuery(type, ids, status || settings.get('tradeStatus') || 'securable');
+    const query = M.warrantQuery(m, type, status || settings.get('tradeStatus') || 'securable');
     const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 });
     const divine = await ninja.divinePrice(league).catch(() => null);
     const got = [];
@@ -439,9 +435,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       got.push(...(f.result || []));
     }
     const listings = got.map((r) => M.readListing(r, divine)).filter(Boolean);
-    const a = M.analyze(skills, listings);
-    return { build: item.warrant.build, name: item.warrant.name, level: item.warrant.level, typeFound: !!type, url: ggg.tradeUrl(league, res.id), total: res.total ?? 0, cheapest: a.cheapest, sample: a.sample,
-      listings: listings.slice(0, 8).map((l) => ({ chaos: l.chaos, name: l.name, level: l.level })), skills, divine };
+    const a = M.analyze(m, listings);
+    return { ...m, name: item.warrant.name, typeFound: !!type, url: ggg.tradeUrl(league, res.id), total: res.total ?? 0, cheapest: a.cheapest, sample: a.sample,
+      listings: listings.slice(0, 5).map((l) => ({ chaos: l.chaos, name: l.name, level: l.level })) };
   }
 
   // ---------- bulk exchange and poeprices.info, as Awakened PoE Trade ----------
