@@ -5,17 +5,21 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.140 - 2026-11-17
+
+* Price check a Mercenary Warrant: see what warrants like yours are listed for, and what each of its supports does to the price.
+* Price check a captured beast: its poe.ninja price.
+- Mercenary Warrants: searched by the build and skills; tick supports to compare against closer listings. Each support shows what ticking it does to the cheapest match and how many of the 20 cheapest have it.
+- Price check: a socketed support's level (Hypothermia level 20) is searched at its own level.
+- Price check: unique flasks' own lines ("Lasts 8 Seconds") and flavour text aren't treated as mods, and a mod wrapped onto two lines (Dreadmaidens' Sacrament) is found.
+- Crafting: Shaper and Elder mods that add a socketed support (Hypothermia) show that line and are found on your item at the right tier; "Item Rarity" no longer shows game code.
+
 ## 1.0.139 - 2026-11-17
 
 * [Crafting] New Crafting page, like Craft of Exile: every mod a base can roll at an item level, how likely each one is, every tier, and the mods' tags.
 * [Crafting] Load your own item (paste it, or press Craft on a price check) to see which mods it has, what can still roll and how likely.
-* Price check a Mercenary Warrant: see what warrants like yours are listed for, and what each of its supports does to the price.
-* Price check a captured beast: its poe.ninja price.
 - Crafting: pick a base on the left (or find one), set the item level and up to two influences. Prefixes and suffixes are side by side with the chance that a new one is each mod; click a mod for its tiers. Click a tag (Life, Fire, Attack…) to see how likely a new mod has it.
 - Your item: its mods are marked with their tier, the kinds already on it can't roll again (the others' chances go up), and each side shows its free slots.
-- Mercenary Warrants: searched by the build and skills; tick supports to compare against closer listings. Each support shows what ticking it does to the cheapest match and how many of the 20 cheapest have it.
-- Price check: a socketed support's level (Hypothermia level 20) is searched at its own level.
-- Price check: unique flasks' own lines ("Lasts 8 Seconds") and flavour text aren't treated as mods, and a mod wrapped onto two lines (Dreadmaidens' Sacrament) is found.
 - Regex → Items: mod list updated from the latest game data.
 
 ## 1.0.138 - 2026-11-17
