@@ -16,6 +16,15 @@ function load() {
       cls: u.func('int __stdcall GetClassNameW(intptr_t hWnd, _Out_ uint16_t *buf, int n)'),
       title: u.func('int __stdcall GetWindowTextW(intptr_t hWnd, _Out_ uint16_t *buf, int n)'),
     };
+    try {
+      const RECT = koffi.struct('PH_RECT', { left: 'int32', top: 'int32', right: 'int32', bottom: 'int32' });
+      const POINT = koffi.struct('PH_POINT', { x: 'int32', y: 'int32' });
+      api.find = u.func('intptr_t __stdcall FindWindowW(str16 cls, str16 name)');
+      api.client = u.func('bool __stdcall GetClientRect(intptr_t hWnd, _Out_ PH_RECT *r)');
+      api.toScreen = u.func('bool __stdcall ClientToScreen(intptr_t hWnd, _Inout_ PH_POINT *p)');
+      api.iconic = u.func('bool __stdcall IsIconic(intptr_t hWnd)');
+      void RECT; void POINT;
+    } catch { /* no window rect: the stream window shows the whole screen */ }
   } catch { api = null; }
   return api;
 }
@@ -32,4 +41,20 @@ function poeInFront() {
   } catch { return null; }
 }
 
-module.exports = { poeInFront };
+/** The game's picture on screen in physical pixels {x, y, width, height}, or null (not running, minimised, unknown). */
+function poeRect() {
+  const a = load();
+  if (!a?.find) return null;
+  try {
+    const h = a.find('POEWindowClass', null);
+    if (!h || a.iconic(h)) return null;
+    const r = {};
+    if (!a.client(h, r)) return null;
+    const p = { x: 0, y: 0 };
+    if (!a.toScreen(h, p)) return null;
+    const width = r.right - r.left; const height = r.bottom - r.top;
+    return width > 50 && height > 50 ? { x: p.x, y: p.y, width, height } : null;
+  } catch { return null; }
+}
+
+module.exports = { poeInFront, poeRect };

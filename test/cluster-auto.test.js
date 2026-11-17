@@ -13,3 +13,11 @@ test('price rule cells become filter rules', () => {
   const rules = cl.clusterRules(cl.autoCells({ 'Large|Attack Damage|8|84': 8 }, { top: 200, good: 20 }));
   assert.ok(rules.some((r) => r.action === 'Hide'));
 });
+
+test('price rule: basic look between A tier and hidden', () => {
+  const r = cl.autoCells({ a: 300, b: 40, c: 8, d: 2 }, { top: 200, good: 20, basic: 5 });
+  assert.deepStrictEqual(r, { a: 'top', b: 'good', c: 'basic', d: 'hide' });
+  const rules = cl.clusterRules({ 'Large|Attack Damage|8|84': 'basic' }, { Large: { basic: { fontSize: 30 } } });
+  assert.strictEqual(rules[0].action, 'Show');
+  assert.strictEqual(rules[0].style.fontSize, 30);
+});

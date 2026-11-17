@@ -65,7 +65,7 @@ const DEFAULT_SETTINGS = {
   gigaDone: false, // the default Giga tier in currency was set up once
   fbSideMini: false, // the category list folded down to its icons
   fbSideWidth: 300, // width of the loot filter's category list
-  clusterAuto: { on: true, top: '1 div', good: '20c', hide: true }, // Cluster jewels: by poe.ninja price, kept up to date
+  clusterAuto: { on: true, top: '1 div', good: '20c', basic: '5c', hide: true }, // Cluster jewels: by poe.ninja price, kept up to date
   clusterAutoCells: {}, // what that price rule set last time: { key: 'top'|'good'|'hide' }
   clusterGrid: {}, // cluster jewels: { "Large|Fire Damage|12|84": 'top' | 'good' | 'hide' }
   baseMatrix: {}, // base visibility: { "Vaal Regalia": { vis: 'hide', frac: 'show' } }
@@ -1373,7 +1373,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const enchants = Object.fromEntries(cl.SIZES.map((z) => [z.id, [...cl.ENCHANTS[z.id], ...fromFilter.extra[z.id].filter((e) => cl.ALL_ENCHANTS.includes(e) && !cl.ENCHANTS[z.id].includes(e))]]));
     // first time only: the hourly auto-tier keeps it up to date after that
     if (!Object.keys(settings.get('clusterAutoCells') || {}).length) { try { await clusterAutoRun({ prices, divine: units.divine }); } catch (e) { log('cluster auto', e.message); } }
-    return { auto: settings.get('clusterAuto') || {}, autoCells: settings.get('clusterAutoCells') || {}, sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, bySize, looks: { ...cl.DEFAULT_LOOKS, ...designer.clusterLooks((k) => settings.get(k)) }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
+    return { auto: settings.get('clusterAuto') || {}, autoCells: settings.get('clusterAutoCells') || {}, sizes: cl.SIZES, bands: cl.BANDS, enchants, filter: fromFilter.cells, bySize, looks: { ...cl.DEFAULT_LOOKS, ...designer.clusterLooks((k) => settings.get(k)), basic: cl.basicLooks(view?.types.find((t) => t.type === 'jewels->cluster')).Large || cl.DEFAULT_LOOKS.basic }, sizeLooks: fromFilter.looks, prices, ageMs, priceStats: priceStats && { total: priceStats.total, matched: priceStats.total - priceStats.missed.length, missed: priceStats.missed.slice(0, 40) }, divine: units.divine || null, state: settings.get('clusterGrid') || {}, hasFilterTiers: !!eco };
   }
   // "1 div" / "20c" / "35" -> chaos
   function clusterChaos(v, divine) {
@@ -1393,8 +1393,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       if (!prices) prices = cl.priceCells(await ninja.category(league, 'ClusterJewel'), { total: 0, missed: [] });
       if (divine == null) divine = (await currencyUnits(league).catch(() => ({}))).divine;
       const top = clusterChaos(a.top, divine); const good = clusterChaos(a.good, divine);
+      const basic = a.basic === '' || a.basic == null ? null : clusterChaos(a.basic, divine);
       if (top == null || good == null || !Object.keys(prices).length) return null; // keep what was set until prices come back
-      cells = cl.autoCells(prices, { top, good, hide: a.hide !== false });
+      cells = cl.autoCells(prices, { top, good, basic, hide: a.hide !== false });
     }
     const old = settings.get('clusterAutoCells') || {};
     const same = Object.keys(old).length === Object.keys(cells).length && Object.entries(cells).every(([k, v]) => old[k] === v);
@@ -1411,10 +1412,10 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   async function setClusterAuto(opts = {}) {
     const a = { ...(settings.get('clusterAuto') || {}) };
     for (const k of ['on', 'hide']) if (k in opts) a[k] = !!opts[k];
-    for (const k of ['top', 'good']) if (k in opts) a[k] = String(opts[k]).trim();
+    for (const k of ['top', 'good', 'basic']) if (k in opts) a[k] = String(opts[k] ?? '').trim();
     const lg = await getLeague().catch(() => null);
     const divine = lg ? (await currencyUnits(lg).catch(() => ({}))).divine : null;
-    if (a.on && (clusterChaos(a.top, divine) == null || clusterChaos(a.good, divine) == null)) throw new Error('Type prices like 1 div or 20c.');
+    if (a.on && (clusterChaos(a.top, divine) == null || clusterChaos(a.good, divine) == null || (a.basic && clusterChaos(a.basic, divine) == null))) throw new Error('Type prices like 1 div or 20c.');
     settings.set('clusterAuto', a);
     await clusterAutoRun();
     return { auto: a, autoCells: settings.get('clusterAutoCells') || {} };
@@ -1426,7 +1427,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     for (const k of keys) {
       const [size, e, p, band] = String(k).split('|');
       if (!cl.SIZES.some((z) => z.id === size && z.passives.includes(Number(p))) || !cl.ALL_ENCHANTS.includes(e) || !cl.BANDS.some((b) => b.id === band)) continue;
-      if (['top', 'good', 'hide'].includes(value)) state[k] = value; else delete state[k];
+      if (['top', 'good', 'basic', 'hide'].includes(value)) state[k] = value; else delete state[k];
     }
     settings.set('clusterGrid', state);
     const target = filters.basePath() ? filters.write() : null;

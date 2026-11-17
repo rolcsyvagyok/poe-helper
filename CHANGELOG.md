@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.134 - 2026-11-17
+
+* [Loot filter] Cluster jewels have four steps now: S tier, A tier, FilterBlade's basic look, then hidden. Auto-tier by price sets all of them.
+* [Settings] Streaming the game in Discord? Open the stream window (tray icon, or Settings → Price check) and share it instead: it shows the game with your price checks on top.
+- Cluster jewels: new "Basic" step with FilterBlade's own cluster jewel look, between A tier and hidden; auto-tier puts jewels from 5c there by default (clear the box to turn it off). Top and Good are now called S tier and A tier.
+- Stream window: shows only the game's part of the screen, popups included; nothing of your desktop while the game isn't running. It has no sound, so game sound doesn't come with it. Use Windowed or Windowed Fullscreen.
+
 ## 1.0.133 - 2026-11-17
 
 * [Loot filter] Cluster jewels are auto-tiered by price every hour, like your other auto-tier categories: top look from 1 div, good look from 20c, cheaper ones hidden.

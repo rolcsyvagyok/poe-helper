@@ -164,6 +164,8 @@ function priceCells(lines = [], stats = null) {
 
 const DEFAULT_LOOKS = {
   t1: { fontSize: 45, text: [255, 0, 0, 255], border: [255, 0, 0, 255], background: [255, 255, 255, 255], sound: { id: '6', volume: 300 }, beam: { color: 'Red' }, icon: { size: 0, color: 'Red', shape: 'Star' } },
+  // FilterBlade's plain cluster jewel look (used when the filter's own size tiers have none)
+  basic: { fontSize: 38, text: [255, 255, 119, 255], border: [255, 255, 119, 255], background: [0, 0, 0, 255] },
   t2: { fontSize: 45, text: [255, 255, 255, 255], border: [255, 255, 255, 255], background: [240, 100, 0, 255], sound: { id: '2', volume: 300 }, beam: { color: 'Yellow' }, icon: { size: 1, color: 'Yellow', shape: 'Pentagon' } },
 };
 
@@ -171,14 +173,14 @@ const DEFAULT_LOOKS = {
 function clusterRules(state = {}, looks = {}) {
   const groups = new Map();
   for (const [k, v] of Object.entries(state || {})) {
-    if (!['top', 'good', 'hide'].includes(v)) continue;
+    if (!['top', 'good', 'basic', 'hide'].includes(v)) continue;
     const [size, enchant, p, band] = k.split('|');
     if (!SIZES.some((x) => x.id === size) || !ALL_ENCHANTS.includes(enchant) || !BANDS.some((b) => b.id === band)) continue;
     const g = `${size}|${p}|${band}|${v}`;
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(enchant);
   }
-  const order = { top: 0, good: 1, hide: 2 };
+  const order = { top: 0, good: 1, basic: 2, hide: 3 };
   return [...groups].sort(([a], [b]) => order[a.split('|')[3]] - order[b.split('|')[3]]).map(([g, enchants]) => {
     const [size, p, band, v] = g.split('|');
     const sz = SIZES.find((x) => x.id === size);
@@ -191,7 +193,7 @@ function clusterRules(state = {}, looks = {}) {
       ...(b.max ? [{ keyword: 'ItemLevel', op: '<=', values: [String(b.max)] }] : []),
       { keyword: 'EnchantmentPassiveNode', values: enchants.sort() },
     ];
-    const t = v === 'top' ? 't1' : 't2';
+    const t = v === 'top' ? 't1' : v === 'good' ? 't2' : 'basic';
     const label = `Cluster jewels: ${v === 'hide' ? 'hide' : v} ${size.toLowerCase()} ${p} passives, ${b.name.toLowerCase()}`;
     return {
       id: `cluster-${g}`, enabled: true, group: 'clustergrid', label, conditions,
@@ -201,15 +203,28 @@ function clusterRules(state = {}, looks = {}) {
   });
 }
 
-/** Price rule -> choices for every priced cell: top from `top` chaos, good from `good`, cheaper ones hidden (when hide). */
-function autoCells(prices = {}, { top, good, hide = true } = {}) {
+/** FilterBlade's own look for each size: the first shown "by size" tier that lists the base (else any tier with a look). */
+function basicLooks(typeView) {
   const out = {};
-  if (!(top > 0) || !(good >= 0)) return out;
-  for (const [k, c] of Object.entries(prices)) {
-    if (!(c > 0)) continue;
-    if (c >= top) out[k] = 'top'; else if (c >= good) out[k] = 'good'; else if (hide) out[k] = 'hide';
+  const tiersList = (typeView?.tiers || []).filter((t) => t.style && Object.keys(t.style).length);
+  for (const z of SIZES) {
+    const mine = tiersList.filter((t) => t.bases.includes(z.base));
+    const t = mine.find((x) => !x.off && (x.state || x.action) !== 'Hide') || mine[0] || tiersList[0];
+    if (t) out[z.id] = t.style;
   }
   return out;
 }
 
-module.exports = { autoCells, readSizeTiers, STAT_TEXT, SIZES, BANDS, ENCHANTS, ALL_ENCHANTS, cellKey, readFilter, priceCells, clusterRules, DEFAULT_LOOKS };
+/** Price rule -> choices for every priced cell: S from `top` chaos, A from `good`, the basic look from `basic`
+ *  (when set), cheaper ones hidden (when hide). */
+function autoCells(prices = {}, { top, good, basic = null, hide = true } = {}) {
+  const out = {};
+  if (!(top > 0) || !(good >= 0)) return out;
+  for (const [k, c] of Object.entries(prices)) {
+    if (!(c > 0)) continue;
+    if (c >= top) out[k] = 'top'; else if (c >= good) out[k] = 'good'; else if (basic != null && c >= basic) out[k] = 'basic'; else if (hide) out[k] = 'hide';
+  }
+  return out;
+}
+
+module.exports = { basicLooks, autoCells, readSizeTiers, STAT_TEXT, SIZES, BANDS, ENCHANTS, ALL_ENCHANTS, cellKey, readFilter, priceCells, clusterRules, DEFAULT_LOOKS };

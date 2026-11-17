@@ -1,5 +1,8 @@
 'use strict';
-const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog, session, utilityProcess } = require('electron');
+const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog, session, utilityProcess, desktopCapturer } = require('electron');
+// The stream window keeps drawing while it sits behind the game (Chromium would stop drawing a covered window,
+// and Discord would then share a frozen picture).
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 const path = require('path');
 const fs = require('fs');
 const { createServices } = require('./services');
@@ -131,6 +134,7 @@ function createMainWindow() {
 
 function createOverlay() {
   overlay = new BrowserWindow({
+    title: 'PoE Helper price check', // the name OBS's Window Capture lists
     width: 400,
     height: 300,
     frame: false,
@@ -565,6 +569,7 @@ function rebuildTrayMenu() {
     { label: 'Open PoE Helper', click: () => mainWin.show() },
     { label: 'Price check clipboard', click: () => runPriceCheck(clipboard.readText()) },
     { label: 'Take net worth snapshot', click: () => snapshotNow('tray') },
+    { label: 'Stream window (for Discord)', click: () => openStreamWin() },
     ...(pobDirNow() ? [{ label: 'Save Path of Building snapshot', click: () => pobSnapshotNotify('tray') }] : []),
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } },
@@ -702,6 +707,54 @@ function applyFilterWatch() {
 // Opens the official login page in a separate, locked-down window (no app code runs in it). You log in
 // yourself; once pathofexile.com takes you to your account page, the session cookie is read from that
 // window, stored encrypted like a pasted one, and the window closes. The app never sees your password.
+// ---------------- stream window ----------------
+// Discord can share one app window, and then the price check (its own window on top of the game) isn't in
+// it. This window shows the game's part of the screen, popups included, so you share this one instead.
+let streamWin = null;
+function openStreamWin() {
+  if (streamWin && !streamWin.isDestroyed()) { streamWin.show(); streamWin.focus(); return; }
+  const b = services.settings.get('streamWinBounds');
+  streamWin = new BrowserWindow({
+    width: b?.width || 1280, height: b?.height || 720, x: b?.x, y: b?.y, minWidth: 320, minHeight: 180,
+    title: 'PoE Helper stream', backgroundColor: '#000000', autoHideMenuBar: true, show: true,
+    webPreferences: { preload: path.join(__dirname, '..', 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
+  });
+  // getDisplayMedia (used if the older desktop capture call isn't there): the game's screen, no picker
+  try {
+    streamWin.webContents.session.setDisplayMediaRequestHandler(async (req, cb) => {
+      try {
+        const s = await streamSource();
+        const all = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+        const v = all.find((x) => x.id === s?.id) || all[0];
+        if (!v) return cb({});
+        cb({ video: v });
+      } catch { cb({}); }
+    });
+  } catch (e) { log('stream', e.message); }
+  streamWin.loadFile(path.join(__dirname, '..', 'renderer', 'stream.html'));
+  let t = null;
+  const save = () => { clearTimeout(t); t = setTimeout(() => { if (streamWin && !streamWin.isDestroyed()) services.settings.set('streamWinBounds', streamWin.getBounds()); }, 400); };
+  streamWin.on('move', save);
+  streamWin.on('resize', save);
+  streamWin.on('closed', () => { streamWin = null; });
+}
+/** The screen the game is on (as a capture source) and the game's area in that screen's pixels. */
+async function streamSource() {
+  const rect = require('./foreground').poeRect(); // physical pixels
+  const displays = screen.getAllDisplays();
+  let disp = screen.getPrimaryDisplay();
+  if (rect) {
+    const dip = process.platform === 'win32' ? screen.screenToDipRect(null, rect) : rect;
+    disp = screen.getDisplayMatching(dip) || disp;
+  }
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+  const src = sources.find((x) => String(x.display_id) === String(disp.id)) || sources[0];
+  if (!src) return null;
+  const phys = process.platform === 'win32' ? screen.dipToScreenRect(null, disp.bounds) : { ...disp.bounds, width: disp.bounds.width * disp.scaleFactor, height: disp.bounds.height * disp.scaleFactor };
+  const crop = rect ? { x: rect.x - phys.x, y: rect.y - phys.y, width: rect.width, height: rect.height, screenW: phys.width, screenH: phys.height } : null;
+  return { id: src.id, crop, game: !!rect, displays: displays.length };
+}
+
 // ---------------- daily lab overlay ----------------
 // One small always-on-top window: the hotkey opens it on a difficulty picker (1-4 or a click), it then
 // shows poelab's layout for today. The same hotkey (or Esc, or ✕) hides it again.
@@ -941,6 +994,8 @@ function registerIpc() {
   handle('bases:list', () => services.myBases());
   handle('matrix:get', () => services.baseMatrixView());
   handle('cluster:get', () => services.clusterView());
+  handle('stream:source', () => streamSource());
+  handle('stream:open', () => { openStreamWin(); return true; });
   handle('cluster:set', (a) => services.setCluster(a || {}));
   handle('cluster:auto', async (a) => { const r = await services.setClusterAuto(a || {}); applyAutoTier(); return r; });
   handle('matrix:set', (a) => services.setBaseMatrix(a || {}));

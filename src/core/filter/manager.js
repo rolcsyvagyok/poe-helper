@@ -1191,7 +1191,14 @@ class FilterManager {
     if (Object.keys(clusterState).length) {
       // your choices in the Cluster jewels table look like your Tier designer design (top: Tier 1, good: Tier 2)
       let looks = {};
-      try { const dl = require('./designer').clusterLooks((k) => this.store.get(k)); looks = Object.fromEntries(cluster.SIZES.map((z) => [z.id, dl])); } catch { looks = {}; }
+      try { const dl = require('./designer').clusterLooks((k) => this.store.get(k)); looks = Object.fromEntries(cluster.SIZES.map((z) => [z.id, { ...dl }])); } catch { looks = {}; }
+      // the basic look: FilterBlade's own cluster jewel look for that size
+      if (Object.values(clusterState).includes('basic')) {
+        try {
+          const bl = cluster.basicLooks(tierView(baseText, patch).types.find((t) => t.type === 'jewels->cluster'));
+          for (const z of cluster.SIZES) if (bl[z.id]) looks[z.id] = { ...(looks[z.id] || {}), basic: bl[z.id] };
+        } catch { /* default look */ }
+      }
       clusterBlocks = cluster.clusterRules(clusterState, looks);
     }
     // cluster jewel choices first: they're the most specific (enchantment + passives + item level)
