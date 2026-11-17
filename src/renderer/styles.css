@@ -1773,3 +1773,9 @@ html[data-ui-theme="midnight"] .fb-editor { background: #0f0f12; }
 .ov-head .ov-fact, .ov-head button.ov-fact.ov-fact-btn { font-size: 12px; padding: 1px 7px; }
 .ov-head .ov-hprice { grid-area: price; padding-left: 0; }
 .ov-head > span:empty:last-child { grid-area: price; }
+
+/* Cluster jewels table: the row of the jewel you price checked */
+tr.cj-focus th .cj-rowhead { color: #fff; font-weight: 700; box-shadow: inset 3px 0 0 #4a90d9; background: rgba(74,144,217,.18); }
+tr.cj-focus td { outline: 1px solid rgba(74,144,217,.55); outline-offset: -1px; }
+td.cj-here { outline: 2px solid #4a90d9 !important; outline-offset: -1px; border-radius: 6px; }
+td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }

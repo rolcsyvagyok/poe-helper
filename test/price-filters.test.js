@@ -573,3 +573,12 @@ test('a vestigial base is searched as the base, vestigial, with its implicit tic
   assert.equal(q.type, 'Tricorne');
   assert.deepEqual(q.filters.misc_filters.filters.vestigial, { option: 'true' });
 });
+
+test('cluster jewel kinds use the game\'s node names ("Critical Chance", "Dagger and Claw Damage")', () => {
+  const { evalCondition } = require('../src/core/filter/matcher');
+  const crit = { itemClass: 'Jewels', mods: { enchant: ['Adds 4 Passive Skills', 'Added Small Passive Skills grant: 15% increased Critical Strike Chance'] } };
+  assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNode', values: ['Critical Chance'] }, crit, []), true);
+  const claw = { itemClass: 'Jewels', mods: { enchant: ['Added Small Passive Skills grant: Claw Attacks deal 12% increased Damage with Hits and Ailments', 'Added Small Passive Skills grant: Dagger Attacks deal 12% increased Damage with Hits and Ailments'] } };
+  assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNode', values: ['Dagger and Claw Damage'] }, claw, []), true);
+  assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNode', values: ['Critical Chance'] }, claw, []), false);
+});

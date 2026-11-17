@@ -1181,6 +1181,9 @@ async function renderClusterGrid(body, view) {
   const data = await call('cluster:get');
   const cats = sidebar(view, new Set());
   FB.cjBand = FB.cjBand || '84';
+  // opened from a price check: the jewel's item level band, and its row scrolled into view
+  if (FB.cjFocus?.ilvl && !FB.cjFocus.done) { const il = FB.cjFocus.ilvl; FB.cjBand = il >= 84 ? '84' : il >= 75 ? '75' : '68'; }
+  if (FB.cjFocus && !FB.cjFocus.done) { FB.cjFocus.done = true; setTimeout(() => document.querySelector('tr.cj-focus')?.scrollIntoView({ block: 'center' }), 60); }
   if (FB.cjBrush === undefined) FB.cjBrush = 'top';
   let state = data.state || {};
   const d = data.divine;
@@ -1269,7 +1272,9 @@ async function renderClusterGrid(body, view) {
       cellLook(el, k);
       if (!els.has(k)) els.set(k, []);
       els.get(k).push(el);
-      return h('td', {}, el);
+      // the price-checked jewel's own cell (its passives)
+      const here = FB.cjFocus && FB.cjFocus.size === size.id && String(e).toLowerCase() === FB.cjFocus.node && Number(p) === FB.cjFocus.passives;
+      return h('td', { class: here ? 'cj-here' : '', title: here ? 'Your jewel' : undefined }, el);
     };
     const rowAll = (e) => size.passives.map((p) => keyOf(e, p));
     return h('div', { class: 'panel cj-panel' },
@@ -1277,7 +1282,7 @@ async function renderClusterGrid(body, view) {
       h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'cj-table' },
         h('thead', {}, h('tr', {}, h('th', {}, 'Enchantment'), size.passives.map((p) => h('th', {},
           h('button', { class: 'cj-colhead', title: `Left click: every ${p}-passive ${size.id.toLowerCase()} jewel one step up. Right click: one step down.`, onclick: () => step(data.enchants[size.id].map((e) => keyOf(e, p)), +1), oncontextmenu: (ev) => { ev.preventDefault(); step(data.enchants[size.id].map((e) => keyOf(e, p)), -1); } }, `${p}`))))),
-        h('tbody', {}, data.enchants[size.id].map((e) => h('tr', {},
+        h('tbody', {}, data.enchants[size.id].map((e) => h('tr', { class: FB.cjFocus && FB.cjFocus.size === size.id && String(e).toLowerCase() === FB.cjFocus.node ? 'cj-focus' : '' },
           h('th', {}, h('button', { class: 'cj-rowhead', title: `Left click: every ${e} jewel one step up. Right click: one step down.`, onclick: () => step(rowAll(e), +1), oncontextmenu: (ev) => { ev.preventDefault(); step(rowAll(e), -1); } }, e)),
           size.passives.map((p) => cell(e, p))))))));
   };
@@ -2795,7 +2800,9 @@ window.showInFilter = (g) => {
   FB.revealNav = true;
   // PoE Helper's own pages (My bases, Base ranks, Cluster jewels, Campaign)
   const special = { mybases: MY_BASES, basematrix: BASE_MATRIX, clustergrid: CLUSTER_GRID, campaignhide: CAMPAIGN_HIDE, rarelooks: RARE_LOOKS }[g.special];
-  if (special) { FB.goto = null; FB.type = special; FB.matrixFocus = special === BASE_MATRIX && g.base ? g.base : null; return; }
+  if (special) { FB.goto = null; FB.type = special; FB.matrixFocus = special === BASE_MATRIX && g.base ? g.base : null; FB.cjFocus = special === CLUSTER_GRID ? g.cluster || null : null; return; }
+  // the cluster jewel rules aren't shown as tiers: their price table instead
+  if (/^jewels->cluster/.test(g.type || '')) { FB.goto = null; FB.type = CLUSTER_GRID; FB.cjFocus = null; return; }
   FB.goto = { type: g.type, key: g.key || `${g.type}|${g.tier}`, base: g.base };
 };
 })();

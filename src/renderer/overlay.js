@@ -364,7 +364,8 @@ function render(p) {
   const inTier = ti && !ti.notListed;
   // "Show in app": the tier the base is in, else the part of the Loot filter page whose rule decides the item
   // gear with a base rank: Base ranks, with the base marked
-  const goto = p.baseRank ? { page: 'filters', special: 'basematrix', base: p.baseRank.base } : inTier ? { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } : filterWhere?.goto ? { ...filterWhere.goto, base: item.baseType || item.typeLine } : null;
+  // a cluster jewel opens the Cluster jewels price table, at its row
+  const goto = p.cluster ? { page: 'filters', special: 'clustergrid', cluster: p.cluster } : p.baseRank ? { page: 'filters', special: 'basematrix', base: p.baseRank.base } : inTier ? { page: 'filters', type: ti.type, key: ti.key, tier: ti.tier, base: ti.base } : filterWhere?.goto ? { ...filterWhere.goto, base: item.baseType || item.typeLine } : null;
   const gear = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !!(item.baseType || item.typeLine) && !['currency', 'divination', 'gem', 'map', 'fragment'].includes(p.kind);
   const actions = h('div', { class: 'ov-actions' },
     gear ? h('button', { class: 'quiet sm', title: 'Add this base to My bases in your filter, for the item levels you choose', onclick: () => openMyBase(quickBox) }, '+ My bases') : null,
@@ -379,7 +380,7 @@ function render(p) {
     h('span', { class: 'ov-filter-t', title: filterHit?.line ? `Line ${filterHit.line} of your filter` : '' }, h('b', {}, hiddenNow ? 'Hidden' : filterHit ? 'Shown' : 'No rule'), where ? ` · ${where}` : ''),
     h('span', { class: 'spacer' }),
     changeBox ? h('button', { class: 'quiet sm', 'aria-expanded': 'false', onclick: (e) => { changeBox.hidden = !changeBox.hidden; e.currentTarget.setAttribute('aria-expanded', String(!changeBox.hidden)); e.currentTarget.textContent = changeBox.hidden ? 'Change' : 'Close'; fit(); } }, 'Change') : null,
-    h('button', { class: 'quiet sm ov-goto', title: p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
+    h('button', { class: 'quiet sm ov-goto', title: p.cluster ? 'Open the Cluster jewels price table at this jewel' : p.baseRank ? `Open Base ranks with ${p.baseRank.base} marked` : inTier ? `Open the app at ${ti.label}, ${tierLabel(ti.tier)} with ${ti.base} picked` : goto ? `Open the app at ${whereText}` : 'Open the app',
       onclick: () => call('app:show', goto ? { goto } : null) }, goto ? 'Show in loot filter' : 'Open app'));
   if (changeBox && ti?.state === 'Off') changeBox.hidden = false;
   const quickBox = h('div', { class: 'ov-block', style: { display: 'none' } });

@@ -54,6 +54,34 @@ function rarityOf(item) {
 }
 
 /** Returns true/false. Conditions the clipboard can't show are pushed onto `assumed`. */
+/**
+ * The game's name for a cluster jewel's small passives (what EnchantmentPassiveNode compares), from the enchant:
+ * "15% increased Critical Strike Chance" is "Critical Chance", "Claw… / Dagger…" is "Dagger and Claw Damage".
+ */
+const CLUSTER_NODES = [
+  [/Claw Attacks|Dagger Attacks/i, 'Dagger and Claw Damage'], [/Axe Attacks|Sword Attacks/i, 'Axe and Sword Damage'],
+  [/Mace or Sceptre Attacks|Staff Attacks/i, 'Mace and Staff Damage'], [/Wand Attacks/i, 'Wand Damage'],
+  [/Damage with Bows|with Bow Skills/i, 'Bow Damage'], [/Trap Damage|Mine Damage/i, 'Trap and Mine Damage'],
+  [/Minions deal .*while you are affected by a Herald/i, 'Minion Damage while you have a Herald'],
+  [/Damage while affected by a Herald/i, 'Damage while you have a Herald'],
+  [/^Minions deal/i, 'Minion Damage'], [/Minions have .*maximum Life/i, 'Minion Life'],
+  [/Critical Strike Chance/i, 'Critical Chance'], [/Attack Damage while holding a Shield/i, 'Attack Damage while holding a Shield'],
+  [/Attack Damage while Dual Wielding/i, 'Attack Damage while Dual Wielding'], [/Damage with Two Handed Weapons/i, 'Damage with Two Handed Weapons'],
+  [/Chaos Damage over Time/i, 'Chaos Damage over Time'], [/Physical Damage over Time/i, 'Physical Damage over Time'],
+  [/Cold Damage over Time/i, 'Cold Damage over Time'], [/Burning Damage/i, 'Fire Damage over Time'], [/Damage over Time/i, 'Damage over Time'],
+  [/Exerted Attacks/i, 'Exerted Attack Damage'], [/Reservation Efficiency/i, 'Reservation Efficiency'], [/Flask Effect Duration/i, 'Flask Duration'],
+  [/Recovery from Flasks/i, 'Flask Recovery'], [/Non-Damaging Ailments/i, 'Effect of Non-Damaging Ailments'], [/Non-Curse Auras/i, 'Aura Effect'],
+  [/Effect of your Curses/i, 'Curse Effect'], [/Block Spell Damage/i, 'Chance to Block Spell Damage'], [/Block Attack Damage/i, 'Chance to Block Attack Damage'],
+  [/Suppress Spell Damage/i, 'Chance to Suppress Spell Damage'], [/Channelling Skills/i, 'Channelling Skill Damage'],
+  [/(\w+) Resistance/i, (m) => `${m[1]} Resistance`], [/maximum Energy Shield/i, 'Energy Shield'], [/maximum Mana/i, 'Mana'], [/maximum Life/i, 'Life'],
+  [/Evasion Rating/i, 'Evasion'],
+];
+function clusterNode(grant) {
+  for (const [re, name] of CLUSTER_NODES) { const m = re.exec(grant); if (m) return (typeof name === 'function' ? name(m) : name).toLowerCase(); }
+  // the rest read as the node: "10% increased Projectile Damage" -> "projectile damage"
+  return (/increased (.+?)$/im.exec(grant)?.[1] || grant).toLowerCase();
+}
+
 function evalCondition(c, item, assumed) {
   const v = c.values || [];
   const mods = [...(item.mods?.explicit || []), ...(item.mods?.crafted || []), ...(item.mods?.fractured || [])];
@@ -127,9 +155,8 @@ function evalCondition(c, item, assumed) {
     case 'EnchantmentPassiveNode': {
       const grants = (item.mods?.enchant || []).filter((t) => /^Added Small Passive Skills grant:/i.test(t)).map((t) => t.replace(/^Added Small Passive Skills grant:\s*/i, ''));
       if (!grants.length) return unknownCondition(c, assumed);
-      const names = grants.map((g) => (/^Minions deal .*increased Damage$/i.test(g) ? 'minion damage' : (/increased (.+)$/i.exec(g)?.[1] || g.replace(/^[+-]?\d+%?\s*(to\s+)?/i, '')).toLowerCase()));
-      // "Fire Damage" is the node of "12% increased Fire Damage"; a longer grant ("…Reservation Efficiency of Skills") holds its name
-      return v.some((x) => { const want = x.toLowerCase(); return names.some((n) => n === want || (c.op !== '==' && ` ${n} `.includes(` ${want} `))); });
+      const node = clusterNode(grants.join('\n'));
+      return v.some((x) => (c.op === '==' ? x.toLowerCase() === node : node.includes(x.toLowerCase())));
     }
     case 'HasEnchantment': return stringList(null, v, (item.mods?.enchant || []).join('\n'));
     case 'HasImplicitMod': return boolCond(v, (item.mods?.implicit || []).length > 0);
@@ -245,4 +272,4 @@ function explain(doc, item) {
   return { action: 'Show', line: null, comment: 'No block matched (game default: shown)', style: {}, unknown: [], chain };
 }
 
-module.exports = { explain, evalCondition };
+module.exports = { explain, evalCondition, clusterNode };

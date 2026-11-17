@@ -308,7 +308,17 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     } catch { /* no ranks */ }
     let collection = null;
     if (item.rarity === 'Unique' && (item.baseType || item.typeLine)) { try { collection = await collectionFor(item.baseType || item.typeLine); collection.own = item.flags?.unidentified ? null : (item.name || null); } catch { collection = null; } }
-    return { collection, baseRank, item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
+    // a cluster jewel: its row in the Cluster jewels price table (size, small passive kind, passives)
+    let cluster = null;
+    const cm = /^(Large|Medium|Small) Cluster Jewel$/.exec(item.baseType || item.typeLine || '');
+    if (cm && item.rarity !== 'Unique') {
+      const en = item.mods?.enchant || [];
+      const grants = en.filter((t) => /^Added Small Passive Skills grant:/i.test(t)).map((t) => t.replace(/^Added Small Passive Skills grant:\s*/i, ''));
+      const node = grants.length ? require('../core/filter/matcher').clusterNode(grants.join('\n')) : null;
+      const passives = Number(/^Adds (\d+) Passive Skills?/i.exec(en.find((t) => /^Adds \d+ Passive/i.test(t)) || '')?.[1]) || null;
+      cluster = { size: cm[1], node, passives, ilvl: item.itemLevel || null };
+    }
+    return { collection, baseRank, cluster, item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
   }
 
   let bulkTag = async () => null;

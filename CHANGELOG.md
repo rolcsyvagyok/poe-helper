@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.131 - 2026-11-17
+
+* [Trade searches] Cluster jewels show the same loot filter look as in game for every kind of small passive.
+* [Trade searches] "Show in loot filter" on a cluster jewel opens the Cluster jewels price table at that jewel.
+- Price check: the loot filter look of a cluster jewel now reads its small passives by the game's own names ("15% increased Critical Strike Chance" is "Critical Chance", Claw and Dagger is "Dagger and Claw Damage", and so on), so it matches the label on the ground.
+- Price check: "Show in loot filter" on a cluster jewel opened a page you couldn't use. It now opens the Cluster jewels price table, at the jewel's item level band, scrolled to its row with its cell (size, kind, passives) marked.
+
 ## 1.0.130 - 2026-11-17
 
 * [Trade searches] Fixed the price check failing ("The game didn't copy an item") right after an update, and an older search changing the next item's price.
