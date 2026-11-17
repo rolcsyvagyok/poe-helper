@@ -67,7 +67,7 @@ function readItem(text) {
     const m = /^\{ (Fractured |Master Crafted )?(Prefix|Suffix) Modifier "([^"]+)"/.exec(lines[i]);
     if (!m) continue;
     const body = [];
-    for (let j = i + 1; j < lines.length && lines[j] && !lines[j].startsWith('{') && lines[j] !== '--------'; j++) body.push(lines[j].replace(/ \((fractured|crafted)\)$/, '').replace(/(\d)\(-?[\d.]+--?[\d.]+\)/g, '$1'));
+    for (let j = i + 1; j < lines.length && lines[j] && !lines[j].startsWith('{') && lines[j] !== '--------'; j++) body.push(lines[j].replace(/ \((fractured|crafted)\)$/, '').replace(/(\d)\(-?[\d.]+--?[\d.]+\)/g, '$1').replace(/ — Unscalable Value$/, ''));
     mods.push({ aff: m[2].toLowerCase(), name: m[3], text: body.filter((x) => !/^\(.*\)$/.test(x)).join('\n'), crafted: m[1] === 'Master Crafted ', fractured: m[1] === 'Fractured ' });
   }
   // plain copy: the explicit lines (the block after Item Level, before the flavour text)
@@ -76,7 +76,7 @@ function readItem(text) {
     const blocks = raw.split(/\n--------\n/);
     const k = blocks.findIndex((b) => /^Item Level:/m.test(b));
     const cand = blocks.slice(k + 1).filter((b) => !/\(implicit\)|\(enchant\)|^(Corrupted|Mirrored|Fractured Item|Note:)/m.test(b) && !/^"/.test(b.trim()));
-    plain = (cand[0] || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => ({ line: l.replace(/ \((fractured|crafted)\)$/, '').replace(/(\d)\(-?[\d.]+--?[\d.]+\)/g, '$1'), crafted: / \(crafted\)$/.test(l), fractured: / \(fractured\)$/.test(l) }));
+    plain = (cand[0] || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => ({ line: l.replace(/ \((fractured|crafted)\)$/, '').replace(/(\d)\(-?[\d.]+--?[\d.]+\)/g, '$1').replace(/ — Unscalable Value$/, ''), crafted: / \(crafted\)$/.test(l), fractured: / \(fractured\)$/.test(l) }));
   }
   return { base, ilvl, rarity, influences: inf, mods, plain, fractured: /^Fractured Item$/m.test(raw), corrupted: /^Corrupted$/m.test(raw) };
 }
@@ -85,7 +85,8 @@ const TPL = (t) => t.replace(/\((-?[\d.]+)-(-?[\d.]+)\)|-?\d+(?:\.\d+)?/g, '#').
 
 // is the rolled value inside the tier's range?
 function rollIn(tierLine, line) {
-  const r = [...tierLine.matchAll(/\((-?[\d.]+)-(-?[\d.]+)\)|(-?\d+(?:\.\d+)?)/g)].map((m) => [Number(m[1] ?? m[3]), Number(m[2] ?? m[3])]);
+  // "#": a number the game's files don't give (a socketed support's level) matches any value
+  const r = [...tierLine.matchAll(/\((-?[\d.]+)-(-?[\d.]+)\)|(-?\d+(?:\.\d+)?)|#/g)].map((m) => (m[0] === '#' ? [-Infinity, Infinity] : [Number(m[1] ?? m[3]), Number(m[2] ?? m[3])]));
   const v = [...line.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
   return r.length === v.length && r.every(([a, b], i) => v[i] >= Math.min(a, b) && v[i] <= Math.max(a, b));
 }
@@ -148,7 +149,9 @@ function craftView(o = {}) {
     };
     for (const md of item.mods) {
       const f = findByName(md);
-      const t = f?.tiers.find((x) => x.name === md.name && TPL(x.text) === TPL(md.text)) || f?.tiers.find((x) => x.name === md.name);
+      const same = (x) => x.name === md.name && TPL(x.text) === TPL(md.text);
+      const inRoll = (x) => { const tl = x.text.split('\n'); const ml = md.text.split('\n'); return tl.length === ml.length && tl.every((l, k) => rollIn(l, ml[k])); };
+      const t = f?.tiers.find((x) => same(x) && inRoll(x)) || f?.tiers.find(same) || f?.tiers.find((x) => x.name === md.name);
       yours.push({ ...md, key: f?.key || null, group: f?.group || null, tierName: t?.name, tierText: t?.text });
     }
     // plain copy: match the lines to families by their text; a hybrid mod takes two lines in a row

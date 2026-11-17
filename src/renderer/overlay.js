@@ -273,7 +273,7 @@ function render(p) {
           h('span', { class: 'spacer' }),
           h('span', {}, chaosDiv(m.chaos, divine)))))));
     }
-  } else if (price && !modPriced && p.kind !== 'rare' && p.kind !== 'magic' && !(item.rarity === 'Unique' && item.flags?.unidentified)) {
+  } else if (price && !p.warrant && !modPriced && p.kind !== 'rare' && p.kind !== 'magic' && !(item.rarity === 'Unique' && item.flags?.unidentified)) {
     body.append(h('div', { class: 'muted' }, 'poe.ninja has no price for this item.'));
   }
   // (the "prices from N min ago" line is gone: it said little and took space)
@@ -395,7 +395,8 @@ function render(p) {
   // the loot filter line last: the price and the search come first
   body.append(tradeBox, strip, ...(filterNote.childNodes.length ? [filterNote] : []), ...(changeBox ? [changeBox] : []), actions, quickBox);
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
-  if (p.tradeable) openTrade(tradeBox);
+  if (p.warrant) openMerc(tradeBox, p.warrant);
+  else if (p.tradeable) openTrade(tradeBox);
 
   root.dataset.rarity = String(item.rarity || '').toLowerCase();
   mount(root, header(item, filterHit, p.baseRank, facts, priceEl), body);
@@ -596,6 +597,11 @@ async function guessSection(box) {
     g.why.length ? h('div', { class: 'small muted' }, 'Mostly from: ', g.why.map((w) => `${w.name} (${w.pct}%)`).join(', ')) : null,
     h('div', { class: 'small faint' }, 'A guess from poeprices.info, made from the item\'s mods. Check it with a trade search.'));
   fit();
+}
+
+async function openMerc(box) {
+  box.style.display = '';
+  await window.MercPanel.mount(box, { text: current.text, onFit: fit });
 }
 
 async function openTrade(box) {

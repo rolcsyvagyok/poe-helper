@@ -249,6 +249,28 @@ function parseItem(rawText) {
     modSections.push(nonFlag);
   }
 
+  // Mercenary Warrants: the mercenary's name, then its skills, each with its supports ("More Duration (Tier: 2)");
+  // the trade site lists both as Mercenary stats ("More Duration (Tier 2)")
+  if (/^Mercenary Warrant$/.test(item.typeLine || item.baseType || '')) {
+    item.warrant = { build: item.properties?.Build || null, level: Number(item.properties?.['Mercenary Level']) || null, name: null, skills: [] };
+    for (const sec of modSections) {
+      if (sec.every((l) => /^(Right click|Open a portal|While viewing)/i.test(String(l).trim()))) continue;
+      if (sec.length === 1 && /,/.test(sec[0]) && !item.warrant.name && !item.warrant.skills.length) { item.warrant.name = sec[0].trim(); continue; }
+      const [skill, ...sups] = sec.map((l) => String(l).trim()).filter((l) => l && !/^(Right click|Open a portal|While viewing)/i.test(l));
+      if (!skill) continue;
+      item.warrant.skills.push({ skill, supports: sups });
+      item.mods.mercenary.push(skill); item.modMeta.mercenary.push({ mercSkill: true });
+      for (const s of sups) { item.mods.mercenary.push(s.replace(/\(Tier: (\d)\)$/, '(Tier $1)')); item.modMeta.mercenary.push({ mercSupport: true }); }
+    }
+    modSections.length = 0;
+  }
+  // help text at the end ("Right click to drink…") and a flask's own lines ("Lasts 8 Seconds", "Consumes 40 of
+  // 60 Charges on use", "20% more Armour") aren't mods
+  for (let i = modSections.length - 1; i >= 0; i--) {
+    const sec = modSections[i];
+    if (sec.every((l) => /^(Right click|Place into|Shift click|Can be used|Use this|This is a)/i.test(String(l).trim()))) modSections.splice(i, 1);
+    else if (/flask/i.test(item.itemClass || '') && sec.some((l) => /^(Lasts [\d.]+ Seconds|Consumes \d+ of \d+ Charges on use|Currently has \d+ Charges?)$/.test(String(l).trim()))) modSections.splice(i, 1);
+  }
   // Uniques carry flavour text as the last mod-like section; it never contains digits.
   if (item.rarity === 'Unique' && modSections.length > 1) {
     const last = modSections[modSections.length - 1];
@@ -307,6 +329,12 @@ function parseItem(rawText) {
       const type = stripped.type === 'explicit' && headerKind ? headerKind : stripped.type;
       // Skip help text that appears on currency/div cards/maps
       if (/^(Right click|Place into|Travel to (?:this|a) Map|Maps can only be used|Shift click|Can be used|Use this|This is a)/i.test(modText)) continue;
+      // a long mod wraps onto a second line that starts in lower case ("…Retaliation skill to" / "become usable…")
+      if (/^[a-z]/.test(modText) && item.mods[type].length && sec.indexOf(line) > 0) {
+        const k = item.mods[type].length - 1;
+        item.mods[type][k] = `${item.mods[type][k]} ${modText}`;
+        continue;
+      }
       item.mods[type].push(modText);
       // the rolls with their ranges: "Adds 40(29-40) to 68(58-68)" -> [{value 40, min 29, max 40}, {68, 58, 68}]
       const rolls = [];

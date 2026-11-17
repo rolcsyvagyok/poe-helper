@@ -287,6 +287,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     let bulk = ['currency', 'divination', 'fragment'].includes(kind);
     // a Facetor's Lens holds its own experience: searched by that, not on the exchange
     if (bulk && item.properties?.['Stored Experience']) { bulk = false; tradeable = true; }
+    // a Mercenary Warrant: searched by its build and skills
+    if (item.warrant) { bulk = false; tradeable = true; }
     if (bulk && kind === 'fragment') {
       try { if (!PF.exchangeTag(await ggg.tradeStatic(), item.typeLine || item.baseType || item.name)) { bulk = false; tradeable = true; } } catch { /* keep the exchange */ }
     }
@@ -322,7 +324,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       const passives = Number(/^Adds (\d+) Passive Skills?/i.exec(en.find((t) => /^Adds \d+ Passive/i.test(t)) || '')?.[1]) || null;
       cluster = { size: cm[1], node, passives, ilvl: item.itemLevel || null };
     }
-    return { collection, baseRank, cluster, item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
+    return { warrant: item.warrant || null, collection, baseRank, cluster, item: slimItem(item), kind, price, filterHit, filterWhere, tierInfo, tradeable, weapon, bulk, guess, autoBulk: settings.get('tradeAutoSearch') !== false };
   }
 
   let bulkTag = async () => null;
@@ -355,7 +357,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         if (names.length === 1) props.uniqueName = names[0];
       } catch (e) { log('unique choices', e.message); }
     }
-    const autoSearch = settings.get('tradeAutoSearch') !== false && kind === 'unique' && (!item.flags?.unidentified || !!props.uniqueName);
+    const autoSearch = settings.get('tradeAutoSearch') !== false && ((kind === 'unique' && (!item.flags?.unidentified || !!props.uniqueName)) || !!item.warrant);
     return { mods, props, presets, kind, autoSearch, uniqueChoices, status: settings.get('tradeStatus') || 'securable' };
   }
 
@@ -377,7 +379,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       try { gemType = require('../core/trade').gemTradeType(await ggg.tradeItems(), item.typeLine); } catch { /* base name */ }
     }
     await fixPartType(item);
-    const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}) });
+    let warrantType = null;
+    if (item.warrant?.build) { try { warrantType = require('../core/trade').warrantTradeType(await ggg.tradeItems(), item.warrant.build); } catch (e) { log('trade item list', e.message); } }
+    const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}), ...(warrantType ? { warrantType } : {}) });
     return `https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify({ query: query.query, sort: query.sort }))}`;
   }
   async function tradeSearch({ text, mods, props = null, opts = {} }) {
@@ -391,7 +395,9 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       try { gemType = require('../core/trade').gemTradeType(await ggg.tradeItems(), item.typeLine); } catch (e) { log('trade item list', e.message); }
     }
     await fixPartType(item);
-    const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}) });
+    let warrantType = null;
+    if (item.warrant?.build) { try { warrantType = require('../core/trade').warrantTradeType(await ggg.tradeItems(), item.warrant.build); } catch (e) { log('trade item list', e.message); } }
+    const query = buildQuery(item, mods || [], { tolerance: settings.get('tradeTolerance'), ...opts, status, ...(props ? { props } : {}), ...(gemType ? { gemType } : {}), ...(warrantType ? { warrantType } : {}) });
     const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 }).catch((e) => {
       // the trade site doesn't know this item (new league items it doesn't list yet, like Wickerman parts)
       if (/Unknown item base type/i.test(e.message)) throw new Error(`The trade site doesn't list ${item.typeLine || 'this item'}, so it can't be price checked there.`);
@@ -407,6 +413,35 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       out.listings = summarizeListings({ result: [...(first.result || []), ...(more.result || [])] }, divine, { me: settings.get('accountName') || '' });
     }
     return out;
+  }
+
+  // ---------- Mercenary Warrants: priced against the listed ones like yours ----------
+  /** on: { skills: [stat id], supports: [stat id] } what you ticked (default: every skill, no support). */
+  async function warrantAnalyze({ text, on = null, status = null } = {}) {
+    const M = require('../core/merc');
+    const item = readItem(text);
+    if (!item?.warrant) throw new Error('Not a Mercenary Warrant.');
+    const league = await getLeague();
+    const stats = await ggg.tradeStats();
+    const skills = M.warrantStats(stats, item.warrant);
+    const pick = on || { skills: skills.map((x) => x.id).filter(Boolean), supports: [] };
+    for (const sk of skills) { sk.on = pick.skills.includes(sk.id); for (const sup of sk.supports) sup.on = !!sup.id && pick.supports.includes(sup.id); }
+    let type = null;
+    try { type = require('../core/trade').warrantTradeType(await ggg.tradeItems(), item.warrant.build); } catch (e) { log('trade item list', e.message); }
+    const ids = [...new Set([...pick.skills, ...pick.supports])].filter(Boolean);
+    const query = M.warrantQuery(type, ids, status || settings.get('tradeStatus') || 'securable');
+    const res = await ggg.tradeSearch(league, query, { maxWaitMs: 10000 });
+    const divine = await ninja.divinePrice(league).catch(() => null);
+    const got = [];
+    // the 20 cheapest: two requests at most
+    for (let i = 0; i < Math.min(20, res.result?.length || 0); i += 10) {
+      const f = await ggg.tradeFetch(res.id, res.result.slice(i, i + 10)).catch(() => ({ result: [] }));
+      got.push(...(f.result || []));
+    }
+    const listings = got.map((r) => M.readListing(r, divine)).filter(Boolean);
+    const a = M.analyze(skills, listings);
+    return { build: item.warrant.build, name: item.warrant.name, level: item.warrant.level, typeFound: !!type, url: ggg.tradeUrl(league, res.id), total: res.total ?? 0, cheapest: a.cheapest, sample: a.sample,
+      listings: listings.slice(0, 8).map((l) => ({ chaos: l.chaos, name: l.name, level: l.level })), skills, divine };
   }
 
   // ---------- bulk exchange and poeprices.info, as Awakened PoE Trade ----------
@@ -2563,7 +2598,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

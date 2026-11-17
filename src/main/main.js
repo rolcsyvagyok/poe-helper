@@ -997,6 +997,7 @@ function registerIpc() {
   handle('stream:source', () => streamSource());
   handle('stream:open', () => { openStreamWin(); return true; });
   handle('cluster:set', (a) => services.setCluster(a || {}));
+  handle('merc:analyze', (a) => services.warrantAnalyze(a || {}));
   handle('craft:bases', () => require('../core/crafting').craftBases());
   handle('craft:view', (o) => require('../core/crafting').craftView(o || {}));
   handle('talisman:get', () => services.talismanView());

@@ -50,11 +50,19 @@ function uniqueCategories(item) {
   return ['UniqueArmour', 'UniqueWeapon', 'UniqueAccessory', 'UniqueJewel', 'UniqueFlask'];
 }
 
+function isBeast(item) {
+  return /add this to your bestiary/i.test(item.raw || '') || /^Genus: /m.test(item.raw || '');
+}
+
 function categoriesFor(item) {
   const kind = classify(item);
   const name = item.typeLine || item.baseType || '';
   // Necropolis corpses (whatever rarity the copy says): poe.ninja lists them by name
   if (norm(item.itemClass) === 'corpses') return ['Corpse'];
+  // captured beasts (a rare "Stackable Currency" with Genus / Group / Family): poe.ninja lists them by beast name
+  if (isBeast(item)) return ['Beast'];
+  // Mercenary Warrants aren't on poe.ninja: the trade search prices them
+  if (/^Mercenary Warrant$/.test(item.typeLine || '')) return [];
   switch (kind) {
     case 'divination': return ['DivinationCard'];
     case 'gem': return ['SkillGem', 'ImbuedGem'];

@@ -1,0 +1,35 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Krastin, the Skinner
+--------
+Build: Combatant
+Mercenary Level: 83
+--------
+Inspiring Cry
+More Duration (Tier: 2)
+Greater Cooldown Recovery (Tier: 3)
+--------
+Herald of Ice
+--------
+Static Strike
+More Duration (Tier: 2)
+Greater Added Cold (Tier: 3)
+Chain (Tier: 2)
+Greater Area of Effect (Tier: 3)
+Lightning Penetration (Tier: 2)
+--------
+Spectral Helix
+Elemental Damage with Attacks (Tier: 2)
+Greater Physical as Extra (Tier: 3)
+Elemental Focus (Tier: 2)
+Added Cold (Tier: 2)
+Greater Slower Projectiles (Tier: 3)
+--------
+Wrath
+--------
+Purity of Ice
+--------
+Right click this item to view Mercenary details.
+Open a portal to the Proving Grounds by using this item in a personal Map Device. This previously fought Mercenary will reappear in the area for a rematch. While viewing your Atlas, Right-click this item to pinpoint its location.

@@ -1,0 +1,24 @@
+Item Class: Stackable Currency
+Rarity: Rare
+Meatslasher
+Wild Bristle Matron
+--------
+Genus: Gargantuans
+Group: Ursae
+Family: The Wilds
+--------
+Item Level: 83
+--------
+{ Monster Modifier (Tier: 1) }
+Ambushes
+{ Monster Modifier (Tier: 1) }
+Enrages as Life Lost
+{ Monster Modifier (Tier: 1) }
+Precision Aura
+{ Monster Modifier — Life }
+Satyr Storm
+{ Monster Modifier — Life, Attack, Speed, Critical }
+Farric Presence
+--------
+Right-click to add this to your bestiary.
+--------

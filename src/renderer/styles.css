@@ -1893,3 +1893,31 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .co-slots { font-size: 12px; color: var(--muted); }
 .co-slots.full { color: #f0a060; font-weight: 600; }
 .co-note { padding: 8px 12px; font-size: 12px; color: #f0a060; border-bottom: 1px solid var(--line); }
+
+/* a Mercenary Warrant's supports, under their skill */
+.tp-mod.tp-sub { margin-left: 22px; }
+.tp-mod.tp-sub .tp-text { font-size: 12.5px; color: var(--muted); }
+
+/* Mercenary Warrant price check */
+.mp { display: grid; gap: 8px; }
+.mp.busy { opacity: .6; pointer-events: none; }
+.mp-head { display: flex; align-items: center; gap: 18px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.mp-k { font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--faint); }
+.mp-v { font-size: 20px; font-weight: 700; color: #6fb0ff; }
+.mp-why { line-height: 1.45; }
+.mp-err { color: #f0a060; }
+.mp-cards { display: grid; gap: 6px; }
+.mp-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mp-skill { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.mp-skill b { color: #e8b04a; flex: 1; font-weight: 600; }
+.mp-card:not(.on) .mp-skill b { color: var(--muted); }
+.mp-sup { display: grid; grid-template-columns: 18px 1fr 60px 34px; gap: 6px; align-items: center; padding: 3px 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.mp-sup:hover { background: #ffffff08; }
+.mp-sup.on { color: var(--text); font-weight: 600; }
+.mp-sup.unknown { opacity: .5; }
+.mp-tier { color: var(--faint); font-weight: 400; font-size: 11px; }
+.mp-delta { text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); }
+.mp-delta.up { color: #6fb0ff; }
+.mp-delta.down { color: #f0a060; }
+.mp-count { text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
+.mp-count.few { color: #f0a060; font-weight: 600; }

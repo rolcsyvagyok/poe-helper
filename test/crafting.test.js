@@ -35,3 +35,23 @@ test('crafting: your item, its mods and tiers, open slots, groups that can\'t ro
   const plain = text.split('\n').filter((l) => !/^\{/.test(l)).join('\n').replace(/(\d)\(-?[\d.]+-[\d.]+\)/g, '$1');
   assert.deepStrictEqual(c.craftView({ item: plain }).item.mods.map((m) => m.tier), [9, 2, 8, 4]);
 });
+
+test('crafting: a Shaper suffix with a socketed support is found at its own tier', () => {
+  const text = require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'craft-shaper-helmet.txt'), 'utf8');
+  const v = c.craftView({ item: text });
+  const hypo = v.item.mods.find((m) => m.name === 'of Shaping');
+  assert.strictEqual(hypo.tier, 1);
+  const f = v.suffix.families.find((x) => x.key === hypo.key);
+  assert.match(f.range, /Hypothermia Support/);
+  assert.deepStrictEqual(v.item.slots, { max: 3, prefix: 2, suffix: 2 });
+});
+
+test('captured beasts are priced from poe.ninja\'s beasts by name', async () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const { Pricer, categoriesFor } = require('../src/core/pricer');
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'captured-beast.txt'), 'utf8'));
+  assert.deepStrictEqual(categoriesFor(it), ['Beast']);
+  const p = new Pricer({ ninja: { divinePrice: async () => 200, cachedAge: () => 1, category: async () => [{ name: 'Wild Bristle Matron', chaos: 45, listingCount: 30 }] }, getLeague: async () => 'X' });
+  const r = await p.price(it);
+  assert.strictEqual(r.chaos, 45);
+});

@@ -83,7 +83,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     };
     // a fractured mod in the game's fractured colour, with a mark so it doesn't rest on colour alone
     const frac = m.group === 'fractured';
-    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : '') + (frac ? ' fractured' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : frac ? `Fractured mod: ${m.statText || m.text}` : m.statText || '' },
+    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : '') + (frac ? ' fractured' : '') + (m.mercSupport ? ' tp-sub' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : frac ? `Fractured mod: ${m.statText || m.text}` : m.statText || '' },
       h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text, frac ? h('span', { class: 'tp-frac' }, 'fractured') : null)),
       field('min', 'min'),
       h('span', { class: 'tp-dash' }, m.unmatched || m.display == null ? '' : '–'),

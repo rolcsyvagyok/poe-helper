@@ -582,3 +582,31 @@ test('cluster jewel kinds use the game\'s node names ("Critical Chance", "Dagger
   assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNode', values: ['Dagger and Claw Damage'] }, claw, []), true);
   assert.equal(evalCondition({ keyword: 'EnchantmentPassiveNode', values: ['Critical Chance'] }, claw, []), false);
 });
+
+test('unique flask: flask lines and flavour aren\'t mods; a mod wrapped onto two lines is one stat', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'unique-flask-wrapped.txt'), 'utf8'));
+  assert.deepStrictEqual(it.mods.explicit, ['Gain 5 Charges when you are Hit by an Enemy', 'Removes 17% of Life when Used', '5% chance for a damaging Retaliation skill to become usable for every 100 life removed this way']);
+});
+
+test('Mercenary Warrant: searched by its build and skills; supports listed under them, unticked', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const T = require('../src/core/trade');
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'mercenary-warrant.txt'), 'utf8'));
+  assert.strictEqual(it.warrant.build, 'Combatant');
+  assert.strictEqual(it.warrant.name, 'Krastin, the Skinner');
+  assert.deepStrictEqual(it.warrant.skills.map((s) => s.skill), ['Inspiring Cry', 'Herald of Ice', 'Static Strike', 'Spectral Helix', 'Wrath', 'Purity of Ice']);
+  assert.ok(it.mods.mercenary.includes('Chain (Tier 2)'));
+  const items = { result: [{ id: 'map', entries: [{ type: 'MeleeAOEStrikeDuelistRangeStrikes', text: 'Mercenary Warrant (Combatant)', disc: 'mercenary_warrant' }] }] };
+  assert.deepStrictEqual(T.warrantTradeType(items, 'Combatant'), { option: 'MeleeAOEStrikeDuelistRangeStrikes', discriminator: 'mercenary_warrant' });
+});
+
+test('Mercenary Warrant analysis: what ticking a support does to the cheapest match', () => {
+  const M = require('../src/core/merc');
+  const skills = [{ name: 'Static Strike', id: 'mercenary.skill_1', on: true, supports: [{ name: 'Chain', tier: 2, id: 'mercenary.support_9', on: false }, { name: 'Added Cold', tier: 2, id: 'mercenary.support_8', on: false }] }];
+  const L = (chaos, ids) => ({ chaos, ids: new Set(ids) });
+  const a = M.analyze(skills, [L(5, ['mercenary.skill_1']), L(12, ['mercenary.skill_1', 'mercenary.support_9']), L(20, ['mercenary.skill_1', 'mercenary.support_9'])]);
+  assert.strictEqual(a.cheapest, 5);
+  assert.deepStrictEqual([skills[0].supports[0].delta, skills[0].supports[0].count], [7, 2]);
+  assert.deepStrictEqual([skills[0].supports[1].delta, skills[0].supports[1].count], [null, 0]);
+});

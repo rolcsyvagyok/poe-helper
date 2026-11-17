@@ -1,0 +1,33 @@
+Item Class: Helmets
+Rarity: Rare
+Dread Brow
+Archdemon Crown
+--------
+Armour: 255 (augmented)
+Energy Shield: 51 (augmented)
+--------
+Requirements:
+Level: 75
+Str: 79
+Int: 79
+--------
+Sockets: W 
+--------
+Item Level: 85
+--------
+{ Implicit Modifier }
+-2 to Level of Socketed Support Gems
++2 to Level of Socketed Skill Gems
+--------
+{ Prefix Modifier "Infixed" (Tier: 7) — Defences, Armour, Energy Shield }
+22(15-26)% increased Armour and Energy Shield
+{ Prefix Modifier "The Shaper's" (Tier: 2) }
+6(4-6)% chance to gain a Power Charge on Kill
+{ Suffix Modifier "of the Essence" — Damage, Elemental, Gem }
+Socketed Gems deal 30% more Elemental Damage — Unscalable Value
+{ Suffix Modifier "of Shaping" (Tier: 1) — Elemental, Cold, Ailment, Gem }
+Socketed Gems are Supported by Level 20 Hypothermia Support — Unscalable Value
+18(17-20)% increased Effect of Cold Ailments
+(Cold Ailments are Chilled, Frozen and Brittle)
+--------
+Shaper Item

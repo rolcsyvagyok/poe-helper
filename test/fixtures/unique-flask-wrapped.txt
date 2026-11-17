@@ -1,0 +1,33 @@
+Item Class: Utility Flasks
+Rarity: Unique
+Dreadmaidens' Sacrament
+Basalt Flask
+--------
+Lasts 8 Seconds
+Consumes 40 of 60 Charges on use
+Currently has 0 Charges
+20% more Armour
+--------
+Requirements:
+Level: 36
+--------
+Item Level: 85
+--------
+{ Implicit Modifier }
+Taunts Enemies within 3 metres on use
+(Enemies you Taunt can only target you, and deal 10% less damage to anyone else. Taunt lasts for 3 seconds)
+--------
+{ Unique Modifier }
+Gain 5(4-6) Charges when you are Hit by an Enemy
+{ Unique Modifier — Life }
+Removes 17(10-20)% of Life when Used
+{ Unique Modifier }
+5(4-6)% chance for a damaging Retaliation skill to
+become usable for every 100 life removed this way
+--------
+"For as long as blood flows through your veins,
+so too shall this cursed brew stain your lips –
+draining ever more than it restores."
+- The Coven Queen
+--------
+Right click to drink. Can only hold charges while in belt. Refills as you kill monsters.

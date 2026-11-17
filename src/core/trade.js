@@ -60,6 +60,13 @@ function indexStats(statsJson) {
 /** The numbers of a mod where the trade site's text has a "#": "6% … per 1% … above 75%" is 6, not the average of 6, 1
  *  and 75. null when the texts don't line up (the usual number-reading takes over). */
 function valuesAt(statText, modText) {
+  // a stat on two lines and a mod joined into one ("…Retaliation skill to become usable for every 100 life…")
+  const flat = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+  if (/\n/.test(statText || '') && !/\n/.test(modText || '') && /#/.test(statText)) {
+    const esc = flat(statText).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/#/g, '([+-]?\\d+(?:\\.\\d+)?)');
+    const m = new RegExp(`^\\+?${esc}$`, 'i').exec(flat(modText));
+    if (m) return m.slice(1).map(Number);
+  }
   const lines = String(statText || '').split('\n');
   const one = lines.find((l) => l.includes('#')) || '';
   if ((one.match(/#/g) || []).length === 0) return null;
@@ -342,6 +349,9 @@ function buildQuery(item, mods, opts = {}) {
     q.query.name = props.uniqueName;
     q.query.type = item.baseType || item.typeLine;
     q.query.filters.misc_filters = { filters: { ...(q.query.filters.misc_filters?.filters || {}), identified: { option: 'false' } } };
+  } else if (opts.warrantType) {
+    // a Mercenary Warrant: its build ("Mercenary Warrant (Combatant)" is { option, discriminator: 'mercenary_warrant' })
+    q.query.type = opts.warrantType;
   } else if (kind === 'gem') {
     // a transfigured gem is its base gem with a "discriminator" ("Ethereal Knives of the Massacre" ->
     // { option: 'Ethereal Knives', discriminator: 'alt_x' }), from the trade site's item list
@@ -486,6 +496,10 @@ function itemRows(idx, item, tol) {
       if (['scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'].includes(kind) || meta?.special || vp) { row.special = true; if (!row.unmatched) row.enabled = true; }
       row.tpl = PF.tplOf(m);
       if (row.display != null) { row.min = PF.minOf(row.display, tol); row.max = null; takenAsMax(row, tol); }
+      // a socketed support's level comes only in whole tiers (16, 18, 20): search the level the item has
+      if (row.display != null && /Supported by Level \d+/i.test(row.text || '')) row.min = row.display;
+      // a warrant's skills make it (ticked); its supports narrow it down (yours to tick); a tier isn't a number to search
+      if (kind === 'mercenary' && item.warrant) { row.display = null; row.value = null; row.min = null; row.max = null; if (!row.unmatched) row.enabled = !!meta?.mercSkill; if (meta?.mercSupport) row.mercSupport = true; }
       out.push(row);
     });
   }
@@ -690,6 +704,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   // what is ticked to start
   if (kind === 'unique') {
     PF.uniqueRolls(mods, item, tolerance);
+    // whole-number rolls get a whole-number minimum (4.8 -> 4)
+    for (const m of mods) if (Number.isInteger(m.display) && m.min != null && !Number.isInteger(m.min)) m.min = Math.floor(m.min);
     for (const m of mods) if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; m.hidden = false; }
     // Watcher's Eye: the aura mods are the price (the life / mana / energy shield ones hardly matter)
     if (/^Watcher's Eye$/i.test(item.name || '')) for (const m of mods) { m.enabled = /while affected by/i.test(m.text || '') && !m.unmatched && !!m.id; if (m.enabled) m.hidden = false; }
@@ -830,6 +846,15 @@ function summarizeListings(fetchJson, divineChaos, { me = '' } = {}) {
 }
 
 /** The trade site's type for a gem: a transfigured one as { option, discriminator }; null when the list doesn't know it. */
+/** The trade site's type for a Mercenary Warrant of this build ("Combatant", "Infamous Combatant"). */
+function warrantTradeType(itemsJson, build) {
+  const want = `mercenary warrant (${String(build || '').toLowerCase()})`;
+  for (const g of itemsJson?.result || []) for (const e of g.entries || []) {
+    if (e.disc === 'mercenary_warrant' && String(e.text || '').toLowerCase() === want) return { option: e.type, discriminator: e.disc };
+  }
+  return null;
+}
+
 function gemTradeType(itemsJson, name) {
   const want = String(name || '').toLowerCase();
   for (const g of itemsJson?.result || []) {
@@ -854,4 +879,4 @@ function partTradeType(itemsJson, typeLine) {
   return null;
 }
 
-module.exports = { gemTradeType, partTradeType, prepareSearch, weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };
+module.exports = { warrantTradeType, gemTradeType, partTradeType, prepareSearch, weaponDps, DPS_MOD, DPS_FILTERS, indexStats, matchItemMods, matchMod, buildQuery, summarizeListings, normTemplate, defaultProps, statRange, resistanceTotals, applyDefaults, CATEGORIES, TRADE_STATUSES };

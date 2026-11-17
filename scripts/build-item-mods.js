@@ -37,7 +37,17 @@ for (const [id, m] of Object.entries(mods)) {
   if (!w.some(([, n]) => n > 0) || !m.text) continue;
   // tags: the mod's own tags (Fire, Attack, Life…) as the game shows them; grp: mods in one group can't roll together
   const tags = (m.implicit_tags || []).filter((t) => t !== 'default');
-  modList.push({ id, aff: m.generation_type[0], dom: m.domain, type: m.type, name: m.name || '', lvl: m.required_level || 1, text: m.text.replace(/\r/g, ''), w, ...(tags.length ? { tags } : {}), ...(m.groups?.length ? { grp: m.groups[0] } : {}) });
+  // "Socketed Gems are Supported by Level 20 Hypothermia": the export leaves this line out of the text
+  let text = m.text.replace(/\r/g, '');
+  for (const st of m.stats || []) {
+    const g = /^local_display_socketed_gems_(?:supported_by_level_x_|supported_by_x_|get_)(.+?)(?:_level)?$/.exec(st.id);
+    if (!g) continue;
+    const gem = g[1].split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+    // the game's files don't say the gem level here (it comes with the tier): "#"
+    const lvl = !st.max ? '#' : st.min === st.max ? String(st.min) : `(${st.min}-${st.max})`;
+    text = `Socketed Gems are Supported by Level ${lvl} ${gem} Support\n${text}`;
+  }
+  modList.push({ id, aff: m.generation_type[0], dom: m.domain, type: m.type, name: m.name || '', lvl: m.required_level || 1, text, w, ...(tags.length ? { tags } : {}), ...(m.groups?.length ? { grp: m.groups[0] } : {}) });
 }
 
 const influence = {};
