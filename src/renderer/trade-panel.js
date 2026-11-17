@@ -284,14 +284,28 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   // an unidentified unique: which one it is (as Awakened PoE Trade asks). One possible (Voices): said, and searched.
   // More: pick one, and it's searched as that unique, unidentified ones only
   const choices = prep.uniqueChoices || [];
+  // once it's known which unique it is, the window's picture is that unique's
+  const chosen = choices.length === 1 ? choices[0] : props.uniqueName || null;
+  if (chosen) {
+    const head = document.querySelector('.ov-pic');
+    if (head && head.dataset.unique !== chosen) {
+      const pic = window.UI.itemPic(chosen, { size: 48, hint: 'Unique' });
+      pic.classList.add('ov-pic'); pic.dataset.unique = chosen;
+      head.replaceWith(pic);
+    }
+  }
+  const pick = (n) => { props.uniqueName = n; mountAgain(); if (n) setTimeout(() => box.querySelector('.tp-go button.primary')?.click(), 0); };
   const which = choices.length === 1
-    ? h('div', { class: 'tp-which one' }, window.UI.itemPic(choices[0], { size: 34 }), h('div', {}, h('b', {}, choices[0]), h('div', { class: 'small muted' }, 'The only unique on this base. Searched as unidentified ones.')))
+    ? h('div', { class: 'tp-which one' }, window.UI.itemPic(choices[0], { size: 34, hint: 'Unique' }), h('div', {}, h('b', {}, choices[0]), h('div', { class: 'small muted' }, 'The only unique on this base. Searched as unidentified ones.')))
+    // picked: just that one (and a way back); the prices follow
+    : choices.length > 1 && props.uniqueName ? h('div', { class: 'tp-which one' }, window.UI.itemPic(props.uniqueName, { size: 34, hint: 'Unique' }),
+      h('div', { class: 'row', style: { gap: '10px' } }, h('div', {}, h('b', {}, props.uniqueName), h('div', { class: 'small muted' }, 'Searched as unidentified ones.')),
+        h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => pick(null) }, 'Change')))
     : choices.length > 1 ? h('div', { class: 'tp-which' },
       h('div', { class: 'tp-ghead' }, 'Which unique is it?'),
-      h('div', { class: 'tp-which-grid' }, choices.map((n) => h('button', { class: 'tp-which-btn' + (props.uniqueName === n ? ' on' : ''), 'aria-pressed': props.uniqueName === n ? 'true' : 'false',
-        onclick: () => { props.uniqueName = props.uniqueName === n ? null : n; mountAgain(); if (props.uniqueName) setTimeout(() => box.querySelector('.tp-go button.primary')?.click(), 0); } },
-        window.UI.itemPic(n, { size: 30 }), h('span', {}, n)))),
-      h('div', { class: 'small faint' }, props.uniqueName ? `Searching ${props.uniqueName}, unidentified ones only. Click it again to search any unique on this base.` : 'Pick one to search it; until then the search finds any unique on this base.'))
+      h('div', { class: 'tp-which-grid' }, choices.map((n) => h('button', { class: 'tp-which-btn', onclick: () => pick(n) },
+        window.UI.itemPic(n, { size: 30, hint: 'Unique' }), h('span', {}, n)))),
+      h('div', { class: 'small faint' }, 'Pick one to see its prices.'))
     : null;
   // (the "Search as: finished item / crafting base" choice is gone: the price check searches the finished item)
   mount(box,

@@ -235,17 +235,17 @@ function render(p) {
       h('span', { class: 'big' }, window.UI.money(price.chaos, divine)),
       conf[1] ? h('span', { class: `ov-conf ${conf[0]}` }, h('span', { 'aria-hidden': 'true' }, conf[2]), ` ${conf[1]}`) : null);
     if (price.stackSize > 1) body.append(h('div', { class: 'small' }, `Your stack of ${price.stackSize} is worth `, h('b', {}, chaosDiv(price.totalChaos, divine))));
-    if (price.range) body.append(h('div', { class: 'small muted' }, item.flags?.unidentified ? `Uniques on this base sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Identify it to know which one it is.` : `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Check the mods.`));
+    if (price.range && !(item.rarity === 'Unique' && item.flags?.unidentified)) body.append(h('div', { class: 'small muted' }, item.flags?.unidentified ? `Uniques on this base sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Identify it to know which one it is.` : `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Check the mods.`));
     // an unidentified unique: every unique on its base, most valuable first (thin listings marked)
     const unidUnique = item.rarity === 'Unique' && item.flags?.unidentified;
-    if (price.matches?.length > 1 && !/Map$/i.test(price.category || '')) { // maps: the tier decides, the list only repeats it
+    if (price.matches?.length > 1 && !unidUnique && !/Map$/i.test(price.category || '')) { // maps: the tier decides, the list only repeats it
       body.append(h('div', { class: 'ov-block' }, h('div', { class: 't' }, unidUnique ? 'Uniques on this base, most valuable first' : 'Close matches'),
         h('div', { class: 'ov-list' }, price.matches.slice(0, unidUnique ? 8 : 4).map((m) => h('div', { class: 'li' },
           h('span', { class: 'muted', title: m.listingCount != null ? `${m.listingCount} listed` : '' }, unidUnique ? `${m.name}${m.variant ? ` (${m.variant})` : ''}${m.links ? `, ${m.links}-link` : ''}${m.listingCount != null && m.listingCount < 5 ? ` · only ${m.listingCount} listed` : ''}` : [m.variant, m.links ? `${m.links}-link` : null, m.gemLevel ? `${m.gemLevel}/${m.gemQuality || 0}%` : null, m.corrupted ? 'corrupted' : null, m.levelRequired && price.category === 'BaseType' ? `ilvl ${m.levelRequired}+` : null].filter(Boolean).join(', ') || m.name),
           h('span', { class: 'spacer' }),
           h('span', {}, chaosDiv(m.chaos, divine)))))));
     }
-  } else if (price && !modPriced && p.kind !== 'rare' && p.kind !== 'magic') {
+  } else if (price && !modPriced && p.kind !== 'rare' && p.kind !== 'magic' && !(item.rarity === 'Unique' && item.flags?.unidentified)) {
     body.append(h('div', { class: 'muted' }, 'poe.ninja has no price for this item.'));
   }
   // (the "prices from N min ago" line is gone: it said little and took space)
@@ -272,7 +272,8 @@ function render(p) {
   // your base rank: the badge in the header (its tooltip has the details)
 
   // --- unique collection: tick the uniques you own; a base where you own every one and all are cheap is hidden ---
-  if (p.collection?.uniques?.length) body.append(collectionBlock(p.collection));
+  // (not for jewels: a jewel base has dozens of uniques; tick them on the My collection page)
+  if (p.collection?.uniques?.length && !/jewel/i.test(item.itemClass || '')) body.append(collectionBlock(p.collection));
 
   // --- Path of Building: what this item does to your build (the compare hotkey only) ---
   if (p.pob) body.append(pobSection(p.pob));

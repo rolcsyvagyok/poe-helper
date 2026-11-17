@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.128 - 2026-11-17
+
+* [Trade searches] "Which unique is it?" shows each unique's picture; unidentified uniques no longer list every unique and its price.
+- Price check: the uniques in "Which unique is it?" have their pictures. Once you pick one, the list folds away to just that unique (with Change), its prices show, and the window's picture becomes that unique.
+- Price check: for an unidentified unique, the "sell for 1 to 76 050 chaos" line and the "Uniques on this base" list are gone; "Which unique is it?" covers them.
+- Price check: jewels no longer show the My collection list (a jewel base has dozens of uniques); tick them on the My collection page.
+
 ## 1.0.127 - 2026-11-17
 
 * [Loot filter] Voices (any unique Large Cluster Jewel, unidentified too) now gets the top unique look and its tink.
