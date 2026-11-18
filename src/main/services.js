@@ -38,6 +38,8 @@ const DEFAULT_SETTINGS = {
   chatMacroClear: true, // before a macro's text: let out a waiting ^ (accent key) and empty the chat line
   chatMacros: [{ key: 'F1', text: '/exit', send: true }, { key: 'F2', text: '/hideout', send: true }, { key: 'F3', text: '', send: true }, { key: 'F4', text: '', send: true }, { key: 'F5', text: '', send: true }],
   pobCompareOn: true, // the price check also shows what the item does to your build (Path of Building); off: PoB isn't started for it
+  hotkeyAltClick: '', // one Alt + left click where the mouse is (off until you set a key)
+  hotkeyClick: '', // one left click where the mouse is
   hotkeyLab: 'Alt+L', // daily lab overlay: pick a difficulty, see today's layout from poelab
   labLast: 'uber',
   labFavorite: null, // the lab the hotkey opens straight away (null: ask every time)
@@ -833,7 +835,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // saved trade searches, the lab overlay. Never your account, login (POESESSID), league, folders on
   // your PC (Path of Exile, Path of Building, the filter), history, net worth or caches.
   const APP_KEYS = ['uiTheme', 'collectAutoHours', 'hotkeyPrice', 'hotkeySnapshot', 'hotkeyPobTest', 'chatMacrosOn', 'chatMacroClear', 'chatMacros', 'pobCompareOn',
-    'hotkeyLab', 'labFavorite', 'labOpacity', 'clipboardMode', 'restoreClipboard', 'overlayCloseOnMouseAway', 'minimizeToTray',
+    'hotkeyLab', 'hotkeyAltClick', 'hotkeyClick', 'labFavorite', 'labOpacity', 'clipboardMode', 'restoreClipboard', 'overlayCloseOnMouseAway', 'minimizeToTray',
     'appIconStyle', 'regexMaps', 'regexGems', 'regexGemClass', 'regexCampaign', 'regexItems', 'regexBeasts', 'regexFavMods',
     'regexTrade', 'regexPresets', 'dailyGggBudget', 'ninjaTtlMin', 'autoSnapshotMin', 'minItemChaos', 'tradeTolerance',
     'tradeStatus', 'tradeFetchListings', 'tradeAutoSearch', 'tradeSearches', 'overviewBgOff', 'fbSideMini', 'fbSideWidth', 'filterPins', 'autoWatchFilter'];

@@ -25,6 +25,7 @@ function load() {
       api.iconic = u.func('bool __stdcall IsIconic(intptr_t hWnd)');
       void RECT; void POINT;
     } catch { /* no window rect: the stream window shows the whole screen */ }
+    try { api.mouse = u.func('void __stdcall mouse_event(uint32 flags, uint32 dx, uint32 dy, uint32 data, uintptr_t extra)'); } catch { /* no clicks */ }
   } catch { api = null; }
   return api;
 }
@@ -57,4 +58,13 @@ function poeRect() {
   } catch { return null; }
 }
 
-module.exports = { poeInFront, poeRect };
+/** One left click where the mouse is (Windows). */
+function leftClick() {
+  const a = load();
+  if (!a?.mouse) return false;
+  a.mouse(0x0002, 0, 0, 0, 0); // left down
+  a.mouse(0x0004, 0, 0, 0, 0); // left up
+  return true;
+}
+
+module.exports = { poeInFront, poeRect, leftClick };

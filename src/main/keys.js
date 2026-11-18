@@ -101,4 +101,25 @@ function stopHook() {
   if (hook && started) { try { hook.uIOhook.stop(); } catch { /* ignore */ } started = false; }
 }
 
-module.exports = { hasKeySender, sendCopy, sendChat, onMouse, stopHook };
+/**
+ * One click for a hotkey: a left click where the mouse is, or Alt + left click. One click per key press
+ * (GGG's rule: one action per key press). The hotkey's own modifiers are let go first, so Alt+Q doesn't
+ * turn a plain click into an Alt click.
+ */
+async function sendClick({ alt = false, held = [], click } = {}) {
+  if (!hook || !click) return false;
+  const { uIOhook, UiohookKey } = hook;
+  const M = { Alt: UiohookKey.Alt, Shift: UiohookKey.Shift, Ctrl: UiohookKey.Ctrl, Super: UiohookKey.Meta };
+  for (const m of held) { if (M[m] != null && !(alt && m === 'Alt')) { try { uIOhook.keyToggle(M[m], 'up'); } catch { /* ignore */ } } }
+  if (held.length) await wait(15);
+  try {
+    if (alt) { uIOhook.keyToggle(UiohookKey.Alt, 'down'); await wait(HOLD_MS); }
+    click();
+    await wait(HOLD_MS);
+  } finally {
+    if (alt) { try { uIOhook.keyToggle(UiohookKey.Alt, 'up'); } catch { /* ignore */ } }
+  }
+  return true;
+}
+
+module.exports = { hasKeySender, sendCopy, sendChat, sendClick, onMouse, stopHook };

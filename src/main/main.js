@@ -421,6 +421,15 @@ function registerHotkeys({ quiet = false } = {}) {
   tryReg('hotkeyLab', () => toggleLab());
   tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
   tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
+  // one click per press, only while the game is in front (anywhere else the key does nothing)
+  const clickKey = (alt) => (acc) => {
+    const fg = require('./foreground');
+    if (fg.poeInFront() === false) return;
+    const held = String(acc).split('+').slice(0, -1).map((m) => (/^(Command|Cmd|Control|Ctrl|CommandOrControl|CmdOrCtrl)$/i.test(m) ? 'Ctrl' : /^Option$/i.test(m) ? 'Alt' : m));
+    keysMod.sendClick({ alt, held, click: fg.leftClick }).catch((e) => log('click hotkey', e.message));
+  };
+  tryReg('hotkeyAltClick', clickKey(true));
+  tryReg('hotkeyClick', clickKey(false));
   if (overlay?.isVisible()) armOverlayClose(overlayAnchor || screen.getCursorScreenPoint());
   // unregisterAll above dropped the chat macro keys too
   if (!chatMacros) chatMacros = createChatMacros({ globalShortcut, clipboard, keys: keysMod, foreground: require('./foreground'), settings: s, log, onSend: () => { suppressClipboardUntil = Date.now() + 1500; } });
@@ -893,7 +902,7 @@ function registerIpc() {
     }
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if ('hotkeyPrice' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyAltClick' in clean || 'hotkeyClick' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();

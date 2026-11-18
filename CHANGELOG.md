@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.145 - 2026-11-18
+
+* [Settings] Two new hotkeys under Price check: one Alt + left click, and one left click, where your mouse is. One click per key press, only while the game is in front.
+- Settings → Price check: "Alt + left click" and "Left click" hotkeys. Off until you set a key. Each press does one click where the mouse is, and only while Path of Exile is the window in front.
+
 ## 1.0.144 - 2026-11-18
 
 * [Crafting] Tick the mods you want: Best blockers shows which bench craft raises your chance of hitting them the most.
