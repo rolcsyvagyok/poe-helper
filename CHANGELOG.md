@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.144 - 2026-11-18
+
+* [Crafting] Tick the mods you want: Best blockers shows which bench craft raises your chance of hitting them the most.
+* [Crafting] New sections: each influence's own mods, and what Veiled mods can unveil into.
+- Crafting: a blocker takes a slot and stops its kind of mod rolling; hybrid crafts stop two kinds, and "Cannot roll Attack / Caster Modifiers" stops every attack / caster mod on both sides. Each blocker shows its cost, what it blocks and the chance before and after. Blockers that would block what you want are left out.
+- Crafting: Influence mods (pick Shaper, Elder, Crusader, Hunter, Redeemer or Warlord) and Veiled mods (with the chance each is among the 3 you're offered).
+
 ## 1.0.143 - 2026-11-17
 
 - Loot filter: if you made a Stacked Deck tier in Currency, stacks of Stacked Decks (3 or more, 6 or more) get their own Stacked Deck tier too, with the same look.

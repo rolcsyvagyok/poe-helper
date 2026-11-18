@@ -10,7 +10,7 @@ const baseByName = new Map(DATA.bases.map((b) => [b.name, b]));
 const INFLUENCES = [['shaper', 'Shaper'], ['elder', 'Elder'], ['crusader', 'Crusader'], ['basilisk', 'Hunter'], ['eyrie', 'Redeemer'], ['adjudicator', 'Warlord']];
 
 // the game's tags as the item text shows them; the others only steer the game's own rules
-const HIDDEN_TAGS = new Set(['physical_damage', 'elemental_damage', 'caster_damage', 'chaos_damage', 'influence_mod', 'necropolis_exclusive_mod', 'red_herring', 'flat_life_regen', 'resource', 'drop']);
+const HIDDEN_TAGS = new Set(['physical_damage', 'elemental_damage', 'caster_damage', 'chaos_damage', 'influence_mod', 'necropolis_exclusive_mod', 'red_herring', 'flat_life_regen', 'resource', 'drop', 'unveiled_mod']);
 const TAG_NAMES = { dot_multi: 'Damage over Time', energy_shield: 'Energy Shield', power_charge: 'Power Charge', endurance_charge: 'Endurance Charge', frenzy_charge: 'Frenzy Charge', defences: 'Defences' };
 const tagName = (t) => TAG_NAMES[t] || t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const showTags = (tags = []) => tags.filter((t) => !HIDDEN_TAGS.has(t)).map(tagName);
@@ -117,6 +117,105 @@ function craftBases() {
  * Returns { base, ilvl, influences, prefix: { total, families }, suffix: { … }, tags: [{ tag, prefix, suffix }] }.
  * A family is one kind of mod (its tiers best first); chance = its weight / every weight on that side.
  */
+/**
+ * Every mod of one domain a base with these tags can roll, as families with chances on each side.
+ * dom 'unveiled': the mods Jun's Veiled mods unveil into.
+ */
+function poolsFor(base, tags, ilvl, dom) {
+  const fams = new Map();
+  for (const m of DATA.mods) {
+    if (m.dom !== dom) continue;
+    const w = weightOn(m, tags);
+    if (!(w > 0)) continue;
+    const key = `${m.aff}|${m.type}`;
+    if (!fams.has(key)) {
+      const inf = INFLUENCES.find(([id]) => m.w.some(([tag, n]) => n > 0 && tags.has(tag) && tag.endsWith(`_${id}`)));
+      fams.set(key, { key, aff: m.aff === 'p' ? 'prefix' : 'suffix', group: m.grp || m.type, tags: showTags(m.tags), influence: inf ? inf[1] : null, tiers: [] });
+    }
+    fams.get(key).tiers.push({ name: m.name, lvl: m.lvl, text: cleanText(m.text), weight: w, open: m.lvl <= ilvl });
+  }
+  const sides = { prefix: { total: 0, families: [] }, suffix: { total: 0, families: [] } };
+  for (const f of fams.values()) {
+    f.tiers.sort((a, b) => b.lvl - a.lvl || a.text.localeCompare(b.text));
+    f.tiers.forEach((t, i) => { t.tier = i + 1; });
+    f.weight = f.tiers.filter((t) => t.open).reduce((n, t) => n + t.weight, 0);
+    const top = f.tiers.find((t) => t.open) || f.tiers[0];
+    f.text = top.text.replace(/\((-?[\d.]+)-(-?[\d.]+)\)/g, '#').replace(/(^|[^\w])-?\d+(\.\d+)?/g, '$1#');
+    f.range = rangeText(f.tiers.filter((t) => t.open).map((t) => t.text)) || f.text;
+    if (!f.weight) continue;
+    sides[f.aff].families.push(f);
+    sides[f.aff].total += f.weight;
+  }
+  for (const s of Object.values(sides)) {
+    for (const f of s.families) { f.chance = f.weight / s.total; for (const t of f.tiers) t.chance = t.open ? t.weight / s.total : 0; }
+    s.families.sort((a, b) => b.chance - a.chance || a.text.localeCompare(b.text));
+  }
+  return sides;
+}
+
+/** Unveiling offers 3 different mods: the chance each one is among them (drawn by weight, no repeats). */
+function withOffered(sides) {
+  for (const s of Object.values(sides)) {
+    const p = s.families.map((f) => f.chance);
+    const n = p.length;
+    s.families.forEach((f, i) => {
+      if (n <= 3) { f.offered = 1; return; }
+      let q = p[i];
+      for (let j = 0; j < n; j++) {
+        if (j === i) continue;
+        q += p[j] * p[i] / (1 - p[j]);
+        for (let k = 0; k < n; k++) if (k !== i && k !== j) q += p[j] * (p[k] / (1 - p[j])) * (p[i] / (1 - p[j] - p[k]));
+      }
+      f.offered = Math.min(1, q);
+    });
+  }
+  return sides;
+}
+
+/**
+ * Blockers: bench crafts that make the mods you want likelier. A crafted mod takes a slot on its side and
+ * stops its mod group(s) rolling there (a hybrid like "+# to Strength and Dexterity" stops two groups);
+ * "Cannot roll Attack / Caster Modifiers" stops every attack / caster mod on both sides. For each one: the
+ * chance a new prefix / suffix is one you ticked, before and after. Blockers that would block what you
+ * want are left out.
+ */
+function blockersFor(cls, v, targets) {
+  const want = new Set(targets || []);
+  if (!want.size) return null;
+  const sides = ['prefix', 'suffix'];
+  const live = (f) => !f.yours && !f.blocked;
+  const chance = (side, out = new Set()) => {
+    const fs = v[side].families.filter((f) => live(f) && !out.has(f.key));
+    const tot = fs.reduce((n, f) => n + f.weight, 0);
+    const hit = fs.filter((f) => want.has(f.key)).reduce((n, f) => n + f.weight, 0);
+    return tot ? hit / tot : 0;
+  };
+  const wantSides = sides.filter((sd) => v[sd].families.some((f) => want.has(f.key)));
+  const before = Object.fromEntries(wantSides.map((sd) => [sd, chance(sd)]));
+  const rows = [];
+  for (const b of DATA.bench || []) {
+    if (!b.cls.includes(cls)) continue;
+    const bSide = b.aff === 'p' ? 'prefix' : 'suffix';
+    const out = new Set();
+    const blocked = [];
+    for (const sd of sides) for (const f of v[sd].families) {
+      if (!live(f)) continue;
+      const hit = b.meta ? (f.rawTags || []).includes(b.meta) : sd === bSide && b.groups.includes(f.group);
+      if (hit) { out.add(f.key); blocked.push({ side: sd, text: f.range || f.text, weight: f.weight, chance: f.chance }); }
+    }
+    if (!blocked.length || [...out].some((k) => want.has(k))) continue;
+    const after = Object.fromEntries(wantSides.map((sd) => [sd, chance(sd, out)]));
+    const gain = wantSides.reduce((n, sd) => n + (after[sd] - before[sd]), 0) / wantSides.length;
+    if (!(gain > 1e-9)) continue;
+    rows.push({ text: cleanText(b.text), side: bSide, cost: b.cost, meta: b.meta || null, groups: b.groups.length, blocked, before, after, gain, takesSlot: bSide });
+  }
+  // one line per blocker (its cheapest tier): the same groups blocked the same way
+  const best = new Map();
+  for (const r of rows) { const k = `${r.side}|${r.meta || r.blocked.map((x) => x.text).join('|')}`; const p = best.get(k); if (!p) best.set(k, r); }
+  const list = [...best.values()].sort((a, b) => b.gain - a.gain);
+  return { before, sides: wantSides, rows: list.slice(0, 12) };
+}
+
 function craftView(o = {}) {
   const item = o.item ? readItem(o.item) : null;
   if (item?.base) o = { ...o, base: item.base, ilvl: o.ilvl || item.ilvl, influences: o.influences || item.influences };
@@ -215,6 +314,16 @@ function craftView(o = {}) {
     base: { name: base.name, cls: base.cls, lvl: base.lvl },
     ilvl, influences, canInfluence: infTags.length > 0,
     prefix: sides.prefix, suffix: sides.suffix,
+    blockers: blockersFor(base.cls, sides, o.targets),
+    // Jun's Veiled mods: what a veiled prefix / suffix unveils into on this base (you pick 1 of 3 offered)
+    veiled: base.dom === 'item' ? withOffered(poolsFor(base, new Set(base.tags), ilvl, 'unveiled')) : null,
+    // each influence's own mods, with their chance if the item had that influence (and no other)
+    influenceMods: infTags.length ? Object.fromEntries(INFLUENCES.map(([id, name]) => {
+      const t = new Set(base.tags); const it = infTags.find((x) => x.endsWith(`_${id}`)); if (it) t.add(it);
+      const sides = poolsFor(base, t, ilvl, base.dom);
+      for (const k of ['prefix', 'suffix']) sides[k] = { total: sides[k].total, families: sides[k].families.filter((f) => f.influence === name) };
+      return [id, sides];
+    })) : null,
     item: item ? { rarity: item.rarity, fractured: item.fractured, corrupted: item.corrupted, mods: yours, slots: slotsFor(base, item, yours), unknown: item.base ? 0 : 1 } : null,
     tags: [...tagTotals.values()].sort((a, b) => b.prefix + b.suffix - (a.prefix + a.suffix)),
   };

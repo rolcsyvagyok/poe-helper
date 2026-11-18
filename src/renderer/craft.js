@@ -3,7 +3,7 @@
    laid out like Craft of Exile: bases on the left, the prefix and suffix pools side by side. */
 (function () {
   const { h, mount, call } = window.UI;
-  const C = { item: null, paste: false, bases: null, cls: 'Body Armour', attr: 'INT', base: 'Vaal Regalia', ilvl: 86, inf: [], tag: null, open: {}, q: '' };
+  const C = { targets: new Set(), infTab: 'shaper', item: null, paste: false, bases: null, cls: 'Body Armour', attr: 'INT', base: 'Vaal Regalia', ilvl: 86, inf: [], tag: null, open: {}, q: '' };
   const pct = (x) => (x >= 0.1 ? `${(x * 100).toFixed(2)}%` : x > 0 ? `${(x * 100).toFixed(2)}%` : '–');
   const INF = [['shaper', 'Shaper'], ['elder', 'Elder'], ['crusader', 'Crusader'], ['basilisk', 'Hunter'], ['eyrie', 'Redeemer'], ['adjudicator', 'Warlord']];
   const GROUPS = [
@@ -23,7 +23,8 @@
   async function render() {
     const el = document.getElementById('page-craft');
     if (!C.bases) C.bases = await call('craft:bases');
-    const view = await call('craft:view', C.item ? { item: C.item, ilvl: C.itemIlvl || undefined, influences: C.itemInf || undefined } : { base: C.base, ilvl: C.ilvl, influences: C.inf });
+    const targets = [...C.targets];
+    const view = await call('craft:view', C.item ? { item: C.item, ilvl: C.itemIlvl || undefined, influences: C.itemInf || undefined, targets } : { base: C.base, ilvl: C.ilvl, influences: C.inf, targets });
     if (C.item && !view) { C.item = null; window.UI.toast('That item\'s base isn\'t one that rolls mods.', true); return render(); }
     // your item: the left side shows its base
     if (C.item && view) { C.cls = view.base.cls; C.base = view.base.name; C.attr = C.bases.find((c) => c.cls === C.cls)?.bases.find((b) => b.name === C.base)?.attr || null; }
@@ -32,7 +33,7 @@
   const pick = (cls, base) => {
     const c = C.bases.find((x) => x.cls === cls);
     if (!c) return;
-    C.item = null; C.itemIlvl = null; C.itemInf = null;
+    C.item = null; C.itemIlvl = null; C.itemInf = null; C.targets = new Set();
     C.cls = cls; C.base = base || c.bases[c.bases.length - 1].name;
     C.attr = c.bases.find((b) => b.name === C.base)?.attr || null;
     C.inf = []; C.tag = null; C.open = {}; render();
@@ -67,9 +68,13 @@
     const openTiers = f.tiers.filter((t) => t.open);
     return h('div', { class: 'co-mod' + (hit ? '' : ' dim') + (open ? ' open' : '') + (f.yours ? ' yours' : '') + (f.blocked ? ' blocked' : '') },
       h('button', { class: 'co-modhead', 'aria-expanded': open ? 'true' : 'false', onclick: () => { C.open[f.key] = !open; render(); } },
-        h('span', { class: 'co-tiers' }, `${openTiers.length}`),
+        f.yours || f.blocked || f.offered != null ? h('span', { class: 'co-tiers' }, `${openTiers.length}`) :
+          h('span', { class: 'co-want' + (C.targets.has(f.key) ? ' on' : ''), role: 'checkbox', 'aria-checked': C.targets.has(f.key) ? 'true' : 'false', tabindex: 0, title: 'Tick the mods you want: Crafting finds the best blocker for them',
+            onclick: (e) => { e.stopPropagation(); if (C.targets.has(f.key)) C.targets.delete(f.key); else C.targets.add(f.key); render(); },
+            onkeydown: (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); e.target.click(); } } }, C.targets.has(f.key) ? '✓' : ''),
         h('span', { class: 'co-modtext' }, f.range.split('\n').map((l) => h('div', {}, l)),
-          mine, h('div', { class: 'co-tagline' }, f.influence ? h('span', { class: 'co-tag co-inf' }, f.influence) : null, f.tags.map((t) => tagChip(t, C.tag === t ? ' on' : '')))),
+          mine, f.offered != null ? h('span', { class: 'co-offer' }, `In the 3 you're offered: ${pct(f.offered)}`) : null,
+          h('div', { class: 'co-tagline' }, f.influence ? h('span', { class: 'co-tag co-inf' }, f.influence) : null, f.tags.map((t) => tagChip(t, C.tag === t ? ' on' : '')))),
         h('span', { class: 'co-w' }, String(f.weight)),
         h('span', { class: 'co-p' }, f.yours ? '✓' : pct(f.chance))),
       open ? h('div', { class: 'co-tierlist' }, f.tiers.map((t) => h('div', { class: 'co-tier' + (t.open ? '' : ' locked') + (f.yours?.tier === t.tier ? ' yours' : ''), title: t.open ? '' : `Needs item level ${t.lvl}` },
@@ -92,6 +97,29 @@
       h('div', { class: 'co-cols small faint' }, h('span', {}, 'Tiers'), h('span', {}, 'Modifier'), h('span', { class: 'r' }, 'Weight'), h('span', { class: 'r' }, 'Chance')),
       full ? h('div', { class: 'co-note' }, `No open ${side}: a new one can't roll until you remove one.`) : null,
       s.families.length ? s.families.map(modRow) : h('div', { class: 'small muted', style: { padding: '10px' } }, 'None at this item level.'));
+  }
+
+  // the best blockers for the mods you ticked
+  function blockerPanel(v) {
+    const B = v.blockers;
+    const side = (sd) => (sd === 'prefix' ? 'prefix' : 'suffix');
+    return h('section', { class: 'co-block panel' },
+      h('div', { class: 'co-bhead' }, h('h3', {}, 'Best blockers'),
+        h('span', { class: 'small muted' }, `You want ${C.targets.size} mod${C.targets.size === 1 ? '' : 's'}. ${B.sides.map((sd) => `A new ${side(sd)} is one of them: ${pct(B.before[sd])}`).join(' · ')}.`),
+        h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => { C.targets = new Set(); render(); } }, 'Clear ticks')),
+      B.rows.length ? B.rows.slice(0, C.moreBlockers ? 12 : 4).map((r, i) => h('div', { class: 'co-brow' + (i === 0 ? ' best' : '') },
+        h('div', { class: 'co-bmain' },
+          i === 0 ? h('span', { class: 'co-tag co-bestt' }, 'Best') : null,
+          h('b', {}, r.text.split('\n').join(' / ')),
+          h('span', { class: 'co-tag co-other' }, `crafted ${r.side}`),
+          r.meta ? h('span', { class: 'co-tag co-meta' }, `blocks every ${r.meta} mod, both sides`) : r.groups > 1 ? h('span', { class: 'co-tag co-meta' }, `blocks ${r.groups} kinds`) : null,
+          h('span', { class: 'faint small' }, r.cost)),
+        h('div', { class: 'co-bafter' }, B.sides.map((sd) => h('span', {}, `${side(sd)}: ${pct(B.before[sd])} → `, h('b', {}, pct(r.after[sd])), r.after[sd] > B.before[sd] ? h('span', { class: 'co-up' }, ` ×${(r.after[sd] / Math.max(1e-9, B.before[sd])).toFixed(2)}`) : null))),
+        h('div', { class: 'co-blocked small faint' }, 'Blocks: ', r.blocked.slice(0, 8).map((x) => x.text.split('\n')[0]).join(' · '), r.blocked.length > 8 ? ` · and ${r.blocked.length - 8} more` : ''),
+        h('div', { class: 'small faint' }, `Takes a ${r.side} slot.`))) :
+        h('div', { class: 'small muted' }, 'No bench craft helps here: nothing it blocks is in the way, or it would block what you want.'),
+      B.rows.length > 4 ? h('button', { class: 'quiet sm', onclick: () => { C.moreBlockers = !C.moreBlockers; render(); } }, C.moreBlockers ? 'Show fewer' : `Show ${Math.min(12, B.rows.length) - 4} more`) : null,
+      h('div', { class: 'small faint' }, 'Chances are for one new mod (Exalted Orb, Harvest, Veiled Chaos…). A blocker you craft has to be removed afterwards to free its slot.'));
   }
 
   function draw(el, v) {
@@ -126,7 +154,17 @@
         v ? h('div', { class: 'co-tagbar' }, h('span', { class: 'small muted' }, 'Tags'),
           v.tags.map((t) => h('button', { class: 'co-tagbtn' + (C.tag === t.tag ? ' on' : ''), 'aria-pressed': C.tag === t.tag ? 'true' : 'false', onclick: () => { C.tag = C.tag === t.tag ? null : t.tag; render(); }, title: `A new prefix has it ${pct(t.prefix)}, a new suffix ${pct(t.suffix)}` },
             tagChip(t.tag), h('span', { class: 'faint' }, `${t.prefix ? pct(t.prefix) : '–'} / ${t.suffix ? pct(t.suffix) : '–'}`)))) : null,
+        v?.blockers ? blockerPanel(v) : C.targets.size === 0 && v ? h('div', { class: 'small faint', style: { margin: '0 0 8px' } }, 'Tick the mods you want (the box left of each mod) to see which bench craft blocks the most of the rest.') : null,
         v ? h('div', { class: 'co-pools' }, pool('Prefixes', v.prefix, 'prefix', v), pool('Suffixes', v.suffix, 'suffix', v)) : h('div', { class: 'panel' }, 'Pick a base.'),
+        v?.influenceMods ? h('div', { class: 'co-extra' },
+          h('div', { class: 'co-xhead' }, h('h3', {}, 'Influence mods'),
+            h('span', { class: 'small muted' }, 'Each influence\'s own mods, with their chance if the item had only that influence.'),
+            h('div', { class: 'co-infs', role: 'tablist' }, INF.map(([id, name]) => h('button', { class: 'co-infbtn' + (C.infTab === id ? ' on' : ''), role: 'tab', 'aria-selected': C.infTab === id ? 'true' : 'false', onclick: () => { C.infTab = id; render(); } }, name)))),
+          h('div', { class: 'co-pools' }, pool(`${INF.find(([i]) => i === C.infTab)[1]} prefixes`, v.influenceMods[C.infTab].prefix), pool(`${INF.find(([i]) => i === C.infTab)[1]} suffixes`, v.influenceMods[C.infTab].suffix))) : null,
+        v?.veiled && (v.veiled.prefix.families.length || v.veiled.suffix.families.length) ? h('div', { class: 'co-extra' },
+          h('div', { class: 'co-xhead' }, h('h3', {}, 'Veiled mods'),
+            h('span', { class: 'small muted' }, 'What a Veiled Prefix or Suffix can unveil into on this base. Unveiling offers 3 of them; you keep one.')),
+          h('div', { class: 'co-pools' }, pool('Unveiled prefixes', v.veiled.prefix), pool('Unveiled suffixes', v.veiled.suffix))) : null,
         h('p', { class: 'small faint' }, 'Chance: how likely one new prefix (or suffix) is that mod group, e.g. from a Chaos Orb, Exalted Orb or Orb of Alchemy. Mods already on the item would raise the others a bit. Weights come from the game\'s files.'))));
   }
 

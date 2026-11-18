@@ -55,3 +55,24 @@ test('captured beasts are priced from poe.ninja\'s beasts by name', async () => 
   const r = await p.price(it);
   assert.strictEqual(r.chaos, 45);
 });
+
+test('crafting: veiled mods (what unveiling can give) and each influence\'s own mods', () => {
+  const v = c.craftView({ base: 'Vaal Regalia', ilvl: 86 });
+  assert.ok(v.veiled.prefix.families.length > 0 && v.veiled.suffix.families.length > 0);
+  for (const s of [v.veiled.prefix, v.veiled.suffix]) assert.ok(Math.abs(s.families.reduce((n, f) => n + f.chance, 0) - 1) < 1e-9);
+  assert.ok(v.veiled.suffix.families.every((f) => f.offered >= f.chance && f.offered <= 1));
+  assert.ok(!v.veiled.prefix.families.some((f) => f.tags.includes('Unveiled Mod')));
+  for (const [id] of c.INFLUENCES) assert.ok(v.influenceMods[id].prefix.families.length + v.influenceMods[id].suffix.families.length > 0, id);
+  assert.ok(v.influenceMods.elder.suffix.families.every((f) => f.influence === 'Elder'));
+});
+
+test('crafting: the best blocker for the mods you want (a metacraft blocks a whole tag on both sides)', () => {
+  let v = c.craftView({ base: 'Imbued Wand', ilvl: 86 });
+  const want = v.prefix.families.filter((f) => f.group === 'WeaponSpellDamage' || /^p\|WeaponSpellDamage/.test(f.key)).map((f) => f.key);
+  v = c.craftView({ base: 'Imbued Wand', ilvl: 86, targets: want });
+  const best = v.blockers.rows[0];
+  assert.strictEqual(best.meta, 'attack');
+  assert.ok(best.after.prefix > v.blockers.before.prefix);
+  // a blocker that would block what you want isn't offered
+  assert.ok(!v.blockers.rows.some((r) => r.meta === 'caster'));
+});

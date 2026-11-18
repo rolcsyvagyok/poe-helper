@@ -1934,3 +1934,26 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .mp-delta.down { color: #f0a060; }
 .mp-count { text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
 .mp-count.few { color: #f0a060; font-weight: 600; }
+
+.co-extra { margin-top: 16px; }
+.co-xhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.co-xhead h3 { margin: 0; font: 600 16px Georgia, serif; color: #f3dfae; }
+.co-xhead .co-infs { width: auto; }
+.co-offer { display: block; font-size: 11px; color: #9fc6ff; margin-top: 2px; }
+
+/* Crafting: mods you want, and the best blockers for them */
+.co-want { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 4px; border: 1.5px solid var(--faint); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.co-want.on { background: #2d5aa0; border-color: #6fb0ff; }
+.co-want:focus-visible { outline: 2px solid #6fb0ff; }
+.co-block { display: grid; gap: 8px; margin-bottom: 12px; }
+.co-bhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.co-bhead h3 { margin: 0; font: 600 16px Georgia, serif; color: #f3dfae; }
+.co-brow { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); display: grid; gap: 3px; }
+.co-brow.best { border-color: #6fb0ff; box-shadow: inset 3px 0 0 #6fb0ff; }
+.co-bmain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.co-bmain b { color: #b8c4ff; font-weight: 600; }
+.co-bestt { background: #2d5aa0; }
+.co-meta { background: #6a4214; border: 1px solid #c8853a; }
+.co-bafter { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
+.co-bafter b { color: var(--text); }
+.co-up { color: #6fb0ff; font-weight: 600; }

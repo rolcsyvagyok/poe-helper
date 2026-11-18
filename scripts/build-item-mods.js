@@ -32,7 +32,8 @@ baseList.sort((a, b) => a.cls.localeCompare(b.cls) || a.lvl - b.lvl || a.name.lo
 
 const modList = [];
 for (const [id, m] of Object.entries(mods)) {
-  if (!DOMAINS.includes(m.domain) || !['prefix', 'suffix'].includes(m.generation_type) || m.is_essence_only) continue;
+  // "unveiled": the mods Jun's Veiled mods unveil into (Crafting shows them; the item regex leaves them out)
+  if (!(DOMAINS.includes(m.domain) || m.domain === 'unveiled') || !['prefix', 'suffix'].includes(m.generation_type) || m.is_essence_only) continue;
   const w = (m.spawn_weights || []).map((x) => [x.tag, x.weight]);
   if (!w.some(([, n]) => n > 0) || !m.text) continue;
   // tags: the mod's own tags (Fire, Attack, Life…) as the game shows them; grp: mods in one group can't roll together
@@ -53,6 +54,31 @@ for (const [id, m] of Object.entries(mods)) {
 const influence = {};
 for (const [k, c] of Object.entries(classes)) if (c.influence_tags?.length) influence[k] = c.influence_tags;
 
+// crafting bench mods (data/crafting_bench_options.json): Crafting uses them as blockers. A crafted mod takes
+// a slot and stops its mod group(s) rolling; "Cannot roll Attack / Caster Modifiers" stop every attack /
+// caster mod on both sides. One line per item class set, side and group set: the lowest tier (cheapest).
+const bench = [];
+const benchFile = path.join(dir, 'crafting_bench_options.json');
+if (fs.existsSync(benchFile)) {
+  const seen = new Map();
+  const currencyName = (id) => bases[id]?.name || id.split('/').pop();
+  for (const o of JSON.parse(fs.readFileSync(benchFile, 'utf8'))) {
+    const mid = o.actions?.add_explicit_mod;
+    const m = mid && mods[mid];
+    if (!m || !['prefix', 'suffix'].includes(m.generation_type)) continue;
+    const meta = /Cannot roll Attack Modifiers/i.test(m.text || '') ? 'attack' : /Cannot roll Caster Modifiers/i.test(m.text || '') ? 'caster' : null;
+    if (!meta && /cannot be changed|Cannot roll Modifiers with Required Level|Can have up to/i.test(m.text || '')) continue; // other metacrafts don't block groups
+    const groups = m.groups || [];
+    if (!meta && !groups.length) continue;
+    const key = `${(o.item_classes || []).join(',')}|${m.generation_type}|${meta || groups.join(',')}`;
+    const prev = seen.get(key);
+    if (prev && prev.lvl <= (m.required_level || 1)) continue;
+    const row = { cls: o.item_classes || [], aff: m.generation_type[0], text: m.text.replace(/\r/g, ''), groups, lvl: m.required_level || 1,
+      cost: Object.entries(o.cost || {}).map(([c, n]) => `${n} ${currencyName(c)}`).join(', '), ...(meta ? { meta } : {}) };
+    if (prev) Object.assign(prev, row); else { seen.set(key, row); bench.push(row); }
+  }
+}
+
 const out = path.join(__dirname, '..', 'src', 'core', 'regex', 'item-mods.json');
-fs.writeFileSync(out, JSON.stringify({ source: 'Path of Exile game data (RePoE export)', bases: baseList, mods: modList, influence }));
-console.log(`${baseList.length} bases, ${modList.length} mods -> ${out} (${Math.round(fs.statSync(out).size / 1024)} KB)`);
+fs.writeFileSync(out, JSON.stringify({ source: 'Path of Exile game data (RePoE export)', bases: baseList, mods: modList, influence, bench }));
+console.log(`${baseList.length} bases, ${modList.length} mods, ${bench.length} bench blockers -> ${out} (${Math.round(fs.statSync(out).size / 1024)} KB)`);
