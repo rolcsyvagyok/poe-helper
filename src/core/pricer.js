@@ -70,8 +70,9 @@ function categoriesFor(item) {
     case 'gem': return ['SkillGem', 'ImbuedGem'];
     case 'unique-map': return ['UniqueMap'];
     case 'map': {
-      if (/^Blight-ravaged /.test(name)) return ['BlightRavagedMap'];
-      if (/^Blighted /.test(name)) return ['BlightedMap'];
+      // a magic one has its prefix first ("Fecund Blighted Strand Map")
+      if (blightKind(item) === 'uberblighted') return ['BlightRavagedMap'];
+      if (blightKind(item) === 'blighted') return ['BlightedMap'];
       if (/^Valdo's/.test(name)) return ['ValdoMap'];
       return ['Map'];
     }
@@ -160,7 +161,21 @@ function pickUnique(lines, item) {
   return { best, cands: list.slice(0, 8), range: usable.length > 1 ? [usable[0].chaos, usable[usable.length - 1].chaos] : null };
 }
 
+/** 'blighted', 'uberblighted' (Blight-ravaged) or null, from the map's name line */
+function blightKind(item) {
+  const t = `${item.typeLine || ''} ${item.baseType || ''}`;
+  if (/\bBlight-ravaged /i.test(t)) return 'uberblighted';
+  if (/\bBlighted /i.test(t)) return 'blighted';
+  return null;
+}
+
 function pickMap(lines, item) {
+  // poe.ninja has one line per tier for blighted maps ("Blighted Map (Tier 16)"), not one per map
+  if (blightKind(item)) {
+    const tierOf = (l) => l.mapTier ?? Number((/\(Tier (\d+)\)/.exec(l.name || '') || [])[1]);
+    const byTier = lines.filter((l) => /^Blight(ed|-ravaged) Map\b/i.test(l.name || '') && (item.mapTier == null || tierOf(l) === item.mapTier));
+    if (byTier.length) return { best: [...byTier].sort((a, b) => b.listingCount - a.listingCount)[0], cands: byTier.slice(0, 5) };
+  }
   const base = norm(item.baseType || item.typeLine).replace(/^(blighted|blight-ravaged) /, '');
   const tier = item.mapTier;
   const cands = lines.filter((l) => norm(l.baseType || l.name).replace(/^(blighted|blight-ravaged) /, '') === base || norm(l.name) === norm(item.typeLine));
@@ -279,4 +294,4 @@ function slim(l) {
   return o;
 }
 
-module.exports = { pickCluster, pickViscera, Pricer, categoriesFor, pickGem, pickUnique, pickMap, pickBase, uniqueCategories };
+module.exports = { blightKind, pickCluster, pickViscera, Pricer, categoriesFor, pickGem, pickUnique, pickMap, pickBase, uniqueCategories };

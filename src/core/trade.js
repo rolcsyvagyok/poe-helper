@@ -356,6 +356,9 @@ function buildQuery(item, mods, opts = {}) {
     // a transfigured gem is its base gem with a "discriminator" ("Ethereal Knives of the Massacre" ->
     // { option: 'Ethereal Knives', discriminator: 'alt_x' }), from the trade site's item list
     q.query.type = opts.gemType || item.typeLine;
+  } else if (kind === 'map' && BLIGHT_MAP.test(item.typeLine || '')) {
+    // blighted maps aren't listed by name on the trade site: any map with the blight implicits (rows) and its tier
+    q.query.filters.type_filters = { filters: { category: { option: 'map' } } };
   } else if (useBase && item.baseType && (kind !== 'magic' || item.baseType !== item.typeLine)) { // a magic item: when its base was found in its name
     q.query.type = item.baseType;
   }
@@ -472,6 +475,8 @@ const RITUAL_BASES = new Set([
 ]);
 
 /** Every mod of the item as a search row, with its tier/range info (Ctrl+Alt+C) and template; nothing ticked. */
+const BLIGHT_MAP = /\bBlight(ed|-ravaged) .*Map\b/i;
+
 function itemRows(idx, item, tol) {
   const PF = require('./price-filters');
   const out = [];
@@ -482,6 +487,17 @@ function itemRows(idx, item, tol) {
       const opts = { unique: item.rarity === 'Unique' };
       // a conqueror's map: "Map contains Al-Hezmin's Citadel" and its rewards line are one stat on the trade site
       if (/^Item Quantity increases amount of Rewards .+ drops by/i.test(m) && /^Map contains .+'s Citadel$/i.test(list[i - 1] || '')) return;
+      // blighted maps: the trade site finds them by "Area is infested with Fungal Growths" (one stat with "Can be
+      // Anointed up to # times": 3 on a Blighted map, 9 on a Blight-ravaged one, which is how the two are told apart)
+      if (BLIGHT_MAP.test(item.typeLine || '') && (kind === 'implicit' || kind === 'explicit')) {
+        if (/^(Map's Item Quantity Modifiers also affect Blight Chest|Can be Anointed up to|Natural inhabitants of this area have been removed)/i.test(m)) return;
+        const e = /^Area is infested with Fungal Growths$/i.test(m) ? Object.values(idx.implicit || {}).flat().find((x) => /^area is infested with fungal growths(\n|$)/i.test(x.text)) : null;
+        if (e) {
+          const ravaged = /\bBlight-ravaged /i.test(item.typeLine || '');
+          out.push({ id: e.id, text: ravaged ? 'Blight-ravaged (Anointed up to 9 times)' : 'Blighted (Anointed up to 3 times)', display: null, value: null, negate: false, type: 'implicit', group: 'implicit', enabled: true, special: true, blight: true, min: ravaged ? 9 : null, max: ravaged ? null : 3, meta: null });
+          return;
+        }
+      }
       const cit = /^Map contains .+'s Citadel$/i.test(m) ? Object.values(idx.implicit || {}).flat().find((e) => e.text.toLowerCase().startsWith(`${m.toLowerCase()}\n`)) : null;
       if (cit) { out.push({ id: cit.id, text: m, display: null, value: null, negate: false, type: kind, group: kind, enabled: true, special: true, min: null, max: null, meta: null }); return; }
       const vp = /^Veiled (Prefix|Suffix)$/i.exec(m);
@@ -813,6 +829,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     if (props.ilvl) { props.ilvl.on = false; props.ilvl.show = false; }
     props.maxAffix = 0;
   }
+  // a blighted map's implicits are what finds it on the trade site: always searched
+  for (const m of mods) if (m.blight) { m.enabled = true; m.hidden = false; }
   // a vestigial implicit is what sets a vestigial item apart: always searched
   for (const m of mods) if (m.meta?.vestigial && !m.unmatched) m.enabled = true;
   return { mods, props, presets };

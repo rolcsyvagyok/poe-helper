@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.146 - 2026-11-19
+
+* Price check works for Blighted and Blight-ravaged maps again, magic ones included.
+- Price check: Blighted and Blight-ravaged maps are priced from poe.ninja by tier, and the trade search finds them by their blight implicit (anointed up to 3 times for Blighted, 9 for Blight-ravaged) and tier.
+
 ## 1.0.145 - 2026-11-18
 
 * [Settings] Two new hotkeys under Price check: one Alt + left click, and one left click, where your mouse is. One click per key press, only while the game is in front.
