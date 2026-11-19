@@ -395,6 +395,20 @@ let hotkeyStatus = {};
 let hotkeysPaused = false;
 
 /** Registers the price check hotkeys. Status per hotkey: 'ok' | 'taken' | 'invalid' | 'off'. */
+// the best-fossils search runs in its own process (src/main/craft-worker.js); only the newest request is answered
+let craftWorker = null; let craftSeq = 0; const craftWaiting = new Map();
+function bestFossilsInWorker(state, targets) {
+  if (!craftWorker) {
+    craftWorker = utilityProcess.fork(path.join(__dirname, 'craft-worker.js'), [], { serviceName: 'Crafting', stdio: 'ignore' });
+    craftWorker.on('message', (m) => { const p = craftWaiting.get(m?.id); if (!p) return; craftWaiting.delete(m.id); if (m.error) p.reject(new Error(m.error)); else p.resolve(m.result); });
+    craftWorker.on('exit', () => { craftWorker = null; for (const p of craftWaiting.values()) p.reject(new Error('The crafting search stopped. Try again.')); craftWaiting.clear(); });
+  }
+  const id = ++craftSeq;
+  // an older search still waiting: it isn't needed any more
+  for (const [k, p] of craftWaiting) { craftWaiting.delete(k); p.resolve(null); }
+  return new Promise((resolve, reject) => { craftWaiting.set(id, { resolve, reject }); craftWorker.postMessage({ id, state, targets }); });
+}
+
 function registerHotkeys({ quiet = false } = {}) {
   globalShortcut.unregisterAll();
   escRegistered = false;
@@ -1009,6 +1023,12 @@ function registerIpc() {
   handle('merc:analyze', (a) => services.warrantAnalyze(a || {}));
   handle('craft:bases', () => require('../core/crafting').craftBases());
   handle('craft:view', (o) => require('../core/crafting').craftView(o || {}));
+  // the craft emulator: your item, a craft on it, and fossil chances
+  handle('craft:simStart', (o) => require('../core/craft-sim').startItem(o || {}));
+  handle('craft:simView', (state) => require('../core/craft-sim').simView(state));
+  handle('craft:simAct', (o) => { const S = require('../core/craft-sim'); const r = S.act(o.state, o.action, o.args || {}); return r.state ? { ...r, view: S.simView(r.state) } : r; });
+  handle('craft:fossilOdds', (o) => require('../core/craft-sim').fossilOdds(o.state, o.fossils, o.targets));
+  handle('craft:bestFossils', (o) => bestFossilsInWorker(o.state, o.targets));
   handle('talisman:get', () => services.talismanView());
   handle('talisman:set', (a) => services.setTalisman(a || {}));
   handle('cluster:auto', async (a) => { const r = await services.setClusterAuto(a || {}); applyAutoTier(); return r; });

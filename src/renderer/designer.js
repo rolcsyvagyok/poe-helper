@@ -6,7 +6,8 @@ const { h, mount, toast, call, dropLabel, soundButton, playSound, GAME_COLOURS }
 
 const COLOURS = Object.keys(GAME_COLOURS);
 const SHAPES = ['Star', 'Circle', 'Diamond', 'Hexagon', 'Square', 'Triangle', 'Cross', 'Moon', 'Raindrop', 'Kite', 'Pentagon', 'UpsideDownHouse'];
-const SAMPLE = { giga: 'Mirror of Kalandra', 1: 'Divine Orb', 2: 'Exalted Orb', 3: 'Chaos Orb', 4: 'Orb of Alchemy', 5: 'Orb of Fusing', 6: 'Orb of Transmutation' };
+// the preview's items: taken from your own currency tiers when the designer opens (designer:state samples)
+let SAMPLE = { giga: 'Mirror of Kalandra', 1: 'Divine Orb', 2: 'Exalted Orb', 3: 'Chaos Orb', 4: 'Orb of Alchemy', 5: 'Orb of Fusing', 6: 'Orb of Transmutation' };
 const LEVEL_NOTE = { 1: 'Best drops', 2: 'Very valuable', 3: 'Valuable', 4: 'Worth picking up', 5: 'Low value', 6: 'Lowest shown' };
 // where each sample sits in the loot pile preview (percent of the stage)
 const PILE = { giga: [52, 6], 1: [22, 16], 2: [8, 34], 3: [56, 40], 4: [22, 62], 5: [62, 72], 6: [10, 84] };
@@ -50,6 +51,7 @@ function renderDesigner() { return window.UI.keepScroll(() => renderDesignerNow(
 async function renderDesignerNow() {
   await refreshState();
   D.state = await call('designer:state');
+  if (D.state.samples) SAMPLE = D.state.samples;
   if (!D.levels) {
     D.levels = themeSounds(clone(D.state.draft.levels));
     D.presetId = D.state.draft.presetId;
@@ -78,6 +80,7 @@ function applySoon(delay = 700) {
     try {
       const r = await call('designer:apply', { levels: D.levels, groups: null, lockTier1: D.lock });
       D.state = await call('designer:state');
+  if (D.state.samples) SAMPLE = D.state.samples;
       toast(`Restyled ${r.count} tiers in ${r.categories} categories. Zone or reload the filter in game.`);
       draw();
     } catch { /* toast shown */ }

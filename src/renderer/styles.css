@@ -1820,7 +1820,8 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .cr-tiers tr.cr-locked td.num { text-decoration: none; }
 
 /* Crafting, Craft of Exile style */
-.co { display: grid; grid-template-columns: 250px 1fr; gap: 14px; align-items: start; }
+.co { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 14px; align-items: start; }
+.co-main, .cs-left, .cs-right { min-width: 0; }
 .co-side { position: sticky; top: 0; max-height: calc(100vh - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
 .co-side input[type=search] { width: 100%; box-sizing: border-box; }
 .co-ghead { font: 600 10.5px system-ui; letter-spacing: 1px; text-transform: uppercase; color: #c8a96a; margin: 4px 0 4px; }
@@ -1957,3 +1958,62 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .co-bafter { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
 .co-bafter b { color: var(--text); }
 .co-up { color: #6fb0ff; font-weight: 600; }
+
+/* ---- Crafting: tabs and the craft emulator ---- */
+.co-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+.co-tab { padding: 6px 14px; font: 600 13px system-ui; background: none; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--muted); cursor: pointer; margin-bottom: -1px; }
+.co-tab.on { background: var(--surface); border-color: var(--line); color: #f3dfae; }
+.cs { display: grid; grid-template-columns: minmax(280px, 400px) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .cs { grid-template-columns: 1fr; } }
+.cs-left, .cs-right { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.cs-item { background: #0d0c0a; border: 1px solid #5a4a2a; border-radius: 8px; padding: 10px 12px; }
+.cs-head { display: flex; gap: 10px; align-items: center; padding-bottom: 8px; border-bottom: 1px solid #3a3020; margin-bottom: 6px; }
+.cs-head b { font: 600 17px Georgia, serif; }
+.cs-normal .cs-head b { color: #e0e0e0; } .cs-magic .cs-head b { color: #9a9aff; } .cs-rare .cs-head b { color: #ffff77; }
+.cs-side { margin: 6px 0 2px; text-transform: uppercase; letter-spacing: .8px; font-size: 10.5px; }
+.cs-mod { display: grid; grid-template-columns: 46px 1fr; gap: 8px; padding: 3px 0; align-items: start; }
+.cs-mod.open { opacity: .45; }
+.cs-badge { font: 600 11px system-ui; color: #c8a96a; background: #1e1a12; border: 1px solid #3a3020; border-radius: 4px; text-align: center; padding: 1px 0; }
+.cs-text { color: #8f9cff; font-size: 13px; }
+.cs-mod.crafted .cs-text { color: #b4b4ff; font-style: italic; }
+.cs-mod.fractured .cs-text { color: #c8a96a; }
+.cs-mod.fractured .cs-badge { border-style: dashed; }
+.cs-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.cs-panel h3 { margin: 0; font: 600 15px Georgia, serif; color: #f3dfae; }
+.cs-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.cs-cur { display: grid; justify-items: center; gap: 3px; padding: 6px 4px; font-size: 11.5px; background: var(--raised); border: 1px solid var(--line); border-radius: 6px; color: var(--text); cursor: pointer; }
+.cs-cur:hover:not(:disabled) { border-color: #c8a96a; }
+.cs-cur:disabled { opacity: .35; cursor: not-allowed; }
+.cs-fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 4px; }
+.cs-fossil { display: flex; align-items: center; gap: 6px; padding: 3px 6px; font-size: 12px; background: var(--raised); border: 1px solid var(--line); border-radius: 6px; color: var(--text); cursor: pointer; text-align: left; }
+.cs-fossil.on { background: #1d3354; border-color: #6fb0ff; box-shadow: inset 3px 0 0 #6fb0ff; }
+.cs-fossil.on span::before { content: '✓ '; color: #6fb0ff; }
+.cs-fossil:disabled { opacity: .3; text-decoration: line-through; cursor: not-allowed; }
+.cs-bench { flex: 1 1 0; width: 0; min-width: 0; }
+.cs-odds { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.cs-odds select { flex: 1 1 0; width: 0; min-width: 0; max-width: 340px; }
+.cs-want { display: flex; flex-wrap: wrap; gap: 4px; }
+.cs-chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 8px; border-radius: 12px; background: #1d3354; border: 1px solid #6fb0ff; font-size: 12px; }
+.cs-otable { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
+.cs-otable th:first-child, .cs-otable td:first-child { width: 46%; overflow-wrap: anywhere; }
+.cs-otable th, .cs-otable td { padding: 4px 6px; border-bottom: 1px solid #ffffff0d; vertical-align: top; }
+.cs-otable .r { text-align: right; }
+.cs-otable tr.all td { background: #1e1a12; }
+.cs-down { color: #f0a060; font-weight: 600; }
+.cs-used { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); }
+.cs-log { margin: 0; padding-left: 18px; display: grid; gap: 2px; color: var(--muted); }
+.cs-wpick { display: grid; gap: 6px; }
+.cs-wsearch input[type=search] { flex: 1 1 0; width: 0; min-width: 0; max-width: 320px; }
+.cs-wcols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.cs-wlist { max-height: 250px; overflow: auto; display: grid; gap: 2px; padding-right: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 3px; background: var(--ink); }
+.cs-wmod { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 6px; align-items: start; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; color: #b8c4ff; }
+.cs-wmod:hover { background: #ffffff0a; }
+.cs-wmod:focus-visible { outline: 2px solid #6fb0ff; }
+.cs-wmod.on { background: #1d3354; box-shadow: inset 3px 0 0 #6fb0ff; color: #fff; }
+.cs-wbox { display: grid; place-items: center; width: 16px; height: 16px; border: 1.5px solid var(--faint); border-radius: 3px; font-size: 11px; margin-top: 1px; }
+.cs-wmod.on .cs-wbox { background: #2d5aa0; border-color: #6fb0ff; }
+.cs-wtext small { display: block; color: #c8a96a; }
+.cs-best { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.cs-otable tr.picked td { box-shadow: inset 0 1px 0 #6fb0ff, inset 0 -1px 0 #6fb0ff; }
+@media (max-width: 1250px) { .cs-wcols { grid-template-columns: minmax(0, 1fr); } }

@@ -79,6 +79,53 @@ if (fs.existsSync(benchFile)) {
   }
 }
 
+// every bench craft that adds a mod, each tier (the craft emulator puts them on your item), plus the
+// metacrafts by what they do
+const benchAll = [];
+if (fs.existsSync(benchFile)) {
+  const currencyName = (id) => bases[id]?.name || id.split('/').pop();
+  for (const o of JSON.parse(fs.readFileSync(benchFile, 'utf8'))) {
+    const mid = o.actions?.add_explicit_mod;
+    const m = mid && mods[mid];
+    if (!m || !['prefix', 'suffix'].includes(m.generation_type) || !m.text) continue;
+    const t = m.text.replace(/\r/g, '');
+    const meta = /Cannot roll Attack Modifiers/i.test(t) ? 'attack' : /Cannot roll Caster Modifiers/i.test(t) ? 'caster'
+      : /^Prefix Modifiers cannot be changed$/i.test(t) ? 'keepPrefixes' : /^Suffix Modifiers cannot be changed$/i.test(t) ? 'keepSuffixes'
+        : /Can have up to 3 Crafted Modifiers/i.test(t) ? 'multimod' : /Cannot roll Modifiers with Required Level above/i.test(t) ? 'lowlevel' : null;
+    // "1 / 2 Prefix Modifiers cannot be changed": which ones isn't in the data, so those are left out
+    if (/^\d Prefix Modifiers? cannot be changed|^\d Suffix Modifiers? cannot be changed/i.test(t)) continue;
+    // the same craft at several costs (or several benches): one line, the cheapest first seen
+    const same = benchAll.find((x) => x.text === t && x.aff === m.generation_type[0] && x.lvl === (m.required_level || 1));
+    if (same) { for (const c of o.item_classes || []) if (!same.cls.includes(c)) same.cls.push(c); continue; }
+    benchAll.push({ id: mid, cls: o.item_classes || [], aff: m.generation_type[0], text: t, groups: m.groups || [], lvl: m.required_level || 1, tags: (m.implicit_tags || []).filter((x) => x !== 'default'),
+      cost: Object.entries(o.cost || {}).map(([c, n]) => `${n} ${currencyName(c)}`).join(', '), ...(meta ? { meta } : {}) });
+  }
+}
+
+// fossils (data/fossils.json): each one's tag multipliers (1000 = ten times as likely, 0 = never), the mods
+// only it adds, and what it can be used on; their own mods (domain "delve") go in the mod list
+const fossils = [];
+const fossilFile = path.join(dir, 'fossils.json');
+if (fs.existsSync(fossilFile)) {
+  for (const f of Object.values(JSON.parse(fs.readFileSync(fossilFile, 'utf8')))) {
+    if (!f.name) continue;
+    const added = [];
+    for (const id of f.added_mods || []) {
+      const m = mods[id];
+      if (!m || !m.text || !['prefix', 'suffix'].includes(m.generation_type)) continue;
+      if (!modList.some((x) => x.id === id)) {
+        modList.push({ id, aff: m.generation_type[0], dom: 'delve', type: m.type, name: m.name || '', lvl: m.required_level || 1, text: m.text.replace(/\r/g, ''),
+          w: (m.spawn_weights || []).map((x) => [x.tag, x.weight]), ...((m.implicit_tags || []).filter((t) => t !== 'default').length ? { tags: m.implicit_tags.filter((t) => t !== 'default') } : {}), ...(m.groups?.length ? { grp: m.groups[0] } : {}) });
+      }
+      added.push(id);
+    }
+    fossils.push({ name: f.name, more: (f.positive_mod_weights || []).map((x) => [x.tag, x.weight]), less: (f.negative_mod_weights || []).map((x) => [x.tag, x.weight]),
+      added, allowed: f.allowed_tags || [], forbidden: f.forbidden_tags || [], text: Object.values(f.descriptions || {}).join('\n'),
+      ...(f.rolls_lucky ? { lucky: true } : {}), ...(f.descriptions?.Fracture ? { fracture: true } : {}) });
+  }
+  fossils.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 const out = path.join(__dirname, '..', 'src', 'core', 'regex', 'item-mods.json');
-fs.writeFileSync(out, JSON.stringify({ source: 'Path of Exile game data (RePoE export)', bases: baseList, mods: modList, influence, bench }));
-console.log(`${baseList.length} bases, ${modList.length} mods, ${bench.length} bench blockers -> ${out} (${Math.round(fs.statSync(out).size / 1024)} KB)`);
+fs.writeFileSync(out, JSON.stringify({ source: 'Path of Exile game data (RePoE export)', bases: baseList, mods: modList, influence, bench, benchAll, fossils }));
+console.log(`${baseList.length} bases, ${modList.length} mods, ${bench.length} bench blockers, ${benchAll.length} bench crafts, ${fossils.length} fossils -> ${out} (${Math.round(fs.statSync(out).size / 1024)} KB)`);

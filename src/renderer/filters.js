@@ -307,7 +307,14 @@ function renderTiers(body, view) {
   // right: tiers
   const search = h('input', { type: 'search', placeholder: `Find a base in ${type.label.toLowerCase()}`, value: FB.search, style: { width: '260px' }, oninput: (e) => { FB.search = e.target.value; drawList(); } });
   const list = h('div', { class: 'fb-tiers' });
-  const targets = (type.allTiers || type.tiers).filter((t) => t.hasBaseList && !t.generated && !t.special);
+  // stacked currency (Big stacks, Small stacks…): every tier has the same "StackSize >= N" rule, so a base can
+  // move between them like in any tier list; other special tiers (a card only in stacks…) keep their bases
+  const sameRules = (() => {
+    const bl = (type.allTiers || type.tiers).filter((x) => x.hasBaseList && !x.generated);
+    return bl.length > 1 && bl.every((x) => x.stackSize) && new Set(bl.map((x) => (x.conditions || []).join('\n'))).size === 1;
+  })();
+  const movableTier = (t) => t.hasBaseList && !t.generated && (!t.special || sameRules);
+  const targets = (type.allTiers || type.tiers).filter(movableTier);
 
   const moveTo = async (bases, to, force = false) => {
     if (!bases.length) return;
@@ -506,7 +513,7 @@ function renderTiers(body, view) {
       t.generated ? null : h('button', { class: isEditing ? 'primary sm' : 'sm', onclick: () => { if (isEditing) { FB.editing = null; } else { FB.editing = t.key; FB.draft = structuredClone(t.style || {}); } drawList(); } }, isEditing ? 'Close' : 'Edit look'));
     // unidentified item tiers and Memory Strand gear: Base ranks decides the bases and what shows; here only the look
     const lookOnly = /^gear->(tiered|memorystrand)$/.test(type.type);
-    const canAdd = !lookOnly && ((t.hasBaseList && !t.special) || t.generated);
+    const canAdd = !lookOnly && (movableTier(t) || t.generated);
     const conds = !folded && !lookOnly && hasCondEditor(t);
     const card = h('div', { class: 'fb-tier' + (t.generated ? ' generated' : '') + (hidden ? ' is-hidden' : '') + (state === 'Off' ? ' is-off' : ''), 'data-key': t.key }, head,
       conds ? condEditor(t) : null,
@@ -543,7 +550,7 @@ function renderTiers(body, view) {
       });
     }
     // drag & drop target
-    if ((t.hasBaseList && !t.special) || t.generated) {
+    if (movableTier(t) || t.generated) {
       const to = t.generated ? HIDE : t.tier;
       card.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-bases')) { e.preventDefault(); card.classList.add('drop-target'); } });
       card.addEventListener('dragleave', () => card.classList.remove('drop-target'));
@@ -720,7 +727,7 @@ function renderTiers(body, view) {
   /** Make your own tier, e.g. "Giga" above Tier 1 for mirror-level items, looking like the Divine Orb's tier. */
   function newTierBar() {
     if (type.baseView) return null; // a view of some items: new tiers belong to the whole category
-    const movable = type.tiers.filter((x) => x.hasBaseList && !x.special && !x.generated);
+    const movable = type.tiers.filter(movableTier);
     if (!movable.length) return null;
     if (!FB.newTier) return h('div', { class: 'fb-newtier-btn' }, h('button', { class: 'sm', onclick: () => { FB.newTier = true; drawList(); } }, '+ New tier'));
     const divTier = movable.find((x) => x.bases.includes('Divine Orb')) || movable[0];

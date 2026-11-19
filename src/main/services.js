@@ -2138,6 +2138,8 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       groups,
       canUndo: !!settings.get('designerUndo'),
       hasFilter: !!view,
+      // the preview's items: real ones from your currency tiers
+      samples: designer.sampleItems(view),
     };
   }
 

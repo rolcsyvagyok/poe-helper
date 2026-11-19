@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.147 - 2026-11-19
+
+* [Crafting] New "Try crafts" tab: craft on your own item or a fresh base with currency, the bench, Harvest and fossils, and click the mods you want to get the best fossils for them.
+* [Loot filter] You can move currency between the stacked tiers (Big stacks, Small stacks, scrolls) again.
+- Crafting → Try crafts: a craft emulator. Paste your item (or start from a base), then use Transmutation to Divine Orbs, bench crafts (including "Prefixes / Suffixes cannot be changed" and "Cannot roll Attack / Caster"), Harvest (reforge with a tag, add a tagged mod, change a resistance, influence reforge) and resonators with up to 4 fossils. Undo, a log and a count of what you used.
+- Fossils: click the mods you want and it finds the best set of up to 4 fossils for them (every set is checked), with the chance of hitting them all in one resonator against a Chaos Orb. "Use these" picks that set.
+- Tier designer: the preview shows real items from your own currency tiers (the best-known one in each), so moving Chaos Orb to a lower tier moves it in the preview too.
+- Loot filter: the stacked currency pages take drags, "Add an item" and new tiers again. Every tier there has the same stack rule, so moving an item between them is safe.
+
 ## 1.0.146 - 2026-11-19
 
 * Price check works for Blighted and Blight-ravaged maps again, magic ones included.

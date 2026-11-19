@@ -434,4 +434,27 @@ function clusterLooks(get) {
   return { t1: look(1), t2: look(2) };
 }
 
-module.exports = { currentLevels, clusterLooks, SIX_SOCKET_LOOK, isSixSockets, rareYellowStep, rareYellowLook, RARE_YELLOW, RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
+// the item a preview shows for each tier: from your own currency tiers, the best-known one in each
+const WELL_KNOWN = ['Mirror of Kalandra', 'Divine Orb', 'Exalted Orb', 'Chaos Orb', 'Orb of Annulment', 'Vaal Orb', 'Regal Orb', 'Orb of Alchemy',
+  'Orb of Scouring', 'Gemcutter\'s Prism', 'Orb of Fusing', 'Chromatic Orb', 'Jeweller\'s Orb', 'Orb of Alteration', 'Orb of Chance', 'Blessed Orb',
+  'Orb of Regret', 'Orb of Transmutation', 'Orb of Augmentation', 'Armourer\'s Scrap', 'Blacksmith\'s Whetstone', 'Portal Scroll', 'Scroll of Wisdom'];
+const DEFAULT_SAMPLES = { giga: 'Mirror of Kalandra', 1: 'Divine Orb', 2: 'Exalted Orb', 3: 'Chaos Orb', 4: 'Orb of Alchemy', 5: 'Orb of Fusing', 6: 'Orb of Transmutation' };
+/** view: the filter's tier view -> { giga, 1, …, 6 }: an item from each of your currency tiers (a tier with none keeps the default). */
+function sampleItems(view) {
+  const cur = view?.types?.find((t) => t.type === 'currency');
+  if (!cur) return { ...DEFAULT_SAMPLES };
+  const rank = (b) => { const i = WELL_KNOWN.indexOf(b); return i < 0 ? 999 : i; };
+  const best = (bases) => [...bases].sort((a, b) => rank(a) - rank(b))[0];
+  const out = {}; const used = new Set();
+  const take = (lv, bases) => { const left = bases.filter((b) => !used.has(b)); const b = left.length ? best(left) : null; if (b) { out[lv] = b; used.add(b); } };
+  const giga = cur.tiers.find((t) => /^giga$/i.test(t.customName || '') && t.bases?.length);
+  if (giga) take('giga', giga.bases);
+  for (const lv of [1, 2, 3, 4, 5, 6]) {
+    const bases = cur.tiers.filter((t) => !t.special && !t.generated && tierLevel(t.tier) === lv && !/^giga$/i.test(t.customName || '')).flatMap((t) => t.bases || []);
+    take(lv, bases);
+  }
+  for (const [k, v] of Object.entries(DEFAULT_SAMPLES)) if (!out[k]) out[k] = used.has(v) ? (k === 'giga' ? 'Giga item' : `Tier ${k} item`) : v;
+  return out;
+}
+
+module.exports = { sampleItems, currentLevels, clusterLooks, SIX_SOCKET_LOOK, isSixSockets, rareYellowStep, rareYellowLook, RARE_YELLOW, RARE_LEVELS, rareLevel, rareRank, lookFor, paletteColours, stackedColours, fullLook, fullLevels, FULL_SIZE, withLevelSound, LEVEL_SOUNDS, withFilterSound, randomTheme, paletteTheme, gameColour, gigaLook, PRESETS, LEVELS, TINK, TIER1_SOUND, tierLevel, lockTier1, targetsFor, applyDesign, tier1 };
