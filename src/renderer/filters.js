@@ -322,6 +322,7 @@ function renderTiers(body, view) {
     if (r?.leftOut?.some((n) => bases.includes(n))) toast(`Left out of the filter: ${bases.join(', ')}. The game doesn't know that name, and one unknown name stops the whole filter from loading.`);
     FB.selected.clear();
     delete FB.prices[type.type];
+    if (FB.unlisted) delete FB.unlisted[type.type];
     toast(to === HIDE ? `Hidden: ${bases.join(', ')}` : `Moved to ${tierName({ tier: to })}: ${bases.join(', ')}`);
     renderFilters();
   };
@@ -337,6 +338,25 @@ function renderTiers(body, view) {
     if (/^(uniques|gear|rr|rare|exotic|crafting|influenced|jewels|flasks|chancing|exoticbases|6l|socketslinks)/.test(t)) return 'BaseType';
     return '';
   })();
+  // the catch-all tier ("…land here"): the items that land in it now, which you can drag into a real tier
+  function restBox(t) {
+    const list = FB.unlisted?.[type.type];
+    if (list === undefined) {
+      FB.unlisted = FB.unlisted || {};
+      FB.unlisted[type.type] = null;
+      call('tiers:unlisted', type.type).then((r) => { FB.unlisted[type.type] = r || []; drawList(); }).catch(() => { FB.unlisted[type.type] = []; });
+    }
+    const note = h('div', { class: 'small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.');
+    if (!list || !list.length) return h('div', { class: 'fb-chips' }, note);
+    return h('div', { class: 'fb-rest' }, note,
+      h('div', { class: 'small', style: { margin: '6px 0 4px' } }, h('b', {}, `${list.length} item${list.length === 1 ? '' : 's'} land here now`), h('span', { class: 'faint' }, ': not in any tier of your filter (new items, or ones FilterBlade doesn\'t list). Drag one into a tier to give it that look.')),
+      h('div', { class: 'fb-chips' }, list.map((u) => h('button', {
+        type: 'button', class: 'fb-chip fb-new', draggable: 'true',
+        title: `${u.name}${u.chaos != null ? `: ${fmtC(u.chaos)} on poe.ninja` : u.fresh ? ': new, poe.ninja has no price yet' : ''}. Drag it into a tier. It's added to your filter as written here.`,
+        ondragstart: (e) => { e.dataTransfer.setData('text/x-poe-bases', JSON.stringify([u.name])); e.dataTransfer.setData('text/x-poe-new', '1'); e.dataTransfer.effectAllowed = 'move'; },
+      }, window.UI.itemPic(u.name, { size: 20, hint: picHint }), u.name,
+        u.chaos != null ? h('span', { class: 'fb-price' }, fmtC(u.chaos)) : u.fresh ? h('span', { class: 'fb-newtag' }, 'new') : null))));
+  }
   function chip(base, tier) {
     const key = `${type.type}\t${base}`;
     // only items that belong in another tier are coloured; the rest stay plain
@@ -519,7 +539,7 @@ function renderTiers(body, view) {
       conds ? condEditor(t) : null,
       lookOnly && !folded ? h('div', { class: 'fb-chips small faint' }, 'Which bases and tiers show is set on Base ranks (Unid item tier, Memory Strands). Here you change the look. ',
         h('button', { class: 'quiet sm', onclick: () => { window.showInFilter({ special: 'basematrix' }); renderFilters(); } }, 'Open Base ranks')) :
-      folded || (conds && checkBases(t)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, t.stackSize ? 'Empty: your filter has no cards here right now. (Items can\'t be moved in: they would leave their own tier.)' : canAdd ? 'Empty. Drag bases here or add one below.' : 'Empty.') : null) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.'),
+      folded || (conds && checkBases(t)) ? null : t.hasBaseList ? h('div', { class: 'fb-chips' }, bases.map((b) => chip(b, t)), !bases.length ? h('span', { class: 'small faint' }, t.stackSize ? 'Empty: your filter has no cards here right now. (Items can\'t be moved in: they would leave their own tier.)' : canAdd ? 'Empty. Drag bases here or add one below.' : 'Empty.') : null) : (/rest/i.test(t.tier) ? restBox(t) : h('div', { class: 'fb-chips small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.')),
       folded || !canAdd ? null : addBox(t),
       isEditing && !folded ? lookEditor(t, () => drawList(), drawPreview) : null);
     // drop a sound file anywhere on the tier: it becomes this tier's drop sound
@@ -554,7 +574,7 @@ function renderTiers(body, view) {
       const to = t.generated ? HIDE : t.tier;
       card.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-bases')) { e.preventDefault(); card.classList.add('drop-target'); } });
       card.addEventListener('dragleave', () => card.classList.remove('drop-target'));
-      card.addEventListener('drop', (e) => { e.preventDefault(); card.classList.remove('drop-target'); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), to); } catch { /* ignore */ } });
+      card.addEventListener('drop', (e) => { e.preventDefault(); card.classList.remove('drop-target'); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), to, e.dataTransfer.types.includes('text/x-poe-new')); } catch { /* ignore */ } });
     }
     return card;
   }
@@ -618,7 +638,7 @@ function renderTiers(body, view) {
     const z = h('div', { class: 'fb-hidezone' }, 'Drop bases here to hide them');
     z.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-bases')) { e.preventDefault(); z.classList.add('drop-target'); } });
     z.addEventListener('dragleave', () => z.classList.remove('drop-target'));
-    z.addEventListener('drop', (e) => { e.preventDefault(); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), HIDE); } catch { /* ignore */ } });
+    z.addEventListener('drop', (e) => { e.preventDefault(); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), HIDE, e.dataTransfer.types.includes('text/x-poe-new')); } catch { /* ignore */ } });
     return z;
   }
 
@@ -893,7 +913,7 @@ function renderTiers(body, view) {
       if (main.hasBaseList) {
         box.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/x-poe-bases')) { e.preventDefault(); box.classList.add('drop-target'); } });
         box.addEventListener('dragleave', () => box.classList.remove('drop-target'));
-        box.addEventListener('drop', (e) => { e.preventDefault(); box.classList.remove('drop-target'); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), main.tier); } catch { /* ignore */ } });
+        box.addEventListener('drop', (e) => { e.preventDefault(); box.classList.remove('drop-target'); try { moveTo(JSON.parse(e.dataTransfer.getData('text/x-poe-bases')), main.tier, e.dataTransfer.types.includes('text/x-poe-new')); } catch { /* ignore */ } });
       }
       return box;
     };

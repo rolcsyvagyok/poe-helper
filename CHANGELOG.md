@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.150 - 2026-11-20
+
+* [What to farm] Click a league mechanic to see the price of everything it drops. The page now shows league mechanics only.
+* [Loot filter] The Currency catch-all tier lists the items that land in it (new ones like Originator's Exalted Orb too), so you can drag them into a tier.
+- Loot filter: a catch-all tier ("Items not listed in another tier land here") shows the currency or fragments your filter doesn't list in any tier, with their poe.ninja price ("new" when only the trade site knows it yet). Drag one into a tier to give it that tier's look; it's added to your filter as written.
+- What to farm: "All N prices" (or the mechanic's name) opens every item of that mechanic with its price, 7-day change and how much trades; sort, search, and a price graph per item.
+- What to farm: league mechanics only (Eldritch altars, Breach, Legion, Delirium, Harvest, Ultimatum with the catalysts, Blight, Essence, Delve, Ritual, Kingsmarch, Expedition, Necropolis, Wickerman, Bestiary, Incursion, Incubation); plain currency, scarabs and cards are gone from it. Big price moves are blue (+) and orange (−).
+
 ## 1.0.149 - 2026-11-20
 
 * [Loot filter] Fixed: with "Show all currency" on, small stacks of hidden currency (Clear Oil…) showed up in the Big stacks look.

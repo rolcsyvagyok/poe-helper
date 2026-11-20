@@ -1908,20 +1908,39 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   }
 
   // ---------- "What to farm": poe.ninja's 7-day trend grouped by league mechanic (no GGG requests) ----------
+  // league mechanics only (no plain currency, scarabs or cards) and their loot: [poe.ninja list, only these names, not these names]
   const FARM_GROUPS = [
-    { id: 'currency', name: 'Currency', cats: ['Currency'], skip: /lifeforce|splinter|shard|fragment/i, art: 'Divine Orb' },
-    { id: 'scarab', name: 'Scarabs', cats: ['Scarab'], art: '*Scarab' },
-    { id: 'fragment', name: 'Fragments & splinters', cats: ['Fragment'], art: 'Fragment of the Shape' },
-    { id: 'delirium', name: 'Delirium', cats: ['DeliriumOrb'], art: '*DeliriumOrb' },
-    { id: 'harvest', name: 'Harvest', cats: ['Currency'], only: /lifeforce/i, art: 'Sacred Crystallised Lifeforce' },
-    { id: 'blight', name: 'Blight', cats: ['Oil'], art: '*Oil' },
-    { id: 'essence', name: 'Essence', cats: ['Essence'], art: '*Essence' },
-    { id: 'delve', name: 'Delve', cats: ['Fossil', 'Resonator'], art: '*Fossil' },
-    { id: 'ritual', name: 'Ritual', cats: ['Omen'], art: '*Omen' },
-    { id: 'kingsmarch', name: 'Kingsmarch', cats: ['Tattoo', 'Runegraft'], art: '*Tattoo' },
-    { id: 'expedition', name: 'Expedition', cats: ['Artifact', 'Astrolabe'], art: null },
-    { id: 'divination', name: 'Divination cards', cats: ['DivinationCard'], art: '*DivinationCard' },
+    { id: 'eldritch', name: 'Eldritch altars', src: [['Currency', /eldritch|ember|ichor/i], ['Invitation', /^(Incandescent|Screaming) Invitation/]], art: 'Exceptional Eldritch Ember' },
+    { id: 'breach', name: 'Breach', src: [['Fragment', /breach|chayula|xoph|tul|esh|uul|hivebrain/i], ['Currency', /blessing of|splinter of (xoph|tul|esh|uul|chayula)/i]], art: 'Hivebrain Gland' },
+    { id: 'legion', name: 'Legion', src: [['Fragment', /^Timeless/]], art: 'Timeless Karui Emblem' },
+    { id: 'delirium', name: 'Delirium', src: [['DeliriumOrb'], ['Fragment', /simulacrum/i]], art: '*DeliriumOrb' },
+    { id: 'harvest', name: 'Harvest', src: [['Currency', /lifeforce/i]], art: 'Sacred Crystallised Lifeforce' },
+    { id: 'ultimatum', name: 'Ultimatum', src: [['Currency', /catalyst/i], ['Fragment', /ultimatum/i]], art: 'Fertile Catalyst' },
+    { id: 'blight', name: 'Blight', src: [['Oil'], ['BlightedMap'], ['BlightRavagedMap']], art: '*Oil' },
+    { id: 'essence', name: 'Essence', src: [['Essence']], art: '*Essence' },
+    { id: 'delve', name: 'Delve', src: [['Fossil'], ['Resonator']], art: '*Fossil' },
+    { id: 'ritual', name: 'Ritual', src: [['Omen'], ['Fragment', /^Ritual /]], art: '*Omen' },
+    { id: 'kingsmarch', name: 'Kingsmarch', src: [['Tattoo'], ['Runegraft']], art: '*Tattoo' },
+    { id: 'expedition', name: 'Expedition', src: [['Artifact'], ['Astrolabe']], art: null },
+    { id: 'necropolis', name: 'Necropolis', src: [['Corpse'], ['AllflameEmber']], art: null },
+    { id: 'wickerman', name: 'Wickerman', src: [['Viscera']], art: null },
+    { id: 'bestiary', name: 'Bestiary', src: [['Beast']], art: null },
+    { id: 'incursion', name: 'Incursion', src: [['Vial']], art: null },
+    { id: 'incubator', name: 'Incubation', src: [['Incubator']], art: null },
   ];
+  /** A mechanic's items from the poe.ninja lists (one line per name, the most traded one). */
+  async function farmItems(g, load) {
+    const byName = new Map();
+    for (const [cat, only, skip] of g.src) {
+      for (const l of await load(cat)) {
+        if (!l.name || !(l.chaos > 0) || (only && !only.test(l.name)) || (skip && skip.test(l.name))) continue;
+        const name = l.variant && cat !== 'Viscera' ? `${l.name} (${l.variant})` : l.name;
+        const prev = byName.get(name);
+        if (!prev || (l.volume ?? l.listingCount ?? 0) > (prev.volume ?? prev.listingCount ?? 0)) byName.set(name, { ...l, name });
+      }
+    }
+    return [...byName.values()];
+  }
   async function farmDashboard() {
     const league = await getLeague();
     const divine = await ninja.divinePrice(league).catch(() => null);
@@ -1939,9 +1958,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const groups = [];
     const allMovers = [];
     for (const g of FARM_GROUPS) {
-      let items = [];
-      for (const c of g.cats) items.push(...(await load(c)));
-      items = items.filter((l) => l.name && l.chaos > 0 && (!g.only || g.only.test(l.name)) && (!g.skip || !g.skip.test(l.name)));
+      const items = await farmItems(g, load);
       if (!items.length) continue;
       const rows = items.map(slim);
       // the market moves where the trading is: weight by how much of each item trades (volume x price)
@@ -1959,11 +1976,27 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       const up = [...moving].sort((a, b) => b.change - a.change).filter((r) => r.change > 0).slice(0, 3);
       const down = [...moving].sort((a, b) => a.change - b.change).filter((r) => r.change < 0).slice(0, 3);
       for (const r of rows) if (r.big) allMovers.push({ ...r, group: g.name });
-      groups.push({ id: g.id, name: g.name, art: g.art, count: rows.length, change, typical: typical[Math.floor(typical.length / 2)] ?? null, top, up, down });
+      // the card's picture: the mechanic's own item (a catalyst for Ultimatum), else its most valuable one
+      const artRow = g.art && !g.art.startsWith('*') ? rows.find((r) => r.name === g.art && r.icon) : null;
+      groups.push({ id: g.id, name: g.name, art: g.art, icon: artRow?.icon || null, count: rows.length, change, typical: typical[Math.floor(typical.length / 2)] ?? null, top, up, down });
     }
     groups.sort((a, b) => (b.change ?? -1e9) - (a.change ?? -1e9));
     allMovers.sort((a, b) => Math.abs(Math.log((b.chaos + 0.1) / ((b.old ?? b.chaos) + 0.1))) - Math.abs(Math.log((a.chaos + 0.1) / ((a.old ?? a.chaos) + 0.1))));
     return { league, divine, ageMs, groups, movers: allMovers.slice(0, 40) };
+  }
+  /** Every item of one mechanic, most valuable first: { id, name, league, divine, items: [...] } */
+  async function farmGroup(id) {
+    const g = FARM_GROUPS.find((x) => x.id === id);
+    if (!g) throw new Error('Unknown mechanic');
+    const league = await getLeague();
+    const divine = await ninja.divinePrice(league).catch(() => null);
+    const lists = {};
+    const load = async (c) => { if (!lists[c]) { try { lists[c] = await ninja.category(league, c); } catch (e) { log('farm', c, e.message); lists[c] = []; } } return lists[c]; };
+    const items = (await farmItems(g, load)).map((l) => {
+      const trend = trendOf(l.sparkline, l.chaos);
+      return { name: l.name, chaos: l.chaos, icon: l.icon || null, volume: l.volume ?? l.listingCount ?? null, change: trend?.change ?? null, old: trend?.old ?? null, points: trend?.points || null };
+    }).sort((a, b) => b.chaos - a.chaos);
+    return { id: g.id, name: g.name, league, divine, items };
   }
   // Categories auto-tiered by default. Uniques are opt-in: one base can hold a 1c and a 300c unique.
   const DEFAULT_REVIEW_TYPES = ['divination', 'fragments', 'currency', 'currency->fossil', 'currency->oil', 'currency->essence', 'currency->deliriumorbs', 'currency->trial->omen', 'currency->trial->tattoo', 'runesgrafts', 'mapenchantments'];
@@ -1977,6 +2010,52 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
    * Check every priced category against poe.ninja and plan auto-tier moves.
    * Only poe.ninja (cached 20 min) is used; no GGG requests.
    */
+  /**
+   * The items that land in a category's catch-all tier ("Items not listed in another tier land here"): what
+   * poe.ninja prices for the category, and (currency and fragments) what the trade site's own list has, that
+   * no tier of your filter names. A new item on patch day shows up here, so you can move it into a tier.
+   * -> [{ name, chaos, listings, fresh }] (fresh: the trade site lists it, poe.ninja has no price yet)
+   */
+  async function unlistedItems(type) {
+    const view = tierViewNow();
+    if (!view) return [];
+    // only true currency / fragments: a name from another list (an Astrolabe, a Djinn coin) has its own class and rules
+    const SRC = { currency: { ninja: ['Currency'], static: ['Currency'], cls: 'Stackable Currency' }, fragments: { ninja: ['Fragment'], static: ['Fragments'], cls: 'Map Fragments' } }[type];
+    if (!SRC) return [];
+    const known = new Set(view.types.flatMap((t) => t.tiers.flatMap((x) => x.bases.map((b) => b.toLowerCase()))));
+    for (const n of settings.get('forcedNames') || []) known.add(String(n).toLowerCase());
+    const league = await getLeague();
+    const out = new Map();
+    const data = {};
+    for (const c of SRC.ninja) { try { data[c] = await ninja.category(league, c); } catch { /* no prices */ } }
+    for (const p of tierPricing.priceIndex(type, data).values()) {
+      const name = p.name;
+      if (!name || known.has(name.toLowerCase()) || /[()]/.test(name)) continue;
+      out.set(name, { name, chaos: Number.isFinite(p.chaos) ? p.chaos : null, listings: p.listings ?? null });
+    }
+    // the trade site's item list has new currency the day it comes out (no extra request: it's cached)
+    try {
+      for (const g of (await ggg.tradeStatic())?.result || []) {
+        if (!SRC.static.includes(g.id)) continue;
+        for (const e of g.entries || []) {
+          const n = e.text;
+          if (n && !known.has(n.toLowerCase()) && !out.has(n) && !/[()]/.test(n)) out.set(n, { name: n, chaos: null, listings: null, fresh: true });
+        }
+      }
+    } catch { /* poe.ninja's names only */ }
+    // keep the ones your written filter really sends to this category's catch-all tier
+    let parsed = null;
+    try { const t = filters.activeText(); if (t != null) parsed = require('../core/filter/parser').parse(t); } catch { parsed = null; }
+    const lands = (name) => {
+      if (!parsed) return true;
+      const item = readItem(`Item Class: ${SRC.cls}\nRarity: ${SRC.cls === 'Stackable Currency' ? 'Currency' : 'Normal'}\n${name}\n--------\nStack Size: 1/10`);
+      if (!item) return false;
+      const hit = explain(parsed, item);
+      return !!hit && new RegExp(`\\$type->${type.replace(/[>-]/g, '\\$&')}\\s+\\$tier->rest`).test(hit.comment || '');
+    };
+    return [...out.values()].filter((u) => lands(u.name)).sort((a, b) => (b.chaos ?? -1) - (a.chaos ?? -1) || a.name.localeCompare(b.name)).slice(0, 60);
+  }
+
   async function priceReview({ types = null, overrides = {} } = {}) {
     const view = tierViewNow();
     if (!view) throw new Error('Choose your filter first.');
@@ -2623,7 +2702,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

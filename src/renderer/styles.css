@@ -615,8 +615,8 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .trend { font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--raised); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .trend.up { color: var(--good); }
 .trend.down { color: var(--bad); }
-.trend.big.up { background: #1f3a29; color: #9be0ad; }
-.trend.big.down { background: #43201d; color: #f3a097; }
+.trend.big.up { background: #1d3354; color: #9fc6ff; box-shadow: inset 0 0 0 1px #4a90d9; }
+.trend.big.down { background: #3a2610; color: #f5b46a; box-shadow: inset 0 0 0 1px #f08c00; }
 .ph-back { position: fixed; inset: 0; background: rgba(8, 9, 12, 0.66); display: grid; place-items: center; z-index: 50; padding: 16px; }
 .ph-card { width: min(720px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); padding: 16px 18px; display: grid; gap: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
 .ph-head { display: flex; align-items: center; gap: 12px; }
@@ -2049,3 +2049,16 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .cx-table td, .cx-table th { padding-top: 5px; padding-bottom: 5px; }
 .cx-moves summary { cursor: pointer; padding: 2px 0; }
 .cx-moves[open] summary { margin-bottom: 8px; }
+/* the catch-all tier: items that land in it now (not in any tier), draggable into a tier */
+.fb-rest { display: grid; padding-top: 10px; }
+.fb-rest > div:not(.fb-chips) { padding: 0 12px; }
+.fb-rest > .fb-chips { padding-top: 4px; }
+.fb-chip.fb-new { border-style: dashed; }
+.fb-newtag { font-size: 10.5px; padding: 0 5px; border-radius: 6px; background: #1d3354; color: #9fc6ff; margin-left: 4px; }
+/* What to farm: open a mechanic */
+.farm-open { all: unset; cursor: pointer; }
+.farm-open:hover { text-decoration: underline; }
+.farm-open:focus-visible { outline: 2px solid #6fb0ff; border-radius: 3px; }
+.farm-all-btn { justify-self: start; margin: 2px 0 4px; }
+.farm-detail input[type=search] { width: 280px; max-width: 100%; }
+.farm-all td { padding-top: 5px; padding-bottom: 5px; }

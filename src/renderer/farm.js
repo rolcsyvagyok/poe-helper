@@ -39,9 +39,49 @@
   let farm = null;
   let loading = false;
   let showAllMovers = false;
+  let openId = null; // a mechanic you clicked: its full price list
+  let detail = null;
+  let q = '';
+  let sortK = { k: 'chaos', dir: -1 };
+
+  // one mechanic: every item it drops with its price, 7-day change and how much trades
+  async function renderDetail(page) {
+    if (!detail || detail.id !== openId) {
+      mount(page, window.pageHead('What to farm', null), h('div', { class: 'skeleton panel', role: 'status', 'aria-label': 'Reading poe.ninja prices' }, h('i'), h('i'), h('i')));
+      try { detail = await call('farm:group', openId); } catch (e) { openId = null; toast(`Couldn't load prices: ${e.message}`, true); return renderFarm(); }
+    }
+    const d = detail.divine;
+    const term = q.trim().toLowerCase();
+    const key = { name: (r) => r.name.toLowerCase(), chaos: (r) => r.chaos, change: (r) => r.change ?? -1e9, volume: (r) => r.volume ?? -1 }[sortK.k];
+    const rows = detail.items.filter((r) => !term || r.name.toLowerCase().includes(term))
+      .sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * sortK.dir; });
+    const total = detail.items.length;
+    const th = (k, label, cls = '') => h('th', { class: cls, 'aria-sort': sortK.k === k ? (sortK.dir < 0 ? 'descending' : 'ascending') : 'none' },
+      h('button', { class: 'nw-sort', onclick: () => { sortK = { k, dir: sortK.k === k ? -sortK.dir : (k === 'name' ? 1 : -1) }; renderFarm(); } }, label, sortK.k === k ? (sortK.dir < 0 ? ' ↓' : ' ↑') : ''));
+    const find = h('input', { type: 'search', placeholder: `Search ${detail.name}…`, value: q, 'aria-label': 'Search items',
+      oninput: (e) => { q = e.target.value; clearTimeout(window.farmFindT); window.farmFindT = setTimeout(() => { const pos = e.target.selectionStart; renderFarm().then(() => { const i = document.querySelector('.farm-detail input[type=search]'); if (i) { i.focus(); i.setSelectionRange(pos, pos); } }); }, 200); } });
+    const g = farm?.groups.find((x) => x.id === openId);
+    mount(page,
+      window.pageHead(detail.name, `Every ${detail.name} item poe.ninja prices in ${detail.league}, with its change over the last 7 days. Click an item for its price history.`,
+        h('button', { class: 'sm', onclick: () => { openId = null; q = ''; renderFarm(); } }, '← All mechanics')),
+      h('div', { class: 'panel farm-detail' },
+        h('div', { class: 'row', style: { gap: '10px', marginBottom: '8px' } }, find,
+          h('span', { class: 'small faint' }, `${rows.length === total ? total : `${rows.length} of ${total}`} items`),
+          g ? h('span', { class: 'small faint' }, ' · whole mechanic this week ', trendBadge(g.change, 'How the whole mechanic moved this week, weighted by how much of each item trades')) : null),
+        rows.length ? h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'farm-movers farm-all' },
+          h('thead', {}, h('tr', {}, th('name', 'Item'), th('chaos', 'Price', 'r'), th('change', '7 days', 'r'), th('volume', 'Traded', 'r'), h('th', {}))),
+          h('tbody', {}, rows.map((r) => h('tr', { class: r.change > 2 ? 'rise' : r.change < -2 ? 'fall' : '' },
+            h('td', {}, h('span', { class: 'row', style: { gap: '8px', flexWrap: 'nowrap' } }, r.icon ? h('img', { src: r.icon, alt: '', width: 24, height: 24, loading: 'lazy' }) : h('span', { class: 'farm-noimg' }), r.name)),
+            h('td', { class: 'r' }, chaosDiv(r.chaos, d)),
+            h('td', { class: 'r' }, trendBadge(r.change) || h('span', { class: 'faint' }, '–')),
+            h('td', { class: 'r small muted' }, r.volume != null ? Math.round(r.volume).toLocaleString() : '–'),
+            h('td', { class: 'r' }, graphButton(r, d))))))) : h('p', { class: 'muted' }, 'Nothing matches.')));
+  }
 
   async function renderFarm(force = false) {
     const page = document.getElementById('page-farm');
+    if (force) detail = null;
+    if (openId) return renderDetail(page);
     if (!farm || force) {
       if (loading) return;
       loading = true;
@@ -68,18 +108,20 @@
           h('td', { class: 'r' }, graphButton(r, d)))))))
       : h('p', { class: 'muted' }, 'Nothing doubled or halved in price this week.');
 
+    const open = (g) => { openId = g.id; q = ''; sortK = { k: 'chaos', dir: -1 }; renderFarm(); window.scrollTo?.(0, 0); };
     const card = (g) => h('div', { class: 'farm-card' },
       h('div', { class: 'farm-card-head' },
-        g.top[0]?.icon ? h('img', { src: g.top[0].icon, alt: '', width: 30, height: 30 }) : null,
-        h('div', { style: { flex: 1, minWidth: 0 } }, h('div', { class: 'farm-card-name' }, g.name), h('div', { class: 'small faint' }, `${g.count} items · typical item ${chaosDiv(g.typical, d)}`)),
+        (g.icon || g.top[0]?.icon) ? h('img', { src: g.icon || g.top[0].icon, alt: '', width: 30, height: 30 }) : null,
+        h('div', { style: { flex: 1, minWidth: 0 } }, h('button', { class: 'farm-card-name farm-open', onclick: () => open(g), title: `Every ${g.name} item with its price` }, g.name), h('div', { class: 'small faint' }, `${g.count} items · typical item ${chaosDiv(g.typical, d)}`)),
         trendBadge(g.change, 'How the whole mechanic moved this week, weighted by how much of each item trades')),
+      h('button', { class: 'sm farm-all-btn', onclick: () => open(g), title: `Every ${g.name} item with its price` }, `All ${g.count} prices →`),
       h('div', { class: 'small muted farm-sub' }, 'Most valuable'),
       h('ul', { class: 'farm-list' }, g.top.map(itemLine)),
       g.up.length ? [h('div', { class: 'small muted farm-sub' }, 'Rising'), h('ul', { class: 'farm-list' }, g.up.map(itemLine))] : null,
       g.down.length ? [h('div', { class: 'small muted farm-sub' }, 'Falling'), h('ul', { class: 'farm-list' }, g.down.map(itemLine))] : null);
 
     mount(page,
-      window.pageHead('What to farm', `poe.ninja prices for ${farm.league} over the last 7 days. Mechanics are sorted by how much their loot gained in value. Click any item for its price history.`,
+      window.pageHead('What to farm', `poe.ninja prices for ${farm.league} over the last 7 days. League mechanics, sorted by how much their loot gained in value. Click a mechanic for all its prices, or an item for its price history.`,
         h('span', { class: 'small faint' }, `Updated ${ago(farm.ageMs)}`), h('button', { class: 'sm', onclick: () => renderFarm(true) }, window.UI.icon('refresh', { size: 15 }), 'Refresh')),
       h('h2', {}, 'By league mechanic'),
       h('div', { class: 'farm-grid' }, farm.groups.map(card)),

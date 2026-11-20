@@ -1481,6 +1481,7 @@ function registerIpc() {
   handle('tiers:suggest', (type) => services.tierSuggest(String(type)));
   handle('review:run', (args) => services.priceReview(args || {}));
   handle('farm:dashboard', () => services.farmDashboard());
+  handle('farm:group', (id) => services.farmGroup(id));
   handle('designer:state', () => services.designerState());
   handle('designer:random', () => require('../core/filter/designer').randomTheme());
   handle('designer:sizes', (o) => services.setSizeAdjust(o || {}));
@@ -1518,6 +1519,7 @@ function registerIpc() {
     return require('path').basename(r.filePaths[0]);
   });
   handle('font:clear', () => { s.set('labelFontPath', ''); overlay?.webContents.reload(); return true; });
+  handle('tiers:unlisted', (type) => services.unlistedItems(type));
   handle('tiers:move', ({ type, bases, to, force }) => services.moveBases(String(type), (bases || []).map(String), String(to), { force: !!force }));
   handle('tiers:style', ({ key, style }) => services.setTierStyle(String(key), style || null));
   handle('rarelooks:theme', (o) => services.rareLooksFromTheme(o || {}));
