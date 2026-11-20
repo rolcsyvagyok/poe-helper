@@ -772,6 +772,13 @@ function showAllCurrency(text, keepHidden = new Set()) {
   for (let i = 0; i < lines.length; i += 1) {
     if (!isHead(lines[i]) || !currency(lines[i]) || mine(lines[i])) continue;
     const off = /^#/.test(lines[i]);
+    // a switched-off block with no item list is an empty tier (Big stacks Tier 6…): switched on, it would
+    // show every stack of currency in its look, so it stays off
+    if (off) {
+      let e = i + 1;
+      for (; e < lines.length && lines[e].trim() !== '' && !isHead(lines[e]); e += 1);
+      if (!lines.slice(i + 1, e).some((l) => /^#?\s*BaseType\b/.test(l))) { i = e - 1; continue; }
+    }
     let k = i;
     for (; k < lines.length && lines[k].trim() !== ''; k += 1) {
       if (k > i && isHead(lines[k])) break;

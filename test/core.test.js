@@ -534,7 +534,7 @@ test('campaign: hidden item types become one Hide block for the campaign only', 
   assert.ok(r2.conditions.find((c) => c.keyword === 'Rarity').values.includes('Rare'));
 });
 
-test('show all currency: hidden currency tiers show and switched-off ones are switched on, nothing else changes', () => {
+test('show all currency: hidden currency tiers show; switched-off empty tiers stay off; nothing else changes', () => {
   const { showAllCurrency } = require('../src/core/filter/manager');
   const src = [
     'Hide # %H1 $type->currency $tier->tportal !currency_portal', '\tClass == "Stackable Currency"', '\tBaseType == "Portal Scroll"', '\tSetFontSize 40', '',
@@ -543,8 +543,9 @@ test('show all currency: hidden currency tiers show and switched-off ones are sw
     'Show # $type->currency $tier->t1', '\tBaseType == "Divine Orb"', ''].join('\n');
   const out = showAllCurrency(src).split('\n');
   assert.strictEqual(out[0], 'Show # %H1 $type->currency $tier->tportal !currency_portal');
-  assert.strictEqual(out[5], 'Show # %DS3 $type->currency->stackedsix $tier->t6 !currency_e');
-  assert.strictEqual(out[6], '\tStackSize >= 6');
+  // no item list: switched on it would show every stack of 6 (Clear Oil…), so it stays off
+  assert.strictEqual(out[5], '#Show # %DS3 $type->currency->stackedsix $tier->t6 !currency_e');
+  assert.strictEqual(out[6], '#\tStackSize >= 6');
   assert.strictEqual(out[10], 'Hide # $type->hidelayer $tier->final');
   assert.strictEqual(out[13], 'Show # $type->currency $tier->t1');
 });

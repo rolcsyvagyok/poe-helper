@@ -826,3 +826,27 @@ test('copied identified mod rules leave veiled items to Base ranks', () => {
   const head = idModsFirst(t).split('Hide # Base ranks')[0];
   assert.ok(head.includes('HasExplicitMod =0 "Veil"'));
 });
+
+test('Show all currency leaves an empty switched-off tier off (it would show every stack)', () => {
+  const { showAllCurrency } = require('../src/core/filter/manager');
+  const text = [
+    '#Show # %DS3 $type->currency->stackedsix $tier->t6 !currency_e',
+    '#\tStackSize >= 6',
+    '#\tClass == "Stackable Currency"',
+    '#\tSetFontSize 45',
+    '',
+    '#Show # $type->currency $tier->t5 !currency_e',
+    '#\tClass == "Stackable Currency"',
+    '#\tBaseType == "Orb of Transmutation"',
+    '',
+    'Hide # $type->currency->oil $tier->t5 !currency_e',
+    '\tClass == "Stackable Currency"',
+    '\tBaseType == "Clear Oil"',
+  ].join('\n');
+  const out = showAllCurrency(text).split('\n');
+  assert.match(out[0], /^#Show/); // empty tier: stays off
+  assert.match(out[1], /^#\tStackSize/);
+  assert.match(out[5], /^Show/); // a tier with items: on
+  assert.match(out[7], /^\tBaseType/);
+  assert.match(out[9], /^Show/);
+});

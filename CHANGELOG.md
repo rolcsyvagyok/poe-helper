@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.149 - 2026-11-20
+
+* [Loot filter] Fixed: with "Show all currency" on, small stacks of hidden currency (Clear Oil…) showed up in the Big stacks look.
+- Loot filter: "Show all currency" no longer switches on the filter's empty stack tiers (Big stacks Tier 6…). With no item list, they showed every stack of 6 or more currency, hidden ones too.
+
 ## 1.0.148 - 2026-11-20
 
 * [WealthyExile] New Changes tab: what changed between two snapshots and where the profit came from. It opens after you take a snapshot.
