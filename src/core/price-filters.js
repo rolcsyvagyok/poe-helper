@@ -186,6 +186,13 @@ function uniqueRolls(rows, item, tol) {
     if (!varies) { if (!corrupted) { r.hidden = true; r.enabled = false; } continue; }
     // the min: a tenth of the roll's range under the value; a perfect roll exactly
     const x = rolls.length > 1 ? { value: rolls.reduce((a, b) => a + b.value, 0) / rolls.length, min: rolls.reduce((a, b) => a + b.min, 0) / rolls.length, max: rolls.reduce((a, b) => a + b.max, 0) / rolls.length } : rolls[0];
+    // a smaller number is better (searched as a maximum, see trade.takenAsMax): Corpse Rose's "after spending 10-20% of Life"
+    if (r.max != null && r.min == null) {
+      const best = x.value <= x.min;
+      if (r.display != null) r.max = best ? r.display : Math.ceil((r.display + Math.abs(x.max - x.min) * tol) * 100) / 100;
+      r.goodness = x.max === x.min ? 1 : (x.max - x.value) / (x.max - x.min);
+      continue;
+    }
     const sign = r.negate ? -1 : 1;
     const perfect = sign > 0 ? x.value >= x.max : x.value <= x.min;
     if (r.display != null) r.min = perfect ? r.display : Math.floor((r.display - Math.abs(x.max - x.min) * tol) * 100) / 100;

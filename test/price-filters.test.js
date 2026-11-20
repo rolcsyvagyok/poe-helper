@@ -629,3 +629,28 @@ test('Mercenary Warrant search, as Awakened PoE Trade: primary skills, supports 
   M.analyze(m2, [L(5, [[n(ss.id), new Set()]]), L(12, [[n(ss.id), new Set([n(dur.ids[1])])]]), L(9, [[n(by['Inspiring Cry'].id), new Set([n(dur.ids[0])])]])]);
   assert.deepStrictEqual([dur.delta, dur.count], [7, 1]);
 });
+
+test('Corpse Rose: "+3 to maximum Blooms" finds "+# maximum Bloom", and less life spent is better', () => {
+  const stats = { result: [{ id: 'explicit', entries: [
+    E('explicit.stat_4034618287', 'Trigger Level 20 Goreblossom after spending #% of your Maximum Life on Spells'),
+    E('explicit.stat_2891184298', '#% increased Cast Speed'),
+    E('explicit.stat_1597503116', 'Goreblossom has +# maximum Bloom'),
+  ] }] };
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'corpse-rose.txt'), 'utf8'));
+  const s = T.prepareSearch(stats, it);
+  const row = (re) => s.mods.find((m) => re.test(m.text));
+  assert.equal(row(/Blooms/).id, 'explicit.stat_1597503116');
+  assert.equal(row(/Blooms/).min, 3);
+  const life = row(/after spending/);
+  assert.equal(life.min, null);
+  assert.equal(life.max, 18); // 17%, a tenth of the 10-20 range up
+});
+
+test('an invitation is searched by name with instant buyout, no item level', () => {
+  const it = parseItem('Item Class: Map Fragments\nRarity: Normal\nScreaming Invitation\n--------\nItem Level: 84\n--------\nArea contains The Eater of Worlds\n--------\nCan be used in a personal Map Device.');
+  const s = T.prepareSearch({ result: [] }, it);
+  const q = T.buildQuery(it, s.mods, { props: s.props }).query;
+  assert.equal(q.type, 'Screaming Invitation');
+  assert.equal(q.status.option, 'securable');
+  assert.equal(q.filters.misc_filters?.filters?.ilvl, undefined);
+});

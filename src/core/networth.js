@@ -268,6 +268,21 @@ class NetWorthTracker {
     };
   }
 
+  /**
+   * What changed between two snapshots (from / to: snapshot times; to defaults to the newest, from to the one
+   * before it). See compareSnaps.
+   */
+  compare(league, { from = null, to = null } = {}) {
+    const all = this.snapshots(league);
+    if (all.length < 2) return { list: all.map((s) => ({ ts: s.ts, chaos: s.totalChaos, reason: s.reason })), result: null };
+    const b = to ? all.filter((s) => s.ts <= to).pop() : all[all.length - 1];
+    const before = all.filter((s) => s.ts < b.ts);
+    // no "from": the last snapshot before it that differs (snapshots taken seconds apart are the same)
+    const same = (x) => x.totalChaos === b.totalChaos && (x.items || []).length === (b.items || []).length;
+    const a = (from ? before.filter((s) => s.ts <= from).pop() || before[0] : [...before].reverse().find((x) => !same(x)) || before[before.length - 1]) || null;
+    return { list: all.map((s) => ({ ts: s.ts, chaos: s.totalChaos, reason: s.reason })), result: a ? compareSnaps(a, b) : null };
+  }
+
   /** Farming sessions: a start and an end (open while running); profit is measured from the snapshot at the start. */
   sessions(league) {
     return (this.store.get('sessions') || []).filter((s) => !league || s.league === league);
@@ -329,6 +344,56 @@ function diffItems(a, b) {
   return out.sort((p, q) => Math.abs(q.deltaChaos) - Math.abs(p.deltaChaos)).slice(0, 50);
 }
 
+/**
+ * Two snapshots side by side: where the change in worth came from.
+ *  - loot: items you have more of (valued at the newer price)
+ *  - spent: items you have fewer of (sold, used, moved out of the tracked tabs)
+ *  - prices: what you held all along, worth more or less now
+ *  - other: the rest (items under 1c, which snapshots don't list one by one)
+ * Plus each item's change, the change per category and per stash tab, and per hour.
+ */
+function compareSnaps(a, b) {
+  const before = new Map((a.items || []).map((i) => [i.n, i]));
+  const after = new Map((b.items || []).map((i) => [i.n, i]));
+  const items = [];
+  let loot = 0; let spent = 0; let prices = 0;
+  for (const n of new Set([...before.keys(), ...after.keys()])) {
+    const x = before.get(n); const y = after.get(n);
+    const q0 = x?.q || 0; const q1 = y?.q || 0;
+    const e0 = x?.e ?? y?.e ?? 0; const e1 = y?.e ?? x?.e ?? 0;
+    const dq = q1 - q0;
+    // the quantity change at the newer price; the price change on what you held before
+    const fromQty = dq * e1;
+    const fromPrice = q0 * (e1 - e0); // q1·e1 − q0·e0 = dq·e1 + q0·(e1 − e0)
+    if (dq > 0) loot += fromQty; else spent += fromQty;
+    prices += fromPrice;
+    if (Math.abs(fromQty) < 0.5 && Math.abs(fromPrice) < 0.5) continue;
+    items.push({ n, c: y?.c || x?.c || 'Other', i: y?.i || x?.i, q0, q1, dq, e0, e1, fromQty: Math.round(fromQty * 10) / 10, fromPrice: Math.round(fromPrice * 10) / 10 });
+  }
+  const total = (b.totalChaos || 0) - (a.totalChaos || 0);
+  const byCat = new Map();
+  for (const it of items) {
+    if (!byCat.has(it.c)) byCat.set(it.c, { c: it.c, loot: 0, spent: 0, prices: 0 });
+    const g = byCat.get(it.c);
+    if (it.dq > 0) g.loot += it.fromQty; else g.spent += it.fromQty;
+    g.prices += it.fromPrice;
+  }
+  const tabs = [...new Set([...Object.keys(a.byTab || {}), ...Object.keys(b.byTab || {})])]
+    .map((t) => ({ t, v: Math.round(((b.byTab || {})[t] || 0) - ((a.byTab || {})[t] || 0)) })).filter((x) => x.v).sort((p, q) => q.v - p.v);
+  const hours = (b.ts - a.ts) / 3600000;
+  const r = (v) => Math.round(v) + 0; // + 0: no "-0"
+  return {
+    from: { ts: a.ts, chaos: a.totalChaos, divine: a.divine }, to: { ts: b.ts, chaos: b.totalChaos, divine: b.divine },
+    hours, total: r(total), perHour: hours >= 0.25 ? r(total / hours) : null,
+    loot: r(loot), spent: r(spent), prices: r(prices), other: r(total - loot - spent - prices),
+    gained: items.filter((i) => i.dq > 0).sort((p, q) => q.fromQty - p.fromQty),
+    lost: items.filter((i) => i.dq < 0).sort((p, q) => p.fromQty - q.fromQty),
+    moved: items.filter((i) => Math.abs(i.fromPrice) >= 1).sort((p, q) => Math.abs(q.fromPrice) - Math.abs(p.fromPrice)),
+    byCat: [...byCat.values()].map((g) => ({ ...g, loot: r(g.loot), spent: r(g.spent), prices: r(g.prices), net: r(g.loot + g.spent + g.prices) })).filter((g) => g.net || g.loot || g.spent).sort((p, q) => q.net - p.net),
+    tabs,
+  };
+}
+
 /** PoE writes to Client.txt on every zone change and chat line. Idle > 15 min = not playing. */
 function isPlaying(clientLogPath, idleMs = 15 * 60 * 1000) {
   try {
@@ -338,4 +403,4 @@ function isPlaying(clientLogPath, idleMs = 15 * 60 * 1000) {
   }
 }
 
-module.exports = { NetWorthTracker, valueTabs, buildIndex, valueItem, neededCategories, diffItems, stashKind, isPlaying };
+module.exports = { NetWorthTracker, valueTabs, buildIndex, valueItem, neededCategories, diffItems, compareSnaps, stashKind, isPlaying };

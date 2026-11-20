@@ -98,6 +98,11 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
     const alias = { '#% to item rarity': '#% increased rarity of items found', '#% to item quantity': '#% increased quantity of items found' }[key];
     if (alias) hits = table[alias] || table[`~${looseKey(alias)}`];
   }
+  // the item says "+3 to maximum Blooms", the trade site "+# maximum Bloom"
+  if (!hits && /# to maximum /.test(key)) {
+    const k2 = key.replace('# to maximum ', '# maximum ');
+    hits = table[k2] || table[`~${looseKey(k2)}`];
+  }
   if (!hits && /\bless\b/i.test(modText)) {
     hits = table[key.replace(/\bless\b/, 'more')];
     negate = !!hits;
@@ -200,7 +205,15 @@ function matchItemMods(statsJson, item, { tolerance = 0.1 } = {}) {
 
 /** Ticks and starting min values a player would usually want. */
 /** "-25 Physical Damage taken from Hits": lower is better, so it is searched as a maximum (-25 -> -22 and lower) */
+// mods where a smaller number is better: Corpse Rose's "after spending #% of your Maximum Life" (17% -> 18% and lower)
+const SMALLER_IS_BETTER = [/\bafter spending #%/i];
 function takenAsMax(m, tolerance) {
+  if (m.display > 0 && SMALLER_IS_BETTER.some((re) => re.test(m.statText || ''))) {
+    const hi = m.display * (1 + tolerance);
+    m.max = Number.isInteger(m.display) ? Math.ceil(hi) : Math.ceil(hi * 100) / 100;
+    m.min = null;
+    return;
+  }
   if (!(m.display < 0) || !/\btaken\b/i.test(m.statText || m.text || '')) return;
   const hi = m.display * (1 - tolerance);
   m.max = Number.isInteger(m.display) ? Math.ceil(hi) : Math.ceil(hi * 100) / 100;
@@ -807,8 +820,9 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   props.maxAffix = item.rarity === 'Magic' ? 1 : /jewel/i.test(`${cls} ${item.baseType || ''}`) ? 2 : 3;
   // every item is searched from its own item level up (86 and over is the same for every mod), maps excepted:
   // their tier is what counts
-  // (identified uniques too are left out: their mods don't depend on it, and it only hides cheaper listings)
-  if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !(kind === 'unique' && !item.flags?.unidentified) && !/heist contract|viscera/i.test(cls)) {
+  // (identified uniques too are left out: their mods don't depend on it, and it only hides cheaper listings;
+  // and invitations: any one opens the same fight)
+  if (item.itemLevel && kind !== 'map' && kind !== 'gem' && !(kind === 'unique' && !item.flags?.unidentified) && !/heist contract|viscera/i.test(cls) && !/ Invitation$/.test(item.typeLine || '')) {
     props.ilvl = { ...(props.ilvl || {}), on: true, min: Math.min(item.itemLevel, 86), max: null, show: true };
   }
   // Ritual bases (Stormrider Boots, Nexus Gloves, Blizzard Crown…): the base and its implicit are what sells; nothing else is ticked

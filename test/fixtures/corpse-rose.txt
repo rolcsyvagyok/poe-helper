@@ -1,0 +1,33 @@
+Item Class: Wands
+Rarity: Unique
+Corpse Rose
+Imbued Wand
+--------
+Wand
+Physical Damage: 27-50
+Critical Strike Chance: 8.00%
+Attacks per Second: 1.60
+--------
+Requirements:
+Level: 59
+Int: 188 (unmet)
+--------
+Sockets: W-W B 
+--------
+Item Level: 85
+--------
+{ Implicit Modifier — Damage, Caster }
+34(33-37)% increased Spell Damage
+--------
+{ Unique Modifier }
+Trigger Level 20 Goreblossom after spending 17(10-20)% of your Maximum Life on Spells — Unscalable Value
+{ Unique Modifier — Caster, Speed }
+30(20-30)% increased Cast Speed
+{ Unique Modifier — Life }
+Skills Cost Life instead of 50% of Mana Cost
+{ Unique Modifier }
+Goreblossom has +3(1-3) to maximum Blooms
+--------
+Of Dreadmaiden make,
+it imbibes the blood of its wielder.
+Ever drinking, never sated.

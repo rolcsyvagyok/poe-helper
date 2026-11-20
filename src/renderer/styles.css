@@ -2017,3 +2017,35 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .cs-best { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
 .cs-otable tr.picked td { box-shadow: inset 0 1px 0 #6fb0ff, inset 0 -1px 0 #6fb0ff; }
 @media (max-width: 1250px) { .cs-wcols { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- WealthyExile: Overview / Changes ---- */
+.cx-views { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+.cx-view { padding: 7px 16px; font: 600 14px system-ui; background: none; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; color: var(--muted); cursor: pointer; margin-bottom: -1px; }
+.cx-view.on { background: var(--surface); border-color: var(--line); color: var(--text); }
+.cx { display: grid; gap: 16px; }
+.cx-pick { gap: 8px; flex-wrap: wrap; align-items: center; }
+.cx-pick select { max-width: 280px; }
+.cx-head { display: grid; grid-template-columns: minmax(200px, auto) 1fr; gap: 18px; align-items: center; }
+@media (max-width: 900px) { .cx-head { grid-template-columns: 1fr; } }
+.cx-total { display: grid; gap: 2px; }
+.cx-big { font-size: 34px; line-height: 1.1; }
+.cx-big.up { color: #7fb3e0; } .cx-big.down { color: #f0a040; }
+.cx-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.cx-part { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); }
+.cx-part.up { box-shadow: inset 3px 0 0 #4a90d9; } .cx-part.down { box-shadow: inset 3px 0 0 #f08c00; }
+.cx-pl { font-size: 12px; color: var(--muted); }
+.cx-part b { font-size: 17px; }
+.cx-col { display: grid; gap: 16px; align-content: start; }
+.cx-cats { display: grid; gap: 6px; }
+.cx-cat { display: grid; grid-template-columns: minmax(90px, 150px) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13.5px; }
+.cx-track { position: relative; height: 12px; background: var(--raised); border-radius: 6px; }
+.cx-track::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--faint); }
+.cx-track i { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+.cx-track i.up { left: 50%; background: #4a90d9; }
+.cx-track i.down { right: 50%; background: repeating-linear-gradient(135deg, #f08c00 0 4px, #c06a00 4px 7px); }
+.cx-tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.cx-tab { padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); }
+.cx-tab.up { color: #7fb3e0; } .cx-tab.down { color: #f0a040; border-style: dashed; }
+.cx-table td, .cx-table th { padding-top: 5px; padding-bottom: 5px; }
+.cx-moves summary { cursor: pointer; padding: 2px 0; }
+.cx-moves[open] summary { margin-bottom: 8px; }

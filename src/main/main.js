@@ -970,6 +970,7 @@ function registerIpc() {
     return s;
   });
   handle('networth:report', async (sinceMs, at = null) => services.networth.report(await services.getLeague(), { sinceMs, at }));
+  handle('networth:compare', async (o = {}) => services.networth.compare(await services.getLeague(), { from: o.from || null, to: o.to || null }));
   handle('networth:clear', async () => {
     const league = await services.getLeague();
     services.snapshots.set('snapshots', (services.snapshots.get('snapshots') || []).filter((x) => x.league !== league));

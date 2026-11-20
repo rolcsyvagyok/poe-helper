@@ -571,6 +571,10 @@ let nwSort = { k: 'total', dir: -1 };
 let nwOffTabs = new Set(); // stash tabs unticked in the item list
 let nwShowAll = false;
 let nwSetup = false;
+let nwView = 'overview'; // 'overview' or 'changes' (what changed between two snapshots)
+let nwFrom = ''; // the Changes tab's start: '' = the snapshot before, 's:<id>' = a session's start, 'h:<hours>', or a time
+let nwTo = ''; // '' = the newest snapshot
+let nwAllRows = {};
 const NW_COLOURS = ['#e5c48b', '#4a90d9', '#f08c00', '#9db8d6', '#b0702a', '#6d8fbf', '#f2c46d', '#3f5f8f', '#c98a4b', '#7fb3e0'];
 
 function nwDonut(cats, total) {
@@ -632,6 +636,91 @@ function nwItems(latest, tabNames, snapBtn) {
         !nwShowAll && shown.length > LIMIT ? h('button', { class: 'quiet sm', style: { margin: '10px 0' }, onclick: () => { nwShowAll = true; renderNetworth(); } }, `Show all ${shown.length}`) : null)));
 }
 
+
+// ---- WealthyExile, Changes: what changed between two snapshots and where the profit came from ----
+async function nwChanges(sessions, d) {
+  const now = Date.now();
+  const fromTs = nwFrom.startsWith('s:') ? sessions.find((x) => x.id === nwFrom.slice(2))?.start
+    : nwFrom.startsWith('h:') ? now - Number(nwFrom.slice(2)) * 3600000 : nwFrom === 'first' ? 1 : nwFrom ? Number(nwFrom) : null;
+  let C = null;
+  try { C = await call('networth:compare', { from: fromTs || null, to: nwTo ? Number(nwTo) : null }); } catch { /* none */ }
+  const list = (C?.list || []).slice().reverse();
+  const r = C?.result;
+  if (!r) return h('div', { class: 'nw-panel' }, h('p', { class: 'muted' }, list.length ? 'Take one more snapshot to see what changed.' : 'Take two snapshots to see what changed between them.'));
+  const dd = r.to.divine || d;
+  const money = (v, o = {}) => window.UI.money(v, dd, o);
+  const signed = (v) => window.UI.money(v, dd, { sign: true });
+  const signedText = (v) => `${v >= 0 ? '+' : '−'}${chaosDiv(Math.abs(v), dd)}`;
+  const when = (ts) => new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const span = (hrs) => (hrs < 1 / 60 ? 'under a minute' : hrs < 1 ? `${Math.round(hrs * 60)} min` : hrs < 48 ? `${(Math.round(hrs * 10) / 10)} h` : `${Math.round(hrs / 24)} days`);
+  const snapOpt = (x, sel) => h('option', { value: String(x.ts), selected: sel }, `${when(x.ts)} · ${chaosDiv(x.chaos, d)}${x.reason === 'auto' ? ' · auto' : ''}`);
+  const fromSel = h('select', { 'aria-label': 'Compare from', onchange: (e) => { nwFrom = e.target.value; nwAllRows = {}; renderNetworth(); } },
+    h('option', { value: '', selected: !nwFrom }, 'The snapshot before'),
+    h('option', { value: 'h:1', selected: nwFrom === 'h:1' }, '1 hour ago'),
+    h('option', { value: 'h:24', selected: nwFrom === 'h:24' }, '24 hours ago'),
+    h('option', { value: 'h:168', selected: nwFrom === 'h:168' }, 'A week ago'),
+    h('option', { value: 'first', selected: nwFrom === 'first' }, 'My first snapshot'),
+    sessions.length ? h('optgroup', { label: 'A session\'s start' }, sessions.slice(0, 10).map((x) => h('option', { value: `s:${x.id}`, selected: nwFrom === `s:${x.id}` }, `${x.name} (${when(x.start)})`))) : null,
+    h('optgroup', { label: 'A snapshot' }, list.slice(1, 40).map((x) => snapOpt(x, nwFrom === String(x.ts)))));
+  const toSel = h('select', { 'aria-label': 'Compare to', onchange: (e) => { nwTo = e.target.value; nwAllRows = {}; renderNetworth(); } },
+    h('option', { value: '', selected: !nwTo }, 'The newest snapshot'),
+    list.slice(1, 40).map((x) => snapOpt(x, nwTo === String(x.ts))));
+
+  // the headline: total change, per hour, and the four parts it's made of
+  const part = (label, v, help) => h('div', { class: 'cx-part' + (v > 0 ? ' up' : v < 0 ? ' down' : '') , title: help },
+    h('span', { class: 'cx-pl' }, label), h('b', {}, signed(v)));
+  const head = h('div', { class: 'nw-panel cx-head' },
+    h('div', { class: 'cx-total' },
+      h('span', { class: 'small muted' }, `Change in ${span(r.hours)}`),
+      h('b', { class: 'cx-big ' + (r.total >= 0 ? 'up' : 'down') }, signed(r.total)),
+      h('span', { class: 'small muted' }, r.perHour != null ? [signed(r.perHour), ' an hour'] : `${chaosDiv(r.from.chaos, d)} → ${chaosDiv(r.to.chaos, d)}`)),
+    h('div', { class: 'cx-parts' },
+      part('Loot', r.loot, 'Items you have more of, at today\'s price'),
+      part('Spent or sold', r.spent, 'Items you have fewer of: used, sold, or moved out of your tracked tabs'),
+      part('Price moves', r.prices, 'What you held all along, worth more or less now'),
+      Math.abs(r.other) >= 1 ? part('Small items', r.other, 'Items under 1c, which snapshots don\'t list one by one') : null));
+
+  // where it came from: each category's net change (bars: + blue to the right, − orange to the left)
+  // the 10 biggest changes either way, best first (a big loss must not drop off the end)
+  const cats = [...r.byCat].sort((a, b) => Math.abs(b.net) - Math.abs(a.net)).slice(0, 10).sort((a, b) => b.net - a.net);
+  const mx = Math.max(1, ...cats.map((g) => Math.abs(g.net)));
+  const catBox = h('div', { class: 'nw-panel' },
+    h('div', { class: 'nw-ph' }, h('h2', {}, 'Where it came from'), h('span', { class: 'small faint' }, 'by category')),
+    cats.length ? h('div', { class: 'cx-cats' }, cats.map((g) => h('div', { class: 'cx-cat', title: `Loot ${signedText(g.loot)}, spent ${signedText(g.spent)}, price moves ${signedText(g.prices)}` },
+      h('span', { class: 'n' }, wxName(g.c)),
+      h('span', { class: 'cx-track' }, h('i', { class: g.net >= 0 ? 'up' : 'down', style: { width: `${Math.max(2, (Math.abs(g.net) / mx) * 50)}%` } })),
+      h('b', { class: 'r ' + (g.net >= 0 ? 'good' : 'bad') }, signed(g.net))))) : h('p', { class: 'small muted' }, 'Nothing changed.'),
+    r.tabs.length ? h('div', { class: 'cx-tabs small' }, h('span', { class: 'muted' }, 'By tab: '), r.tabs.slice(0, 8).map((t) => h('span', { class: 'cx-tab ' + (t.v >= 0 ? 'up' : 'down') }, `${t.t} ${t.v >= 0 ? '+' : '−'}${chaosDiv(Math.abs(t.v), d)}`))) : null);
+
+  // the items: new loot, what's gone, and price moves
+  const rows = (key, items, n, cols) => {
+    const all = nwAllRows[key];
+    const shown = all ? items : items.slice(0, n);
+    return [h('table', { class: 'wx-items nw-table cx-table' },
+      h('thead', {}, h('tr', {}, cols.map(([l, c]) => h('th', { class: c || '' }, l)))),
+      h('tbody', {}, shown.map((i) => h('tr', {}, cols.map(([, c, f]) => h('td', { class: c || '' }, f(i))))))),
+    items.length > n ? h('button', { class: 'quiet sm', onclick: () => { nwAllRows[key] = !all; renderNetworth(); } }, all ? 'Show fewer' : `Show all ${items.length}`) : null];
+  };
+  const nameCell = (i) => h('span', { class: 'nw-name' }, wxIcon(i, 26), h('span', {}, i.n));
+  const box = (title, sub, items, key, n, cols, empty) => h('div', { class: 'nw-panel' },
+    h('div', { class: 'nw-ph' }, h('h2', {}, title), h('span', { class: 'small faint' }, sub)),
+    items.length ? rows(key, items, n, cols) : h('p', { class: 'small muted' }, empty));
+  const gained = box('New loot', `${r.gained.length} items · ${signedText(r.loot)}`, r.gained, 'gained', 12,
+    [['Item', '', nameCell], ['Got', 'r', (i) => `+${fmt(i.dq)}`], ['Each', 'r muted', (i) => money(i.e1)], ['Worth', 'r', (i) => h('b', { class: 'good' }, signed(i.fromQty))]], 'No new items.');
+  const lost = box('Spent or sold', `${r.lost.length} items`, r.lost, 'lost', 8,
+    [['Item', '', nameCell], ['Gone', 'r', (i) => `−${fmt(-i.dq)}`], ['Worth', 'r', (i) => h('b', { class: 'bad' }, signed(i.fromQty))]], 'Nothing used or sold.');
+  const moved = r.moved.length ? h('details', { class: 'nw-panel cx-moves', open: !!nwAllRows.movesOpen, ontoggle: (e) => { nwAllRows.movesOpen = e.target.open; } },
+    h('summary', {}, h('b', {}, 'Price moves'), h('span', { class: 'small faint' }, ` · ${r.moved.length} items you held changed price: ${signedText(r.prices)}`)),
+    rows('moved', r.moved, 10, [['Item', '', nameCell], ['You hold', 'r', (i) => fmt(i.q0)], ['Price', 'r muted', (i) => [money(i.e0), ' → ', money(i.e1)]], ['Change', 'r', (i) => h('b', { class: i.fromPrice >= 0 ? 'good' : 'bad' }, signed(i.fromPrice))]])) : null;
+
+  return h('div', { class: 'cx' },
+    h('div', { class: 'nw-panel cx-pick row' }, h('span', { class: 'muted' }, 'From'), fromSel, h('span', { class: 'muted' }, 'to'), toSel,
+      h('span', { class: 'small faint' }, `${when(r.from.ts)} → ${when(r.to.ts)}`)),
+    head,
+    h('div', { class: 'nw-two' }, gained, h('div', { class: 'cx-col' }, catBox, lost)),
+    moved);
+}
+
 function renderNetworth() { return window.UI.keepScroll(() => renderNetworthNow()); }
 async function renderNetworthNow() {
   await refreshState();
@@ -652,7 +741,7 @@ async function renderNetworthNow() {
   // ---- the bar on top ----
   const snapBtn = h('button', { class: 'primary', disabled: !ready || !selected.size, onclick: async () => {
     snapBtn.disabled = true; snapBtn.textContent = 'Taking snapshot…';
-    try { await call('networth:snapshot'); toast('Snapshot taken'); } catch { /* toast */ }
+    try { await call('networth:snapshot'); toast('Snapshot taken: here\'s what changed'); nwView = 'changes'; nwFrom = ''; nwTo = ''; nwAllRows = {}; } catch { /* toast */ }
     renderNetworth();
   }, title: `Costs ${selected.size} GGG ${selected.size === 1 ? 'request' : 'requests'} (one per tracked tab)` }, 'Take snapshot ', window.UI.icon('plusc', { size: 16 }));
   const sessBtn = h('button', { class: running ? 'danger' : '', disabled: !ready || !selected.size, onclick: async () => {
@@ -806,10 +895,18 @@ async function renderNetworthNow() {
       h('span', { class: 'spacer' }),
       h('button', { class: 'danger sm', onclick: async () => { if (confirm(`Delete all snapshots for ${S.league}?`)) { await call('networth:clear'); nwSession = null; renderNetworth(); } } }, 'Delete history'))) : null;
 
+  const viewTabs = latest ? h('div', { class: 'cx-views', role: 'tablist' }, [['overview', 'Overview'], ['changes', 'Changes']].map(([k, l]) => h('button', {
+    class: 'cx-view' + (nwView === k ? ' on' : ''), role: 'tab', 'aria-selected': nwView === k ? 'true' : 'false', onclick: () => { nwView = k; renderNetworth(); } }, l)),
+  h('span', { class: 'spacer' }), nwView === 'changes' ? snapBtn : null) : null;
+  if (nwView === 'changes' && latest) {
+    mount(el, h('div', { class: 'nw-page' }, bar, setup, viewTabs, await nwChanges(sessions, d)));
+    return;
+  }
   mount(el,
     h('div', { class: 'nw-page' },
       bar,
       setup,
+      viewTabs,
       tabBar,
       h('div', { class: 'nw-top' }, chartBox, catBox),
       sessBox,

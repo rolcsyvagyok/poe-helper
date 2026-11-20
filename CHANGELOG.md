@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.148 - 2026-11-20
+
+* [WealthyExile] New Changes tab: what changed between two snapshots and where the profit came from. It opens after you take a snapshot.
+- WealthyExile → Changes: the change since the snapshot before (or 1 hour, 24 hours, a week, a session's start, any snapshot), split into loot, spent or sold, and price moves. Below: the categories it came from, the new loot, what's gone, and the price moves of what you held.
+- Price check: invitations (Incandescent, Screaming and the others) are searched with instant buyout instead of the bulk exchange, whose offers for them are mostly fake. Item level no longer counts for them.
+- Price check: Corpse Rose's "+3 to maximum Blooms" is found and ticked, and "after spending 17% of your Maximum Life" is searched as 18% or less (less is better).
+
 ## 1.0.147 - 2026-11-19
 
 * [Crafting] New "Try crafts" tab: craft on your own item or a fresh base with currency, the bench, Harvest and fossils, and click the mods you want to get the best fossils for them.
