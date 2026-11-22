@@ -11,6 +11,8 @@
  *    breadth-first walk from the start (neighbours by ascending id), 1 = picked; a picked multiple-choice node
  *    is followed by its choice + 1 in as few bits as its number of choices needs. Base64url, 6 bits a char.
  *  - hypostasis.faith …#s=<id>,<id>:<choice>,…
+ *  - poeatlasplanner.com/#p=<code>: base64url of [u8 format][u8 n][game version, n chars][u8 n][tree version]
+ *    then varints: [points][n][n node ids as gaps from the one before, ascending][m][(index in that list, effect) × m]
  */
 
 const A16 = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
@@ -179,6 +181,31 @@ function decodePoeplanner(code) {
   return { nodes, choices: {} };
 }
 
+function decodeAtlasPlanner(code, tree) {
+  const b = fromB64url(code);
+  let p = 1;
+  if (b.length < 4) return null;
+  p += 1 + b[p]; // game version ("3.30.0")
+  p += 1 + b[p]; // tree version ("3.30.0-r1")
+  const varint = () => { let x = 0; let sh = 0; let c; do { if (p >= b.length) throw new Error('short'); c = b[p++]; x += (c & 127) * 2 ** sh; sh += 7; } while (c & 128); return x; };
+  try {
+    varint(); // points
+    const n = varint();
+    const nodes = []; let id = 0;
+    for (let i = 0; i < n; i++) { id += varint(); nodes.push(id); }
+    const choices = {};
+    if (p < b.length) {
+      const m = varint();
+      for (let i = 0; i < m; i++) {
+        const node = nodes[varint()]; const effect = varint();
+        const idx = tree?.nodes.get(node)?.variants.findIndex((v) => v.effect === effect);
+        if (idx >= 0) choices[node] = idx;
+      }
+    }
+    return { nodes, choices };
+  } catch { return null; }
+}
+
 function checksum(items) {
   const s = items.slice().sort((a, b) => a[0] - b[0]).map(([id, c]) => (c === undefined ? id : `${id}:${c}`)).join(',');
   let h = 0x811c9dc5;
@@ -258,13 +285,17 @@ function parseLink(link, tree) {
     const choices = {}; const nodes = [];
     for (const part of hypoS[1].split(',')) { const [id, c] = part.split(':').map(Number); if (id) { nodes.push(id); if (c >= 0) choices[id] = c; } }
     r = { nodes, choices };
+  } else if (/poeatlasplanner\.com/i.test(s) && /#p=([\w-]+)/.test(s)) {
+    from = 'poeatlasplanner.com';
+    r = decodeAtlasPlanner(/#p=([\w-]+)/.exec(s)[1], tree);
+    if (!r) throw new Error('That poeatlasplanner.com link couldn\'t be read. Make sure the whole link was copied.');
   } else if (hypoT) {
     from = 'hypostasis.faith';
     r = decodeHypostasis(hypoT[1], tree);
     if (!r) throw new Error('That hypostasis.faith link is for another version of the atlas tree, or it was cut short.');
   } else {
     const code = (/(?:atlas-skill-tree|atlas-tree2?|\/atlas)\/([\w-]+)/.exec(s) || [null, /^[\w-]{8,}$/.test(s) ? s : null])[1];
-    if (!code) throw new Error('That isn\'t an atlas tree link. Links from pathofexile.com, poeplanner.com, hypostasis.faith and wealthyexile.com work.');
+    if (!code) throw new Error('That isn\'t an atlas tree link. Links from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith and wealthyexile.com work.');
     from = /poeplanner/.test(s) ? 'poeplanner.com' : /wealthyexile/.test(s) ? 'wealthyexile.com' : /pathofexile/.test(s) ? 'pathofexile.com' : 'code';
     const b = fromB64url(code);
     r = b.length >= 3 && b[0] + b[1] + b[2] === 0 ? decodeOfficial(code, tree) : decodePoeplanner(code);
@@ -374,4 +405,4 @@ function connectedNodes(tree, nodes) {
   return out.slice(0, tree.points);
 }
 
-module.exports = { connectedNodes, buildTree, parseLink, effects, sumLines, drawData, categoryOf, encodeOfficial, encodeHypostasis, decodeHypostasis, decodeOfficial, decodePoeplanner };
+module.exports = { connectedNodes, buildTree, parseLink, effects, sumLines, drawData, categoryOf, encodeOfficial, encodeHypostasis, decodeHypostasis, decodeAtlasPlanner, decodeOfficial, decodePoeplanner };

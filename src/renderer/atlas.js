@@ -325,7 +325,7 @@
         h('span', {}, s.total.perHour != null ? `${sign(s.total.perHour, d)} / h` : 'No sessions yet'),
         s.costPerMap ? h('span', { class: 'faint' }, `${fmtC(s.costPerMap, d)} a map`) : null))) : h('p', { class: 'small muted' }, 'No strategies yet. Click "New strategy".'));
 
-    const body = h('div', { class: 'at-body' }, S ? strategyView(S, L) : h('div', { class: 'panel empty' }, 'Make a strategy for each way you farm: Breach with Breach threads, Beasts and Heist, Originator maps… Paste its atlas tree link from pathofexile.com, poeplanner.com, hypostasis.faith or wealthyexile.com.'));
+    const body = h('div', { class: 'at-body' }, S ? strategyView(S, L) : h('div', { class: 'panel empty' }, 'Make a strategy for each way you farm: Breach with Breach threads, Beasts and Heist, Originator maps… Paste its atlas tree link from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith or wealthyexile.com, or click it together on the tree.'));
     window.UI.keepScroll ? window.UI.keepScroll(() => mount(page, head, h('div', { class: 'at-page' }, cards, body))) : mount(page, head, h('div', { class: 'at-page' }, cards, body));
   }
 
@@ -349,7 +349,7 @@
     const top = h('div', { class: 'at-top' }, name, h('span', { class: 'spacer' }), sessBtn, del);
 
     // ---- the tree link ----
-    const link = h('input', { type: 'text', value: S.link || '', placeholder: 'Atlas tree link (pathofexile.com, poeplanner.com, hypostasis.faith, wealthyexile.com), or click passives on the tree', 'aria-label': 'Atlas tree link', style: { flex: 1 } });
+    const link = h('input', { type: 'text', value: S.link || '', placeholder: 'Atlas tree link (pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com), or click passives on the tree', 'aria-label': 'Atlas tree link', style: { flex: 1 } });
     const imp = h('button', { onclick: () => save({ id: S.id, link: link.value }) }, S.link ? 'Update tree' : 'Import tree');
     link.addEventListener('keydown', (e) => { if (e.key === 'Enter') imp.click(); });
     const linkRow = h('div', { class: 'at-row' }, link, imp);
@@ -368,9 +368,11 @@
       thr.name && !(A.threads || []).some((t) => t.name === thr.name) ? h('option', { value: thr.name, selected: true }, thr.name) : null);
     const threadN = h('input', { type: 'number', min: 0, max: 10, value: thr.count ?? 8, 'aria-label': 'Threads a map', style: { width: '64px' }, disabled: !thr.name, onchange: (e) => save({ id: S.id, thread: { name: thr.name, count: e.target.value } }, true) });
     const kinds = L.mapKinds;
-    const kindSel = h('select', { 'aria-label': 'Map kind', onchange: (e) => save({ id: S.id, mapKind: e.target.value }, true) },
-      kinds.map((k) => h('option', { value: k, selected: (S.mapKind || kinds[0]) === k }, k)),
-      S.mapKind && !kinds.includes(S.mapKind) ? h('option', { value: S.mapKind, selected: true }, S.mapKind) : null);
+    // a list to pick from, or type your own kind
+    const kindSel = h('input', { type: 'text', list: 'at-kinds', value: S.mapKind || kinds[0], 'aria-label': 'Map kind', style: { width: '190px' }, onfocus: (e) => e.target.select(), onchange: (e) => save({ id: S.id, mapKind: e.target.value.trim() || kinds[0], mapPrice: '' }, true) });
+    const kindList = h('datalist', { id: 'at-kinds' }, kinds.map((k) => h('option', { value: k })));
+    const notNormal = S.mapKind && S.mapKind !== 'Any maps';
+    const mapPrice = notNormal ? h('input', { type: 'number', min: 0, step: 'any', value: S.mapPrice ?? '', placeholder: S.mapAuto != null ? `${S.mapAuto}c` : 'price', title: S.mapAuto != null ? `poe.ninja: ${S.mapAuto}c a map. Type your own price to use that instead.` : 'What a map costs you, in chaos', 'aria-label': 'Price of a map, chaos', style: { width: '76px' }, onchange: (e) => save({ id: S.id, mapPrice: e.target.value }, true) }) : null;
     const mapName = h('input', { type: 'text', value: S.mapName || '', placeholder: 'Map (optional)', 'aria-label': 'Map', style: { width: '170px' }, onchange: (e) => save({ id: S.id, mapName: e.target.value }, true) });
     const priceOf = (n) => S.costs.find((p) => p.name === n)?.chaos ?? null;
     const extra = (S.inputs || []).map((i, k) => h('div', { class: 'at-in' },
@@ -386,8 +388,9 @@
     const setup = h('div', { class: 'panel at-setup' },
       h('div', { class: 'at-setup-row' },
         h('label', { class: 'at-field' }, h('span', { class: 'small muted' }, 'Threads a map'), h('div', { class: 'at-row' }, threadSel, threadN)),
-        h('label', { class: 'at-field' }, h('span', { class: 'small muted' }, 'Maps'), h('div', { class: 'at-row' }, kindSel, mapName)),
-        h('div', { class: 'at-field at-cost' }, h('span', { class: 'small muted' }, 'Cost a map'), h('b', {}, S.costPerMap ? chaosDiv(S.costPerMap, d) : '–'))),
+        h('label', { class: 'at-field' }, h('span', { class: 'small muted' }, 'Maps'), h('div', { class: 'at-row' }, kindSel, kindList, mapPrice, mapName)),
+        h('div', { class: 'at-field at-cost' }, h('span', { class: 'small muted' }, 'Cost a map'), h('b', { title: S.costs.map((c) => `${c.count > 1 ? `${c.count} × ` : ''}${c.name}: ${c.total != null ? chaosDiv(c.total, d) : 'no price'}`).join('\n') }, S.costPerMap ? chaosDiv(S.costPerMap, d) : '–'),
+          S.costs.length ? h('span', { class: 'small faint' }, S.costs.map((c) => `${c.map ? 'map' : / Thread$/.test(c.name) ? 'threads' : c.name} ${c.total != null ? chaosDiv(c.total, d) : '?'}`).join(' + ')) : null)),
       h('div', { class: 'at-ins' }, extra, addIn));
 
     // ---- tree + effects ----

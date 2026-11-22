@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.154 - 2026-11-22
+
+* [Atlas strategies] Trees from poeatlasplanner.com can be imported (with their multiple-choice picks).
+* [Atlas strategies] More map kinds (Conqueror, Elder and Shaper guardian, Vaal Temple…), or type your own; a map that isn't a normal one adds its poe.ninja price to the cost a map.
+- Atlas strategies: map kinds Conqueror maps, Elder guardian maps, Shaper guardian maps, Nightmare (Valdo) maps, Vaal Temple maps and tier 16 Blighted / Blight-ravaged maps are priced from poe.ninja (the middle price of the four Conqueror maps); the price shows next to the kind and is added to the cost a map, which now lists what it is made of. Type your own price to use that instead. Any kind can be typed in.
+
 ## 1.0.153 - 2026-11-22
 
 * Price check: a temple's area level is searched too (at least its own, ticked; you can change it).

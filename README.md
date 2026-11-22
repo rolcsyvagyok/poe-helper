@@ -41,9 +41,9 @@ A Path of Exile 1 desktop helper with an in-game overlay. It combines a price ch
 - Items that doubled or halved are listed (and marked in the loot filter tiers); click any item for its 7-day price graph. Uses only poe.ninja.
 
 **Atlas strategies**
-- One card per way you farm. Paste its atlas tree link (pathofexile.com, poeplanner.com, hypostasis.faith or wealthyexile.com) and the tree is drawn; point at a passive for what it does, click a multiple-choice passive to pick its option.
+- One card per way you farm. Paste its atlas tree link (pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith or wealthyexile.com), or click the tree together and the tree is drawn; point at a passive for what it does, click a multiple-choice passive to pick its option.
 - What the tree does, added up and grouped by league mechanic; point at a group to light up its passives.
-- The threads (with their poe.ninja price), map kind and other items each map uses, with the cost a map.
+- The threads (with their poe.ninja price), map kind (Conqueror, guardian, Nightmare maps… priced from poe.ninja) and other items each map uses, with the cost a map.
 - Start a session from the strategy: WealthyExile takes a snapshot at the start and stop, and the strategy lists each session's gain, per hour and (from Client.txt) per map.
 
 **Loot filter: FilterBlade tiers, edited locally**

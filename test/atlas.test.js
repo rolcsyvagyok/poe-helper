@@ -90,3 +90,13 @@ test('a tree made by hand keeps only passives linked to the start', () => {
   const r = A.parseLink('https://hypostasis.faith/atlas/data.html#t=qrmXAv4r4tzGXlcXtlRxmi_Xj9_rZ29b_70CSbHFCTOFS3hD-', tree);
   assert.equal(A.connectedNodes(tree, r.nodes).length, 149);
 });
+
+test('a poeatlasplanner.com link, with its multiple-choice picks', () => {
+  const r = A.parseLink('https://poeatlasplanner.com/#p=AgYzLjMwLjAJMy4zMC4wLXIxlgGWAc4BuAvKAasBzwKJC5AB9wrxBZ8KigHnAYsCXj3CCB-IAucF7wSXAiGLCAvpBe0B2gG9BdYBowIakQKbByXDAjOSAaUC8wKqAZUF7gOmAYIC7gE9ogLdAY0E9wQ_iAFZ1RjCB6EC7gchuQKzAcgCpAP8BOMEjwH2Ap0GXbsEaccCiQQhmA4w1AMJbbQCKMYC0AwcsgHsBacB2wFQ4ANb1waIBSmMAq8H6gSwAYsT2gHyBdMDgQZFpgEEA-wECjv8DJMEjQK4AtIBugEzzAKZD4IBlQflB-YIO90BhwLCBhookAE5nAKDAogFuwG6Bzof_AjVAk7eBdUBS02pAroELIkE4gEnAyTKTD7fiAFKgl0', tree);
+  assert.equal(r.from, 'poeatlasplanner.com');
+  assert.equal(r.nodes.length, 150);
+  assert.equal(A.connectedNodes(tree, r.nodes).length, 150);
+  // Trarthan Policy: Intelligence aligned; Malignant Modifiers: suffixes; House Supremacy: Duelist
+  assert.deepEqual(r.choices, { 16487: 2, 28477: 1, 33916: 1 });
+  assert.throws(() => A.parseLink('https://poeatlasplanner.com/#p=AgYz', tree), /poeatlasplanner/);
+});

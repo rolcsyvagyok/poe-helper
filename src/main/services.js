@@ -2160,7 +2160,27 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   }
 
   const strategiesAll = () => settings.get('atlasStrategies') || [];
-  const ATLAS_MAP_KINDS = ['Any maps', 'Originator maps', 'Mirage', 'Nightmare (Valdo) maps', 'Unique maps', 'Blighted maps', 'Blight-ravaged maps'];
+  // map kinds; the ones poe.ninja prices (cat + names) add their price to the cost a map (the middle price when
+  // several maps make the kind: the four conqueror maps)
+  const ATLAS_MAP_KINDS = [
+    { name: 'Any maps' },
+    { name: 'Conqueror maps', cat: 'Map', re: /^(Baran|Veritania|Drox|Al-Hezmin) Map \(Tier 16\)$/ },
+    { name: 'Elder guardian maps', cat: 'Map', re: /^The (Purifier|Enslaver|Constrictor|Eradicator) Map \(Tier 16\)$/ },
+    { name: 'Shaper guardian maps', cat: 'Map', re: /^Shaper Guardian Map$/ },
+    { name: 'Nightmare (Valdo) maps', cat: 'Map', re: /^Nightmare Map$/ },
+    { name: 'Vaal Temple maps', cat: 'Map', re: /^Vaal Temple Map$/ },
+    { name: 'Blighted maps (T16)', cat: 'BlightedMap', re: /^Blighted Map \(Tier 16\)$/ },
+    { name: 'Blight-ravaged maps (T16)', cat: 'BlightRavagedMap', re: /\(Tier 16\)$/ },
+    { name: 'Originator maps' }, { name: 'Mirage' }, { name: 'Unique maps' },
+  ];
+  async function mapKindPrice(kind, league) {
+    const k = ATLAS_MAP_KINDS.find((x) => x.name === kind);
+    if (!k?.cat) return null;
+    let list = [];
+    try { list = await ninja.category(league, k.cat); } catch (e) { log('map kind price', e.message); return null; }
+    const p = list.filter((l) => k.re.test(l.name) && l.chaos > 0).map((l) => l.chaos).sort((a, b) => a - b);
+    return p.length ? p[Math.floor((p.length - 1) / 2)] : null;
+  }
 
   const mapCounts = new Map();
   // a session's result from the WealthyExile snapshots taken when it started and stopped
@@ -2192,11 +2212,17 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const nw = networth.report(league, { sinceMs: 365 * 86400000 });
     const series = nw?.series || [];
     const sessions = networth.sessions(league);
+    const kindPrices = new Map();
+    for (const k of new Set(list.map((s) => s.mapKind).filter(Boolean))) kindPrices.set(k, await mapKindPrice(k, league));
     return {
-      league, divine, treeError, mapKinds: ATLAS_MAP_KINDS, clientLog: !!settings.get('clientLogPath'),
+      league, divine, treeError, mapKinds: ATLAS_MAP_KINDS.map((k) => k.name), clientLog: !!settings.get('clientLogPath'),
       strategies: list.map((s) => {
         const priced = (name, count) => { const p = prices.get(String(name || '').toLowerCase()); return { name, count, chaos: p?.chaos ?? null, icon: p?.icon || null, total: p?.chaos != null ? Math.round(p.chaos * count * 100) / 100 : null }; };
-        const costs = [s.thread?.name && s.thread.count ? priced(s.thread.name, s.thread.count) : null, ...(s.inputs || []).filter((i) => i.name && i.count).map((i) => priced(i.name, i.count))].filter(Boolean);
+        // the map itself when it isn't a normal one: poe.ninja's price, or the price you typed
+        const auto = kindPrices.get(s.mapKind) ?? null;
+        const mapEach = s.mapPrice != null ? s.mapPrice : auto;
+        const mapCost = s.mapKind && s.mapKind !== 'Any maps' && mapEach != null ? { name: s.mapName || s.mapKind.replace(/s\b/, ''), count: 1, chaos: mapEach, icon: null, total: mapEach, map: true, auto, own: s.mapPrice != null } : null;
+        const costs = [mapCost, s.thread?.name && s.thread.count ? priced(s.thread.name, s.thread.count) : null, ...(s.inputs || []).filter((i) => i.name && i.count).map((i) => priced(i.name, i.count))].filter(Boolean);
         const costPerMap = costs.reduce((a, i) => a + (i.total || 0), 0);
         const runs = sessions.filter((x) => x.strategy === s.id).map((x) => sessionResult(x, series)).reverse();
         const done = runs.filter((r) => r.gained != null);
@@ -2205,7 +2231,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         const maps = done.reduce((a, r) => a + (r.maps || 0), 0);
         const fx = tree && s.nodes?.length ? Atlas.effects(tree, s.nodes, s.choices || {}) : null;
         return {
-          ...s, costs, costPerMap: Math.round(costPerMap * 100) / 100,
+          ...s, costs, mapAuto: auto, costPerMap: Math.round(costPerMap * 100) / 100,
           summary: fx ? { points: fx.points, notables: fx.notables, keystones: fx.keystones, top: fx.categories.slice(0, 4).map((c) => ({ name: c.name, count: c.nodes.length })) } : null,
           effects: fx?.categories || [],
           sessions: runs,
@@ -2241,6 +2267,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (input.choices && s.from === 'made here' && s.nodes?.length) s.link = 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/' + Atlas.encodeOfficial(s.nodes, s.choices, await atlasTreeData());
     if (input.thread !== undefined) s.thread = input.thread?.name ? { name: String(input.thread.name).slice(0, 60), count: Math.max(0, Math.min(10, Math.round(Number(input.thread.count) || 0))) } : null;
     if (input.mapKind !== undefined) s.mapKind = String(input.mapKind || '').slice(0, 60);
+    if (input.mapPrice !== undefined) { const v = Number(input.mapPrice); s.mapPrice = input.mapPrice === '' || input.mapPrice == null || !(v >= 0) ? null : Math.round(v * 100) / 100; }
     if (input.mapName !== undefined) s.mapName = String(input.mapName || '').slice(0, 60);
     if (input.inputs !== undefined) s.inputs = (Array.isArray(input.inputs) ? input.inputs : []).map((i) => ({ name: String(i?.name || '').trim().slice(0, 60), count: Math.max(0, Math.min(99, Math.round(Number(i?.count) || 0))) })).filter((i) => i.name).slice(0, 12);
     if (input.notes !== undefined) s.notes = String(input.notes || '').slice(0, 4000);
