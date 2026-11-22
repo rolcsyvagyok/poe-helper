@@ -701,6 +701,10 @@ test('a Chronicle of Atzoatl is searched by its rooms; the best open rooms are t
   assert.deepEqual(mods.map((m) => m.text), ['Locus of Corruption (Tier 3)', "Doryani's Institute (Tier 3)", 'Vault (Tier 1)', 'Tunnels', 'Apex of Atzoatl (obstructed)']);
   const q = buildQuery(item, mods, {});
   assert.equal(q.query.type, 'Chronicle of Atzoatl');
+  // the area level counts: at least the temple's own, from the panel's settings
+  const r = prepareSearch(stats, item);
+  assert.deepEqual(r.props.areaLevel, { on: true, min: 83, max: null, show: true });
+  assert.deepEqual(buildQuery(item, r.mods, { props: r.props }).query.filters.map_filters, { filters: { area_level: { min: 83 } } });
   assert.deepEqual(q.query.stats[0].filters, [
     { id: 'pseudo.pseudo_temple_corruption_room_3', disabled: false, value: { option: 1 } },
     { id: 'pseudo.pseudo_temple_gem_room_3', disabled: false, value: { option: 1 } },

@@ -322,6 +322,8 @@ function defaultProps(item) {
     // Facetor's Lens: what it sells for is the experience stored in it
     storedExp: (() => { const v = Number(String(item.properties?.['Stored Experience'] || '').replace(/[^\d]/g, '')); return v > 0 ? { on: true, min: Math.floor(v * 0.9 / 1e5) / 10, max: null, show: true } : { on: false, show: false }; })(), // in millions
     mapTier: { on: !!item.mapTier, min: item.mapTier || null, show: item.mapTier != null },
+    // a temple's area level (83 is the best): searched at least this level
+    areaLevel: /^Chronicle of Atzoatl$/i.test(item.typeLine || '') && item.areaLevel ? { on: true, min: item.areaLevel, max: null, show: true } : { on: false, show: false },
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
     corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' ? 'no' : 'any',
@@ -451,6 +453,7 @@ function buildQuery(item, mods, opts = {}) {
     if (props.dps?.on && DPS_FILTERS[props.dps.mode] && Number(props.dps.min) > 0) q.query.filters.weapon_filters = { filters: { [DPS_FILTERS[props.dps.mode]]: { min: Number(props.dps.min) } } };
     if (props.links?.on && range(props.links)) q.query.filters.socket_filters = { filters: { links: range(props.links) } };
     if (props.mapTier?.on && range(props.mapTier)) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), map_tier: range(props.mapTier) } };
+    if (props.areaLevel?.on && range(props.areaLevel)) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), area_level: range(props.areaLevel) } };
     if (!useBase && props.category) q.query.filters.type_filters = { filters: { category: { option: props.category } } };
   } else {
     if (opts.useIlvl !== false && item.itemLevel && kind !== 'unique' && kind !== 'gem') misc.ilvl = { min: item.itemLevel };

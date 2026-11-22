@@ -198,6 +198,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   rangeRow('gemLevel', 'Gem level');
   rangeRow('storedExp', 'Stored experience (million)');
   rangeRow('mapTier', 'Map tier');
+  rangeRow('areaLevel', 'Area level');
   // "rare" in the header: only rares (else rares and magic items of the base)
   if (props.rareOnly?.show) {
     const cb = h('input', { type: 'checkbox', checked: !!props.rareOnly.on, onchange: (e) => { props.rareOnly.on = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', props.rareOnly.on); } });

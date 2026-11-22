@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.153 - 2026-11-22
+
+* Price check: a temple's area level is searched too (at least its own, ticked; you can change it).
+- Price check: a Chronicle of Atzoatl's search has an "Area level" row, ticked, with the temple's level as the minimum (the trade site's Area Level filter).
+
 ## 1.0.152 - 2026-11-22
 
 * Price check: unidentified uniques with quality ("Superior Lich's Circlet") are found again.
