@@ -82,3 +82,15 @@ test('unidentified rare with quality: "Superior Phantom Mitts" is the Phantom Mi
   assert.equal(it.baseType, 'Phantom Mitts');
   assert.equal(it.memoryStrands, 58);
 });
+
+test('an unidentified unique with quality ("Superior Lich\'s Circlet") is its base', () => {
+  const { parseItem } = require('../src/core/item-parser');
+  const it = parseItem('Item Class: Helmets\nRarity: Unique\nSuperior Lich\'s Circlet\n--------\nQuality: +16% (augmented)\nEnergy Shield: 143 (augmented)\n--------\nItem Level: 86\n--------\nUnidentified\n');
+  assert.equal(it.baseType, "Lich's Circlet");
+  assert.equal(it.name, "Lich's Circlet");
+  assert.ok(it.flags.unidentified);
+  // an identified unique keeps its own name
+  const id = parseItem('Item Class: Helmets\nRarity: Unique\nThe Dark Monarch\nLich\'s Circlet\n--------\nQuality: +16% (augmented)\n--------\nItem Level: 86\n');
+  assert.equal(id.name, 'The Dark Monarch');
+  assert.equal(id.baseType, "Lich's Circlet");
+});

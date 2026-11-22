@@ -19,6 +19,9 @@ const GROUPS = [
   ['mercenary', 'Mercenary'],
   ['imbued', 'Imbued support'],
   ['delve', 'Delve'],
+  // a Chronicle of Atzoatl's rooms
+  ['temple', 'Open rooms'],
+  ['temple-closed', 'Obstructed rooms'],
 ];
 const STATUSES = [['securable', 'Instant buyout'], ['available', 'Instant buyout + in person'], ['online', 'In person, online'], ['any', 'Any']];
 

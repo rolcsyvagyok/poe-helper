@@ -711,6 +711,39 @@ function tickBestMods(mods, item) {
  *  presets.base (when offered): the "crafting base" search (exact base, item level, influences, implicits,
  *  fractured mods and top-tier mods), next to the default "finished item" search.
  */
+// the rooms that make a temple worth running: ticked when they are open
+const GOOD_TEMPLE_ROOMS = /^(Apex of Atzoatl|Locus of Corruption|Doryani's Institute)\b/i;
+
+/**
+ * A Chronicle of Atzoatl: one row per room, "Has Room: <room>" on the trade site with the option open (1) or
+ * obstructed (2). The best rooms are ticked when open.
+ */
+function templeRooms(statsJson, item) {
+  const rooms = new Map();
+  for (const g of statsJson?.result || []) for (const e of g.entries || []) {
+    const m = /^Has Room: (.+)$/.exec(e.text || '');
+    if (m && /pseudo_temple/.test(e.id)) rooms.set(m[1].toLowerCase(), e);
+  }
+  const lines = [...(item.mods?.explicit || []), ...(item.mods?.implicit || [])];
+  const out = [];
+  let open = null;
+  for (const raw of lines) {
+    const t = String(raw).trim();
+    if (/^Open Rooms:?$/i.test(t)) { open = true; continue; }
+    if (/^Obstructed Rooms:?$/i.test(t)) { open = false; continue; }
+    if (open == null || !t) continue;
+    const e = rooms.get(t.toLowerCase());
+    if (!e && !/^[A-Z][A-Za-z' -]{2,40}(?: \(Tier \d\))?$/.test(t)) continue; // flavour text and help lines, not rooms
+    const good = GOOD_TEMPLE_ROOMS.test(t);
+    out.push(e
+      ? { id: `${e.id}|${open ? 1 : 2}`, text: `${t}${open ? '' : ' (obstructed)'}`, statText: e.text, display: null, value: null, negate: false, type: 'pseudo', group: open ? 'temple' : 'temple-closed', enabled: good && open, min: null, max: null, meta: null }
+      : { id: null, text: t, type: 'pseudo', group: 'temple', enabled: false, unmatched: true, meta: null });
+  }
+  // the good rooms first, then open rooms, then obstructed ones
+  const rank = (m) => (m.enabled ? 0 : m.group === 'temple' ? 1 : 2);
+  return out.sort((a, b) => rank(a) - rank(b));
+}
+
 function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   const PF = require('./price-filters');
   const kind = classify(item);
@@ -730,6 +763,7 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     });
     return { mods, props, presets: null };
   }
+  if (/^Chronicle of Atzoatl$/i.test(item.typeLine || item.baseType || '')) return { mods: templeRooms(statsJson, item), props, presets: null };
   const rows = itemRows(idx, item, tolerance);
   const plain = kind === 'rare' || kind === 'magic' || kind === 'normal';
   const cls = String(item.itemClass || '');

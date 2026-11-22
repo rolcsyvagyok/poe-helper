@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.152 - 2026-11-22
+
+* Price check: unidentified uniques with quality ("Superior Lich's Circlet") are found again.
+* Price check: temples (Chronicle of Atzoatl) are searched on the trade site by their rooms; Apex of Atzoatl, Locus of Corruption and Doryani's Institute are ticked when open.
+- Price check: a Chronicle of Atzoatl lists its open and obstructed rooms; each one can be ticked and is searched as that room, open or obstructed. Before, it went to the bulk exchange.
+- Price check: an unidentified unique with quality shows its base as "Superior <base>"; the word is now taken off, so the uniques on that base are listed and the trade search finds it.
+
 ## 1.0.151 - 2026-11-22
 
 * [Atlas strategies] New page: Atlas strategies. Save each way you farm with its atlas tree (imported from a link or clicked together), threads and maps, and start sessions that WealthyExile measures.

@@ -688,3 +688,24 @@ test('lines the trade site words differently: slower/faster, (Shields) block, on
   assert.equal(sock.id, 'enchant.stat_4079888060');
   assert.equal(sock.value, 1);
 });
+
+test('a Chronicle of Atzoatl is searched by its rooms; the best open rooms are ticked', () => {
+  const { prepareSearch, buildQuery } = require('../src/core/trade');
+  const { parseItem } = require('../src/core/item-parser');
+  const room = (id, text) => ({ id: `pseudo.pseudo_temple_${id}`, text: `Has Room: ${text}`, type: 'pseudo', option: { options: [{ id: 1, text: 'Open Room' }, { id: 2, text: 'Closed Room' }] } });
+  const stats = { result: [{ id: 'pseudo', entries: [room('apex', 'Apex of Atzoatl'), room('corruption_room_3', 'Locus of Corruption (Tier 3)'), room('gem_room_3', "Doryani's Institute (Tier 3)"), room('currency_vault_1', 'Vault (Tier 1)'), room('tunnels', 'Tunnels')] }] };
+  const text = 'Item Class: Misc Map Items\nRarity: Currency\nChronicle of Atzoatl\n--------\nArea Level: 83\n--------\nOpen Rooms:\nVault (Tier 1)\nLocus of Corruption (Tier 3)\nTunnels\nDoryani\'s Institute (Tier 3)\nObstructed Rooms:\nApex of Atzoatl\n--------\n"Much could be learned." - Icius Perandus, Antiquities Collection, Vaal Mural\n--------\nRight click this item to view the Temple of Atzoatl.\n';
+  const item = parseItem(text);
+  const { mods } = prepareSearch(stats, item);
+  assert.deepEqual(mods.filter((m) => m.enabled).map((m) => m.text), ['Locus of Corruption (Tier 3)', "Doryani's Institute (Tier 3)"]);
+  assert.deepEqual(mods.map((m) => m.text), ['Locus of Corruption (Tier 3)', "Doryani's Institute (Tier 3)", 'Vault (Tier 1)', 'Tunnels', 'Apex of Atzoatl (obstructed)']);
+  const q = buildQuery(item, mods, {});
+  assert.equal(q.query.type, 'Chronicle of Atzoatl');
+  assert.deepEqual(q.query.stats[0].filters, [
+    { id: 'pseudo.pseudo_temple_corruption_room_3', disabled: false, value: { option: 1 } },
+    { id: 'pseudo.pseudo_temple_gem_room_3', disabled: false, value: { option: 1 } },
+  ]);
+  // an open Apex is ticked too
+  const open = prepareSearch(stats, parseItem(text.replace('Obstructed Rooms:\nApex', 'Apex'))).mods;
+  assert.ok(open.find((m) => m.text === 'Apex of Atzoatl').enabled);
+});

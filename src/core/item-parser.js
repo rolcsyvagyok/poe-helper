@@ -157,7 +157,11 @@ function parseItem(rawText) {
   }
 
   // quality items show "Superior <base>" when their name line is the base (normal items, unidentified rares)
-  if (item.baseType && /^Superior /.test(item.baseType) && item.rarity !== 'Unique') item.baseType = item.typeLine = item.baseType.slice('Superior '.length);
+  // (an unidentified unique too: its one name line is the base, "Superior Lich's Circlet")
+  if (item.baseType && /^Superior /.test(item.baseType) && (item.rarity !== 'Unique' || names.length === 1)) {
+    item.baseType = item.typeLine = item.baseType.slice('Superior '.length);
+    if (names.length === 1) item.name = item.baseType;
+  }
   // synthesised items show "Synthesised <base>" ("Synthesised Void Sceptre"); the filter and the trade site know the
   // base ("Void Sceptre") plus "synthesised"
   if (item.baseType && /^Synthesised /.test(item.baseType)) {
