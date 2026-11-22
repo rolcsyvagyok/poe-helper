@@ -263,6 +263,21 @@ function exchangeListings(json, { me = '' } = {}) {
   return out;
 }
 
+/**
+ * One fair price from the bulk exchange's offers (exchangeListings rows), in chaos: the 3rd cheapest of the
+ * sellers who are online, so one or two joke listings don't set it. null with fewer than 3 sellers.
+ * divineChaos turns divine offers into chaos. -> { chaos, sellers }
+ */
+function exchangeEstimate(rows, divineChaos = null) {
+  const all = [
+    ...(rows?.chaos || []).map((x) => ({ ...x, c: x.each })),
+    ...(divineChaos > 0 ? (rows?.divine || []).map((x) => ({ ...x, c: x.each * divineChaos })) : []),
+  ].filter((x) => x.status !== 'offline' && !x.mine && x.c > 0).sort((a, b) => a.c - b.c);
+  if (all.length < 3) return null;
+  const c = all[2].c;
+  return { chaos: c >= 10 ? Math.round(c) : Math.round(c * 100) / 100, sellers: all.length };
+}
+
 // ---------- poeprices.info price guess for rares ----------
 
 /** The query string for poeprices.info: the plain item text in base64, the league, and who asks. */
@@ -287,5 +302,6 @@ function poepricesResult(json, { exaltChaos = null, divineChaos = null } = {}) {
 module.exports.exchangeTag = exchangeTag;
 module.exports.exchangeQuery = exchangeQuery;
 module.exports.exchangeListings = exchangeListings;
+module.exports.exchangeEstimate = exchangeEstimate;
 module.exports.poepricesQuery = poepricesQuery;
 module.exports.poepricesResult = poepricesResult;

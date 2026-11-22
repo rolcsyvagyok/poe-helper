@@ -118,7 +118,14 @@ class PobEngine {
         clearTimeout(p.timer);
         if (m.error && !m.stats && !m.slots && !m.detail && !m.results) p.reject(new Error(m.error)); else p.resolve(m);
       });
+      const me = this.proc;
       this.proc.on('exit', (code) => {
+        // closed on purpose (5 minutes unused, Settings changed, the app quitting): not a failure
+        if (me.closedOnPurpose) {
+          this.log('PoB closed (not in use)');
+          if (this.proc === null) { for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error('Path of Building was closed. It starts again on the next request.')); } this.pending.clear(); }
+          return;
+        }
         const hex = typeof code === 'number' && code > 0xffff ? ` 0x${(code >>> 0).toString(16).toUpperCase()}` : '';
         const doing = this.lastOp ? ` while ${this.lastOp}` : '';
         const msg = `Path of Building stopped${doing} (${code}${hex}). It starts again on the next request.`;
@@ -152,7 +159,7 @@ class PobEngine {
   }
 
   stop(keepState) {
-    if (this.proc) { try { this.proc.kill(); } catch { /* gone */ } }
+    if (this.proc) { this.proc.closedOnPurpose = !keepState; try { this.proc.kill(); } catch { /* gone */ } }
     this.proc = null;
     this.loaded = null;
     if (!keepState) this.state = 'off';

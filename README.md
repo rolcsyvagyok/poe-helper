@@ -40,6 +40,12 @@ A Path of Exile 1 desktop helper with an in-game overlay. It combines a price ch
 - League mechanics ranked by how much their loot gained in value this week on poe.ninja, with each one's most valuable, rising and falling items.
 - Items that doubled or halved are listed (and marked in the loot filter tiers); click any item for its 7-day price graph. Uses only poe.ninja.
 
+**Atlas strategies**
+- One card per way you farm. Paste its atlas tree link (pathofexile.com, poeplanner.com, hypostasis.faith or wealthyexile.com) and the tree is drawn; point at a passive for what it does, click a multiple-choice passive to pick its option.
+- What the tree does, added up and grouped by league mechanic; point at a group to light up its passives.
+- The threads (with their poe.ninja price), map kind and other items each map uses, with the cost a map.
+- Start a session from the strategy: WealthyExile takes a snapshot at the start and stop, and the strategy lists each session's gain, per hour and (from Client.txt) per map.
+
 **Loot filter: FilterBlade tiers, edited locally**
 - Pick the filter you downloaded from FilterBlade (any NeverSink-based filter works). The app reads its tier tags (`$type->currency $tier->t1`) and shows it the way FilterBlade does. Categories are on the left; each tier shows its in-game look and its bases as chips.
 - **Move bases between tiers**: click bases to select them, then Move or Hide; or drag them onto another tier. Hidden bases get a scoped Hide block placed right before their old tier, so they can't hide unrelated items. Each moved base is marked and can be put back with ×. You can also add a base that isn't listed yet.
@@ -78,6 +84,8 @@ A Path of Exile 1 desktop helper with an in-game overlay. It combines a price ch
 | Trade stat list (mod → id) | GGG `/api/trade/data/stats` | at most once a week, only when you open trade search | ≤1 GGG / week |
 | Trade search | GGG `/api/trade/search` (+ `/fetch` for listings) | only when you press **Search** | 1–2 GGG |
 | Stash tab list | GGG `get-stash-items?tabs=1` | cached 6 h; also returns tab 0's items for free | 1 GGG |
+| Atlas tree data | GGG's atlastree-export on GitHub (raw.githubusercontent.com) | at most once a week | 0 GGG |
+| Newest NeverSink version | api.github.com releases | at most once a day | 0 GGG |
 | Net worth snapshot | GGG `get-stash-items` | 1 per **selected** tab; reused if you snapshot again within 60 s | N GGG |
 
 Guards on every GGG request:

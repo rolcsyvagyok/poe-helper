@@ -257,9 +257,11 @@ function render(p) {
     priceEl = h('div', { class: 'ov-hprice', 'data-trade-price': '1', title: 'What unidentified ones are listed for (the search below)' },
       h('span', { class: 'big faint' }, '…'), h('span', { class: 'ov-conf' }, 'unidentified'));
   } else if (price?.found && !modPriced) {
-    const conf = { high: ['good', 'Plenty of listings', '●'], medium: ['warn', 'Some listings', '◐'], low: ['bad', 'Few listings', '○'], range: ['warn', 'Versions differ', '◐'] }[price.confidence] || ['', '', ''];
+    const conf = { high: ['good', 'Plenty of listings', '●'], medium: ['warn', 'Some listings', '◐'], low: ['bad', 'Few listings', '○'], range: ['warn', 'Versions differ', '◐'], exchange: ['warn', 'Bulk exchange', '◐'] }[price.confidence] || ['', '', ''];
     // the price is the hero: big, in the header, with how sure it is under it
-    priceEl = h('div', { class: 'ov-hprice', title: divine && price.chaos >= divine ? `${fmt(price.chaos)} chaos on poe.ninja` : 'poe.ninja price' },
+    // (no poe.ninja price yet: the bulk exchange's fair price, the 3rd cheapest seller online)
+    const src = price.source === 'exchange' ? `Bulk exchange: the 3rd cheapest of ${price.sellers} sellers online, ${Math.max(1, Math.round((Date.now() - price.exchangeAt) / 60000))} min ago. poe.ninja has no price for it yet.` : divine && price.chaos >= divine ? `${fmt(price.chaos)} chaos on poe.ninja` : 'poe.ninja price';
+    priceEl = h('div', { class: 'ov-hprice', title: src },
       h('span', { class: 'big' }, window.UI.money(price.chaos, divine)),
       conf[1] ? h('span', { class: `ov-conf ${conf[0]}` }, h('span', { 'aria-hidden': 'true' }, conf[2]), ` ${conf[1]}`) : null);
     if (price.stackSize > 1) body.append(h('div', { class: 'small' }, `Your stack of ${price.stackSize} is worth `, h('b', {}, chaosDiv(price.totalChaos, divine))));
@@ -572,7 +574,9 @@ async function bulkSection(box) {
     fit();
   };
   const best = (c) => (r[c][0] ? `${each(r[c][0].each)} ${c}` : null);
-  mount(box,
+  // poe.ninja has no price: the exchange's fair price (it's kept, so the next check and WealthyExile use it)
+  const fair = !current?.price?.chaos && r.estimate ? h('div', { class: 'small' }, 'Fair price: ', h('b', {}, `${each(r.estimate.chaos)} chaos each`), h('span', { class: 'faint' }, ` (the 3rd cheapest of ${r.estimate.sellers} sellers online; poe.ninja has no price yet)`)) : null;
+  mount(box, fair,
     h('div', { class: 'row', style: { gap: '8px' } }, h('span', { class: 't' }, 'Live exchange'),
       h('span', { class: 'small' }, [best('chaos'), best('divine')].filter(Boolean).map((t) => `from ${t}`).join(' · ') || 'no sellers online'),
       h('span', { class: 'spacer' }), h('button', { class: 'sm', onclick: () => call('shell:open', r.url) }, 'Open on trade site')),

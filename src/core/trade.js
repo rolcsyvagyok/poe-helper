@@ -15,7 +15,8 @@ function normTemplate(t) {
   return t
     .replace(/\+#/g, '#')
     .replace(/[+-]?\d+(?:\.\d+)?/g, '#')
-    .replace(/\s+\(Local\)$/i, '')
+    // "(Local)", and a shield's own block chance "+#% Chance to Block (Shields)"
+    .replace(/\s+\((Local|Shields)\)$/i, '')
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim();
@@ -43,7 +44,7 @@ function indexStats(statsJson) {
       const type = e.type || group.id;
       const key = normTemplate(e.text);
       idx[type] = idx[type] || {};
-      const entry = { id: e.id, text: e.text, local: /\(Local\)$/i.test(e.text) };
+      const entry = { id: e.id, text: e.text, local: /\((Local|Shields)\)$/i.test(e.text) };
       (idx[type][key] = idx[type][key] || []).push(entry);
       const lk = `~${looseKey(key)}`;
       (idx[type][lk] = idx[type][lk] || []).push(entry);
@@ -95,7 +96,8 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   }
   // some uniques (Le Heup of All…) say "+30% to Item Rarity"; the trade site lists it as "#% increased Rarity of Items found"
   if (!hits) {
-    const alias = { '#% to item rarity': '#% increased rarity of items found', '#% to item quantity': '#% increased quantity of items found' }[key];
+    // and a Medium Cluster Jewel's "1 Added Passive Skill is a Jewel Socket" is "# Added Passive Skills are Jewel Sockets"
+    const alias = { '#% to item rarity': '#% increased rarity of items found', '#% to item quantity': '#% increased quantity of items found', '# added passive skill is a jewel socket': '# added passive skills are jewel sockets' }[key];
     if (alias) hits = table[alias] || table[`~${looseKey(alias)}`];
   }
   // the item says "+3 to maximum Blooms", the trade site "+# maximum Bloom"
@@ -107,6 +109,19 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
     hits = table[key.replace(/\bless\b/, 'more')];
     negate = !!hits;
   }
+  // "Monsters Inflict Withered for 2 seconds on Hit" is "Monsters have #% chance to inflict Withered…" at 100%
+  let always = false;
+  if (!hits && /\binflict\b/i.test(modText) && !/chance/i.test(modText)) {
+    const k4 = key.replace(/^(monsters|minions|enemies) inflict\b/, '$1 have #% chance to inflict').replace(/^inflict\b/, '#% chance to inflict');
+    if (k4 !== key) { hits = table[k4] || table[`~${looseKey(k4)}`]; always = !!hits; }
+  }
+  // "expires 75% slower" is stored as "expires #% faster" at -75 (The Infinite Pursuit), and the other way round
+  for (const [a, b] of [['slower', 'faster'], ['faster', 'slower']]) {
+    if (hits || !new RegExp(`\\b${a}\\b`, 'i').test(modText)) continue;
+    const k3 = key.replace(new RegExp(`\\b${a}\\b`), b);
+    hits = table[k3] || table[`~${looseKey(k3)}`];
+    negate = !!hits;
+  }
   if (!hits) return null;
   const wantLocal = LOCAL_CLASSES.test(itemClass || '');
   // random-support uniques (Forbidden Shako...) are searched by the trade site's "support" stats
@@ -114,7 +129,7 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   const skills = unique ? hits.filter((h) => /indexable_skill/.test(h.id)) : [];
   const entry = (unique && hits.find((h) => /indexable_support/.test(h.id))) || skills[0] || hits.find((h) => h.local === wantLocal && !/indexable_support/.test(h.id)) || hits.find((h) => !/indexable_support/.test(h.id)) || hits[0];
   // a stat without a "#" ("…in the past 2 seconds") has no number to search
-  const vals = one ? [1] : !/#/.test(entry.text || '') && /\d/.test(entry.text || '') ? [] : valuesAt(entry.text, modText) || modValues(modText);
+  const vals = always ? [100] : one ? [1] : !/#/.test(entry.text || '') && /\d/.test(entry.text || '') ? [] : valuesAt(entry.text, modText) || modValues(modText);
   // "Adds 10 to 20 Fire Damage" is searched by its average on trade
   const display = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
   const value = display != null && negate ? -display : display;
@@ -496,8 +511,21 @@ function itemRows(idx, item, tol) {
   const kinds = item.flags?.unidentified ? ['enchant', 'implicit'] : ['enchant', 'implicit', 'fractured', 'explicit', 'crafted', 'scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'];
   for (const kind of kinds) {
     const list = item.mods[kind] || [];
+    const joined = new Set(); // a line already searched with the line before it
     list.forEach((m, i) => {
+      if (joined.has(i)) return;
       const opts = { unique: item.rarity === 'Unique' };
+      // two lines that are one stat on the trade site: a Large Cluster Jewel's "Claw Attacks …" + "Dagger Attacks …"
+      // enchant (option 3 of "Added Small Passive Skills grant: …"), Axe + Sword, Staff + Mace, Bows, Trap + Mine
+      if (list[i + 1] && /^Added Small Passive Skills grant/i.test(m)) {
+        const two = `${m}\n${list[i + 1]}`.toLowerCase();
+        const e = Object.values(idx[kind] || {}).flat().find((x) => String(x.text).toLowerCase() === two);
+        if (e) {
+          joined.add(i + 1);
+          out.push({ id: e.id, text: `${m}\n${list[i + 1]}`, display: null, value: null, negate: false, type: kind, group: kind, enabled: false, special: true, min: null, max: null, meta: null });
+          return;
+        }
+      }
       // a conqueror's map: "Map contains Al-Hezmin's Citadel" and its rewards line are one stat on the trade site
       if (/^Item Quantity increases amount of Rewards .+ drops by/i.test(m) && /^Map contains .+'s Citadel$/i.test(list[i - 1] || '')) return;
       // blighted maps: the trade site finds them by "Area is infested with Fungal Growths" (one stat with "Can be

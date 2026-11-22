@@ -5,6 +5,28 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.151 - 2026-11-22
+
+* [Atlas strategies] New page: Atlas strategies. Save each way you farm with its atlas tree (imported from a link or clicked together), threads and maps, and start sessions that WealthyExile measures.
+- Atlas strategies: paste an atlas tree link from pathofexile.com, poeplanner.com, hypostasis.faith or wealthyexile.com. The tree is drawn (drag, zoom), and pointing at a passive shows what it does; click a multiple-choice passive to pick its option. The tree's effects are added up and grouped by league mechanic; pointing at a group lights up its passives in blue.
+- Atlas strategies: "Edit the tree" lets you make or change a tree by hand. Point at a passive to see the path it would take (dashed) and how many points; click to take it. Clicking a taken passive removes it and the passives only linked through it (shown dashed orange first). Undo, Clear tree, and a points counter (150 max). A tree made here gets a pathofexile.com link.
+- Atlas strategies: pick the thread and how many a map (with today's poe.ninja price), the map kind (Originator, Mirage, Nightmare…) and other items you put in each map; the cost a map is shown.
+- Atlas strategies: "Start session" starts a WealthyExile session for that strategy (a snapshot now and when you stop). The strategy lists each session's time, gain, gain per hour and, with Client.txt set, maps run and gain per map. Links to open the tree on pathofexile.com or copy a hypostasis.faith link.
+- The atlas tree comes from GGG's own atlas tree data on GitHub, read once a week; node pictures from GGG's image server, like the rest of the app.
+* [Loot filter] Items from an old league that are still in your tier changes (last league's scarabs…) are pointed out, with a button to remove them.
+* [Loot filter] Cluster jewel auto-tier no longer moves a jewel back and forth every hour when its price sits near a line.
+* Price check: a Large Cluster Jewel's two-line enchant (Claw and Dagger, Axe and Sword…) can be ticked and searched again.
+* Price check and WealthyExile price new currency poe.ninja doesn't list yet (Originator's Exalted Orb…) from the bulk exchange.
+* [Loot filter] When a newer NeverSink filter is out, the Loot filter page tells you to update yours on FilterBlade.
+- Loot filter: the page reads the NeverSink version in your FilterBlade filter and, once a day, the newest release on GitHub. If yours is older, it says so with an "Open FilterBlade" button. Without internet, it warns once the filter is over 90 days old. "Not now" hides it until the next NeverSink version.
+- Price check and WealthyExile: currency, fragments and cards poe.ninja has no price for yet get the 3rd cheapest online price on the bulk exchange, marked "Bulk exchange". Each one is checked at most once an hour, and a snapshot checks at most 5 new ones.
+- Price check: a cluster jewel enchant written on two lines (Claw + Dagger, Axe + Sword, Staff + Mace, Bows, Trap + Mine, flask Life + Mana) is one row, ticked, and searched as that enchant.
+- Loot filter: tier changes for items neither your FilterBlade filter nor this league's poe.ninja knows are listed at the top of the page with "Remove them"; nothing is removed unless you click it. The log notes left-out names only when they change, not on every write.
+- Loot filter: cluster jewel auto-tier changes a jewel's level only when its price is clearly past the line (20%), and keeps it when poe.ninja has no price that hour. Before, jewels around 10c or 50c flipped every hour.
+- Loot filter: the Uniques page lists uniques whose base is in none of your unique tiers (new bases like Eye Gouger or Vaal Aspect get only the catch-all look); click one and pick a tier.
+- Path of Building closing itself after 5 minutes unused is logged as that, not as a stop while working.
+- Price check: more lines are found on the trade site: "75% slower" (stored as faster, The Infinite Pursuit), a shield's "+5% Chance to Block", a Medium Cluster Jewel's "1 Added Passive Skill is a Jewel Socket", and map mods like "Monsters Inflict Withered" (100% chance).
+
 ## 1.0.150 - 2026-11-20
 
 * [What to farm] Click a league mechanic to see the price of everything it drops. The page now shows league mechanics only.

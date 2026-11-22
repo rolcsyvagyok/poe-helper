@@ -217,13 +217,32 @@ function basicLooks(typeView) {
 
 /** Price rule -> choices for every priced cell: S from `top` chaos, A from `good`, the basic look from `basic`
  *  (when set), cheaper ones hidden (when hide). */
-function autoCells(prices = {}, { top, good, basic = null, hide = true } = {}) {
+/**
+ * Cluster jewel cells by price: top, good, basic (FilterBlade's look) or hide.
+ * prev: last run's cells. A jewel only changes level once its price is clearly past the line (margin: 20%),
+ * so one that sells for 9-10c around a 10c line doesn't move every hour; one with no price this time
+ * (poe.ninja missed it) keeps its level.
+ */
+function autoCells(prices = {}, { top, good, basic = null, hide = true, prev = null, margin = 1.2 } = {}) {
   const out = {};
   if (!(top > 0) || !(good >= 0)) return out;
+  const NONE = hide ? 'hide' : null;
+  const levelOf = (c) => (c >= top ? 'top' : c >= good ? 'good' : basic != null && c >= basic ? 'basic' : NONE);
+  const band = (lv) => (lv === 'top' ? [top, Infinity] : lv === 'good' ? [good, top] : lv === 'basic' ? [basic, good] : [0, basic != null ? basic : good]);
   for (const [k, c] of Object.entries(prices)) {
     if (!(c > 0)) continue;
-    if (c >= top) out[k] = 'top'; else if (c >= good) out[k] = 'good'; else if (basic != null && c >= basic) out[k] = 'basic'; else if (hide) out[k] = 'hide';
+    let lv = levelOf(c);
+    if (prev) {
+      const was = Object.prototype.hasOwnProperty.call(prev, k) ? prev[k] : NONE;
+      if (was !== lv && (was !== 'basic' || basic != null)) {
+        const [lo, hi] = band(was);
+        if (c >= lo / margin && c < hi * margin) lv = was;
+      }
+    }
+    if (lv) out[k] = lv;
   }
+  // no price this time: keep what it had
+  if (prev) for (const [k, v] of Object.entries(prev)) if (!(prices[k] > 0) && !(k in out)) out[k] = v;
   return out;
 }
 

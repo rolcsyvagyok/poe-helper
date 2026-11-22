@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, collection: () => window.CollectionView.render(), regex: () => window.RegexView.renderRegexPage(), craft: () => window.CraftView.render(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), atlas: () => window.AtlasView.render(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, collection: () => window.CollectionView.render(), regex: () => window.RegexView.renderRegexPage(), craft: () => window.CraftView.render(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -236,6 +236,7 @@ const NOTE_PLACES = [
   [/Rare looks/i, 'Rare looks', { special: 'rarelooks' }],
   [/Base ranks|Unid item tier|Memory Strand|Ranked bases|Tier 0/i, 'Base ranks', { special: 'basematrix' }],
   [/My collection/i, 'My collection', { page: 'collection' }],
+  [/Atlas strateg/i, 'Atlas strategies', { page: 'atlas' }],
   [/WealthyExile|net worth/i, 'WealthyExile', { page: 'networth' }],
   [/Unique items|High variety|unique bases|uniques page/i, 'Unique items', { type: 'uniques' }],
   [/Regular maps|map cards|white maps|yellow maps/i, 'Regular maps', { type: 'maps' }],

@@ -654,3 +654,37 @@ test('an invitation is searched by name with instant buyout, no item level', () 
   assert.equal(q.status.option, 'securable');
   assert.equal(q.filters.misc_filters?.filters?.ilvl, undefined);
 });
+
+test('a Large Cluster Jewel\'s two-line enchant (Claw + Dagger) is one ticked row: option 3', () => {
+  const stats = { result: [{ id: 'enchant', entries: [
+    E('enchant.stat_3086156145', 'Adds # Passive Skills'),
+    E('enchant.stat_3948993189|3', 'Added Small Passive Skills grant: Claw Attacks deal 12% increased Damage with Hits and Ailments\nAdded Small Passive Skills grant: Dagger Attacks deal 12% increased Damage with Hits and Ailments'),
+    E('enchant.stat_3948993189|5', 'Added Small Passive Skills grant: Wand Attacks deal 12% increased Damage with Hits and Ailments'),
+  ] }] };
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'cluster-claw-dagger.txt'), 'utf8'));
+  const s = T.prepareSearch(stats, it);
+  const rows = s.mods.filter((m) => /Claw|Dagger/.test(m.text));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].id, 'enchant.stat_3948993189|3');
+  assert.ok(rows[0].enabled);
+  const q = T.buildQuery(it, s.mods, { props: s.props }).query;
+  assert.ok(q.stats[0].filters.some((f) => f.id === 'enchant.stat_3948993189' && f.value.option === 3));
+});
+
+test('lines the trade site words differently: slower/faster, (Shields) block, one jewel socket', () => {
+  const idx = T.indexStats({ result: [
+    { id: 'explicit', entries: [E('explicit.stat_391460978', 'Bleeding on you expires #% faster while Moving'), E('explicit.stat_4253454700', '+#% Chance to Block (Shields)')] },
+    { id: 'enchant', entries: [E('enchant.stat_4079888060', '# Added Passive Skills are Jewel Sockets')] },
+    { id: 'explicit2', entries: [E('explicit.stat_3044826007', 'Monsters have #% chance to inflict Withered for 2 seconds on Hit')] },
+  ] });
+  const wither = T.matchMod(idx, 'Monsters Inflict Withered for 2 seconds on Hit', 'explicit', { itemClass: 'Maps' });
+  assert.equal(wither.id, 'explicit.stat_3044826007');
+  assert.equal(wither.value, 100);
+  const slow = T.matchMod(idx, 'Bleeding on you expires 75% slower while Moving', 'explicit', { unique: true });
+  assert.equal(slow.id, 'explicit.stat_391460978');
+  assert.equal(slow.value, -75);
+  assert.equal(T.matchMod(idx, '+5% Chance to Block', 'explicit', { itemClass: 'Shields' }).id, 'explicit.stat_4253454700');
+  const sock = T.matchMod(idx, '1 Added Passive Skill is a Jewel Socket', 'enchant', {});
+  assert.equal(sock.id, 'enchant.stat_4079888060');
+  assert.equal(sock.value, 1);
+});

@@ -21,3 +21,21 @@ test('price rule: basic look between A tier and hidden', () => {
   assert.strictEqual(rules[0].action, 'Show');
   assert.strictEqual(rules[0].style.fontSize, 30);
 });
+
+test('auto cells don\'t flip around a line: 20% margin, and a missing price keeps the level', () => {
+  const { autoCells } = require('../src/core/cluster');
+  const o = { top: 50, good: 10, basic: null, hide: true };
+  let cells = autoCells({ a: 10, b: 50, c: 30 }, o);
+  assert.deepEqual(cells, { a: 'good', b: 'top', c: 'good' });
+  // 9c and 45c: just under the lines, they stay
+  cells = autoCells({ a: 9, b: 45, c: 30 }, { ...o, prev: cells });
+  assert.deepEqual(cells, { a: 'good', b: 'top', c: 'good' });
+  // 8c is past the margin (10 / 1.2 = 8.33): it drops; 59c goes up (50 * 1.2 = 60 is the line from good)
+  cells = autoCells({ a: 8, b: 30, c: 59 }, { ...o, prev: cells });
+  assert.deepEqual(cells, { a: 'hide', b: 'good', c: 'good' });
+  cells = autoCells({ a: 11, b: 30, c: 61 }, { ...o, prev: cells });
+  assert.deepEqual(cells, { a: 'hide', b: 'good', c: 'top' });
+  // no price this time: kept
+  cells = autoCells({ b: 30 }, { ...o, prev: cells });
+  assert.deepEqual(cells, { a: 'hide', b: 'good', c: 'top' });
+});

@@ -969,6 +969,26 @@ function registerIpc() {
     await snapshotNow('session').catch(() => {});
     return s;
   });
+  // Atlas strategies
+  handle('atlas:tree', () => services.atlasView());
+  handle('atlas:list', () => services.atlasList());
+  handle('atlas:threads', () => services.atlasThreads());
+  handle('atlas:save', (s) => services.atlasSave(s || {}));
+  handle('atlas:remove', (id) => services.atlasRemove(String(id)));
+  handle('atlas:links', (id) => services.atlasLinks(String(id)));
+  // a farming session for a strategy: a WealthyExile session marked with it (snapshots at the start and stop)
+  handle('atlas:session', async ({ id, action } = {}) => {
+    const league = await services.getLeague();
+    if (action === 'start') {
+      const st = (services.settings.get('atlasStrategies') || []).find((x) => x.id === id);
+      if (!st) throw new Error('That strategy was removed.');
+      await snapshotNow('session');
+      return services.networth.startSession(league, { strategy: st.id, name: st.name });
+    }
+    const s = services.networth.stopSession(league);
+    await snapshotNow('session').catch(() => {});
+    return s;
+  });
   handle('networth:report', async (sinceMs, at = null) => services.networth.report(await services.getLeague(), { sinceMs, at }));
   handle('networth:compare', async (o = {}) => services.networth.compare(await services.getLeague(), { from: o.from || null, to: o.to || null }));
   handle('networth:clear', async () => {
@@ -1519,6 +1539,9 @@ function registerIpc() {
     return require('path').basename(r.filePaths[0]);
   });
   handle('font:clear', () => { s.set('labelFontPath', ''); overlay?.webContents.reload(); return true; });
+  handle('tiers:stale', () => services.staleMoves());
+  handle('filter:age', () => services.filterAge());
+  handle('tiers:dropStale', () => services.dropStaleMoves());
   handle('tiers:unlisted', (type) => services.unlistedItems(type));
   handle('tiers:move', ({ type, bases, to, force }) => services.moveBases(String(type), (bases || []).map(String), String(to), { force: !!force }));
   handle('tiers:style', ({ key, style }) => services.setTierStyle(String(key), style || null));

@@ -1265,7 +1265,10 @@ class FilterManager {
     const afterTiers = ranked.filter((r) => r.afterItemTiers).map((r) => cleanRule(r, fix)).filter(Boolean);
     const overrides = [...clusterBlocks, ...talismanBlocks, ...myBases, ...this.overrides(), ...campaign, ...hidden, ...unid, ...ranked.filter((r) => !r.afterItemTiers), ...matrix].map((r) => cleanRule(r, fix)).filter(Boolean);
     this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
-    if (this.lastDropped.length) this.log('left out unknown item names', this.lastDropped.join(', '));
+    // logged when the list changes, not on every write (the same names came back each hour)
+    const droppedKey = this.lastDropped.join('\u0001');
+    if (this.lastDropped.length && droppedKey !== this.lastDroppedLogged) this.log('left out unknown item names', this.lastDropped.join(', '));
+    this.lastDroppedLogged = droppedKey;
     let out = finalCheck(insertAfterItemTiers(buildHelperFilter({ baseText: text, overrides, economy: eco, header: { baseName: onlineFilterName(base) || path.basename(base) } }), afterTiers), fix, this.log);
     // Tier designer → Text size: bigger or smaller for everything, or one category, on top of the theme
     out = voicesTop(out);

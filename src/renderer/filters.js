@@ -224,7 +224,30 @@ async function renderFiltersNow() {
   const body = h('div', { class: 'fb-body' });
   const movedBox = h('div');
   if (FB.tab === 'tiers') fillMoved(movedBox);
-  const show = () => { mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, movedBox, body); if (FB.reviewModal) el.append(priceUpdateModal()); };
+  // tier moves for items the game doesn't have any more (last league's scarabs…): offered for removal, never removed on their own
+  const staleBox = h('div');
+  call('tiers:stale').then((list) => {
+    if (!list?.length) return;
+    const names = list.map((m) => m.name);
+    mount(staleBox, h('div', { class: 'panel fb-stale', role: 'status' },
+      h('div', {}, h('b', {}, list.length === 1 ? '1 item in your tier changes isn\'t in the game any more' : `${list.length} items in your tier changes aren't in the game any more`),
+        h('div', { class: 'small muted' }, `Neither your FilterBlade filter nor this league's poe.ninja prices know them, so ${list.length === 1 ? 'it\'s' : 'they\'re'} left out of every write (usually from an old league): ${names.slice(0, 6).join(', ')}${names.length > 6 ? ` and ${names.length - 6} more` : ''}.`)),
+      h('div', { class: 'row', style: { gap: '6px' } },
+        h('button', { class: 'sm', title: names.join('\n'), onclick: async () => { const r = await call('tiers:dropStale'); toast(`Removed ${r.removed} old item${r.removed === 1 ? '' : 's'} from your tier changes.`); renderFilters(); } }, list.length === 1 ? 'Remove it' : 'Remove them'),
+        h('button', { class: 'quiet sm', onclick: () => staleBox.replaceChildren() }, 'Not now'))));
+  }).catch(() => {});
+  // a FilterBlade filter older than NeverSink's newest release: point to FilterBlade (shown until you update or hide it)
+  const ageBox = h('div');
+  call('filter:age').then((a) => {
+    if (!a?.old || localStorage.getItem('fbAgeHidden') === `${info.base}|${a.version}|${a.latest || ''}`) return;
+    mount(ageBox, h('div', { class: 'panel fb-stale', role: 'status' },
+      h('div', {}, h('b', {}, `Your FilterBlade filter is from ${a.month || 'an old version'}: update it on FilterBlade`),
+        h('div', { class: 'small muted' }, a.latest ? `You have NeverSink ${a.version}; ${a.latest} is out, with this league's new items and prices. Sync or download it on FilterBlade; your tiers and looks here stay.` : `It's NeverSink ${a.version}, ${a.days} days old. New items from this league may be missing. Your tiers and looks here stay when you update.`)),
+      h('div', { class: 'row', style: { gap: '6px' } },
+        h('button', { class: 'sm', onclick: () => window.open('https://www.filterblade.xyz/?game=Poe1') }, 'Open FilterBlade'),
+        h('button', { class: 'quiet sm', onclick: () => { try { localStorage.setItem('fbAgeHidden', `${info.base}|${a.version}|${a.latest || ''}`); } catch { /* */ } ageBox.replaceChildren(); } }, 'Not now'))));
+  }).catch(() => {});
+  const show = () => { mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, ageBox, staleBox, movedBox, body); if (FB.reviewModal) el.append(priceUpdateModal()); };
   // the tier pages are built first and put on screen in one go: showing an empty page while the
   // cluster or base data loads made the page collapse, which threw you back to the top
   if (FB.tab === 'tiers' && info.base && !info.missing && view?.types?.length) {
@@ -349,12 +372,15 @@ function renderTiers(body, view) {
     const note = h('div', { class: 'small faint' }, 'Items not listed in another tier land here. Bases can\'t be moved into it.');
     if (!list || !list.length) return h('div', { class: 'fb-chips' }, note);
     return h('div', { class: 'fb-rest' }, note,
-      h('div', { class: 'small', style: { margin: '6px 0 4px' } }, h('b', {}, `${list.length} item${list.length === 1 ? '' : 's'} land here now`), h('span', { class: 'faint' }, ': not in any tier of your filter (new items, or ones FilterBlade doesn\'t list). Drag one into a tier to give it that look.')),
+      h('div', { class: 'small', style: { margin: '6px 0 4px' } }, h('b', {}, list.length === 1 ? '1 item lands here now' : `${list.length} items land here now`), h('span', { class: 'faint' }, type.type === 'uniques' ? ': uniques whose base is in none of your unique tiers (often new bases). Click a base, then pick a tier in the bar below.' : ': not in any tier of your filter (new items, or ones FilterBlade doesn\'t list). Drag one into a tier to give it that look.')),
       h('div', { class: 'fb-chips' }, list.map((u) => h('button', {
-        type: 'button', class: 'fb-chip fb-new', draggable: 'true',
-        title: `${u.name}${u.chaos != null ? `: ${fmtC(u.chaos)} on poe.ninja` : u.fresh ? ': new, poe.ninja has no price yet' : ''}. Drag it into a tier. It's added to your filter as written here.`,
-        ondragstart: (e) => { e.dataTransfer.setData('text/x-poe-bases', JSON.stringify([u.name])); e.dataTransfer.setData('text/x-poe-new', '1'); e.dataTransfer.effectAllowed = 'move'; },
-      }, window.UI.itemPic(u.name, { size: 20, hint: picHint }), u.name,
+        type: 'button', class: 'fb-chip fb-new' + (u.known && FB.selected.has(u.name) ? ' selected' : ''), draggable: 'true',
+        'aria-pressed': u.known ? (FB.selected.has(u.name) ? 'true' : 'false') : null,
+        // a base the game knows (uniques): click to select, then "Move to" in the bar below, like the other chips
+        onclick: u.known ? () => { if (FB.selected.has(u.name)) FB.selected.delete(u.name); else FB.selected.add(u.name); drawList(); } : null,
+        title: `${u.label || u.name}${u.chaos != null ? `: ${fmtC(u.chaos)} on poe.ninja` : u.fresh ? ': new, poe.ninja has no price yet' : ''}. Drag it into a tier.${u.known ? '' : ' It\'s added to your filter as written here.'}`,
+        ondragstart: (e) => { e.dataTransfer.setData('text/x-poe-bases', JSON.stringify([u.name])); if (!u.known) e.dataTransfer.setData('text/x-poe-new', '1'); e.dataTransfer.effectAllowed = 'move'; },
+      }, window.UI.itemPic(u.name, { size: 20, hint: picHint }), u.label || u.name,
         u.chaos != null ? h('span', { class: 'fb-price' }, fmtC(u.chaos)) : u.fresh ? h('span', { class: 'fb-newtag' }, 'new') : null))));
   }
   function chip(base, tier) {
@@ -947,9 +973,18 @@ function renderTiers(body, view) {
     return out;
   }
 
+  // uniques on a base none of the rows above has: they get the filter's catch-all look; drag a base up into a row
+  function uniqueRestPanel() {
+    const rest = type.tiers.find((t) => /rest/i.test(t.tier));
+    if (!rest) return null;
+    const box = restBox(rest);
+    if (!FB.unlisted?.[type.type]?.length) return null;
+    return h('div', { class: 'panel fb-uqrest' }, h('h3', {}, 'Uniques with the catch-all look'), box);
+  }
+
   function drawList() {
     if (type.type === 'uniques') {
-      mount(list, priceBanner(), addRow(), uniqueRows(), h('datalist', { id: 'fb-names' }, (FB.names[type.type] || []).map((n) => h('option', { value: n }))));
+      mount(list, priceBanner(), addRow(), uniqueRows(), uniqueRestPanel(), h('datalist', { id: 'fb-names' }, (FB.names[type.type] || []).map((n) => h('option', { value: n }))));
       drawBar();
       return;
     }

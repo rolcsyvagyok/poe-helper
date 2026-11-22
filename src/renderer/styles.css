@@ -517,7 +517,7 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 /* ---- category list: each section is its own card, groups divided, subcategories on a guide line ---- */
 .fb-cats { background: transparent; border: 0; padding: 0; gap: 10px; display: grid; }
 .fb-cats > input[type=search] { margin: 0; }
-.fb-sec.card { border: 1px solid var(--panel-line, var(--line-soft)); border-radius: var(--r-card, 10px); background: var(--panel-bg, var(--surface)); box-shadow: var(--panel-shadow, none); padding: 0; overflow: hidden; }
+.fb-sec.card { border: 1px solid var(--panel-line, var(--line-soft)); border-radius: var(--r-panel); background: var(--panel-bg, var(--surface)); box-shadow: var(--panel-shadow, none); padding: 0; overflow: hidden; }
 
 .fb-sec.card > .fb-sec-h { display: flex; align-items: center; gap: 8px; padding: 9px 10px 8px 12px; font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); background: #ffffff06; border-bottom: 1px solid var(--line-soft); }
 .fb-sec.card.closed > .fb-sec-h { border-bottom: 0; }
@@ -2062,3 +2062,68 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .farm-all-btn { justify-self: start; margin: 2px 0 4px; }
 .farm-detail input[type=search] { width: 280px; max-width: 100%; }
 .farm-all td { padding-top: 5px; padding-bottom: 5px; }
+.fb-stale { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; border-left: 3px solid #f08c00; margin-bottom: 10px; }
+.fb-uqrest { margin-top: 12px; }
+.fb-uqrest h3 { margin: 0; font: 600 15px Georgia, serif; }
+
+/* ---- Atlas strategies ---- */
+.at-page { display: grid; grid-template-columns: 240px 1fr; gap: 14px; align-items: start; }
+.at-list { display: grid; gap: 6px; position: sticky; top: 0; }
+.at-card { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 3px; padding: 10px 12px; border-radius: var(--r-ctl, 8px); border: 1px solid var(--line-soft); background: var(--surface); }
+.at-card:hover { border-color: var(--line); }
+.at-card.on { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.at-card:focus-visible { outline: 2px solid var(--accent); }
+.at-card-h { display: flex; gap: 6px; align-items: baseline; justify-content: space-between; }
+.at-card-n { display: flex; justify-content: space-between; gap: 6px; }
+.at-live { color: var(--good); font-size: 12px; }
+.at-detail { display: grid; gap: 12px; min-width: 0; }
+.at-top { display: flex; gap: 8px; align-items: center; }
+.at-name { font-size: 18px; font-weight: 600; background: transparent; border: 1px solid transparent; padding: 4px 6px; min-width: 0; flex: 0 1 380px; }
+.at-name:hover, .at-name:focus { border-color: var(--line); }
+.at-row { display: flex; gap: 6px; align-items: center; }
+.at-link { display: grid; gap: 6px; }
+.at-setup { display: grid; gap: 10px; }
+.at-setup-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: end; }
+.at-field { display: grid; gap: 4px; }
+.at-cost b { font-size: 16px; }
+.at-ins { display: grid; gap: 6px; max-width: 560px; }
+.at-in { display: flex; gap: 6px; align-items: center; }
+.at-price { min-width: 70px; text-align: right; }
+.at-main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; align-items: start; }
+.at-treecol { display: grid; gap: 4px; min-width: 0; }
+.at-tree { --at-on: #e8b04a; --at-off: #343945; position: relative; height: 560px; border-radius: var(--r-panel); overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #1d2130, #0e1016 75%); border: 1px solid var(--line-soft); }
+.at-tree canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+.at-tree canvas:active { cursor: grabbing; }
+.at-zoom { position: absolute; right: 8px; top: 8px; display: flex; gap: 4px; }
+.at-tip { position: absolute; z-index: 3; width: 320px; pointer-events: none; padding: 10px 12px; border-radius: 8px; background: rgba(14, 16, 22, 0.96); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); display: grid; gap: 4px; font-size: 13px; }
+.at-tip-h { display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap; }
+.at-taken { margin-left: auto; color: var(--at-on); font-size: 12px; }
+.at-stat { color: #a9c4ff; }
+.at-vars { display: grid; gap: 2px; }
+.at-var { color: var(--muted); }
+.at-var.on { color: #a9c4ff; font-weight: 600; }
+.at-rem { font-style: italic; }
+.at-menu { position: absolute; z-index: 4; width: 250px; padding: 8px; border-radius: 8px; background: rgba(14, 16, 22, 0.98); border: 1px solid var(--line); display: grid; gap: 2px; }
+.at-menu button { text-align: left; }
+.at-menu button.on { color: var(--good); }
+.at-menu button.on::before { content: '✔ '; }
+.at-fx { display: grid; gap: 6px; max-height: 590px; overflow: auto; padding-right: 4px; }
+.at-fx-h { display: grid; gap: 2px; }
+.at-cat { border: 1px solid var(--line-soft); border-radius: 8px; padding: 6px 10px; background: var(--surface); }
+.at-cat:hover { border-color: var(--good); }
+.at-cat summary { cursor: pointer; }
+.at-cat ul { margin: 6px 0 2px; padding-left: 16px; display: grid; gap: 3px; font-size: 13px; }
+.at-key { color: var(--warn); }
+.at-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.at-table th, .at-table td { padding: 5px 8px; border-bottom: 1px solid var(--line-soft); }
+.at-table th { color: var(--muted); font-weight: 500; text-align: left; }
+.at-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+.at-table tfoot td { border-bottom: 0; }
+.at-notes { width: 100%; margin-top: 6px; resize: vertical; }
+@media (max-width: 1200px) { .at-main { grid-template-columns: 1fr; } .at-fx { max-height: none; } }
+@media (max-width: 900px) { .at-page { grid-template-columns: 1fr; } .at-list { position: static; } }
+.at-count { position: absolute; left: 10px; top: 10px; padding: 3px 8px; border-radius: 6px; background: rgba(14, 16, 22, 0.8); font-size: 12.5px; color: var(--muted); pointer-events: none; }
+.at-treebar { flex-wrap: wrap; }
+.at-edit-hint { margin-top: 4px; color: #f2e3c4; }
+.at-edit-hint.bad { color: var(--bad); }
+.at-menu button.bad { color: var(--bad); }

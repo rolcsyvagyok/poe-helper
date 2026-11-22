@@ -231,7 +231,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     get: (k) => (['selectedTabs', 'selectedTabIds', 'minItemChaos'].includes(k) ? settings.get(k) : snapshots.get(k)),
     set: (k, v) => (['selectedTabs', 'selectedTabIds', 'minItemChaos'].includes(k) ? settings.set(k, v) : snapshots.set(k, v)),
   };
-  const networth = new NetWorthTracker({ ggg, ninja, store: nwStore, getLeague, log });
+  const networth = new NetWorthTracker({ ggg, ninja, store: nwStore, getLeague, log, extraPrices: (names) => extraPrices(names) });
   const userSoundsDir = path.join(dataDir, 'sounds');
   const filters = new FilterManager({ store: settings, soundsDir: path.join(__dirname, '..', 'renderer', 'sounds'), userSoundsDir, log });
   // Names poe.ninja spelled out for us are safe to write into the filter as BaseType values.
@@ -262,7 +262,12 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const item = readItem(text);
     if (!item) return { error: 'Clipboard does not contain a Path of Exile item.' };
     const kind = classify(item);
-    const price = await pricer.price(item).catch((e) => ({ error: e.message }));
+    let price = await pricer.price(item).catch((e) => ({ error: e.message }));
+    // no poe.ninja price (new currency): the bulk exchange's fair price from the last hour or day, if there is one
+    if (price && price.chaos == null && ['currency', 'fragment', 'divination'].includes(kind)) {
+      const ex = exchangeCached(item.typeLine || item.baseType || item.name);
+      if (ex?.chaos) price = { ...price, error: undefined, found: true, confidence: 'exchange', chaos: ex.chaos, source: 'exchange', sellers: ex.sellers, exchangeAt: ex.at, stackSize: item.stack?.current || 1, totalChaos: Math.round(ex.chaos * (item.stack?.current || 1) * 100) / 100 };
+    }
     let filterHit = null;
     let filterWhere = null;
     try {
@@ -448,6 +453,47 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // ---------- bulk exchange and poeprices.info, as Awakened PoE Trade ----------
   const PF = require('../core/price-filters');
   /** Live exchange listings for a stackable item (currency, fragments, cards…): 1 request. null when it has no tag. */
+  // ---------- bulk exchange prices, for currency poe.ninja doesn't price yet (new this league) ----------
+  // checked at most once an hour per item, kept a day; "no price" is kept too, so it isn't asked again
+  const EX_TTL = 60 * 60 * 1000;
+  const EX_KEEP = 24 * 60 * 60 * 1000;
+  function exchangeCached(name) {
+    const e = (settings.get('exchangePrices') || {})[name];
+    return e && Date.now() - e.at < EX_KEEP ? e : null;
+  }
+  function exchangeRemember(name, est) {
+    const all = { ...(settings.get('exchangePrices') || {}), [name]: { chaos: est?.chaos ?? null, sellers: est?.sellers ?? 0, at: Date.now() } };
+    const keep = Object.keys(all).sort((a, b) => all[b].at - all[a].at).slice(0, 60);
+    settings.set('exchangePrices', Object.fromEntries(keep.map((k) => [k, all[k]])));
+  }
+  async function exchangePrice(name) {
+    const hit = exchangeCached(name);
+    if (hit && Date.now() - hit.at < EX_TTL) return hit.chaos ? hit : null;
+    const tag = PF.exchangeTag(await ggg.tradeStatic(), name);
+    if (!tag) return null;
+    const league = await getLeague();
+    const res = await ggg.tradeExchange(league, PF.exchangeQuery(tag, { status: 'online' }), { maxWaitMs: 10000 });
+    const divine = await ninja.divinePrice(league).catch(() => null);
+    const est = PF.exchangeEstimate(PF.exchangeListings(res, { me: settings.get('accountName') || '' }), divine);
+    exchangeRemember(name, est);
+    return est;
+  }
+  /** For a WealthyExile snapshot: exchange prices for currency poe.ninja doesn't price; 5 new requests at most. */
+  async function extraPrices(names) {
+    const out = new Map();
+    let asked = 0;
+    for (const n of names) {
+      let e = exchangeCached(n);
+      if (!e || Date.now() - e.at >= EX_TTL) {
+        if (asked >= 5) { if (e?.chaos) out.set(n, e.chaos); continue; }
+        asked += 1;
+        try { e = await exchangePrice(n); } catch (err) { log('exchange price', n, err.message); }
+      }
+      if (e?.chaos) out.set(n, e.chaos);
+    }
+    return out;
+  }
+
   async function tradeBulk({ text, status } = {}) {
     const item = readItem(text);
     if (!item) throw new Error('Not an item.');
@@ -456,7 +502,11 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const league = await getLeague();
     const res = await ggg.tradeExchange(league, PF.exchangeQuery(tag, { status: status === 'any' ? 'any' : 'online' }), { maxWaitMs: 10000 });
     const divine = await ninja.divinePrice(league).catch(() => null);
-    return { tag, total: res.total ?? Object.keys(res.result || {}).length, url: ggg.exchangeUrl(league, res.id), divineChaos: divine, ...PF.exchangeListings(res, { me: settings.get('accountName') || '' }) };
+    const rows = PF.exchangeListings(res, { me: settings.get('accountName') || '' });
+    // the fair price (3rd cheapest online seller), kept for the price check and WealthyExile when poe.ninja has none
+    const estimate = status === 'any' ? null : PF.exchangeEstimate(rows, divine);
+    if (status !== 'any') exchangeRemember(item.typeLine || item.baseType || item.name, estimate);
+    return { tag, total: res.total ?? Object.keys(res.result || {}).length, url: ggg.exchangeUrl(league, res.id), divineChaos: divine, estimate, ...rows };
   }
   bulkTag = async (text) => { try { const it = readItem(text); return it ? PF.exchangeTag(await ggg.tradeStatic(), it.typeLine || it.baseType || it.name) : null; } catch { return null; } };
 
@@ -1160,6 +1210,72 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return tiers.withStyle(patch, key, want);
   }
 
+  /**
+   * Uniques whose base is in none of your unique tiers (new bases like Eye Gouger): they get the catch-all look.
+   * -> [{ name: base, label: 'Eye Gouger: The Covetous Dark', chaos, listings }] (the base is what's moved)
+   */
+  async function unlistedUniqueBases(view) {
+    const league = await getLeague();
+    const CLS = { UniqueWeapon: 'Wands', UniqueArmour: 'Body Armours', UniqueAccessory: 'Rings', UniqueFlask: 'Utility Flasks', UniqueJewel: 'Jewels' };
+    const inTiers = new Set(view.types.filter((t) => t.type === 'uniques').flatMap((t) => t.tiers.flatMap((x) => x.bases)));
+    let parsed = null;
+    try { const t = filters.activeText(); if (t != null) parsed = require('../core/filter/parser').parse(t); } catch { parsed = null; }
+    const byBase = new Map();
+    for (const [cat, cls] of Object.entries(CLS)) {
+      let lines = [];
+      try { lines = await ninja.category(league, cat); } catch { continue; }
+      for (const l of lines) {
+        const base = l.baseType;
+        if (!base || inTiers.has(base) || l.links >= 5 || !(l.chaos > 0)) continue;
+        const cur = byBase.get(base);
+        if (cur && cur.chaos >= l.chaos) continue;
+        byBase.set(base, { name: base, label: `${base}: ${l.name}`, chaos: l.chaos, listings: l.listingCount ?? null, cls, unique: l.name, known: true });
+      }
+    }
+    const lands = (u) => {
+      if (!parsed) return true;
+      const item = readItem(`Item Class: ${u.cls}\nRarity: Unique\n${u.unique}\n${u.name}\n--------\nItem Level: 80\n--------\nx`);
+      const hit = item && explain(parsed, item);
+      return !!hit && /\$type->uniques\s+\$tier->rest/.test(hit.comment || '');
+    };
+    return [...byBase.values()].filter(lands).sort((a, b) => b.chaos - a.chaos).slice(0, 60).map(({ cls, unique, ...u }) => u);
+  }
+
+  /**
+   * Tier moves for items your filter can't have any more: names the last write left out because neither your
+   * FilterBlade filter nor poe.ninja's current league knows them (last league's scarabs…). [{ key, type, name }]
+   */
+  // Is the FilterBlade filter older than NeverSink's newest release? GitHub is asked at most once a day.
+  async function filterAge() {
+    let text; try { if (!filters.basePath()) return null; text = filters.readBase(); } catch { return null; }
+    let latest = settings.get('neverSinkLatest');
+    if (!latest || Date.now() - latest.at > 86400000) {
+      try {
+        const res = await (fetchImpl || globalThis.fetch)('https://api.github.com/repos/NeverSinkDev/NeverSink-Filter/releases/latest', { headers: { 'User-Agent': userAgent(), Accept: 'application/vnd.github+json' } });
+        const tag = res.ok ? (await res.json())?.tag_name : null;
+        latest = { tag: /^\d+\.\d+/.test(tag || '') ? tag : latest?.tag || null, at: Date.now() };
+      } catch (e) { log('neversink version', e.message); latest = { tag: latest?.tag || null, at: Date.now() - 82800000 }; } // try again in an hour
+      settings.set('neverSinkLatest', latest);
+    }
+    return require('../core/filter/version').filterAge(text, latest.tag);
+  }
+
+  function staleMoves() {
+    const dropped = new Set(filters.lastDropped || []);
+    if (!dropped.size) return [];
+    return Object.keys((settings.get('tierPatch') || {}).moves || {}).map((k) => { const [type, name] = k.split('\t'); return { key: k, type, name }; }).filter((m) => dropped.has(m.name));
+  }
+  /** Removes those moves (only when you click Remove on the Loot filter page). */
+  function dropStaleMoves() {
+    const stale = staleMoves();
+    if (!stale.length) return { removed: 0, view: tierViewNow() };
+    const p = { ...(settings.get('tierPatch') || {}) };
+    p.moves = { ...(p.moves || {}) };
+    for (const m of stale) delete p.moves[m.key];
+    log('removed old tier moves', stale.map((m) => m.name).join(', '));
+    return { ...savePatch(p), removed: stale.length };
+  }
+
   function savePatch(patch) {
     patch = syncGiga(syncBigBelts(patch));
     settings.set('tierPatch', patch);
@@ -1433,7 +1549,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       const top = clusterChaos(a.top, divine); const good = clusterChaos(a.good, divine);
       const basic = a.basic === '' || a.basic == null ? null : clusterChaos(a.basic, divine);
       if (top == null || good == null || !Object.keys(prices).length) return null; // keep what was set until prices come back
-      cells = cl.autoCells(prices, { top, good, basic, hide: a.hide !== false });
+      cells = cl.autoCells(prices, { top, good, basic, hide: a.hide !== false, prev: settings.get('clusterAutoCells') || null });
     }
     const old = settings.get('clusterAutoCells') || {};
     const same = Object.keys(old).length === Object.keys(cells).length && Object.entries(cells).every(([k, v]) => old[k] === v);
@@ -1985,6 +2101,168 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     return { league, divine, ageMs, groups, movers: allMovers.slice(0, 40) };
   }
   /** Every item of one mechanic, most valuable first: { id, name, league, divine, items: [...] } */
+  // ---- Atlas strategies: farms with an atlas tree, threads, map kind and what each session earned ----
+  const Atlas = require('../core/atlas');
+  const ATLAS_URL = 'https://raw.githubusercontent.com/grindinggear/atlastree-export/master/data.json';
+  let atlasTree = null;
+  // GGG's atlas tree data, from their GitHub (never shipped with the app); checked again once a week
+  async function atlasTreeData() {
+    let e = cache.get('atlas_tree');
+    if (atlasTree && e && Date.now() - e.savedAt < 7 * 86400000) return atlasTree;
+    if (!e || Date.now() - e.savedAt > 7 * 86400000) {
+      try {
+        const res = await (fetchImpl || globalThis.fetch)(ATLAS_URL, { headers: { 'User-Agent': userAgent() } });
+        if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+        const data = await res.json();
+        if (!data?.nodes?.root) throw new Error('not an atlas tree');
+        e = cache.set('atlas_tree', data);
+        atlasTree = null;
+      } catch (err) {
+        log('atlas tree', err.message);
+        if (!e) throw new Error('The atlas tree couldn\'t be downloaded from GitHub. Check your internet and try again.');
+        cache.touch('atlas_tree'); // keep the old one; try again in a week
+      }
+    }
+    if (!atlasTree) atlasTree = Atlas.buildTree(e.data);
+    return atlasTree;
+  }
+  let atlasDraw = null;
+  async function atlasView() {
+    const tree = await atlasTreeData();
+    if (!atlasDraw || atlasDraw.tree !== tree) atlasDraw = { tree, data: Atlas.drawData(tree) };
+    return atlasDraw.data;
+  }
+
+  const ATLAS_INPUT_TYPES = ['Thread', 'Scarab', 'Fragment', 'Currency', 'Essence', 'Fossil', 'DeliriumOrb', 'Oil', 'Astrolabe'];
+  // what a list of item names costs on poe.ninja (chaos each); names it doesn't know are left out
+  async function namePrices(names, league) {
+    const want = new Set(names.filter(Boolean).map((n) => n.toLowerCase()));
+    const out = new Map();
+    for (const c of ATLAS_INPUT_TYPES) {
+      if (![...want].some((n) => !out.has(n))) break;
+      let list = [];
+      try { list = await ninja.category(league, c); } catch (e) { log('atlas prices', c, e.message); }
+      for (const l of list) { const k = l.name.toLowerCase(); if (want.has(k) && !out.has(k)) out.set(k, { chaos: l.chaos, icon: l.icon || null }); }
+    }
+    for (const n of want) if (!out.has(n)) { const ex = exchangeCached(n.replace(/\b\w/g, (c) => c.toUpperCase())); if (ex?.chaos) out.set(n, { chaos: ex.chaos, icon: null }); }
+    return out;
+  }
+
+  // the threads (with prices) and the names of items you might put in the map device (for the input box)
+  async function atlasThreads() {
+    const league = await getLeague();
+    const get = async (c) => { try { return await ninja.category(league, c); } catch (e) { log('atlas items', c, e.message); return []; } };
+    const threads = (await get('Thread')).map((l) => ({ name: l.name, chaos: l.chaos, icon: l.icon || null })).sort((a, b) => a.name.localeCompare(b.name));
+    const items = [...new Set([...(await get('Scarab')), ...(await get('Fragment'))].map((l) => l.name))].sort();
+    return { threads, items };
+  }
+
+  const strategiesAll = () => settings.get('atlasStrategies') || [];
+  const ATLAS_MAP_KINDS = ['Any maps', 'Originator maps', 'Mirage', 'Nightmare (Valdo) maps', 'Unique maps', 'Blighted maps', 'Blight-ravaged maps'];
+
+  const mapCounts = new Map();
+  // a session's result from the WealthyExile snapshots taken when it started and stopped
+  function sessionResult(sess, series) {
+    const base = [...series].reverse().find((p) => p.ts <= sess.start + 60000) || series.find((p) => p.ts >= sess.start);
+    const end = [...series].reverse().find((p) => p.ts <= (sess.end ? sess.end + 120000 : Infinity));
+    const gained = base && end && end.ts > base.ts ? end.chaos - base.chaos : null;
+    const hours = ((sess.end || Date.now()) - sess.start) / 3600000;
+    let maps = null;
+    const logPath = settings.get('clientLogPath');
+    // a finished session's maps never change: counted once (Client.txt can be huge); a running one every time
+    const key = `${sess.id}|${sess.end || ''}`;
+    if (sess.end && mapCounts.has(key)) maps = mapCounts.get(key);
+    else if (logPath) {
+      maps = require('../core/client-log').countMaps(logPath, sess.start, sess.end || Infinity)?.count ?? null;
+      if (sess.end && maps != null) mapCounts.set(key, maps);
+    }
+    return { id: sess.id, name: sess.name, start: sess.start, end: sess.end, hours, gained, perHour: gained != null && hours > 0.05 ? gained / hours : null, maps, perMap: gained != null && maps ? gained / maps : null };
+  }
+
+  async function atlasList() {
+    const league = await getLeague();
+    const list = strategiesAll();
+    let tree = null; let treeError = null;
+    try { tree = await atlasTreeData(); } catch (e) { treeError = e.message; }
+    const names = list.flatMap((s) => [s.thread?.name, ...(s.inputs || []).map((i) => i.name)]);
+    const prices = await namePrices(names, league).catch(() => new Map());
+    const divine = await ninja.divinePrice(league).catch(() => null);
+    const nw = networth.report(league, { sinceMs: 365 * 86400000 });
+    const series = nw?.series || [];
+    const sessions = networth.sessions(league);
+    return {
+      league, divine, treeError, mapKinds: ATLAS_MAP_KINDS, clientLog: !!settings.get('clientLogPath'),
+      strategies: list.map((s) => {
+        const priced = (name, count) => { const p = prices.get(String(name || '').toLowerCase()); return { name, count, chaos: p?.chaos ?? null, icon: p?.icon || null, total: p?.chaos != null ? Math.round(p.chaos * count * 100) / 100 : null }; };
+        const costs = [s.thread?.name && s.thread.count ? priced(s.thread.name, s.thread.count) : null, ...(s.inputs || []).filter((i) => i.name && i.count).map((i) => priced(i.name, i.count))].filter(Boolean);
+        const costPerMap = costs.reduce((a, i) => a + (i.total || 0), 0);
+        const runs = sessions.filter((x) => x.strategy === s.id).map((x) => sessionResult(x, series)).reverse();
+        const done = runs.filter((r) => r.gained != null);
+        const hours = done.reduce((a, r) => a + r.hours, 0);
+        const gained = done.reduce((a, r) => a + r.gained, 0);
+        const maps = done.reduce((a, r) => a + (r.maps || 0), 0);
+        const fx = tree && s.nodes?.length ? Atlas.effects(tree, s.nodes, s.choices || {}) : null;
+        return {
+          ...s, costs, costPerMap: Math.round(costPerMap * 100) / 100,
+          summary: fx ? { points: fx.points, notables: fx.notables, keystones: fx.keystones, top: fx.categories.slice(0, 4).map((c) => ({ name: c.name, count: c.nodes.length })) } : null,
+          effects: fx?.categories || [],
+          sessions: runs,
+          total: { hours, gained: done.length ? gained : null, perHour: hours > 0.05 ? gained / hours : null, maps: maps || null, perMap: maps ? gained / maps : null, running: runs.some((r) => !r.end) },
+        };
+      }),
+    };
+  }
+
+  // create (no id) or change a strategy; a new tree link is read here, so a bad link is refused before it's saved
+  async function atlasSave(input = {}) {
+    const all = strategiesAll();
+    const old = input.id ? all.find((s) => s.id === input.id) : null;
+    if (input.id && !old) throw new Error('That strategy was removed.');
+    const s = { ...(old || { id: `${Date.now()}`, created: Date.now() }) };
+    if (input.name !== undefined) s.name = String(input.name).trim().slice(0, 80) || 'My strategy';
+    if (!s.name) s.name = `Strategy ${all.length + 1}`;
+    if (input.link !== undefined && String(input.link).trim() !== (old?.link || '')) {
+      const link = String(input.link).trim();
+      if (!link) { s.link = ''; s.nodes = []; s.choices = {}; s.from = ''; } else {
+        const r = Atlas.parseLink(link, await atlasTreeData());
+        Object.assign(s, { link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown });
+      }
+    }
+    // a tree picked by hand on the page: kept as a pathofexile.com link, so it can be opened and shared like an import
+    if (Array.isArray(input.nodes)) {
+      const tree = await atlasTreeData();
+      const nodes = Atlas.connectedNodes(tree, input.nodes);
+      const choices = Object.fromEntries(Object.entries(input.choices || s.choices || {}).filter(([k]) => nodes.includes(Number(k))));
+      Object.assign(s, { nodes, choices, from: 'made here', unknown: 0, link: nodes.length ? 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/' + Atlas.encodeOfficial(nodes, choices, tree) : '' });
+    }
+    if (input.choices && typeof input.choices === 'object') s.choices = Object.fromEntries(Object.entries(input.choices).filter(([k, v]) => (s.nodes || []).includes(Number(k)) && Number.isInteger(v) && v >= 0));
+    if (input.choices && s.from === 'made here' && s.nodes?.length) s.link = 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/' + Atlas.encodeOfficial(s.nodes, s.choices, await atlasTreeData());
+    if (input.thread !== undefined) s.thread = input.thread?.name ? { name: String(input.thread.name).slice(0, 60), count: Math.max(0, Math.min(10, Math.round(Number(input.thread.count) || 0))) } : null;
+    if (input.mapKind !== undefined) s.mapKind = String(input.mapKind || '').slice(0, 60);
+    if (input.mapName !== undefined) s.mapName = String(input.mapName || '').slice(0, 60);
+    if (input.inputs !== undefined) s.inputs = (Array.isArray(input.inputs) ? input.inputs : []).map((i) => ({ name: String(i?.name || '').trim().slice(0, 60), count: Math.max(0, Math.min(99, Math.round(Number(i?.count) || 0))) })).filter((i) => i.name).slice(0, 12);
+    if (input.notes !== undefined) s.notes = String(input.notes || '').slice(0, 4000);
+    s.updated = Date.now();
+    settings.set('atlasStrategies', old ? all.map((x) => (x.id === s.id ? s : x)) : [...all, s]);
+    return s;
+  }
+
+  function atlasRemove(id) {
+    const all = strategiesAll();
+    settings.set('atlasStrategies', all.filter((s) => s.id !== id));
+    return true;
+  }
+
+  // the tree as links for other sites
+  async function atlasLinks(id) {
+    const s = strategiesAll().find((x) => x.id === id);
+    if (!s?.nodes?.length) return null;
+    const tree = await atlasTreeData();
+    return {
+      official: 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/' + Atlas.encodeOfficial(s.nodes, s.choices, tree),
+      hypostasis: 'https://hypostasis.faith/atlas/data.html#t=' + Atlas.encodeHypostasis(s.nodes, s.choices, tree),
+    };
+  }
   async function farmGroup(id) {
     const g = FARM_GROUPS.find((x) => x.id === id);
     if (!g) throw new Error('Unknown mechanic');
@@ -2020,6 +2298,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const view = tierViewNow();
     if (!view) return [];
     // only true currency / fragments: a name from another list (an Astrolabe, a Djinn coin) has its own class and rules
+    if (type === 'uniques') return unlistedUniqueBases(view);
     const SRC = { currency: { ninja: ['Currency'], static: ['Currency'], cls: 'Stackable Currency' }, fragments: { ninja: ['Fragment'], static: ['Fragments'], cls: 'Map Fragments' } }[type];
     if (!SRC) return [];
     const known = new Set(view.types.flatMap((t) => t.tiers.flatMap((x) => x.bases.map((b) => b.toLowerCase()))));
@@ -2702,7 +2981,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

@@ -173,7 +173,9 @@ function valueTabs(tabs, idx, minChaos = 0) {
 }
 
 class NetWorthTracker {
-  constructor({ ggg, ninja, store, getLeague, log = () => {} }) {
+  constructor({ ggg, ninja, store, getLeague, log = () => {}, extraPrices = null }) {
+    // extraPrices(names) -> Map(name -> chaos): prices from elsewhere (the bulk exchange) for stackables poe.ninja doesn't price
+    this.extraPrices = extraPrices;
     this.ggg = ggg;
     this.ninja = ninja;
     this.store = store; // JsonStore with {snapshots:[], selectedTabs:[], ...}
@@ -220,6 +222,15 @@ class NetWorthTracker {
         try { catData[c] = await this.ninja.category(league, c); } catch (e) { this.log('price category failed', c, e.message); }
       }
       const idx = buildIndex(catData);
+      // currency poe.ninja has no price for yet (new this league): the bulk exchange's price
+      if (this.extraPrices) {
+        const missing = [...new Set(allItems.filter((it) => it.stackSize > 0 && it.frameType === 5 && !valueItem(it, idx)?.each).map((it) => it.typeLine))];
+        if (missing.length) {
+          try {
+            for (const [name, chaos] of await this.extraPrices(missing)) if (chaos > 0) idx.byName.set(norm(name), { name, chaos, category: 'Currency' });
+          } catch (e) { this.log('exchange prices', e.message); }
+        }
+      }
       const v = valueTabs(tabs, idx, this.store.get('minItemChaos') ?? 0);
       const divine = await this.ninja.divinePrice(league).catch(() => null);
       const snap = {
@@ -288,11 +299,13 @@ class NetWorthTracker {
     return (this.store.get('sessions') || []).filter((s) => !league || s.league === league);
   }
 
-  startSession(league) {
+  /** strategy: an Atlas strategy's id, so the strategy can show what its sessions earned */
+  startSession(league, { strategy = null, name = null } = {}) {
     const all = this.store.get('sessions') || [];
     for (const s of all) if (s.league === league && !s.end) s.end = Date.now();
     const n = all.filter((s) => s.league === league).length + 1;
-    const s = { id: `${Date.now()}`, league, name: `Session ${n}`, start: Date.now(), end: null };
+    const s = { id: `${Date.now()}`, league, name: name ? `${name} ${all.filter((x) => x.league === league && x.strategy === strategy).length + 1}` : `Session ${n}`, start: Date.now(), end: null };
+    if (strategy) s.strategy = strategy;
     all.push(s);
     this.store.set('sessions', all.slice(-200));
     return s;
