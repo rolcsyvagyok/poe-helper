@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.155 - 2026-11-23
+
+* [Base ranks] Fated rares with an influence are hidden by your rare ranks too.
+* Price check: a mod with two lines ("Supported by Burning Damage" + "increased Burning Damage", Urchin's armour + life, crafted gem level + area) is one row with one tick box.
+* Price check: weapons have physical, elemental and total DPS rows; each is ticked only when the weapon has a good mod for it (tier 3 or better).
+- Price check: the lines of one mod (influence mods like "of the Elder", hybrid mods, two-line crafts) are one row: the tick box and the tier once, in the middle, each line with its own min and max.
+- Price check: a weapon's DPS is three rows (physical, elemental, total), each at 90% of the weapon's number at 20% quality. Physical DPS starts ticked when an increased or added physical damage mod is tier 3 or better, elemental DPS when an added fire, cold or lightning damage mod is, and total DPS when both are. Nothing good: none ticked. Read from the item's mod list (the price check hotkey copy).
+- Base ranks: the "fated rares below rank" hide left out fated rares that also have an influence, so a Fated Turquoise Amulet (Tier 2) with an influence icon still showed. A fated rare now counts as its base whether it has an influence or not.
+
 ## 1.0.154 - 2026-11-22
 
 * [Atlas strategies] Trees from poeatlasplanner.com can be imported (with their multiple-choice picks).

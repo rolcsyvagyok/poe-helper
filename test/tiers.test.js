@@ -718,6 +718,10 @@ test('3.30: fated rares below the rare rank are hidden, identified or not', () =
   const item = (fl) => parseItem(`Item Class: Body Armours\nRarity: Rare\nFoo Bar\nSilk Robe\n--------\nItem Level: 85\n--------\nUnidentified\n${fl}`);
   assert.equal(explain(doc, item('--------\nFated Item\n')).comment, 'fated');
   assert.equal(explain(doc, item('')).comment, 'rest');
+  // an influenced fated rare is hidden too (the game shows them with the influence icon)
+  assert.ok(!fated.conditions.some((c) => c.keyword === 'HasInfluence'));
+  const full = P.parse(`${P.renderBlock({ action: 'Hide', label: 'fated', conditions: fated.conditions })}\n\nShow # rest\n`);
+  assert.equal(explain(full, parseItem('Item Class: Gloves\nRarity: Rare\nFoo Bar\nSilk Robe\n--------\nItem Level: 85\n--------\nUnidentified\n--------\nCrusader Item\n--------\nFated Item\n')).comment, 'fated');
 });
 
 test('Rare looks "Game rare yellow": plain rares turn yellow by rank and item tier, other rares keep the theme', () => {

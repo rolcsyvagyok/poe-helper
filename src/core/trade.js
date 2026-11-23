@@ -450,7 +450,11 @@ function buildQuery(item, mods, opts = {}) {
     if (Object.keys(mf).length) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), ...mf } };
     if (props.heist?.on && props.heist.min) q.query.filters.heist_filters = { filters: { [props.heist.key]: { min: Number(props.heist.min) } } };
     if (props.priceless) q.query.filters.heist_filters = { filters: { ...(q.query.filters.heist_filters?.filters || {}), heist_objective_value: { option: 'priceless' } } };
-    if (props.dps?.on && DPS_FILTERS[props.dps.mode] && Number(props.dps.min) > 0) q.query.filters.weapon_filters = { filters: { [DPS_FILTERS[props.dps.mode]]: { min: Number(props.dps.min) } } };
+    if (props.dps?.kinds) {
+      const wf = {};
+      for (const [k, d] of Object.entries(props.dps.kinds)) if (d.on && DPS_FILTERS[k] && Number(d.min) > 0) wf[DPS_FILTERS[k]] = { min: Number(d.min) };
+      if (Object.keys(wf).length) q.query.filters.weapon_filters = { filters: wf };
+    } else if (props.dps?.on && DPS_FILTERS[props.dps.mode] && Number(props.dps.min) > 0) q.query.filters.weapon_filters = { filters: { [DPS_FILTERS[props.dps.mode]]: { min: Number(props.dps.min) } } }; // a search saved before 1.0.155
     if (props.links?.on && range(props.links)) q.query.filters.socket_filters = { filters: { links: range(props.links) } };
     if (props.mapTier?.on && range(props.mapTier)) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), map_tier: range(props.mapTier) } };
     if (props.areaLevel?.on && range(props.areaLevel)) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), area_level: range(props.areaLevel) } };
@@ -789,6 +793,9 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
         : PDPS_TYPES.test(cls) && w.phys / w.total >= 0.67 ? 'phys' : w.ele / w.total >= 0.67 ? 'ele' : both ? 'total' : w.phys ? 'phys' : 'ele';
       props.dps.min = Math.floor(w[props.dps.mode] * 0.9);
       props.dps.on = true;
+      // three numbers, each with its own tick: physical, elemental and total DPS, ticked only for good damage mods
+      props.dps.kinds = PF.dpsTicks(item, rows, w, props.dps.mode);
+      props.dps.on = Object.values(props.dps.kinds).some((k) => k.on);
     }
   }
   // totals instead of the mods that add up to them

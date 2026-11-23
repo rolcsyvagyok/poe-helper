@@ -72,15 +72,29 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     const cls = t <= 2 ? 'top' : t <= 4 ? 'mid' : 'low';
     return h('span', { class: `tp-tier ${cls}`, title: `Tier ${t} of this mod (T1 is the best)` }, `T${t}`);
   }
+  // the lines of one mod ("Socketed Gems are Supported by Level 20 Burning Damage Support" + "35% increased Burning
+  // Damage" is the one Elder mod "of the Elder"): one tick box for all of them, the lines drawn as one block
+  const rowsOf = new Map(); // mod -> its row element
+  function siblings(m) {
+    // (lines counted in a total stay with lines counted in a total: Urchin's armour and life)
+    if (m.meta?.n == null || m.unmatched || !m.id) return [m];
+    return mods.filter((x) => x.group === m.group && x.meta?.n === m.meta.n && !!x.hidden === !!m.hidden && !x.unmatched && x.id);
+  }
+  // one tick for the whole mod from the start: ticked when any of its lines is
+  for (const m of mods) { const sib = siblings(m); if (sib.length > 1 && sib[0] === m) { const on = sib.some((x) => x.enabled); for (const x of sib) x.enabled = on; } }
   function modRow(m) {
-    const cb = h('input', { type: 'checkbox', checked: !!m.enabled && !m.unmatched, disabled: !!m.unmatched, 'aria-label': `Search for ${m.text}`, onchange: (e) => { m.enabled = e.target.checked; row.classList.toggle('on', m.enabled); updateCount(); } });
+    const sib = siblings(m);
+    const lead = sib[0] === m;
+    const setAll = (on) => { for (const x of sib) { x.enabled = on; rowsOf.get(x)?.classList.toggle('on', on); const c = rowsOf.get(x)?.querySelector('.tp-mod-main input[type=checkbox]'); if (c) c.checked = on; } updateCount(); };
+    const cb = h('input', { type: 'checkbox', checked: !!m.enabled && !m.unmatched, disabled: !!m.unmatched, 'aria-label': `Search for ${sib.map((x) => x.text).join(' and ')}`, onchange: (e) => setAll(e.target.checked) });
+    if (!lead) { cb.tabIndex = -1; cb.setAttribute('aria-hidden', 'true'); cb.style.visibility = 'hidden'; }
     const field = (key, placeholder) => {
       if (m.unmatched || m.display == null) return h('span', { class: 'tp-num-empty' });
       const inp = h('input', { type: 'number', step: 'any', value: m[key] ?? '', placeholder, 'aria-label': `${placeholder} for ${m.text}` });
       inp.addEventListener('input', () => {
         m[key] = num(inp.value);
         // typing a value means you want the mod
-        if (!m.enabled) { m.enabled = true; cb.checked = true; row.classList.add('on'); updateCount(); }
+        if (!m.enabled) setAll(true);
       });
       return inp;
     };
@@ -91,7 +105,41 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       field('min', 'min'),
       h('span', { class: 'tp-dash' }, m.unmatched || m.display == null ? '' : '–'),
       field('max', 'max'));
+    rowsOf.set(m, row);
     return row;
+  }
+  // one mod with several lines: one row, the tick box and the tier once, in the middle; each line keeps its min and max
+  function hybridRow(block) {
+    const on = block.some((x) => x.enabled);
+    let row;
+    const setAll = (v) => { for (const x of block) x.enabled = v; row.classList.toggle('on', v); cb.checked = v; updateCount(); };
+    const cb = h('input', { type: 'checkbox', checked: on, 'aria-label': `Search for ${block.map((x) => x.text).join(' and ')}`, onchange: (e) => setAll(e.target.checked) });
+    const lines = block.map((m) => {
+      const field = (key, placeholder) => {
+        if (m.display == null) return h('span', { class: 'tp-num-empty' });
+        const inp = h('input', { type: 'number', step: 'any', value: m[key] ?? '', placeholder, 'aria-label': `${placeholder} for ${m.text}` });
+        inp.addEventListener('input', () => { m[key] = num(inp.value); if (!m.enabled) setAll(true); });
+        return inp;
+      };
+      return h('div', { class: 'tp-hyb-line', title: m.statText || '' }, h('span', { class: 'tp-text' }, m.text), field('min', 'min'), h('span', { class: 'tp-dash' }, m.display == null ? '' : '–'), field('max', 'max'));
+    });
+    const frac = block[0].group === 'fractured';
+    row = h('div', { class: 'tp-mod tp-hyb' + (on ? ' on' : '') + (frac ? ' fractured' : ''), title: 'One mod with several lines: searched together' },
+      h('label', { class: 'tp-hyb-tick' }, cb, tierBadge(block[0])),
+      h('div', { class: 'tp-hyb-lines' }, lines));
+    for (const m of block) rowsOf.set(m, row);
+    return row;
+  }
+  // rows in order; the lines of one mod as one row
+  function modRows(list) {
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      const sib = siblings(list[i]);
+      if (sib.length < 2) { out.push(modRow(list[i])); continue; }
+      if (sib[0] !== list[i]) continue;
+      out.push(hybridRow(sib.filter((x) => list.includes(x))));
+    }
+    return out;
   }
 
   // hidden mods (counted in a total, the DPS or the defences): shown on request, to tick one yourself
@@ -115,7 +163,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
         // a mod already counted in a total is listed for the overview, without its own tick box
         return h('div', { class: 'tp-group' },
           h('div', { class: 'tp-ghead' }, title, h('span', { class: 'faint' }, ` (${n} of ${cap}${n < cap ? `, ${cap - n} open` : ''})`)),
-          rows.length ? rows.map((m) => { const r = modRow(m); const t = tagOf(m); if (t) { const tx = r.querySelector('.tp-text'); tx?.append(h('span', { class: 'faint' }, ` (${t})`)); } return r; })
+          rows.length ? modRows(rows).map((r) => { const first = own.find((m) => rowsOf.get(m) === r); const t = first ? tagOf(first) : null; if (t) { const tx = r.querySelector('.tp-text'); tx?.append(h('span', { class: 'faint' }, ` (${t})`)); } return r; })
             : h('div', { class: 'small faint', style: { padding: '2px 4px' } }, 'None'));
       });
     }
@@ -123,7 +171,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     if (!rows.length) return [];
     return [h('div', { class: 'tp-group' },
       h('div', { class: 'tp-ghead' }, label, g === 'pseudo' ? h('span', { class: 'faint' }, ' (summed from all mods)') : null),
-      rows.map(modRow))];
+      modRows(rows))];
   }));
   drawGroups();
   if (byGen) hiddenCount = mods.filter((m) => m.hidden && !AFFIX.includes(m.group)).length;
@@ -155,7 +203,22 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   }
   rangeRow('ilvl', 'Item level', { top: true });
   // weapons: search by its own DPS (physical, elemental or all)
-  if (props.dps?.show) {
+  if (props.dps?.show && props.dps.kinds) {
+    // physical, elemental and total DPS, each its own row (ticked to start only for good damage mods)
+    const v = props.dps.values || {};
+    const LABEL = { phys: `Physical DPS ${v.phys}${v.physNow != null && v.physNow !== v.phys ? ' at 20% quality' : ''}`, ele: `Elemental DPS ${v.ele}`, total: `Total DPS ${v.total}` };
+    for (const k of ['phys', 'ele', 'total']) {
+      const d = props.dps.kinds[k];
+      if (!d) continue;
+      const sync = () => { row.classList.toggle('on', !!d.on); props.dps.on = Object.values(props.dps.kinds).some((x) => x.on); };
+      const cb = h('input', { type: 'checkbox', checked: !!d.on, 'aria-label': `Search by ${LABEL[k]}`, onchange: (e) => { d.on = e.target.checked; sync(); } });
+      const minIn = h('input', { type: 'number', step: 'any', value: d.min ?? '', placeholder: 'min', 'aria-label': `Lowest ${LABEL[k]}` });
+      minIn.addEventListener('input', () => { d.min = num(minIn.value); if (!d.on) { d.on = true; cb.checked = true; sync(); } });
+      const row = h('div', { class: 'tp-mod' + (d.on ? ' on' : ''), title: 'The weapon\'s own DPS. Its damage and attack speed mods are left unticked: this number already counts them.' },
+        h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, LABEL[k])), minIn, h('span', { class: 'tp-dash' }), h('span', { class: 'tp-num-empty' }));
+      topRows.push(row);
+    }
+  } else if (props.dps?.show) {
     const d = props.dps;
     const cb = h('input', { type: 'checkbox', checked: !!d.on, 'aria-label': 'Search by weapon DPS', onchange: (e) => { d.on = e.target.checked; row.classList.toggle('on', d.on); } });
     const minIn = h('input', { type: 'number', step: 'any', value: d.min ?? '', placeholder: 'min', 'aria-label': 'Lowest DPS' });

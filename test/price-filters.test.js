@@ -713,3 +713,30 @@ test('a Chronicle of Atzoatl is searched by its rooms; the best open rooms are t
   const open = prepareSearch(stats, parseItem(text.replace('Obstructed Rooms:\nApex', 'Apex'))).mods;
   assert.ok(open.find((m) => m.text === 'Apex of Atzoatl').enabled);
 });
+
+test('weapons: physical, elemental and total DPS, each ticked only for a good damage mod', () => {
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.physpct', text: '#% increased Physical Damage', type: 'explicit' },
+    { id: 'explicit.fire', text: 'Adds # to # Fire Damage', type: 'explicit' },
+    { id: 'explicit.light', text: 'Adds # to # Lightning Damage', type: 'explicit' },
+    { id: 'explicit.aspd', text: '#% increased Attack Speed', type: 'explicit' },
+  ] }] };
+  const axe = (phys, ele) => `Item Class: Two Hand Axes\nRarity: Rare\nEntropy Song\nJasper Chopper\n--------\nTwo Hand Axe\nPhysical Damage: 60-100 (augmented)\nElemental Damage: 10-20 (augmented)\nCritical Strike Chance: 5.00%\nAttacks per Second: 1.25 (augmented)\n--------\nItem Level: 84\n--------\n{ Prefix Modifier "Tyrannical" (Tier: ${phys}) — Damage, Physical, Attack }\n80(70-90)% increased Physical Damage\n{ Prefix Modifier "Smoldering" (Tier: ${ele}) — Damage, Elemental, Fire, Attack }\nAdds 10(8-12) to 20(18-22) Fire Damage\n`;
+  const kinds = (t) => T.prepareSearch(stats, parseItem(t)).props.dps.kinds;
+  // a tier 2 physical mod, a low fire mod: physical DPS only
+  let k = kinds(axe(2, 7));
+  assert.deepEqual(Object.fromEntries(Object.entries(k).map(([n, d]) => [n, d.on])), { phys: true, ele: false, total: false });
+  // a low physical mod and a tier 1 fire mod: elemental DPS only
+  k = kinds(axe(6, 1));
+  assert.deepEqual(Object.fromEntries(Object.entries(k).map(([n, d]) => [n, d.on])), { phys: false, ele: true, total: false });
+  // both good: all three, each at 90% of its value
+  const r = T.prepareSearch(stats, parseItem(axe(1, 2)));
+  assert.ok(Object.values(r.props.dps.kinds).every((d) => d.on));
+  const q = T.buildQuery(parseItem(axe(1, 2)), r.mods, { props: r.props });
+  assert.deepEqual(Object.keys(q.query.filters.weapon_filters.filters).sort(), ['dps', 'edps', 'pdps']);
+  assert.equal(q.query.filters.weapon_filters.filters.edps.min, r.props.dps.kinds.ele.min);
+  // nothing good: no DPS ticked, no DPS filter
+  const none = T.prepareSearch(stats, parseItem(axe(7, 8)));
+  assert.equal(none.props.dps.on, false);
+  assert.equal(T.buildQuery(parseItem(axe(7, 8)), none.mods, { props: none.props }).query.filters.weapon_filters, undefined);
+});

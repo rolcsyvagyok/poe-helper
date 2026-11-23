@@ -729,7 +729,9 @@ function rankRules(ranks = {}, kinds = {}, bases = [], { mapsOnly = true, craftI
     const idOnly = [...(unidTiers ? [{ keyword: 'Identified', values: ['True'] }] : []), ...(strands ? [{ keyword: 'MemoryStrands', op: '<', values: ['1'] }] : [])];
     // fated rares (3.30) keep their rank whether identified or not: an unidentified fated rare of a lower rank
     // is hidden too (the unid item tiers are for ordinary drops)
-    if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-fated-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: fated rares below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds, { keyword: 'Fated', values: ['True'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
+    // a fated rare can be influenced too (the game shows the influence icon on it): it still counts as its base, so
+    // the influence condition of plain rares is left out here
+    if (drop.length && k.id === 'rares' && unidTiers) out.push({ id: 'rank-rares-fated-hide', enabled: true, action: 'Hide', group: 'ranks', label: `Base ranks: fated rares below ${min === 'none' ? 'any rank' : `rank ${min}`}`, conditions: [...conds.filter((c) => c.keyword !== 'HasInfluence'), { keyword: 'Fated', values: ['True'] }, ...area, ...sockets, { keyword: 'BaseType', op: '==', values: drop }], style: { disableDropSound: true } });
     // unidentified rares no item tier rule takes (no tier: "Unidentified", not "Unidentified (Tier 3)"): the Untiered
     // choice hides their lower ranks too. The game has no condition for "no tier" ("UnidentifiedItemTier < 1" matched
     // nothing), so this block goes right after FilterBlade's item tier blocks, where only those are left

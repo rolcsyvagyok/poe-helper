@@ -169,6 +169,26 @@ function weaponProps(item, rows, base) {
   return { ...base, phys, total, physNow: base.phys };
 }
 
+/**
+ * A weapon's three DPS numbers and which are ticked to start: physical DPS when a physical damage mod rolled well
+ * (tier 3 or better: % increased or added physical damage), elemental DPS when an added fire / cold / lightning
+ * damage mod did, total DPS when both did. A copy without tiers (plain Ctrl+C): the main kind only, as before.
+ * -> { phys: { on, min, value }, ele: {...}, total: {...} } (only the kinds the weapon has)
+ */
+function dpsTicks(item, rows, w, mainKind) {
+  const own = rows.filter((r) => ['explicit', 'fractured'].includes(r.group) && r.meta?.tier != null);
+  const good = (re) => own.some((r) => re.test(r.tpl || '') && r.meta.tier <= 3);
+  const tiers = !!item.advanced;
+  const physGood = tiers ? good(/^(#% increased physical damage|adds # to # physical damage)$/) : mainKind === 'phys';
+  const eleGood = tiers ? good(/^adds # to # (fire|cold|lightning) damage$/) : mainKind === 'ele';
+  const out = {};
+  const add = (k, on) => { if (w[k] > 0) out[k] = { on, min: Math.floor(w[k] * 0.9), value: w[k] }; };
+  add('phys', physGood);
+  add('ele', eleGood);
+  add('total', tiers ? physGood && eleGood : mainKind === 'total');
+  return out;
+}
+
 // ---------- what is ticked to start ----------
 
 /** Unique rolls: only the ones that vary are shown; a perfect roll is searched at its value. */
@@ -225,7 +245,7 @@ function craftingBase(item) {
   return !finished && !!value;
 }
 
-module.exports = { RULES, tplOf, T, pseudoTotals, defenceProps, weaponProps, uniqueRolls, emptyAffix, craftingBase, minOf };
+module.exports = { dpsTicks, RULES, tplOf, T, pseudoTotals, defenceProps, weaponProps, uniqueRolls, emptyAffix, craftingBase, minOf };
 
 // ---------- bulk exchange (currency, fragments, scarabs, cards…), as Awakened's "bulk" search ----------
 
