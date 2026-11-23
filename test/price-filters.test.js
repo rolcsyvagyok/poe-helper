@@ -756,3 +756,21 @@ test('a Foulborn unique: its Foulborn mod is marked and ticked; "Foulborn only" 
   r.props.foulborn.on = false;
   assert.equal(T.buildQuery(item, r.mods, { props: r.props }).query.filters.misc_filters?.filters?.mutated, undefined);
 });
+
+test('maps: not corrupted ones search not corrupted; other special map implicits are left out', () => {
+  const stats = { result: [{ id: 'implicit', entries: [
+    { id: 'implicit.stat_2696470877', text: "Area is Influenced by the Originator's Memories", type: 'implicit' },
+    { id: 'implicit.stat_2563183002|1', text: "Map contains Baran's Citadel", type: 'implicit' },
+  ] }] };
+  const map = (imp) => parseItem(`Item Class: Maps\nRarity: Normal\nMap (Tier 16)\n--------\nItem Level: 85\n--------\nMonster Level: 83\n--------\n${imp ? `{ Implicit Modifier }\n${imp}\n--------\n` : ''}Travel to a Map of this tier or lower by using this in a personal Map Device.\n`);
+  const q = (it) => { const r = T.prepareSearch(stats, it); return T.buildQuery(it, r.mods, { props: r.props }).query; };
+  const o = q(map("Area is Influenced by the Originator's Memories — Unscalable Value"));
+  assert.deepEqual(o.filters.misc_filters.filters.corrupted, { option: 'false' });
+  const opt = (id, n) => Array.from({ length: n }, (_, i) => ({ id, value: { option: i + 1 } }));
+  assert.deepEqual(o.stats[1], { type: 'not', filters: [...opt('implicit.stat_2563183002', 4), ...opt('implicit.stat_3624393862', 4), ...opt('implicit.stat_1792283443', 2)] });
+  // a plain T16: none of them (Originator too)
+  assert.equal(q(map(null)).stats[1].filters.length, 11);
+  // a conqueror map keeps its citadel and leaves out the others
+  const c = q(map("Map contains Baran's Citadel"));
+  assert.ok(!c.stats[1].filters.some((f) => f.id === 'implicit.stat_2563183002'));
+});

@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.160 - 2026-11-23
+
+* Price check: maps compare with maps like them: a not corrupted map searches not corrupted ones, and an Originator map no longer finds Originator maps that are also conqueror, Elder guardian or Shaper / Elder maps.
+- Price check: a map that isn't corrupted searches "not corrupted" (it can be changed in the search). The special map implicits a map doesn't have are left out of its search: conqueror citadels, Elder guardians, Shaper or Elder influence and the Originator's Memories. A plain T16 no longer finds these special maps, and each special map only finds its own kind.
+
 ## 1.0.159 - 2026-11-23
 
 * [Loot filter] "Always show": select items in a category and click "◉ Always show". They keep moving with their price, but never into a hidden tier: the lowest shown tier is as low as they go.

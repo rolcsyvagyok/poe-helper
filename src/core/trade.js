@@ -326,7 +326,7 @@ function defaultProps(item) {
     areaLevel: /^Chronicle of Atzoatl$/i.test(item.typeLine || '') && item.areaLevel ? { on: true, min: item.areaLevel, max: null, show: true } : { on: false, show: false },
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
-    corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' ? 'no' : 'any',
+    corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' || kind === 'map' ? 'no' : 'any',
     // unidentified items are compared with other unidentified ones
     identified: item.flags?.unidentified ? 'no' : 'any',
     influences: Object.fromEntries((item.influences || []).map((i) => [i, true])),
@@ -489,8 +489,23 @@ function buildQuery(item, mods, opts = {}) {
     const tf = q.query.filters.type_filters?.filters || {};
     q.query.filters.type_filters = { filters: { ...tf, rarity: { option: 'unique' } } };
   }
+  // a map: the special map implicits it doesn't have are left out ("not"), so a plain or an Originator map isn't
+  // compared with conqueror, Elder or Shaper guardian maps, nor these with each other
+  if (kind === 'map' && !BLIGHT_MAP.test(`${item.typeLine || ''} ${item.baseType || ''}`)) {
+    const own = new Set([...mods.map((m) => String(m.id || '').split('|')[0]), ...(item.mods?.implicit || []).map((t) => MAP_SPECIAL.find(([, re]) => re.test(t))?.[0]).filter(Boolean)]);
+    // (a stat with options is only left out option by option: without one, "not" leaves nothing out)
+    const not = MAP_SPECIAL.filter(([id]) => !own.has(id)).flatMap(([id, , opts]) => (opts ? opts.map((o) => ({ id, value: { option: o } })) : [{ id }]));
+    if (not.length) q.query.stats.push({ type: 'not', filters: not });
+  }
   return q;
 }
+// the map implicits that make a special map: conqueror citadel, Elder guardian, Shaper / Elder influence, Originator
+const MAP_SPECIAL = [
+  ['implicit.stat_2563183002', /^Map contains .+'s Citadel$/i, [1, 2, 3, 4]],
+  ['implicit.stat_3624393862', /^Map is occupied by /i, [1, 2, 3, 4]],
+  ['implicit.stat_1792283443', /^Area is influenced by The (Shaper|Elder)$/i, [1, 2]],
+  ['implicit.stat_2696470877', /^Area is Influenced by the Originator's Memories$/i],
+];
 
 // ---------- the price check's search, after Awakened PoE Trade (see price-filters.js) ----------
 const MELEE = /^(one|two) hand (axes|swords|maces)$|^thrusting one hand swords$|^(staves|warstaves|claws|daggers)$/i;
