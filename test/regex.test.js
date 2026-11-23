@@ -150,3 +150,21 @@ test('nightmare (tier 17) maps: no influence or rarity choices, corrupted and id
   assert.equal(q.filters.misc_filters.filters.corrupted.option, 'false');
   assert.equal(q.filters.misc_filters.filters.identified.option, 'true');
 });
+
+test('map regex: each picked mod is found by its own text (not only by its name on magic maps)', () => {
+  const MR = require('../src/core/regex/maps');
+  const DATA = require('../src/core/regex/map-mods.json');
+  const lines = new Map(DATA.mods.map((m) => [m.id, m.lines.map((l) => l.replace(/#/g, '25'))]));
+  for (const kind of ['regular', 't17']) {
+    const mods = MR.modsFor(kind, { nightmare: true }).map((m) => m.id);
+    for (let n = 0; n < 60; n++) {
+      const pick = mods.filter((_, i) => (i * 7 + n * 13) % 9 === 0 || (i + n) % 11 === 0);
+      const re = new RegExp(MR.coverMods(pick, kind).pieces.join('|'), 'im');
+      for (const id of pick) assert.ok(re.test(lines.get(id).join('\n')), `${kind} ${id} found`);
+    }
+  }
+  // "Monsters have #% increased Area of Effect" without the Unique Boss's area: a number in the piece tells them apart
+  const aoe = MR.coverMods(['MapMonsterAreaOfEffect2MapWorlds'], 'regular');
+  assert.deepEqual(aoe.extra, []);
+  assert.match(aoe.pieces[0], /\\d\+/);
+});

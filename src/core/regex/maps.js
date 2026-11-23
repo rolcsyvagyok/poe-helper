@@ -59,7 +59,10 @@ function modsFor(kind = 'regular', { nightmare = false } = {}) {
 }
 
 // ---------- search pieces ----------
-const OK_CHAR = /^[a-z ',-]+$/;
+// a piece may hold letters, spaces, ' , - %, and # for a number (searched as \d+); a piece at the end of a mod
+// line may end in $ ("unned$"), which tells "Monsters cannot be Stunned" from a longer line (as poe.re does)
+const OK_CHAR = /^[a-z ',%#-]+$/;
+const toRegex = (piece, end) => piece.replace(/#/g, '\\d+') + (end ? '$' : '');
 const lower = (s) => s.toLowerCase();
 const cache = new Map(); // kind -> { mods, texts, candidates: Map(modId -> [{ piece, hits:Set }]) }
 
@@ -69,11 +72,17 @@ function universe(kind) {
   const mods = kind === 't17' ? DATA.mods.filter((m) => m.kinds.includes('t17')) : DATA.mods.filter((m) => m.kinds.includes('regular') || m.kinds.includes('nightmare'));
   const texts = mods.map((m) => ({ id: m.id, lines: m.lines.map(lower), name: lower(m.name || '') }));
   const outside = [...STATIC_TEXT, ...(DATA.mapNames || []).map(lower)];
-  const hitsOf = (piece) => {
-    const s = new Set();
-    // a magic map's name carries its mods' names ("Strand Map of Giants"), so a mod's name counts as its own text
-    for (const t of texts) if (t.lines.some((l) => l.includes(piece)) || (t.name && t.name.includes(piece))) s.add(t.id);
-    return s;
+  // hits: the mods whose text has the piece, so the piece finds them on any map. touches: those plus the mods
+  // whose name has it: a magic map's name carries its mods' names ("Strand Map of Giants"), so such a piece also
+  // finds that mod there. A piece only covers a mod it hits (a rare map shows no mod names), and it may only touch
+  // mods that are picked.
+  const has = (l, piece, end) => (end ? l.endsWith(piece) : l.includes(piece));
+  const piecesOf = (piece, end) => {
+    const hits = new Set(); const touches = new Set();
+    for (const t of texts) {
+      if (t.lines.some((l) => has(l, piece, end))) { hits.add(t.id); touches.add(t.id); } else if (t.name && has(t.name, piece, end)) touches.add(t.id);
+    }
+    return { hits, touches };
   };
   const candidates = new Map();
   for (const t of texts) {
@@ -82,17 +91,22 @@ function universe(kind) {
     for (const line of t.lines) {
       for (let i = 0; i < line.length; i++) {
         for (let len = 2; len <= 18 && i + len <= line.length; len++) {
-          const piece = line.slice(i, i + len);
-          if (seen.has(piece) || piece.startsWith(' ') || piece.endsWith(' ') || !OK_CHAR.test(piece)) continue;
-          seen.add(piece);
-          if (outside.some((o) => o.includes(piece))) continue;
-          const hits = hitsOf(piece);
-          list.push({ piece, hits });
+          const text = line.slice(i, i + len);
+          if (text.startsWith(' ') || text.endsWith(' ') || !OK_CHAR.test(text) || /^[#%]|#$|##/.test(text) || !/[a-z]/.test(text)) continue;
+          for (const end of i + len === line.length ? [false, true] : [false]) {
+            const key = text + (end ? '$' : '');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (outside.some((o) => has(o, text, end))) continue;
+            const { hits, touches } = piecesOf(text, end);
+            if (!hits.has(t.id)) continue; // only in the mod's name: misses it on rare maps
+            list.push({ piece: toRegex(text, end), hits, touches });
+          }
         }
       }
     }
-    // shortest first; among equals the one that hits the fewest mods
-    list.sort((a, b) => a.piece.length - b.piece.length || a.hits.size - b.hits.size || a.piece.localeCompare(b.piece));
+    // shortest first; among equals the one that touches the fewest mods
+    list.sort((a, b) => a.piece.length - b.piece.length || a.touches.size - b.touches.size || a.piece.localeCompare(b.piece));
     candidates.set(t.id, list);
   }
   const u = { mods, candidates };
@@ -109,7 +123,7 @@ function coverMods(ids, kind = 'regular') {
   if (!want.size) return { pieces: [], extra: [], missing: [] };
   const { candidates } = universe(kind);
   const pool = [];
-  for (const id of want) for (const c of candidates.get(id) || []) if ([...c.hits].every((h) => want.has(h))) pool.push(c);
+  for (const id of want) for (const c of candidates.get(id) || []) if ([...c.touches].every((h) => want.has(h))) pool.push(c);
   const left = new Set(want);
   const pieces = [];
   while (left.size) {
@@ -130,10 +144,10 @@ function coverMods(ids, kind = 'regular') {
   const extra = new Set();
   const missing = [];
   for (const id of left) {
-    const c = (candidates.get(id) || []).slice().sort((a, b) => a.hits.size - b.hits.size || a.piece.length - b.piece.length)[0];
+    const c = (candidates.get(id) || []).slice().sort((a, b) => a.touches.size - b.touches.size || a.piece.length - b.piece.length)[0];
     if (!c) { missing.push(id); continue; }
     pieces.push(c.piece);
-    for (const h of c.hits) if (!want.has(h)) extra.add(h);
+    for (const h of c.touches) if (!want.has(h)) extra.add(h);
   }
   // a piece that's inside another picked piece is redundant only if it covers nothing new: keep it simple
   return { pieces: [...new Set(pieces)], extra: [...extra], missing };
@@ -241,7 +255,7 @@ function mapRegexView({ kind = 'regular', nightmare = false } = {}) {
   const k = kind === 't17' ? 't17' : 'regular';
   const { candidates } = universe(k);
   const mods = modsFor(k, { nightmare }).map((m) => {
-    const own = (candidates.get(m.id) || []).find((c) => c.hits.size === 1);
+    const own = (candidates.get(m.id) || []).find((c) => c.touches.size === 1);
     return { id: m.id, lines: m.lines, affix: m.affix, name: m.name, kinds: m.kinds, nightmareOnly: !m.kinds.includes(k === 't17' ? 't17' : 'regular'), piece: own ? own.piece : null };
   });
   return { kind: k, mods, numbers: NUMBERS.map(({ id, label }) => ({ id, label })), quality: QUALITY.map(({ id, label }) => ({ id, label })), mapTypes: MAP_TYPES.map(({ id, label }) => ({ id, label })), max: MAX };

@@ -2157,3 +2157,4 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .tp-choices { display: flex; gap: 4px; align-items: center; padding: 2px 0 6px 34px; }
 .tp-choice.on { border-color: var(--accent); color: var(--accent); font-weight: 650; }
 .tp-choice.on::before { content: '✓ '; }
+.at-need { border: 1px dashed var(--warn, #e8973a) !important; }

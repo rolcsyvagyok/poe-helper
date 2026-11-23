@@ -274,6 +274,40 @@ function encodeHypostasis(nodes, choices, tree) {
  * A tree link (or a bare code) → { nodes: [id], choices: { id: index }, from, unknown }.
  * Throws a short, player-facing error when the link isn't a tree it can read.
  */
+/** The planner id in a maxroll.gg link or page ("maxroll.gg/poe/farming-strategy-planner/xn4dwq0g"), or null. */
+function maxrollId(text) {
+  const s = String(text || '');
+  const m = /maxroll\.gg\/poe\/(?:farming-strategy-planner|planner)\/([a-z0-9]{5,16})\b/i.exec(s) || /"plannerProfile":\{"id":"([a-z0-9]{5,16})"/i.exec(s);
+  return m ? m[1] : null;
+}
+const MAXROLL_THREADS = { legion: 'Legion Thread', abyss: 'Abyss Thread', bestiary: 'Bestiary Thread', betrayal: 'Betrayal Thread', breach: 'Breach Thread', blight: 'Blight Thread', expedition: 'Expedition Thread', incursion: 'Incursion Thread', ritual: 'Ritual Thread', ultimatum: 'Ultimatum Thread' };
+
+/**
+ * A maxroll.gg planner profile (planners.maxroll.gg/profiles/poe/<id>) -> { name, variants:[{ name, nodes, choices }],
+ * nodes, choices (the fullest step), threads:[{ name, count }], map }. Its atlas tree lists GGG's node ids, and the
+ * chosen effect of each choice passive.
+ */
+function fromMaxroll(json, tree) {
+  let data = json?.data;
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch { data = null; } }
+  const profile = (data?.profiles || []).find((p) => p?.atlas?.variants?.some((v) => v.history?.length));
+  if (!profile) return null;
+  const variants = profile.atlas.variants.filter((v) => v.history?.length).map((v) => {
+    const choices = {};
+    for (const [node, effect] of Object.entries(v.masteries || {})) {
+      const idx = tree?.nodes.get(Number(node))?.variants.findIndex((x) => x.effect === Number(effect));
+      if (idx >= 0) choices[Number(node)] = idx;
+    }
+    return { name: v.name || '', nodes: v.history.map(Number).filter(Number.isFinite), choices };
+  });
+  const full = variants.reduce((a, v) => (v.nodes.length > a.nodes.length ? v : a), variants[0]);
+  const st = profile.atlas.strategy || {};
+  const threads = (st.threads || []).map((t) => ({ name: MAXROLL_THREADS[String(t.mechanic || '').toLowerCase()] || null, count: Number(t.count) || 8 })).filter((t) => t.name).slice(0, 3);
+  const base = (st.device || []).find((x) => /Maps\//.test(x?.base || ''));
+  const map = base ? { name: base.base.split('/').pop().replace(/^MapWorlds/, '').replace(/([a-z])([A-Z])/g, '$1 $2') + ' Map', tier: base.map_tier || null } : null;
+  return { name: json.name || profile.name || '', variants, nodes: full.nodes, choices: full.choices, step: full.name, threads, map };
+}
+
 function parseLink(link, tree) {
   const s = String(link || '').trim();
   if (!s) throw new Error('Paste an atlas tree link first.');
@@ -295,7 +329,7 @@ function parseLink(link, tree) {
     if (!r) throw new Error('That hypostasis.faith link is for another version of the atlas tree, or it was cut short.');
   } else {
     const code = (/(?:atlas-skill-tree|atlas-tree2?|\/atlas)\/([\w-]+)/.exec(s) || [null, /^[\w-]{8,}$/.test(s) ? s : null])[1];
-    if (!code) throw new Error('That isn\'t an atlas tree link. Links from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith and wealthyexile.com work.');
+    if (!code) throw new Error('That isn\'t an atlas tree link. Links from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com and maxroll.gg work.');
     from = /poeplanner/.test(s) ? 'poeplanner.com' : /wealthyexile/.test(s) ? 'wealthyexile.com' : /pathofexile/.test(s) ? 'pathofexile.com' : 'code';
     const b = fromB64url(code);
     r = b.length >= 3 && b[0] + b[1] + b[2] === 0 ? decodeOfficial(code, tree) : decodePoeplanner(code);
@@ -405,4 +439,5 @@ function connectedNodes(tree, nodes) {
   return out.slice(0, tree.points);
 }
 
-module.exports = { connectedNodes, buildTree, parseLink, effects, sumLines, drawData, categoryOf, encodeOfficial, encodeHypostasis, decodeHypostasis, decodeAtlasPlanner, decodeOfficial, decodePoeplanner };
+module.exports = {
+  maxrollId, fromMaxroll, connectedNodes, buildTree, parseLink, effects, sumLines, drawData, categoryOf, encodeOfficial, encodeHypostasis, decodeHypostasis, decodeAtlasPlanner, decodeOfficial, decodePoeplanner };

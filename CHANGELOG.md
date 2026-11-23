@@ -5,6 +5,17 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.164 - 2026-11-23
+
+* [Atlas strategies] A finished session has an "Open in WealthyExile" button that shows that session there.
+- WealthyExile: the League and Price league boxes are gone from the top bar.
+* [Atlas strategies] Pick the maps you run from a list: normal T16, Originator, Nightmare, Conqueror, Shaper guardian, Elder guardian and more. poe.ninja's price for them goes into the cost a map (type it for Originator maps).
+- Atlas strategies: the map kind is a plain list (the old box only showed the kind already picked). A normal T16 map now counts its price too. Delirium Orbs are picked from a short list, cheapest first, with their prices; any other item can still be typed.
+* [Atlas strategies] Paste a maxroll.gg farming strategy (the guide page or its planner link): its atlas tree, threads and map come in with it.
+- Atlas strategies: a maxroll.gg strategy brings its fullest tree step, its choice passives, its threads (when the strategy has none yet), its map and its name (for a new strategy).
+* [Map regex] Mods you skip are now caught on rare maps too: with several mods picked, a mod was sometimes only found by its name, which only magic maps show.
+- Map regex: search pieces can use a number (\d+) or the end of a line ($), as poe.re does, so more mods get a piece of their own ("Monsters have #% increased Area of Effect" no longer also skips the Unique Boss's area mod).
+
 ## 1.0.163 - 2026-11-23
 
 * [Atlas strategies] A strategy can use up to 3 kinds of thread a map, each with its own count. The item box suggests Delirium Orbs instead of scarabs and fragments.

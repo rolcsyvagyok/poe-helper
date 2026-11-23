@@ -100,3 +100,17 @@ test('a poeatlasplanner.com link, with its multiple-choice picks', () => {
   assert.deepEqual(r.choices, { 16487: 2, 28477: 1, 33916: 1 });
   assert.throws(() => A.parseLink('https://poeatlasplanner.com/#p=AgYz', tree), /poeatlasplanner/);
 });
+
+test('a maxroll.gg farming strategy: its atlas tree, choices, threads and map', () => {
+  const j = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'maxroll-atlas.json'), 'utf8'));
+  assert.equal(A.maxrollId('https://maxroll.gg/poe/farming-strategy-planner/xn4dwq0g'), 'xn4dwq0g');
+  assert.equal(A.maxrollId('<script>{"plannerProfile":{"id":"xn4dwq0g","date":"x"}}</script>'), 'xn4dwq0g');
+  assert.equal(A.maxrollId('https://maxroll.gg/poe/currency/endgame-strategies/rare-monster-stacking-strategy'), null);
+  const r = A.fromMaxroll(j, tree);
+  assert.equal(r.name, 'Rare Monster Stacking Strategy');
+  assert.equal(r.nodes.length, 148);
+  assert.ok(r.nodes.filter((id) => !tree.nodes.has(id)).length <= 1, 'the nodes are in the 3.30 tree (one is newer than the test copy)');
+  assert.deepEqual(Object.keys(r.choices), ['712', '28477']);
+  assert.deepEqual(r.threads, [{ name: 'Legion Thread', count: 8 }, { name: 'Abyss Thread', count: 8 }, { name: 'Bestiary Thread', count: 8 }]);
+  assert.deepEqual(r.map, { name: 'Dunes Map', tier: 16 });
+});

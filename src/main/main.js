@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog, session, utilityProcess, desktopCapturer } = require('electron');
+const { app, BrowserWindow, globalShortcut, clipboard, ipcMain, screen, Tray, Menu, nativeImage, shell, safeStorage, Notification, dialog, session, utilityProcess, desktopCapturer, net } = require('electron');
 // The stream window keeps drawing while it sits behind the game (Chromium would stop drawing a covered window,
 // and Discord would then share a frozen picture).
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
@@ -2033,7 +2033,7 @@ function applySetupFile() {
 
 app.whenReady().then(async () => {
   markRunning();
-  services = createServices({ dataDir: app.getPath('userData'), secrets, log, labBrowser });
+  services = createServices({ dataDir: app.getPath('userData'), secrets, log, labBrowser, webFetch: (url, o) => net.fetch(url, o) });
   applySetupFile();
   registerIpc();
   importDefaultGuides();

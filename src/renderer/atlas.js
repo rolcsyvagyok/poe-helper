@@ -325,7 +325,7 @@
         h('span', {}, s.total.perHour != null ? `${sign(s.total.perHour, d)} / h` : 'No sessions yet'),
         s.costPerMap ? h('span', { class: 'faint' }, `${fmtC(s.costPerMap, d)} a map`) : null))) : h('p', { class: 'small muted' }, 'No strategies yet. Click "New strategy".'));
 
-    const body = h('div', { class: 'at-body' }, S ? strategyView(S, L) : h('div', { class: 'panel empty' }, 'Make a strategy for each way you farm: Breach with Breach threads, Beasts and Heist, Originator maps… Paste its atlas tree link from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith or wealthyexile.com, or click it together on the tree.'));
+    const body = h('div', { class: 'at-body' }, S ? strategyView(S, L) : h('div', { class: 'panel empty' }, 'Make a strategy for each way you farm: Breach with Breach threads, Beasts and Heist, Originator maps… Paste its atlas tree link from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com or a maxroll.gg strategy, or click it together on the tree.'));
     window.UI.keepScroll ? window.UI.keepScroll(() => mount(page, head, h('div', { class: 'at-page' }, cards, body))) : mount(page, head, h('div', { class: 'at-page' }, cards, body));
   }
 
@@ -349,7 +349,7 @@
     const top = h('div', { class: 'at-top' }, name, h('span', { class: 'spacer' }), sessBtn, del);
 
     // ---- the tree link ----
-    const link = h('input', { type: 'text', value: S.link || '', placeholder: 'Atlas tree link (pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com), or click passives on the tree', 'aria-label': 'Atlas tree link', style: { flex: 1 } });
+    const link = h('input', { type: 'text', value: S.link || '', placeholder: 'Atlas tree link (pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com, maxroll.gg), or click passives on the tree', 'aria-label': 'Atlas tree link', style: { flex: 1 } });
     const imp = h('button', { onclick: () => save({ id: S.id, link: link.value }) }, S.link ? 'Update tree' : 'Import tree');
     link.addEventListener('keydown', (e) => { if (e.key === 'Enter') imp.click(); });
     const linkRow = h('div', { class: 'at-row' }, link, imp);
@@ -375,27 +375,36 @@
     };
     const threadRows = [...thr.map((t, k) => threadRow(t, k)), thr.length < 3 ? threadRow(null, thr.length) : null];
     const kinds = L.mapKinds;
-    // a list to pick from, or type your own kind
-    const kindSel = h('input', { type: 'text', list: 'at-kinds', value: S.mapKind || kinds[0], 'aria-label': 'Map kind', style: { width: '190px' }, onfocus: (e) => e.target.select(), onchange: (e) => save({ id: S.id, mapKind: e.target.value.trim() || kinds[0], mapPrice: '' }, true) });
-    const kindList = h('datalist', { id: 'at-kinds' }, kinds.map((k) => h('option', { value: k })));
-    const notNormal = S.mapKind && S.mapKind !== 'Any maps';
-    const mapPrice = notNormal ? h('input', { type: 'number', min: 0, step: 'any', value: S.mapPrice ?? '', placeholder: S.mapAuto != null ? `${S.mapAuto}c` : 'price', title: S.mapAuto != null ? `poe.ninja: ${S.mapAuto}c a map. Type your own price to use that instead.` : 'What a map costs you, in chaos', 'aria-label': 'Price of a map, chaos', style: { width: '76px' }, onchange: (e) => save({ id: S.id, mapPrice: e.target.value }, true) }) : null;
+    // the kind of map you run; poe.ninja gives its price (Originator and other maps: type it)
+    const kindSel = h('select', { 'aria-label': 'Map kind', onchange: (e) => save({ id: S.id, mapKind: e.target.value, mapPrice: '' }, true) },
+      kinds.map((k) => h('option', { value: k, selected: k === S.mapKind }, k)),
+      S.mapKind && !kinds.includes(S.mapKind) ? h('option', { value: S.mapKind, selected: true }, S.mapKind) : null);
+    const mapPrice = h('input', { type: 'number', min: 0, step: 'any', value: S.mapPrice ?? '', placeholder: S.mapAuto != null ? `${S.mapAuto}c` : 'price',
+      title: S.mapAuto != null ? `poe.ninja: ${S.mapAuto}c a map. Type your own price to use that instead.` : 'poe.ninja has no price for these: type what a map costs you, in chaos',
+      'aria-label': 'Price of a map, chaos', class: S.mapAuto == null && S.mapPrice == null ? 'at-need' : '', style: { width: '76px' }, onchange: (e) => save({ id: S.id, mapPrice: e.target.value }, true) });
     const mapName = h('input', { type: 'text', value: S.mapName || '', placeholder: 'Map (optional)', 'aria-label': 'Map', style: { width: '170px' }, onchange: (e) => save({ id: S.id, mapName: e.target.value }, true) });
     const priceOf = (n) => S.costs.find((p) => p.name === n)?.chaos ?? null;
     const extra = (S.inputs || []).map((i, k) => h('div', { class: 'at-in' },
-      h('input', { type: 'text', value: i.name, 'aria-label': 'Item', list: 'at-items', style: { flex: 1 }, onchange: (e) => { const l = [...S.inputs]; l[k] = { ...i, name: e.target.value }; save({ id: S.id, inputs: l }, true); } }),
+      h('input', { type: 'text', value: i.name, 'aria-label': 'Item', style: { flex: 1 }, onchange: (e) => { const l = [...S.inputs]; l[k] = { ...i, name: e.target.value }; save({ id: S.id, inputs: l }, true); } }),
       h('input', { type: 'number', min: 0, max: 99, value: i.count, 'aria-label': 'How many a map', style: { width: '58px' }, onchange: (e) => { const l = [...S.inputs]; l[k] = { ...i, count: e.target.value }; save({ id: S.id, inputs: l }, true); } }),
       h('span', { class: 'small faint at-price' }, priceOf(i.name) != null ? `${chaosDiv(priceOf(i.name), d)} each` : 'no price'),
       h('button', { class: 'quiet sm', 'aria-label': `Remove ${i.name}`, onclick: () => save({ id: S.id, inputs: S.inputs.filter((_, j) => j !== k) }, true) }, '✕')));
-    const newName = h('input', { type: 'text', placeholder: 'Delirium Orb or other item you put in each map', 'aria-label': 'Add an item used each map', list: 'at-items', style: { flex: 1 } });
+    // Delirium Orbs from a short list (cheapest first, "Fine" rather than "Fine Delirium Orb"), anything else typed
     const newN = h('input', { type: 'number', min: 1, max: 99, value: 1, 'aria-label': 'How many a map', style: { width: '58px' } });
-    const add = () => { if (newName.value.trim()) save({ id: S.id, inputs: [...(S.inputs || []), { name: newName.value.trim(), count: newN.value }] }, true); };
+    const addItem = (name) => { if (name) save({ id: S.id, inputs: [...(S.inputs || []), { name, count: newN.value }] }, true); };
+    const have = new Set((S.inputs || []).map((i) => i.name));
+    const orbs = (A.items || []).filter((x) => !have.has(x.name)).sort((x, y) => (x.chaos ?? 1e9) - (y.chaos ?? 1e9));
+    const orbSel = h('select', { 'aria-label': 'Add a Delirium Orb', onchange: (e) => addItem(e.target.value) },
+      h('option', { value: '' }, 'Add a Delirium Orb'),
+      orbs.map((x) => h('option', { value: x.name }, `${x.name.replace(/ Delirium Orb$/, '')}${x.chaos != null ? ` · ${chaosDiv(x.chaos, d)}` : ''}`)));
+    const newName = h('input', { type: 'text', placeholder: 'Other item', 'aria-label': 'Add another item used each map', style: { width: '170px' } });
+    const add = () => addItem(newName.value.trim());
     newName.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
-    const addIn = h('div', { class: 'at-in' }, newName, newN, h('button', { class: 'sm', onclick: add }, 'Add'));
+    const addIn = h('div', { class: 'at-in' }, orbSel, newName, newN, h('button', { class: 'sm', onclick: add }, 'Add'));
     const setup = h('div', { class: 'panel at-setup' },
       h('div', { class: 'at-setup-row' },
         h('div', { class: 'at-field' }, h('span', { class: 'small muted', title: 'Up to 3 kinds of thread on a map' }, 'Threads a map'), h('div', { class: 'at-thr' }, threadRows)),
-        h('label', { class: 'at-field' }, h('span', { class: 'small muted' }, 'Maps'), h('div', { class: 'at-row' }, kindSel, kindList, mapPrice, mapName)),
+        h('label', { class: 'at-field' }, h('span', { class: 'small muted' }, 'Maps'), h('div', { class: 'at-row' }, kindSel, mapPrice, mapName)),
         h('div', { class: 'at-field at-cost' }, h('span', { class: 'small muted' }, 'Cost a map'), h('b', { title: S.costs.map((c) => `${c.count > 1 ? `${c.count} × ` : ''}${c.name}: ${c.total != null ? chaosDiv(c.total, d) : 'no price'}`).join('\n') }, S.costPerMap ? chaosDiv(S.costPerMap, d) : '–'),
           S.costs.length ? h('span', { class: 'small faint' }, S.costs.map((c) => `${c.map ? 'map' : c.thread ? c.name.replace(/ Thread$/, ' threads') : c.name} ${c.total != null ? chaosDiv(c.total, d) : '?'}`).join(' + ')) : null)),
       h('div', { class: 'at-ins' }, extra, addIn));
@@ -454,17 +463,18 @@
     const sessions = h('div', { class: 'panel at-sess' },
       h('div', { class: 'nw-ph' }, h('h2', {}, 'Sessions'), h('span', { class: 'small faint' }, L.clientLog ? 'Maps are counted from your Client.txt' : 'Set Client.txt in Settings to count maps')),
       runs.length ? h('table', { class: 'at-table' },
-        h('thead', {}, h('tr', {}, ['Started', 'Time', 'Maps', 'Gained', 'Per hour', 'Per map'].map((t, i) => h('th', { class: i ? 'r' : '' }, t)))),
+        h('thead', {}, h('tr', {}, ['Started', 'Time', 'Maps', 'Gained', 'Per hour', 'Per map', ''].map((t, i) => h('th', { class: i ? 'r' : '' }, t)))),
         h('tbody', {}, runs.map((r) => h('tr', {},
           h('td', {}, day(r.start), r.end ? null : h('span', { class: 'at-live' }, ' ● running')),
           h('td', { class: 'r' }, dur(r.hours)),
           h('td', { class: 'r' }, r.maps ?? '–'),
           h('td', { class: 'r ' + (r.gained == null ? '' : r.gained >= 0 ? 'good' : 'bad') }, r.gained == null ? (r.end ? 'No snapshot' : 'Running') : sign(r.gained, d)),
           h('td', { class: 'r' }, r.perHour == null ? '–' : sign(r.perHour, d)),
-          h('td', { class: 'r' }, r.perMap == null ? '–' : sign(r.perMap, d))))),
+          h('td', { class: 'r' }, r.perMap == null ? '–' : sign(r.perMap, d)),
+          h('td', { class: 'r' }, r.end ? h('button', { class: 'quiet sm', title: 'Open this session in WealthyExile: its chart and what changed', onclick: () => window.openNetworthSession?.(r.id) }, 'Open in WealthyExile') : null)))),
         runs.length > 1 ? h('tfoot', {}, h('tr', {},
           h('td', {}, h('b', {}, 'All')), h('td', { class: 'r' }, dur(T.hours)), h('td', { class: 'r' }, T.maps ?? '–'),
-          h('td', { class: 'r ' + (T.gained >= 0 ? 'good' : 'bad') }, sign(T.gained, d)), h('td', { class: 'r' }, sign(T.perHour, d)), h('td', { class: 'r' }, sign(T.perMap, d)))) : null)
+          h('td', { class: 'r ' + (T.gained >= 0 ? 'good' : 'bad') }, sign(T.gained, d)), h('td', { class: 'r' }, sign(T.perHour, d)), h('td', { class: 'r' }, sign(T.perMap, d)), h('td', {}))) : null)
         : h('p', { class: 'small muted' }, 'Start a session when you begin farming this way and stop it when you\'re done. WealthyExile takes a snapshot at both ends; what your stash gained is the session\'s result.'),
       T.perMap != null && S.costPerMap ? h('p', { class: 'small muted' }, `Each map costs about ${chaosDiv(S.costPerMap, d)} in threads and items. If you buy them outside the tracked tabs, take that off: about ${sign(T.perMap - S.costPerMap, d)} a map.`) : null);
 
@@ -473,7 +483,7 @@
     return h('div', { class: 'at-detail' }, top, h('div', { class: 'panel at-link' }, linkRow, linkInfo), setup,
       h('div', { class: 'at-main' }, h('div', { class: 'at-treecol' }, treeBar, treeBox, h('div', { class: 'small faint' }, 'Drag to move, scroll to zoom. Gold: taken. Blue ring: the group you point at on the right.')), fx),
       sessions, h('div', { class: 'panel' }, h('b', {}, 'Notes'), notes),
-      h('datalist', { id: 'at-items' }, (A.items || []).map((n) => h('option', { value: n }))));
+      null);
   }
 
   window.AtlasView = { render: () => render(false) };

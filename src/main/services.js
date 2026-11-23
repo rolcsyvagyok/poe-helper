@@ -150,7 +150,7 @@ const DEFAULT_SETTINGS = {
   history: [],
 };
 
-function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBrowser = null }) {
+function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = console.log, labBrowser = null }) {
   const settings = new JsonStore(path.join(dataDir, 'settings.json'), DEFAULT_SETTINGS);
   // 1.0.15: map warnings are gone; drop their saved list
   if ('mapRules' in settings.data) { delete settings.data.mapRules; settings.save(); }
@@ -2157,7 +2157,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const get = async (c) => { try { return await ninja.category(league, c); } catch (e) { log('atlas items', c, e.message); return []; } };
     const threads = (await get('Thread')).map((l) => ({ name: l.name, chaos: l.chaos, icon: l.icon || null })).sort((a, b) => a.name.localeCompare(b.name));
     // what else goes into the map device: Delirium Orbs (3.30 has no scarabs)
-    const items = [...new Set((await get('DeliriumOrb')).map((l) => l.name))].sort();
+    const items = (await get('DeliriumOrb')).map((l) => ({ name: l.name, chaos: l.chaos ?? null }));
     return { threads, items };
   }
 
@@ -2167,16 +2167,20 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // map kinds; the ones poe.ninja prices (cat + names) add their price to the cost a map (the middle price when
   // several maps make the kind: the four conqueror maps)
   const ATLAS_MAP_KINDS = [
-    { name: 'Any maps' },
+    { name: 'Normal T16 maps', cat: 'Map', re: /^Map \(Tier 16\)$/ },
+    { name: 'Originator maps' }, // poe.ninja has no line for them: type your price
+    { name: 'Nightmare maps', cat: 'Map', re: /^Nightmare Map$/ },
     { name: 'Conqueror maps', cat: 'Map', re: /^(Baran|Veritania|Drox|Al-Hezmin) Map \(Tier 16\)$/ },
-    { name: 'Elder guardian maps', cat: 'Map', re: /^The (Purifier|Enslaver|Constrictor|Eradicator) Map \(Tier 16\)$/ },
     { name: 'Shaper guardian maps', cat: 'Map', re: /^Shaper Guardian Map$/ },
-    { name: 'Nightmare (Valdo) maps', cat: 'Map', re: /^Nightmare Map$/ },
+    { name: 'Elder guardian maps', cat: 'Map', re: /^The (Purifier|Enslaver|Constrictor|Eradicator) Map \(Tier 16\)$/ },
     { name: 'Vaal Temple maps', cat: 'Map', re: /^Vaal Temple Map$/ },
     { name: 'Blighted maps (T16)', cat: 'BlightedMap', re: /^Blighted Map \(Tier 16\)$/ },
     { name: 'Blight-ravaged maps (T16)', cat: 'BlightRavagedMap', re: /\(Tier 16\)$/ },
-    { name: 'Originator maps' }, { name: 'Mirage' }, { name: 'Unique maps' },
+    { name: 'Other maps' },
   ];
+  // names saved by older versions
+  const MAP_KIND_OLD = { 'Any maps': 'Normal T16 maps', 'Nightmare (Valdo) maps': 'Nightmare maps', Mirage: 'Other maps', 'Unique maps': 'Other maps' };
+  const mapKindOf = (s) => MAP_KIND_OLD[s.mapKind] || s.mapKind || 'Normal T16 maps';
   async function mapKindPrice(kind, league) {
     const k = ATLAS_MAP_KINDS.find((x) => x.name === kind);
     if (!k?.cat) return null;
@@ -2217,15 +2221,16 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const series = nw?.series || [];
     const sessions = networth.sessions(league);
     const kindPrices = new Map();
-    for (const k of new Set(list.map((s) => s.mapKind).filter(Boolean))) kindPrices.set(k, await mapKindPrice(k, league));
+    for (const k of new Set(list.map(mapKindOf))) kindPrices.set(k, await mapKindPrice(k, league));
     return {
       league, divine, treeError, mapKinds: ATLAS_MAP_KINDS.map((k) => k.name), clientLog: !!settings.get('clientLogPath'),
       strategies: list.map((s) => {
         const priced = (name, count) => { const p = prices.get(String(name || '').toLowerCase()); return { name, count, chaos: p?.chaos ?? null, icon: p?.icon || null, total: p?.chaos != null ? Math.round(p.chaos * count * 100) / 100 : null }; };
         // the map itself when it isn't a normal one: poe.ninja's price, or the price you typed
-        const auto = kindPrices.get(s.mapKind) ?? null;
+        const kind = mapKindOf(s);
+        const auto = kindPrices.get(kind) ?? null;
         const mapEach = s.mapPrice != null ? s.mapPrice : auto;
-        const mapCost = s.mapKind && s.mapKind !== 'Any maps' && mapEach != null ? { name: s.mapName || s.mapKind.replace(/s\b/, ''), count: 1, chaos: mapEach, icon: null, total: mapEach, map: true, auto, own: s.mapPrice != null } : null;
+        const mapCost = mapEach != null ? { name: s.mapName || kind.replace(/maps\b/, 'map'), count: 1, chaos: mapEach, icon: null, total: mapEach, map: true, auto, own: s.mapPrice != null } : null;
         const costs = [mapCost, ...threadsOf(s).filter((t) => t.count).map((t) => ({ ...priced(t.name, t.count), thread: true })), ...(s.inputs || []).filter((i) => i.name && i.count).map((i) => priced(i.name, i.count))].filter(Boolean);
         const costPerMap = costs.reduce((a, i) => a + (i.total || 0), 0);
         const runs = sessions.filter((x) => x.strategy === s.id).map((x) => sessionResult(x, series)).reverse();
@@ -2235,7 +2240,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         const maps = done.reduce((a, r) => a + (r.maps || 0), 0);
         const fx = tree && s.nodes?.length ? Atlas.effects(tree, s.nodes, s.choices || {}) : null;
         return {
-          ...s, threads: threadsOf(s), costs, mapAuto: auto, costPerMap: Math.round(costPerMap * 100) / 100,
+          ...s, mapKind: kind, threads: threadsOf(s), costs, mapAuto: auto, costPerMap: Math.round(costPerMap * 100) / 100,
           summary: fx ? { points: fx.points, notables: fx.notables, keystones: fx.keystones, top: fx.categories.slice(0, 4).map((c) => ({ name: c.name, count: c.nodes.length })) } : null,
           effects: fx?.categories || [],
           sessions: runs,
@@ -2246,6 +2251,23 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   }
 
   // create (no id) or change a strategy; a new tree link is read here, so a bad link is refused before it's saved
+  // a maxroll.gg farming strategy: its planner profile (one request; an article page first when that's the link)
+  async function maxrollStrategy(link) {
+    const get = webFetch || fetchImpl || globalThis.fetch;
+    let id = Atlas.maxrollId(link);
+    if (!id) {
+      const res = await get(link, { headers: { 'User-Agent': userAgent(), Accept: 'text/html' } });
+      if (!res.ok) throw new Error(`maxroll.gg answered ${res.status}. Try the planner link from the page instead.`);
+      id = Atlas.maxrollId(await res.text());
+      if (!id) throw new Error('No atlas tree was found on that maxroll.gg page.');
+    }
+    const res = await get(`https://planners.maxroll.gg/profiles/poe/${id}`, { headers: { 'User-Agent': userAgent(), Accept: 'application/json' } });
+    if (!res.ok) throw new Error(res.status === 404 ? 'That maxroll.gg planner was not found.' : `maxroll.gg answered ${res.status}. Try again in a minute.`);
+    const r = Atlas.fromMaxroll(await res.json(), await atlasTreeData());
+    if (!r) throw new Error('That maxroll.gg planner has no atlas tree.');
+    return r;
+  }
+
   async function atlasSave(input = {}) {
     const all = strategiesAll();
     const old = input.id ? all.find((s) => s.id === input.id) : null;
@@ -2256,8 +2278,20 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     if (input.link !== undefined && String(input.link).trim() !== (old?.link || '')) {
       const link = String(input.link).trim();
       if (!link) { s.link = ''; s.nodes = []; s.choices = {}; s.from = ''; } else {
-        const r = Atlas.parseLink(link, await atlasTreeData());
-        Object.assign(s, { link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown });
+        if (/maxroll\.gg/i.test(link)) {
+          // maxroll: the tree, and its threads and map when the strategy has none yet
+          const tree = await atlasTreeData();
+          const m = await maxrollStrategy(link);
+          const known = m.nodes.filter((id) => tree.nodes.has(id));
+          if (!known.length) throw new Error('No passives of this atlas tree were found in that maxroll.gg planner.');
+          Object.assign(s, { link, nodes: known, choices: Object.fromEntries(Object.entries(m.choices).filter(([k]) => known.includes(Number(k)))), from: 'maxroll.gg', unknown: m.nodes.length - known.length });
+          if (!threadsOf(s).length && m.threads.length && input.threads === undefined) { s.threads = m.threads; delete s.thread; }
+          if (!s.mapName && m.map && input.mapName === undefined) s.mapName = m.map.name;
+          if (m.name && input.name === undefined && (!old || /^Strategy \d+$/.test(s.name))) s.name = m.name.slice(0, 80);
+        } else {
+          const r = Atlas.parseLink(link, await atlasTreeData());
+          Object.assign(s, { link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown });
+        }
       }
     }
     // a tree picked by hand on the page: kept as a pathofexile.com link, so it can be opened and shared like an import

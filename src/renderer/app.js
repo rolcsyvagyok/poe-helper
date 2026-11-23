@@ -237,6 +237,7 @@ const NOTE_PLACES = [
   [/Base ranks|Unid item tier|Memory Strand|Ranked bases|Tier 0/i, 'Base ranks', { special: 'basematrix' }],
   [/My collection/i, 'My collection', { page: 'collection' }],
   [/Atlas strateg/i, 'Atlas strategies', { page: 'atlas' }],
+  [/Map regex/i, 'Map regex', { page: 'regex' }],
   [/WealthyExile|net worth/i, 'WealthyExile', { page: 'networth' }],
   [/Unique items|High variety|unique bases|uniques page/i, 'Unique items', { type: 'uniques' }],
   [/Regular maps|map cards|white maps|yellow maps/i, 'Regular maps', { type: 'maps' }],
@@ -567,6 +568,8 @@ const wxIcon = (item, size = 26) => {
 // to the categories donut; then every item of the snapshot, filterable by stash tab.
 let nwSession = null; // a session's id: the page shows that session (profit); null = all snapshots
 let nwMode = 'total'; // chart: 'total' or 'rate' (per day, per hour in a session)
+// opens WealthyExile on one session (the Atlas strategies page links its sessions here)
+window.openNetworthSession = (id) => { nwSession = id || null; nwMode = 'total'; go('networth'); };
 let nwCatView = 'donut';
 let nwSort = { k: 'total', dir: -1 };
 let nwOffTabs = new Set(); // stash tabs unticked in the item list
@@ -757,8 +760,6 @@ async function renderNetworthNow() {
     h('option', { value: '' }, 'All snapshots'),
     sessions.map((s) => h('option', { value: s.id, selected: s.id === nwSession }, `${s.name}${s.end ? '' : ' (active)'}`)));
   const bar = h('div', { class: 'nw-bar' },
-    fact('trophy', 'League', S.league || '–'),
-    fact('globe', 'Price league', S.league || '–'),
     fact('history', 'Last snapshot', latest ? ago(Date.now() - latest.ts) : 'none yet'),
     fact('hourglass', 'Session', sessSel, running ? h('span', { class: 'nw-live' }, '● Active') : null),
     sess ? fact('timer', 'Played', dur(played(sess))) : null,
