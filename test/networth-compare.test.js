@@ -35,3 +35,15 @@ test('"the snapshot before" skips snapshots taken seconds apart that are the sam
   assert.equal(r.result.total, 40);
   assert.equal(t.compare('L', { from: 2000 }).result.total, 0);
 });
+
+test('3.30 maps: a plain T16, a conqueror one by its citadel, a Nightmare map, a Vaal Temple map', () => {
+  const N = require('../src/core/networth');
+  const L = (name, baseType, chaos) => ({ name, baseType, chaos });
+  const idx = N.buildIndex({ Map: [L('Baran Map (Tier 16)', 'Map (Tier 16)', 35), L('The Purifier Map (Tier 16)', 'Map (Tier 16)', 10), L('Map (Tier 16)', null, 2), L('Nightmare Map', null, 74), L('Al-Hezmin Vaal Temple Map', 'Vaal Temple Map', 56), L('Vaal Temple Map', null, 30)] });
+  const v = (t, imp = []) => N.valueItem({ typeLine: t, baseType: t, frameType: 0, implicitMods: imp, properties: [{ name: 'Map Area', values: [['Tower', 0]] }] }, idx);
+  assert.equal(v('Map (Tier 16)').each, 2);
+  assert.equal(v('Map (Tier 16)', ["Map contains Baran's Citadel"]).each, 35);
+  assert.equal(v('Map (Tier 16)', ["Map contains Baran's Citadel"]).name, 'Baran Map (Tier 16)');
+  assert.equal(v('Nightmare Map').each, 74);
+  assert.equal(v('Vaal Temple Map').each, 30);
+});

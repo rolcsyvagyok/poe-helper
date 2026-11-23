@@ -79,6 +79,26 @@ function buildIndex(catData) {
   return { byName, uniques, gems, maps, clusters, viscera };
 }
 
+/**
+ * A 3.30 map's poe.ninja line. poe.ninja lists one base ("Map (Tier 16)", "Vaal Temple Map") several times: the plain
+ * map, and the conqueror ("Baran Map (Tier 16)") and Elder guardian ("The Purifier Map (Tier 16)") ones. A map whose
+ * implicits name one of them ("Map contains Baran's Citadel") gets that line; any other gets the plain one.
+ */
+function mapLine(it, idx, typeLine) {
+  const lines = idx.maps.get(norm(typeLine)) || [];
+  if (!lines.length) return null;
+  const implicits = (it.implicitMods || []).map((x) => (typeof x === 'string' ? x : x?.description || '')).join('\n').toLowerCase();
+  const base = norm(typeLine);
+  for (const l of lines) {
+    const n = norm(l.name);
+    if (n === base || !n.endsWith(` ${base}`)) continue;
+    const who = n.slice(0, -base.length - 1).replace(/^the /, ''); // "baran", "purifier"
+    if (who && implicits.includes(who)) return { line: l, label: l.name };
+  }
+  const plain = lines.find((l) => norm(l.name) === base);
+  return plain ? { line: plain, label: typeLine } : null;
+}
+
 function valueItem(it, idx) {
   const kind = stashKind(it);
   const qty = it.stackSize || 1;
@@ -129,7 +149,9 @@ function valueItem(it, idx) {
     }
     // normal items poe.ninja prices by name: fragments, invitations, memories, corpses, 3.30 maps ("Blighted Map (Tier 1)")
     if (it.frameType === 0 || it.frameType === 15) {
-      const l = idx.byName.get(norm(typeLine)) || (idx.maps.get(norm(typeLine)) || [])[0];
+      const m = mapLine(it, idx, typeLine);
+      if (m) return { name: m.label, qty, each: m.line.chaos, category: 'Map' };
+      const l = idx.byName.get(norm(typeLine));
       return l ? { name: typeLine, qty, each: l.chaos, category: l.category || 'Map' } : null;
     }
   }

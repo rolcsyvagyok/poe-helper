@@ -181,6 +181,14 @@ function pickMap(lines, item) {
   const cands = lines.filter((l) => norm(l.baseType || l.name).replace(/^(blighted|blight-ravaged) /, '') === base || norm(l.name) === norm(item.typeLine));
   const exact = cands.filter((l) => tier == null || l.mapTier == null || l.mapTier === tier);
   const pool = exact.length ? exact : cands;
+  // 3.30: one base is listed as the plain map and as its conqueror / Elder guardian ones ("Baran Map (Tier 16)"):
+  // the map's implicits say which ("Map contains Baran's Citadel"); none of them, the plain map
+  const imp = (item.mods?.implicit || []).join('\n').toLowerCase();
+  const own = norm(item.typeLine || item.baseType);
+  const named = pool.find((l) => { const n = norm(l.name); if (n === own || !n.endsWith(` ${own}`)) return false; const who = n.slice(0, -own.length - 1).replace(/^the /, ''); return !!who && imp.includes(who); });
+  if (named) return { best: named, cands: [named, ...pool.filter((l) => l !== named)].slice(0, 5) };
+  const plain = pool.filter((l) => norm(l.name) === own);
+  if (plain.length) return { best: plain.sort((a, b) => b.listingCount - a.listingCount)[0], cands: [...plain, ...pool.filter((l) => !plain.includes(l))].slice(0, 5) };
   return { best: pool.sort((a, b) => b.listingCount - a.listingCount)[0] || null, cands: pool.slice(0, 5) };
 }
 
