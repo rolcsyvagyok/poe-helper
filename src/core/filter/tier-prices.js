@@ -239,7 +239,11 @@ function autoTierPlan(typeView, index, cfg = {}) {
           continue;
         }
         if (VARIETY.test(t.tier)) continue; // other variety tiers (boss drops, early league…) stay as they are
-        const target = targetFor(p.chaos);
+        let target = targetFor(p.chaos);
+        // "always show": it moves with its price, but never into a hidden tier: the lowest shown tier at most
+        const keep = cfg.alwaysShow?.has(b);
+        const lowShown = placed.filter((x) => x.action !== 'Hide').pop();
+        if (keep && target?.action === 'Hide' && lowShown) target = lowShown;
         if (!target || target.tier === t.tier || (t.generated && target === hideTier)) continue;
         const r = rangeOf(t.tier);
         // current tier isn't an auto-tier target (excluded, or e.g. "tnew"): leave it to the user
@@ -247,8 +251,8 @@ function autoTierPlan(typeView, index, cfg = {}) {
         // hidden -> hidden changes nothing you'd see in game: skip the noise
         if ((t.action === 'Hide' || t.generated) && target.action === 'Hide') continue;
         // what your filter hides stays hidden: the review only re-tiers items you can see
-        if (t.action === 'Hide' && target.action !== 'Hide') continue;
-        if (p.chaos >= r.lo / margin && p.chaos < r.hi * margin) continue; // close enough to its own tier
+        if (t.action === 'Hide' && target.action !== 'Hide' && !keep) continue;
+        if (!(keep && t.action === 'Hide') && p.chaos >= r.lo / margin && p.chaos < r.hi * margin) continue; // close enough to its own tier
         moves.push({ base: b, from: t.tier, to: target.tier, toAction: target.action, chaos: p.chaos, listings: p.listings ?? null, direction: p.chaos >= r.hi ? 'up' : 'down', trend: p.trend || null, big: !!p.big });
       }
     }

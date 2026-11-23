@@ -121,6 +121,8 @@ class GggClient {
     if (maxAgeMs > 0 && this.cache.isFresh(key, maxAgeMs)) return this.cache.get(key).data;
     const json = await this._request('stash', this._stashUrl(league, tabIndex, false), { withSession: true });
     const items = json.items || [];
+    // an empty tab: what else came back (the keys and their sizes only), to see how GGG sends special tabs
+    if (!items.length) this.log('stash tab empty', tabIndex, Object.entries(json).map(([k, v]) => `${k}:${Array.isArray(v) ? `[${v.length}]` : v && typeof v === 'object' ? `{${Object.keys(v).length}}` : typeof v}`).join(' '));
     this.cache.set(key, items);
     return items;
   }

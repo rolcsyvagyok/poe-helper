@@ -235,7 +235,7 @@ class NetWorthTracker {
         const index = meta.index;
         // Re-use items fetched in the last 60 seconds (e.g. tab 0 came with the tab list).
         const items = await this.ggg.stashTabItems(league, index, { maxAgeMs: 60 * 1000 });
-        tabs.push({ name: meta.name, index, items });
+        tabs.push({ name: meta.name, index, type: meta.type, items });
       }
       const allItems = tabs.flatMap((t) => t.items);
       const cats = neededCategories(allItems);
@@ -264,6 +264,8 @@ class NetWorthTracker {
         byTab: v.byTab,
         byCategory: Object.fromEntries(Object.entries(v.byCategory).map(([k, x]) => [k, Math.round(x)])),
         // Keep everything worth >= 1c so diffs ("what did I gain?") work, but cap size.
+        // tabs GGG sent no items for though they are special ones that hold things (a map stash tab): said on the page
+        ...(tabs.some((t) => t.type === 'MapStash' && !t.items.length) ? { unread: tabs.filter((t) => t.type === 'MapStash' && !t.items.length).map((t) => t.name) } : {}),
         items: v.items.filter((i) => i.total >= 1).slice(0, 400).map((i) => ({ n: i.name, q: i.qty, e: Math.round(i.each * 100) / 100, c: i.category, ...(i.icon ? { i: i.icon } : {}), t: [...(i.tabs || [])] })),
       };
       const all = this.store.get('snapshots') || [];

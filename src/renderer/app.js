@@ -781,6 +781,7 @@ async function renderNetworthNow() {
       h('span', { class: 'spacer' }),
       nwOffTabs.size ? h('button', { class: 'quiet sm', onclick: () => { nwOffTabs = new Set(); renderNetworth(); } }, 'Show all tabs') : null),
     !(latest.items || []).some((i) => i.t?.length) ? h('p', { class: 'small faint' }, 'This snapshot is older than tab tracking: take a new one to see each tab\'s items.') : null,
+    latest.unread?.length ? h('p', { class: 'small warn nw-unread' }, `⚠ ${latest.unread.join(', ')}: GGG sends no items for a map stash tab, so the maps in it can't be counted. Maps you keep in a normal or quad tab are counted.`) : null,
     h('div', { class: 'nw-tabchips', role: 'group', 'aria-label': 'Stash tabs to show' }, tabNames.map((t) => {
       const on = onTab(t);
       const only = nwOffTabs.size && tabsOn.length === 1 && on;

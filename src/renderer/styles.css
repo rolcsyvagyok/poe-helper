@@ -2145,3 +2145,5 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .tp-mod.foulborn .tp-text { color: #b77be0; }
 .tp-mod.foulborn.on .tp-text { color: #d3a6f5; }
 .tp-foulmark { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid #b77be080; border-radius: 3px; font-size: 10.5px; line-height: 15px; color: #b77be0; vertical-align: 1px; }
+/* "Always show" items: a small blue ring mark (not colour alone: a symbol, and the title says it) */
+.fb-kept { margin-left: 4px; color: #5fadff; font-size: 11px; line-height: 1; }

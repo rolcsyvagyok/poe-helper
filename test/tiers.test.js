@@ -248,6 +248,21 @@ test('auto-tier skips hidden-to-hidden moves and single-item tiers', () => {
   assert.equal(plan.moves.find((m) => m.base === 'Wisdom'), undefined);
 });
 
+test('auto-tier: "always show" items move with their price but never below the lowest shown tier', () => {
+  const view = { type: 'currency', tiers: [
+    { key: 'c|t1', tier: 't1', action: 'Show', hasBaseList: true, special: false, generated: false, bases: ['Div', 'Mir'] },
+    { key: 'c|t4', tier: 't4', action: 'Show', hasBaseList: true, special: false, generated: false, bases: ['Chaos', 'Alch', 'Fallen'] },
+    { key: 'c|t6', tier: 't6', action: 'Hide', hasBaseList: true, special: false, generated: false, bases: ['Bauble', 'Chrome', 'Kept'] },
+  ] };
+  const L = (name, chaos) => ({ name, chaos, listingCount: 100 });
+  const idx = TP.priceIndex('currency', { Currency: [L('Div', 200), L('Mir', 9000), L('Chaos', 1), L('Alch', 0.8), L('Fallen', 0.01), L('Bauble', 0.1), L('Chrome', 0.12), L('Kept', 0.1)] });
+  const plan = (keep) => Object.fromEntries(TP.autoTierPlan(view, idx, { rest: 'hide', alwaysShow: new Set(keep) }).moves.map((x) => [x.base, x.to]));
+  assert.ok(plan([]).Fallen, 'a cheap item is hidden');
+  assert.equal(plan(['Fallen']).Fallen, undefined, 'kept: the lowest shown tier is as low as it goes (it is there already)');
+  assert.equal(plan(['Kept']).Kept, 't4', 'kept and hidden now: back to the lowest shown tier');
+  assert.equal(plan(['Mir']).Mir, undefined, 'still moves up and down within the shown tiers (Mir stays in t1)');
+});
+
 const D = require('../src/core/filter/designer');
 test('designer: tier levels, presets keep Tier 1 white with FilterBlade Divine sound, apply to every category', () => {
   assert.equal(D.tierLevel('t1exalted'), 1);

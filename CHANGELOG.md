@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.159 - 2026-11-23
+
+* [Loot filter] "Always show": select items in a category and click "◉ Always show". They keep moving with their price, but never into a hidden tier: the lowest shown tier is as low as they go.
+* [WealthyExile] A map stash tab GGG sends no items for is named under the tabs, so it doesn't just look empty; maps in a normal or quad tab are counted.
+- Loot filter: "◉ Always show" in the bar under selected items (click again to undo). The price review and hourly auto-tiering still move these items up and down with their price, but stop at the lowest shown tier instead of hiding them; one that is hidden now moves to the lowest shown tier straight away. They have a blue ◉ mark. Moving one to a hidden tier yourself still works.
+- WealthyExile: GGG's stash request gives back no items for a map stash tab. The page now says so under the stash tabs instead of showing the tab at 0. The log notes what GGG sends for an empty tab, to look for a way to read map tabs.
+
 ## 1.0.158 - 2026-11-23
 
 * [WealthyExile] Maps are priced right: a plain T16 at its own price (it was priced as a conqueror map), conqueror and Elder guardian maps at theirs, Nightmare and Vaal Temple maps too.

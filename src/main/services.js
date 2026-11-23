@@ -137,6 +137,7 @@ const DEFAULT_SETTINGS = {
   autoWatchFilter: true,
   tierPatch: { moves: {}, styles: {}, actions: {} },
   labelFontPath: '',
+  alwaysShow: {}, // per category: bases that move with their price but never into a hidden tier
   filterPins: [], // categories pinned to the top of the Loot filter list: none until you pin one
   // Price review / auto-tiering. categories[type] = { enabled, thresholds: { tier: chaos } }
   priceReview: { minListings: 5, margin: 1.5, auto: false, includeNew: false, categories: {} },
@@ -872,7 +873,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
 
   // ---------- loot filter settings to share: everything you set up for the filter, in one file ----------
   // Not in it: your account, login, league, filter folder, which filter file you use, history, saved themes.
-  const FILTER_KEYS = ['sizeAdjust', 'collectHide', 'uniqueCollection', 'collectHideBelow', 'collectedHideBases', 'collectMissingBases', 'rankUnidRarity', 'rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'clusterAuto', 'clusterAutoCells', 'talismans', 'talismanRest', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
+  const FILTER_KEYS = ['sizeAdjust', 'alwaysShow', 'collectHide', 'uniqueCollection', 'collectHideBelow', 'collectedHideBases', 'collectMissingBases', 'rankUnidRarity', 'rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'clusterAuto', 'clusterAutoCells', 'talismans', 'talismanRest', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
@@ -2395,6 +2396,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         thresholds, include: catCfg.include || {}, rest: catCfg.rest || 'keep', minListings: cfg.minListings, margin: cfg.margin,
         // names the filter already lists anywhere are never "new"; uniques are priced by base so they never add names
         includeNew: !!cfg.includeNew,
+        alwaysShow: new Set((settings.get('alwaysShow') || {})[t.type] || []),
         knownNames: knownAll,
         // where FilterBlade had each moved base (High variety bases that don't fit go back there)
         movedFrom: Object.fromEntries(Object.entries(view.moved || {}).filter(([k, v]) => v && k.startsWith(`${t.type}\t`)).map(([k, v]) => [k.slice(t.type.length + 1), v])),
@@ -2432,6 +2434,27 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
       if (ex > 0) units.exalted = ex;
     } catch { /* chaos only */ }
     return units;
+  }
+
+  /**
+   * "Always show": the bases keep moving with their price, but never into a hidden tier. Turning it on for a base
+   * that is hidden now puts it in the lowest tier that shows.
+   */
+  function setAlwaysShow(type, bases, on) {
+    const all = { ...(settings.get('alwaysShow') || {}) };
+    const set = new Set(all[type] || []);
+    for (const b of bases) (on ? set.add(b) : set.delete(b));
+    if (set.size) all[type] = [...set]; else delete all[type];
+    settings.set('alwaysShow', all);
+    let view = tierViewNow();
+    if (on && view) {
+      const t = view.types.find((x) => x.type === type);
+      const shown = (t?.tiers || []).filter((x) => x.hasBaseList && x.action !== 'Hide' && !x.special && !x.generated && !x.off && !x.own);
+      const low = shown[shown.length - 1];
+      const hidden = bases.filter((b) => t?.tiers.some((x) => x.action === 'Hide' && x.bases.includes(b)));
+      if (low && hidden.length) view = moveBases(type, hidden, low.tier).view || tierViewNow();
+    }
+    return { alwaysShow: settings.get('alwaysShow') || {}, view };
   }
 
   /** moves: [{type, base, from, to}] */
@@ -3010,7 +3033,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

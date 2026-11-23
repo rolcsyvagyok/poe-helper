@@ -175,7 +175,7 @@ async function renderFiltersNow() {
   const info = await call('filter:list');
   let view = null;
   if (info.base) {
-    try { view = splitTypes(await call('tiers:view')); } catch { view = null; }
+    try { const raw = await call('tiers:view'); FB.alwaysShow = raw?.alwaysShow || {}; view = splitTypes(raw); } catch { view = null; }
   }
   const themes = await call('themes:list').catch(() => []);
   const edits = view ? Object.keys(S.settings.tierPatch?.moves || {}).length + (view.editedStyles || []).length : 0;
@@ -394,12 +394,14 @@ function renderTiers(body, view) {
     const st = tier.style || {};
     const c = (a, f) => (a ? `rgba(${a[0]},${a[1]},${a[2]},${(a[3] ?? 255) / 255})` : f);
     const selected = FB.selected.has(base);
+    const keptSet = new Set((FB.alwaysShow || {})[type.type] || []);
     const el = h('button', {
       type: 'button',
       class: 'fb-chip' + (selected ? ' selected' : '') + (tier.action === 'Hide' ? ' hidden' : '') + (fitInfo ? ` fit-${fitInfo.level}` : '') + (price?.big ? ' spiked' : ''),
       draggable: 'true',
       title: fitInfo && price ? `${base}: ${fmtC(price.chaos)} now. ${({ good: 'Fits', warn: 'A bit off for', bad: 'Doesn\'t fit', none: 'No price band for' })[fitInfo.level]} ${tierName(tier)}${pricing?.tiers?.[tier.key]?.median != null ? ` (typically ${fmtC(pricing.tiers[tier.key].median)})` : ''}.${sugg ? ` Fits ${tierName({ tier: sugg.to })} better.` : ''}` : from !== undefined ? `You moved this here${from ? ` from ${tierName({ tier: from })}` : ''}. Click to select, drag to move.` : 'Click to select, drag to another tier to move',
       // plain tag, not an item lookalike: the tier header already shows the look
+      ...(keptSet.has(base) ? { 'data-kept': '1' } : {}),
       onclick: () => { selected ? FB.selected.delete(base) : FB.selected.add(base); drawList(); },
       ondragstart: (e) => {
         const bases = FB.selected.has(base) ? [...FB.selected] : [base];
@@ -416,7 +418,8 @@ function renderTiers(body, view) {
       })() : null,
       FB.priceColors && price?.big ? h('span', { class: `fb-spike ${price.trend.change > 0 ? 'up' : 'down'}`, title: `${window.Farm.pct(price.trend.change)} this week: ${fmtC(price.trend.old)} → ${fmtC(price.chaos)}. See "Big price changes" above for its graph.` }, window.Farm.pct(price.trend.change)) : null,
       sugg && FB.priceColors ? h('span', { class: `fb-sugg ${sugg.direction}`, title: `Worth ${fmtC(sugg.chaos)} now. Typical for ${tierName({ tier: sugg.to })} (${fmtC(sugg.typicalTo)}), not ${tierName({ tier: sugg.from })} (${fmtC(sugg.typicalFrom)}).` }, sugg.direction === 'up' ? '▲' : '▼') : null,
-      from !== undefined ? h('span', { class: 'fb-moved', 'aria-label': 'moved by you' }) : null);
+      from !== undefined ? h('span', { class: 'fb-moved', 'aria-label': 'moved by you' }) : null,
+      keptSet.has(base) ? h('span', { class: 'fb-kept', title: 'Always show: it moves with its price, but never into a hidden tier', 'aria-label': 'always shown' }, '◉') : null);
     if (tier.tier === HIDDEN_TIER || from !== undefined) {
       return h('span', { class: 'fb-chip-wrap' }, el, h('button', { class: 'fb-undo', title: 'Put it back where the filter had it', 'aria-label': `Undo move of ${base}`, onclick: async () => { await call('tiers:reset', { type: type.type, base }); renderFilters(); } }, '×'));
     }
@@ -696,7 +699,14 @@ function renderTiers(body, view) {
         h('span', { class: 'muted small', style: { maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [...FB.selected].join(', ')),
         h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, 'Move to'),
         rows.map(([id, name]) => h('button', { class: 'sm', onclick: () => moveTo([...FB.selected], id) }, name.replace(/ tier$/, ''))),
-        h('button', { class: 'quiet', onclick: () => { FB.selected.clear(); drawList(); } }, 'Clear')));
+        h('button', { class: 'sm', title: 'Always show: these keep moving with their price, but never into a hidden tier (the lowest shown tier at most). Hidden ones move to the lowest shown tier now.', onclick: async () => {
+        const kept = new Set((FB.alwaysShow || {})[type.type] || []);
+        const on = ![...FB.selected].every((b) => kept.has(b));
+        await call('tiers:alwaysShow', { type: type.type, bases: [...FB.selected], on });
+        toast(on ? `Always shown: ${FB.selected.size} item${FB.selected.size === 1 ? '' : 's'}` : 'Back to normal: prices may hide them again');
+        FB.selected.clear(); renderFilters();
+      } }, [...FB.selected].every((b) => ((FB.alwaysShow || {})[type.type] || []).includes(b)) ? '◉ Not always shown' : '◉ Always show'),
+      h('button', { class: 'quiet', onclick: () => { FB.selected.clear(); drawList(); } }, 'Clear')));
     }
     const sel = h('select', { 'aria-label': 'Move to tier' }, targets.map((t) => h('option', { value: t.tier }, `${tierName(t)}${t.action === 'Hide' ? ' (hidden)' : ''}`)));
     mount(bar, h('div', { class: 'fb-selbar-in' },
@@ -710,6 +720,13 @@ function renderTiers(body, view) {
       /^uniques$/.test(type.type) ? h('span', { class: 'row', style: { gap: '4px' } }, [['t1', 'S'], ['t2', 'A'], ['multispecialhigh', 'High variety'], ['t3', 'B+C'], ['hideable', 'D (hidden)']]
         .filter(([tr]) => targets.some((t) => t.tier === tr)).map(([tr, l]) => h('button', { class: 'sm', title: `Move to ${tierName(targets.find((t) => t.tier === tr))}`, onclick: () => moveTo([...FB.selected], tr) }, l))) : null,
       h('button', { onclick: () => moveTo([...FB.selected], HIDE) }, 'Hide'),
+      h('button', { class: 'sm', title: 'Always show: these keep moving with their price, but never into a hidden tier (the lowest shown tier at most). Hidden ones move to the lowest shown tier now.', onclick: async () => {
+        const kept = new Set((FB.alwaysShow || {})[type.type] || []);
+        const on = ![...FB.selected].every((b) => kept.has(b));
+        await call('tiers:alwaysShow', { type: type.type, bases: [...FB.selected], on });
+        toast(on ? `Always shown: ${FB.selected.size} item${FB.selected.size === 1 ? '' : 's'}` : 'Back to normal: prices may hide them again');
+        FB.selected.clear(); renderFilters();
+      } }, [...FB.selected].every((b) => ((FB.alwaysShow || {})[type.type] || []).includes(b)) ? '◉ Not always shown' : '◉ Always show'),
       h('button', { class: 'quiet', onclick: () => { FB.selected.clear(); drawList(); } }, 'Clear')));
   }
 
