@@ -740,3 +740,19 @@ test('weapons: physical, elemental and total DPS, each ticked only for a good da
   assert.equal(none.props.dps.on, false);
   assert.equal(T.buildQuery(parseItem(axe(7, 8)), none.mods, { props: none.props }).query.filters.weapon_filters, undefined);
 });
+
+test('a Foulborn unique: its Foulborn mod is marked and ticked; "Foulborn only" can be unticked', () => {
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_1509134228', text: '#% increased Physical Damage', type: 'explicit' },
+    { id: 'explicit.effect_2714845045', text: 'Socketed Gems are Supported by Level # Returning Projectiles Support', type: 'explicit' },
+  ] }] };
+  const text = "Item Class: Bows\nRarity: Unique\nFoulborn Xoph's Inception\nCitadel Bow\n--------\nBow\nPhysical Damage: 99-396 (augmented)\nAttacks per Second: 1.25\n--------\nItem Level: 85\n--------\n{ Unique Modifier — Damage, Physical, Attack }\n175(160-190)% increased Physical Damage\n{ Foulborn Unique Modifier }\nSocketed Gems are Supported by Level 20 Returning Projectiles Support — Unscalable Value\n--------\nUpon the red pyre we are born.\n";
+  const item = parseItem(text);
+  const r = T.prepareSearch(stats, item);
+  const foul = r.mods.find((m) => /Returning/.test(m.text));
+  assert.ok(foul.foulborn && foul.enabled && !foul.hidden);
+  assert.deepEqual(r.props.foulborn, { show: true, on: true });
+  assert.deepEqual(T.buildQuery(item, r.mods, { props: r.props }).query.filters.misc_filters.filters.mutated, { option: 'true' });
+  r.props.foulborn.on = false;
+  assert.equal(T.buildQuery(item, r.mods, { props: r.props }).query.filters.misc_filters?.filters?.mutated, undefined);
+});

@@ -2141,3 +2141,7 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .co-modsearch { flex: 1; max-width: 520px; }
 .co-pools.one { grid-template-columns: 1fr; }
 .co-etier { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }
+/* a Foulborn unique's Foulborn mod in the game's purple, with a mark so it doesn't rest on colour alone */
+.tp-mod.foulborn .tp-text { color: #b77be0; }
+.tp-mod.foulborn.on .tp-text { color: #d3a6f5; }
+.tp-foulmark { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid #b77be080; border-radius: 3px; font-size: 10.5px; line-height: 15px; color: #b77be0; vertical-align: 1px; }

@@ -100,8 +100,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     };
     // a fractured mod in the game's fractured colour, with a mark so it doesn't rest on colour alone
     const frac = m.group === 'fractured';
-    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : '') + (frac ? ' fractured' : '') + (m.mercSupport ? ' tp-sub' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : frac ? `Fractured mod: ${m.statText || m.text}` : m.statText || '' },
-      h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text, frac ? h('span', { class: 'tp-frac' }, 'fractured') : null)),
+    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : '') + (frac ? ' fractured' : '') + (m.foulborn ? ' foulborn' : '') + (m.mercSupport ? ' tp-sub' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : frac ? `Fractured mod: ${m.statText || m.text}` : m.statText || '' },
+      h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text, frac ? h('span', { class: 'tp-frac' }, 'fractured') : null, m.foulborn ? h('span', { class: 'tp-foulmark' }, 'Foulborn') : null)),
       field('min', 'min'),
       h('span', { class: 'tp-dash' }, m.unmatched || m.display == null ? '' : '–'),
       field('max', 'max'));
@@ -269,6 +269,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   }
   const corr = h('select', { 'data-k': 'corrupted', 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', props.twiceCorrupted ? 'Twice corrupted only' : 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
   const ident = h('select', { 'data-k': 'unid', 'aria-label': 'Identified', onchange: (e) => { props.identified = e.target.value; } }, [['any', 'Identified or not'], ['yes', 'Identified only'], ['no', 'Unidentified only']].map(([v, l]) => h('option', { value: v, selected: (props.identified || 'any') === v }, l)));
+  const foul = props.foulborn?.show ? h('label', { class: 'check small tp-foul', 'data-k': 'foulborn' }, h('input', { type: 'checkbox', checked: !!props.foulborn.on, onchange: (e) => { props.foulborn.on = e.target.checked; } }), 'Foulborn only') : null;
   const infl = Object.keys(props.influences || {}).map((inf) => h('label', { class: 'check small', 'data-k': `infl:${inf}` }, h('input', { type: 'checkbox', checked: props.influences[inf], onchange: (e) => { props.influences[inf] = e.target.checked; } }), `${inf} item`));
 
   // the overlay header's facts (item level 85, 5-link, Shaper…) tick these lines when clicked
@@ -398,7 +399,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       results,
       topRows.length ? h('div', { class: 'tp-group tp-top' }, topRows) : null,
       groups,
-      propRows.length || infl.length ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'More'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, infl)) : null,
+      propRows.length || infl.length || foul ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'More'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, foul, infl)) : null,
       h('div', { class: 'row tp-go' }, go, statusSel, countEl, mods.length ? h('button', { class: 'quiet sm', title: 'Tick or untick every mod', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden || (byGen && AFFIX.includes(m.group)))) m.enabled = on; }); mountAgain(); } }, 'All / none') : null)));
   onFit();
 

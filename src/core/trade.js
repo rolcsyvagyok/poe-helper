@@ -331,6 +331,8 @@ function defaultProps(item) {
     identified: item.flags?.unidentified ? 'no' : 'any',
     influences: Object.fromEntries((item.influences || []).map((i) => [i, true])),
     fractured: !!item.flags?.fractured,
+    // a Foulborn unique: only Foulborn ones (untick: any of the unique)
+    foulborn: item.flags?.foulborn ? { show: true, on: true } : { show: false, on: false },
     synthesised: !!item.flags?.synthesised,
     // weapons: search by the weapon's own DPS (physical, elemental or all), most of its worth in one number
     dps: (() => {
@@ -433,7 +435,7 @@ function buildQuery(item, mods, opts = {}) {
     // twice corrupted (3.30): only other twice corrupted ones compare
     if (props.corrupted === 'yes' && (props.twiceCorrupted || item.flags?.twiceCorrupted)) misc.twice_corrupted = { option: 'true' };
     if (props.corrupted === 'no') misc.corrupted = { option: 'false' };
-    if (item.flags?.foulborn) misc.mutated = { option: 'true' }; // Foulborn: the trade site's "mutated"
+    if (props.foulborn ? props.foulborn.on : item.flags?.foulborn) misc.mutated = { option: 'true' }; // Foulborn: the trade site's "mutated"
     if (item.flags?.vestigial) misc.vestigial = { option: 'true' }; // a vestigial base ("Vestigial Tricorne")
     if (props.identified === 'yes') misc.identified = { option: 'true' };
     if (props.identified === 'no') misc.identified = { option: 'false' };
@@ -556,6 +558,7 @@ function itemRows(idx, item, tol) {
       const meta = item.modMeta?.[kind]?.[i] || null;
       const row = hit ? { ...hit, group: kind, enabled: false } : { id: null, text: m, type: kind, group: kind, enabled: false, unmatched: true };
       row.meta = meta;
+      if (meta?.foulborn) row.foulborn = true; // the Foulborn mod of a Foulborn unique (purple in the panel)
       // league mods (mercenary, imbued, Breach, eldritch…) make the item: they start ticked
       if (['scourge', 'crucible', 'mercenary', 'imbued', 'veiled', 'delve'].includes(kind) || meta?.special || vp) { row.special = true; if (!row.unmatched) row.enabled = true; }
       row.tpl = PF.tplOf(m);

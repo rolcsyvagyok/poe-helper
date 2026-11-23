@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.157 - 2026-11-23
+
+* Price check: a Foulborn unique's Foulborn mod is purple with a "Foulborn" mark, and "Foulborn only" can be ticked or unticked (the Foulborn chip in the header does it too).
+- Price check: a Foulborn unique is searched as Foulborn ("Foulborn only", ticked); untick it to compare with every copy of the unique. Its Foulborn mod is shown in purple with a mark and starts ticked.
+
 ## 1.0.156 - 2026-11-23
 
 * [Crafting] A search box for the mods: type "attack speed", "fire res", "Elder"… and every list shows only the matching mods.

@@ -219,7 +219,8 @@ function render(p) {
   if (item.mapTier) fact(`tier ${item.mapTier}`, 'mapTier');
   for (const inf of item.influences || []) fact(inf, `infl:${inf}`);
   const F = item.flags || {};
-  for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['foulborn', 'Foulborn'], ['vestigial', 'vestigial'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) fact(word);
+  // Foulborn is part of the search (click it to search any of the unique, Foulborn or not)
+  for (const [k, word] of [['fractured', 'fractured'], ['synthesised', 'synthesised'], ['foulborn', 'Foulborn'], ['vestigial', 'vestigial'], ['mirrored', 'mirrored'], ['split', 'split']]) if (F[k]) fact(word, k === 'foulborn' && item.rarity === 'Unique' ? 'foulborn' : null);
   if (F.unidentified) fact(item.unidTier != null ? `unidentified, item tier ${item.unidTier}` : 'unidentified', 'unid');
   if (F.corrupted) fact(F.twiceCorrupted ? 'twice corrupted' : 'corrupted', 'corrupted');
 
