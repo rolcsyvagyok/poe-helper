@@ -5,6 +5,17 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.162 - 2026-11-23
+
+* [Settings] Crashes and errors are now written to an error log. If the app breaks, press "Open logs" in Settings and send poe-helper-errors.log and poe-helper.log.
+- Error log: crashes of the app, its windows and Path of Building, errors on any page, a window that stops responding and a run that didn't close normally are written to poe-helper-errors.log with where they happened. Your POESESSID is never written. The log also notes when the filter is rewritten many times in a row, and what asked for it.
+* Price check: an Originator map no longer shows the plain T16's 2c from poe.ninja (poe.ninja doesn't list Originator maps): the trade search gives its price.
+- Price check and WealthyExile: Originator and Shaper / Elder influenced maps get no poe.ninja price (poe.ninja has no line for them, and the plain map's price was far too low). A map's trade search leaves out unique maps of the same tier.
+* Price check: each Inscribed Ultimatum listing shows what it asks you to sacrifice and how many (Chaos Orb ×10), since the trade site can't search by the amount.
+* Price check: an Inscribed Ultimatum that swaps for a unique searches only by that unique (reward type, sacrifice and monster life start unticked).
+* Price check: an Inscribed Ultimatum's "more Monster Life" (30, 70, 120 or 200%) is searched at exactly its value, shown first in bold with "★ raises the reward", with buttons for the other values.
+- Price check: on an Inscribed Ultimatum, "more Monster Life" (more monster life, bigger reward) is ticked at exactly its value, listed first and marked. It only comes as 30, 70, 120 or 200% (checked on the trade site); buttons under it search another of these. "Increased Monster Damage" is listed with its number too, unticked.
+
 ## 1.0.161 - 2026-11-23
 
 * Price check: Inscribed Ultimatums are searched on the trade site by their reward and sacrifice (and the unique for a unique reward); the challenge and each modifier can be ticked too.

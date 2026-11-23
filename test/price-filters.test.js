@@ -785,5 +785,22 @@ test('an Inscribed Ultimatum is searched by its reward and sacrifice; a unique r
   a.r.props.ultimatum.challengeOn = true;
   assert.equal(T.buildQuery(ulti('Doubles sacrificed Divination Cards', 'The Rite of Elements x3'), a.r.mods, { props: a.r.props }).query.filters.ultimatum_filters.filters.ultimatum_challenge.option, 'Survival');
   const u = q(ulti('Mageblood', 'Headhunter'));
-  assert.deepEqual(u.q.filters.ultimatum_filters.filters, { ultimatum_reward: { option: 'ExchangeUnique' }, ultimatum_input: { option: 'Headhunter' }, ultimatum_output: { option: 'Mageblood' } });
+  assert.deepEqual(u.q.filters.ultimatum_filters.filters, { ultimatum_output: { option: 'Mageblood' } }, 'a unique swap: only the unique it gives');
+});
+
+test('an Inscribed Ultimatum with "more Monster Life": searched at its number, first and marked', () => {
+  const stats = { result: [{ id: 'explicit', entries: [{ id: 'explicit.stat_95249895', text: '#% more Monster Life', type: 'explicit' }, { id: 'explicit.stat_1890519597', text: '#% increased Monster Damage', type: 'explicit' }] }, { id: 'ultimatum', entries: [{ id: 'ultimatum.umod_38838', text: 'Deadly Monsters', type: 'ultimatum' }] }] };
+  const it = parseItem("Item Class: Misc Map Items\nRarity: Currency\nInscribed Ultimatum\n--------\nChallenge: Stand in the Stone Circles\nArea Level: 83\nRequires Sacrifice: Chaos Orb x20\nReward: Doubles sacrificed Currency\n--------\nDeadly Monsters\n(Monster Hits are always Critical Strikes)\n10% increased Monster Damage\n30% more Monster Life\n--------\nCan be used in a personal map device.\n");
+  const r = T.prepareSearch(stats, it);
+  assert.equal(r.mods[0].text, '30% more Monster Life');
+  assert.ok(r.mods[0].key && r.mods[0].enabled);
+  assert.ok(!r.mods.find((m) => /increased Monster Damage/.test(m.text)).enabled);
+  assert.deepEqual(r.mods[0].choices, [30, 70, 120, 200]);
+  assert.deepEqual(T.buildQuery(it, r.mods, { props: r.props }).query.stats[0].filters, [{ id: 'explicit.stat_95249895', disabled: false, value: { min: 30, max: 30 } }]);
+});
+
+test('an Inscribed Ultimatum listing shows what it asks you to sacrifice', () => {
+  const L = (n, amount) => ({ listing: { price: { amount, currency: 'chaos' }, account: { name: 'a', online: {} }, indexed: '2026-11-23T10:00:00Z' }, item: { properties: [{ name: 'Requires Sacrifice: {0} {1}', values: [['Chaos Orb', 18], [`x${n}`, 0]] }] } });
+  const s = T.summarizeListings({ result: [L(10, 1), L(20, 1), { listing: { price: { amount: 3, currency: 'chaos' }, account: { name: 'b' } }, item: {} }] }, 200);
+  assert.deepEqual(s.prices.map((x) => [x.note, x.times]), [['Chaos Orb ×10', 1], ['Chaos Orb ×20', 1], [null, 1]]);
 });

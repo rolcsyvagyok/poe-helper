@@ -869,3 +869,17 @@ test('Show all currency leaves an empty switched-off tier off (it would show eve
   assert.match(out[7], /^\tBaseType/);
   assert.match(out[9], /^Show/);
 });
+
+test('many filter writes in a row are logged once, with where they came from', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-burst-'));
+  fs.writeFileSync(path.join(dir, 'Local.filter'), F.nsFilter);
+  const store = new JsonStore(path.join(dir, 's.json'), {});
+  store.patch({ filterDir: dir, baseFilter: 'Local.filter' });
+  const lines = [];
+  const m = new FilterManager({ store, log: (...a) => lines.push(a.join(' ')) });
+  for (let i = 0; i < 8; i++) m.write();
+  const burst = lines.filter((l) => l.startsWith('filter written'));
+  assert.equal(burst.length, 1);
+  assert.match(burst[0], /6 times in 10 s, from: .*tiers\.test\.js/);
+  assert.doesNotMatch(burst[0], /[\\/]tmp[\\/]|home/);
+});

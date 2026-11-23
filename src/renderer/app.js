@@ -1285,7 +1285,8 @@ function updateBox() {
     text.textContent = updateText(u);
     mount(btns,
       u?.state === 'ready' ? h('button', { class: 'primary', onclick: () => call('update:install') }, 'Restart to update') : null,
-      u?.state !== 'dev' && u?.state !== 'ready' ? h('button', { disabled: u?.state === 'checking' || u?.state === 'downloading', onclick: async () => draw(await call('update:check')) }, 'Check now') : null);
+      u?.state !== 'dev' && u?.state !== 'ready' ? h('button', { disabled: u?.state === 'checking' || u?.state === 'downloading', onclick: async () => draw(await call('update:check')) }, 'Check now') : null,
+      h('button', { title: 'Opens the folder with poe-helper.log and poe-helper-errors.log. Send these when something broke.', onclick: () => call('app:openLogs').catch(() => {}) }, 'Open logs'));
   };
   call('update:status').then(draw).catch(() => {});
   window.poe.on('update:status', draw);

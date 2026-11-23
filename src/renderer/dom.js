@@ -1,5 +1,13 @@
 /* Tiny DOM helpers shared by both windows. No framework, no remote scripts.
    Wrapped in an IIFE so nothing leaks into the global scope that app.js/overlay.js share. */
+// errors in this window go to the app's error log (poe-helper-errors.log)
+(() => {
+  const page = (location.pathname.split('/').pop() || 'index').replace('.html', '');
+  let sent = 0;
+  const send = (message, stack) => { if (sent++ < 20) window.poe?.call('app:error', { page, message: String(message || ''), stack: String(stack || '') }).catch(() => {}); };
+  window.addEventListener('error', (e) => send(e.message, e.error?.stack || `${e.filename || ''}:${e.lineno || ''}`));
+  window.addEventListener('unhandledrejection', (e) => send(e.reason?.message || e.reason, e.reason?.stack));
+})();
 (() => {
 'use strict';
 

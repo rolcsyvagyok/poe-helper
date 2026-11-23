@@ -101,12 +101,21 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     };
     // a fractured mod in the game's fractured colour, with a mark so it doesn't rest on colour alone
     const frac = m.group === 'fractured';
-    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : '') + (frac ? ' fractured' : '') + (m.foulborn ? ' foulborn' : '') + (m.mercSupport ? ' tp-sub' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : frac ? `Fractured mod: ${m.statText || m.text}` : m.statText || '' },
-      h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text, frac ? h('span', { class: 'tp-frac' }, 'fractured') : null, m.foulborn ? h('span', { class: 'tp-foulmark' }, 'Foulborn') : null)),
+    const row = h('div', { class: 'tp-mod' + (m.enabled ? ' on' : '') + (m.unmatched ? ' unmatched' : '') + (frac ? ' fractured' : '') + (m.foulborn ? ' foulborn' : '') + (m.key ? ' key' : '') + (m.mercSupport ? ' tp-sub' : ''), title: m.unmatched ? 'This mod can\'t be searched on the trade site' : frac ? `Fractured mod: ${m.statText || m.text}` : m.statText || '' },
+      h('label', { class: 'tp-mod-main' }, cb, tierBadge(m), h('span', { class: 'tp-text' }, m.text, frac ? h('span', { class: 'tp-frac' }, 'fractured') : null, m.foulborn ? h('span', { class: 'tp-foulmark' }, 'Foulborn') : null, m.key ? h('span', { class: 'tp-keymark', title: 'More monster life means a bigger reward: this sets the price as much as the reward does' }, '★ raises the reward') : null)),
       field('min', 'min'),
       h('span', { class: 'tp-dash' }, m.unmatched || m.display == null ? '' : '–'),
       field('max', 'max'));
     rowsOf.set(m, row);
+    // fixed values (an Ultimatum's monster life: 30 / 70 / 120 / 200%): one click searches that one exactly
+    if (m.choices?.length) {
+      const btns = m.choices.map((v) => h('button', { type: 'button', class: 'sm tp-choice' + (m.min === v && m.max === v ? ' on' : ''), 'aria-pressed': m.min === v && m.max === v ? 'true' : 'false', title: `Search ${v}% exactly`, onclick: () => {
+        m.min = v; m.max = v; setAll(true);
+        const ins = row.querySelectorAll('input[type=number]'); if (ins[0]) ins[0].value = v; if (ins[1]) ins[1].value = v;
+        for (const b of btns) { const on = b.textContent === `${v}%`; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+      } }, `${v}%`));
+      return h('div', { class: 'tp-choicewrap' }, row, h('div', { class: 'tp-choices' }, h('span', { class: 'small faint' }, 'Search'), btns));
+    }
     return row;
   }
   // one mod with several lines: one row, the tick box and the tier once, in the middle; each line keeps its min and max
@@ -348,7 +357,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
           h('span', { class: 'spacer' }),
           h('button', { class: 'sm', onclick: () => call('shell:open', r.url) }, 'Open on trade site')),
         l?.prices?.length ? h('div', { class: 'tp-listings', style: { marginTop: '6px' } }, l.prices.map((x, i) => h('div', { class: 'tp-li' + (x.mine ? ' mine' : '') + (i >= 3 ? ' more' : '') },
-          h('span', { class: 'tp-price money' }, h('b', {}, String(x.amount)), h('small', {}, x.currency), x.times > 1 ? h('span', { class: 'tp-times', title: `${x.times} listings from this seller` }, `×${x.times}`) : null),
+          h('span', { class: 'tp-price money' }, h('b', {}, String(x.amount)), h('small', {}, x.currency), x.times > 1 ? h('span', { class: 'tp-times', title: `${x.times} listings from this seller` }, `×${x.times}`) : null,
+            x.note ? h('div', { class: 'tp-note', title: 'The item you sacrifice' }, x.note) : null),
           h('span', { class: 'faint tp-ago' }, ago(x.indexed)),
           h('span', { class: 'spacer' }),
           x.mine ? h('span', { class: 'tp-you' }, 'You') : h('span', { class: 'faint tp-seller', title: x.seller || '' }, x.seller || ''),

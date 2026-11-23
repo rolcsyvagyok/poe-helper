@@ -1,4 +1,12 @@
 'use strict';
+// errors in this window go to the app's error log (poe-helper-errors.log)
+(() => {
+  const page = (location.pathname.split('/').pop() || 'index').replace('.html', '');
+  let sent = 0;
+  const send = (message, stack) => { if (sent++ < 20) window.poe?.call('app:error', { page, message: String(message || ''), stack: String(stack || '') }).catch(() => {}); };
+  window.addEventListener('error', (e) => send(e.message, e.error?.stack || `${e.filename || ''}:${e.lineno || ''}`));
+  window.addEventListener('unhandledrejection', (e) => send(e.reason?.message || e.reason, e.reason?.stack));
+})();
 // The stream window: the part of the screen the game is on, price check popups included, drawn here so
 // Discord can share this one window. Nothing is recorded or sent anywhere; it only draws what's on screen.
 (() => {

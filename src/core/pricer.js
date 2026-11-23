@@ -187,6 +187,9 @@ function pickMap(lines, item) {
   const own = norm(item.typeLine || item.baseType);
   const named = pool.find((l) => { const n = norm(l.name); if (n === own || !n.endsWith(` ${own}`)) return false; const who = n.slice(0, -own.length - 1).replace(/^the /, ''); return !!who && imp.includes(who); });
   if (named) return { best: named, cands: [named, ...pool.filter((l) => l !== named)].slice(0, 5) };
+  // a special map poe.ninja has no line for (Originator's Memories, Shaper / Elder influenced): the plain map's
+  // price would be far off (2c against ~25c), so no price; the trade search finds its own kind
+  if (/originator's memories|area is influenced by the (shaper|elder)/.test(imp)) return { best: null, cands: [] };
   const plain = pool.filter((l) => norm(l.name) === own);
   if (plain.length) return { best: plain.sort((a, b) => b.listingCount - a.listingCount)[0], cands: [...plain, ...pool.filter((l) => !plain.includes(l))].slice(0, 5) };
   return { best: pool.sort((a, b) => b.listingCount - a.listingCount)[0] || null, cands: pool.slice(0, 5) };

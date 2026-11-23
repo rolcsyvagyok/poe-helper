@@ -326,7 +326,7 @@ function defaultProps(item) {
     areaLevel: /^Chronicle of Atzoatl$/i.test(item.typeLine || '') && item.areaLevel ? { on: true, min: item.areaLevel, max: null, show: true }
       : /^Inscribed Ultimatum$/i.test(item.typeLine || '') && item.areaLevel ? { on: false, min: item.areaLevel, max: null, show: true } : { on: false, show: false },
     // an Inscribed Ultimatum: the reward and what it takes (ticked), the challenge (not ticked)
-    ultimatum: /^Inscribed Ultimatum$/i.test(item.typeLine || '') ? (() => { const u = ultimatumOf(item); return { show: true, ...u, rewardOn: !!u.reward, inputOn: !!u.input, outputOn: !!u.output, challengeOn: false }; })() : { show: false },
+    ultimatum: /^Inscribed Ultimatum$/i.test(item.typeLine || '') ? (() => { const u = ultimatumOf(item); const swap = !!u.output; return { show: true, ...u, rewardOn: !!u.reward && !swap, inputOn: !!u.input && !swap, outputOn: swap, challengeOn: false }; })() : { show: false },
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
     corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' || kind === 'map' ? 'no' : 'any',
@@ -507,6 +507,9 @@ function buildQuery(item, mods, opts = {}) {
     // (a stat with options is only left out option by option: without one, "not" leaves nothing out)
     const not = MAP_SPECIAL.filter(([id]) => !own.has(id)).flatMap(([id, , opts]) => (opts ? opts.map((o) => ({ id, value: { option: o } })) : [{ id }]));
     if (not.length) q.query.stats.push({ type: 'not', filters: not });
+    // a unique map has the same base ("Map (Tier 16)"): only non-unique maps compare
+    const tf = q.query.filters.type_filters?.filters || {};
+    if (!tf.rarity) q.query.filters.type_filters = { filters: { ...tf, rarity: { option: 'nonunique' } } };
   }
   return q;
 }
@@ -781,6 +784,7 @@ function templeRooms(statsJson, item) {
 }
 
 // ---- Inscribed Ultimatum: searched by its reward and sacrifice (the trade site's Ultimatum filters) ----
+const ULTI_LIFE = [30, 70, 120, 200];
 const ULTI_CHALLENGE = { 'defeat waves of enemies': 'Exterminate', survive: 'Survival', 'protect the altar': 'Defense', 'stand in the stone circles': 'Conquer' };
 function ultimatumOf(item) {
   const p = item.properties || {};
@@ -789,15 +793,37 @@ function ultimatumOf(item) {
   const type = /divination card/i.test(reward) ? 'DoubleDivCards' : /currency/i.test(reward) ? 'DoubleCurrency' : /mirror/i.test(reward) ? 'MirrorRare' : reward ? 'ExchangeUnique' : null;
   return { challenge: ULTI_CHALLENGE[String(p.Challenge || '').trim().toLowerCase()] || null, challengeText: p.Challenge || null, reward: type, rewardText: reward, input, output: type === 'ExchangeUnique' ? reward : null };
 }
-/** its modifiers ("Razor Dance"), each a trade stat, none ticked: the reward and sacrifice make the price */
+/**
+ * its modifiers ("Razor Dance"), each a trade stat, none ticked: the reward and sacrifice make the price. Its
+ * "30% more Monster Life" line is the exception: more monster life means more reward, so it is ticked at its number
+ * and marked as a key row.
+ */
 function ultimatumMods(statsJson, item) {
   const byName = new Map();
-  for (const g of statsJson?.result || []) if (g.id === 'ultimatum') for (const e of g.entries || []) byName.set(e.text.toLowerCase(), e);
-  return (item.mods?.explicit || []).filter((t) => /^[A-Z][A-Za-z' -]+(?: [IV]+)?$/.test(t)).map((t) => {
+  const explicit = new Map();
+  for (const g of statsJson?.result || []) {
+    if (g.id === 'ultimatum') for (const e of g.entries || []) byName.set(e.text.toLowerCase(), e);
+    if (g.id === 'explicit') for (const e of g.entries || []) if (!explicit.has(e.text.toLowerCase())) explicit.set(e.text.toLowerCase(), e);
+  }
+  const rows = [];
+  for (const t of item.mods?.explicit || []) {
+    const num = /^(\d+(?:\.\d+)?)% (more|increased) Monster (Life|Damage)$/i.exec(t);
+    if (num) {
+      const e = explicit.get(t.replace(num[1], '#').toLowerCase());
+      const v = Number(num[1]);
+      const key = /more monster life/i.test(t);
+      // more monster life only comes as 30, 70, 120 or 200% (checked on the trade site, 3.30): searched at exactly
+      // its own value, with the others one click away
+      rows.push(e ? { id: e.id, text: t, statText: e.text, display: v, value: v, negate: false, type: 'explicit', group: 'ultimatum', enabled: key, key, min: key ? v : null, max: key ? v : null, meta: null, ...(key ? { choices: ULTI_LIFE } : {}) }
+        : { id: null, text: t, type: 'ultimatum', group: 'ultimatum', enabled: false, unmatched: true, meta: null });
+      continue;
+    }
+    if (!/^[A-Z][A-Za-z' -]+(?: [IV]+)?$/.test(t)) continue; // the explanation lines in brackets
     const e = byName.get(t.toLowerCase());
-    return e ? { id: e.id, text: t, statText: e.text, display: null, value: null, negate: false, type: 'ultimatum', group: 'ultimatum', enabled: false, min: null, max: null, meta: null }
-      : { id: null, text: t, type: 'ultimatum', group: 'ultimatum', enabled: false, unmatched: true, meta: null };
-  });
+    rows.push(e ? { id: e.id, text: t, statText: e.text, display: null, value: null, negate: false, type: 'ultimatum', group: 'ultimatum', enabled: false, min: null, max: null, meta: null }
+      : { id: null, text: t, type: 'ultimatum', group: 'ultimatum', enabled: false, unmatched: true, meta: null });
+  }
+  return rows.sort((a, b) => (b.key ? 1 : 0) - (a.key ? 1 : 0));
 }
 
 function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
@@ -820,7 +846,12 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     return { mods, props, presets: null };
   }
   if (/^Chronicle of Atzoatl$/i.test(item.typeLine || item.baseType || '')) return { mods: templeRooms(statsJson, item), props, presets: null };
-  if (/^Inscribed Ultimatum$/i.test(item.typeLine || item.baseType || '')) return { mods: ultimatumMods(statsJson, item), props, presets: null };
+  if (/^Inscribed Ultimatum$/i.test(item.typeLine || item.baseType || '')) {
+    // a unique swap is priced by the unique it gives: the life row (more reward) doesn't matter for it
+    const mods = ultimatumMods(statsJson, item);
+    if (props.ultimatum?.output) for (const m of mods) m.enabled = false;
+    return { mods, props, presets: null };
+  }
   const rows = itemRows(idx, item, tolerance);
   const plain = kind === 'rare' || kind === 'magic' || kind === 'normal';
   const cls = String(item.itemClass || '');
@@ -977,6 +1008,16 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
  * right after their own listing) grouped as one row with a count; each with when it was listed and whether the
  * seller is online or AFK. { prices, min, median } (min/median in chaos, counting each listing once).
  */
+/** What an Inscribed Ultimatum asks you to sacrifice ("Chaos Orb ×10"), from a fetched listing; null for other items. */
+function sacrificeOf(item) {
+  const pr = (item?.properties || []).find((x) => /^Requires Sacrifice/i.test(x?.name || ''));
+  if (!pr) return null;
+  const v = (pr.values || []).map((x) => String(x?.[0] || '').trim()).filter(Boolean);
+  if (!v.length) return null;
+  const n = /^x(\d+)$/i.exec(v[1] || '');
+  return n ? `${v[0]} ×${n[1]}` : v.join(' ');
+}
+
 function summarizeListings(fetchJson, divineChaos, { me = '' } = {}) {
   const rows = [];
   const flat = [];
@@ -988,9 +1029,9 @@ function summarizeListings(fetchJson, divineChaos, { me = '' } = {}) {
     else if (p.currency === 'divine' && divineChaos) chaos = p.amount * divineChaos;
     const acc = r.listing.account || {};
     const status = r.listing.fee != null ? 'merchant' : acc.online ? (acc.online.status === 'afk' ? 'afk' : 'online') : 'offline';
-    const x = { amount: p.amount, currency: p.currency, chaos, seller: acc.name, ign: acc.lastCharacterName || null, indexed: r.listing.indexed, status, mine: !!me && acc.name === me, times: 1, whisper: typeof r.listing.whisper === 'string' ? r.listing.whisper.slice(0, 400) : null };
+    const x = { amount: p.amount, currency: p.currency, chaos, seller: acc.name, ign: acc.lastCharacterName || null, indexed: r.listing.indexed, status, mine: !!me && acc.name === me, times: 1, whisper: typeof r.listing.whisper === 'string' ? r.listing.whisper.slice(0, 400) : null, note: sacrificeOf(r.item) };
     flat.push(x);
-    const same = rows.findIndex((y, i) => y.seller === x.seller && ((y.amount === x.amount && y.currency === x.currency) || rows.length - i <= 2));
+    const same = rows.findIndex((y, i) => y.seller === x.seller && y.note === x.note && ((y.amount === x.amount && y.currency === x.currency) || rows.length - i <= 2));
     if (rows.length && same >= 0 && status !== 'merchant') rows[same].times += 1;
     else rows.push(x);
   }

@@ -1192,6 +1192,23 @@ class FilterManager {
 
   /** Writes "<base> (helper).filter". Returns its path. */
   write() {
+    // many writes in a row freeze the app (each one rebuilds the whole filter): log who asked, once a minute
+    const now = Date.now();
+    this.recentWrites = (this.recentWrites || []).filter((t) => now - t < 10000);
+    this.recentWrites.push(now);
+    if (this.recentWrites.length >= 6 && now - (this.burstLogged || 0) > 60000) {
+      this.burstLogged = now;
+      const from = (new Error().stack || '').split('\n').slice(2, 7).map((l) => l.trim().replace(/^at /, '').replace(/\(.*[\\/]/, '(')).join(' < ');
+      this.log('filter written', this.recentWrites.length, 'times in 10 s, from:', from);
+    }
+    const t0 = now;
+    try { return this.writeNow(); } finally {
+      const ms = Date.now() - t0;
+      if (ms > 1500) this.log('filter write took', ms, 'ms');
+    }
+  }
+
+  writeNow() {
     const base = this.basePath();
     const patch0 = this.store.get('tierPatch') || {};
     const baseText = this.readBase();

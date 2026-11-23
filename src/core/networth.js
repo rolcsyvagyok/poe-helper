@@ -95,6 +95,8 @@ function mapLine(it, idx, typeLine) {
     const who = n.slice(0, -base.length - 1).replace(/^the /, ''); // "baran", "purifier"
     if (who && implicits.includes(who)) return { line: l, label: l.name };
   }
+  // Originator and Shaper / Elder influenced maps: poe.ninja has no line for them, and the plain price is far off
+  if (/originator's memories|area is influenced by the (shaper|elder)/.test(implicits)) return null;
   const plain = lines.find((l) => norm(l.name) === base);
   return plain ? { line: plain, label: typeLine } : null;
 }

@@ -96,6 +96,61 @@ function log(...a) {
   } catch { /* logging must never break the app */ }
 }
 
+// ---------------- error log ----------------
+// Crashes and errors go to poe-helper-errors.log (next to poe-helper.log) with their stack, so a crash
+// can be traced afterwards. One line in poe-helper.log points to it. Never holds the POESESSID.
+let errFile = null;
+const errSeen = new Map(); // the same error over and over is written once a minute
+function redact(s) {
+  return String(s).replace(/POESESSID=?[0-9a-f]{20,}/gi, 'POESESSID=…').replace(/\b[0-9a-f]{32}\b/gi, '…');
+}
+function logError(where, err, extra) {
+  try {
+    const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err);
+    const key = `${where}|${msg}`;
+    const now = Date.now();
+    if (now - (errSeen.get(key) || 0) < 60000) return;
+    errSeen.set(key, now);
+    if (errSeen.size > 200) errSeen.clear();
+    log('ERROR', where, msg, '(details in poe-helper-errors.log)');
+    if (!errFile) errFile = path.join(app.getPath('userData'), 'poe-helper-errors.log');
+    const stack = err instanceof Error && err.stack ? err.stack : '';
+    let ver = '';
+    try { ver = app.getVersion(); } catch { /* ignore */ }
+    const body = redact([`${new Date().toISOString()} v${ver} ${where}: ${msg}`, extra ? `  ${typeof extra === 'string' ? extra : JSON.stringify(extra)}` : '', stack ? stack.split('\n').slice(1, 15).join('\n') : ''].filter(Boolean).join('\n')).slice(0, 8000);
+    if ((fs.statSync(errFile, { throwIfNoEntry: false })?.size || 0) > 512 * 1024) fs.renameSync(errFile, errFile + '.old');
+    fs.appendFileSync(errFile, body + '\n\n');
+  } catch { /* logging must never break the app */ }
+}
+process.on('uncaughtException', (e) => logError('main process error', e));
+process.on('unhandledRejection', (e) => logError('main process promise error', e));
+app.on('render-process-gone', (_e, wc, d) => {
+  let page = '';
+  try { page = wc.getTitle() || wc.getURL().split(/[\\/]/).pop(); } catch { /* ignore */ }
+  logError('window crashed', `${d.reason} (exit code ${d.exitCode})`, page ? `window: ${page}` : '');
+});
+app.on('child-process-gone', (_e, d) => {
+  if (d.reason === 'clean-exit') return;
+  logError('helper process stopped', `${d.type}${d.name ? ' ' + d.name : ''}: ${d.reason} (exit code ${d.exitCode})`);
+});
+app.on('browser-window-created', (_e, win) => {
+  let since = 0;
+  win.on('unresponsive', () => { since = Date.now(); logError('window not responding', win.getTitle() || 'window'); });
+  win.on('responsive', () => { if (since) log('window responds again after', Math.round((Date.now() - since) / 1000), 's'); since = 0; });
+});
+
+// running.flag is there while the app runs; if it is still there at start, the last run didn't close normally
+let runFlag = null;
+function markRunning() {
+  try {
+    runFlag = path.join(app.getPath('userData'), 'running.flag');
+    const last = fs.existsSync(runFlag) ? fs.readFileSync(runFlag, 'utf8') : null;
+    if (last) logError('last run did not close normally', 'crash, freeze or forced stop', `it started ${last}`);
+    fs.writeFileSync(runFlag, `${new Date().toISOString()} v${app.getVersion()}`);
+  } catch { /* ignore */ }
+}
+function markClosed() { try { if (runFlag) fs.rmSync(runFlag, { force: true }); } catch { /* ignore */ } }
+
 // ---------------- windows ----------------
 
 function createMainWindow() {
@@ -1622,6 +1677,9 @@ function registerIpc() {
   handle('overlay:keep', (on) => keepOverlay(!!on));
   handle('overlay:resetPos', () => { services.settings.set('overlayPos', null); return true; });
   handle('shell:open', (url) => openExternal(url));
+  // an error in a window: written to the error log with where it happened
+  handle('app:error', (e = {}) => { logError(`window error (${String(e.page || '?').slice(0, 40)})`, Object.assign(new Error(String(e.message || 'unknown').slice(0, 500)), { stack: String(e.stack || '').slice(0, 4000) })); return true; });
+  handle('app:openLogs', () => shell.openPath(app.getPath('userData')));
   handle('lab:get', (a) => services.labLayout(a || {}));
   handle('lab:show', (diff) => { toggleLab(services.LAB_DIFFS.some((d) => d.id === diff) ? diff : services.settings.get('labLast') || 'uber'); return true; });
   handle('lab:hide', () => { labWin?.hide(); return true; });
@@ -1974,6 +2032,7 @@ function applySetupFile() {
 }
 
 app.whenReady().then(async () => {
+  markRunning();
   services = createServices({ dataDir: app.getPath('userData'), secrets, log, labBrowser });
   applySetupFile();
   registerIpc();
@@ -2022,6 +2081,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('will-quit', () => {
+  markClosed();
   try { chatMacros?.stop(); } catch { /* ignore */ }
   globalShortcut.unregisterAll();
   stopHook();
