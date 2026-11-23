@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.163 - 2026-11-23
+
+* [Atlas strategies] A strategy can use up to 3 kinds of thread a map, each with its own count. The item box suggests Delirium Orbs instead of scarabs and fragments.
+- Atlas strategies: threads are set per kind (1 to 8 each, up to 10 with Unwavering Vision); a new row appears once the last one is used. The cost a map adds each kind of thread. A strategy saved with one thread keeps it.
+
 ## 1.0.162 - 2026-11-23
 
 * [Settings] Crashes and errors are now written to an error log. If the app breaks, press "Open logs" in Settings and send poe-helper-errors.log and poe-helper.log.

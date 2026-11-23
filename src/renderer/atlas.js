@@ -361,12 +361,19 @@
       h('a', { href: '#', onclick: async (e) => { e.preventDefault(); const l = await call('atlas:links', S.id); if (l) { await call('clipboard:write', l.hypostasis).catch(() => {}); toast('hypostasis.faith link copied'); } } }, 'copy a hypostasis.faith link')) : null;
 
     // ---- threads, maps, other inputs ----
-    const thr = S.thread || {};
-    const threadSel = h('select', { 'aria-label': 'Thread', onchange: (e) => save({ id: S.id, thread: e.target.value ? { name: e.target.value, count: thr.count || 8 } : null }, true) },
-      h('option', { value: '' }, 'No threads'),
-      (A.threads || []).map((t) => h('option', { value: t.name, selected: t.name === thr.name }, `${t.name} (${chaosDiv(t.chaos, d)})`)),
-      thr.name && !(A.threads || []).some((t) => t.name === thr.name) ? h('option', { value: thr.name, selected: true }, thr.name) : null);
-    const threadN = h('input', { type: 'number', min: 0, max: 10, value: thr.count ?? 8, 'aria-label': 'Threads a map', style: { width: '64px' }, disabled: !thr.name, onchange: (e) => save({ id: S.id, thread: { name: thr.name, count: e.target.value } }, true) });
+    // up to 3 thread types a map, 1-8 of each (10 with Unwavering Vision); a new row shows once the last one is used
+    const thr = S.threads || [];
+    const saveThr = (l) => save({ id: S.id, threads: l }, true);
+    const threadRow = (t, k) => {
+      const used = new Set(thr.filter((_, j) => j !== k).map((x) => x.name));
+      const sel = h('select', { 'aria-label': `Thread ${k + 1}`, onchange: (e) => { const l = [...thr]; if (e.target.value) l[k] = { name: e.target.value, count: t?.count || 8 }; else l.splice(k, 1); saveThr(l); } },
+        h('option', { value: '' }, k ? 'Add another thread' : 'No threads'),
+        (A.threads || []).filter((x) => !used.has(x.name)).map((x) => h('option', { value: x.name, selected: x.name === t?.name }, `${x.name} (${chaosDiv(x.chaos, d)})`)),
+        t?.name && !(A.threads || []).some((x) => x.name === t.name) ? h('option', { value: t.name, selected: true }, t.name) : null);
+      const n = t ? h('input', { type: 'number', min: 1, max: 10, value: t.count ?? 8, title: '1 to 8 a map (up to 10 with Unwavering Vision)', 'aria-label': `How many ${t.name} a map`, style: { width: '58px' }, onchange: (e) => { const l = [...thr]; l[k] = { ...t, count: e.target.value }; saveThr(l); } }) : null;
+      return h('div', { class: 'at-row' }, sel, n);
+    };
+    const threadRows = [...thr.map((t, k) => threadRow(t, k)), thr.length < 3 ? threadRow(null, thr.length) : null];
     const kinds = L.mapKinds;
     // a list to pick from, or type your own kind
     const kindSel = h('input', { type: 'text', list: 'at-kinds', value: S.mapKind || kinds[0], 'aria-label': 'Map kind', style: { width: '190px' }, onfocus: (e) => e.target.select(), onchange: (e) => save({ id: S.id, mapKind: e.target.value.trim() || kinds[0], mapPrice: '' }, true) });
@@ -380,17 +387,17 @@
       h('input', { type: 'number', min: 0, max: 99, value: i.count, 'aria-label': 'How many a map', style: { width: '58px' }, onchange: (e) => { const l = [...S.inputs]; l[k] = { ...i, count: e.target.value }; save({ id: S.id, inputs: l }, true); } }),
       h('span', { class: 'small faint at-price' }, priceOf(i.name) != null ? `${chaosDiv(priceOf(i.name), d)} each` : 'no price'),
       h('button', { class: 'quiet sm', 'aria-label': `Remove ${i.name}`, onclick: () => save({ id: S.id, inputs: S.inputs.filter((_, j) => j !== k) }, true) }, '✕')));
-    const newName = h('input', { type: 'text', placeholder: 'Scarab or other item you put in each map', 'aria-label': 'Add an item used each map', list: 'at-items', style: { flex: 1 } });
+    const newName = h('input', { type: 'text', placeholder: 'Delirium Orb or other item you put in each map', 'aria-label': 'Add an item used each map', list: 'at-items', style: { flex: 1 } });
     const newN = h('input', { type: 'number', min: 1, max: 99, value: 1, 'aria-label': 'How many a map', style: { width: '58px' } });
     const add = () => { if (newName.value.trim()) save({ id: S.id, inputs: [...(S.inputs || []), { name: newName.value.trim(), count: newN.value }] }, true); };
     newName.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
     const addIn = h('div', { class: 'at-in' }, newName, newN, h('button', { class: 'sm', onclick: add }, 'Add'));
     const setup = h('div', { class: 'panel at-setup' },
       h('div', { class: 'at-setup-row' },
-        h('label', { class: 'at-field' }, h('span', { class: 'small muted' }, 'Threads a map'), h('div', { class: 'at-row' }, threadSel, threadN)),
+        h('div', { class: 'at-field' }, h('span', { class: 'small muted', title: 'Up to 3 kinds of thread on a map' }, 'Threads a map'), h('div', { class: 'at-thr' }, threadRows)),
         h('label', { class: 'at-field' }, h('span', { class: 'small muted' }, 'Maps'), h('div', { class: 'at-row' }, kindSel, kindList, mapPrice, mapName)),
         h('div', { class: 'at-field at-cost' }, h('span', { class: 'small muted' }, 'Cost a map'), h('b', { title: S.costs.map((c) => `${c.count > 1 ? `${c.count} × ` : ''}${c.name}: ${c.total != null ? chaosDiv(c.total, d) : 'no price'}`).join('\n') }, S.costPerMap ? chaosDiv(S.costPerMap, d) : '–'),
-          S.costs.length ? h('span', { class: 'small faint' }, S.costs.map((c) => `${c.map ? 'map' : / Thread$/.test(c.name) ? 'threads' : c.name} ${c.total != null ? chaosDiv(c.total, d) : '?'}`).join(' + ')) : null)),
+          S.costs.length ? h('span', { class: 'small faint' }, S.costs.map((c) => `${c.map ? 'map' : c.thread ? c.name.replace(/ Thread$/, ' threads') : c.name} ${c.total != null ? chaosDiv(c.total, d) : '?'}`).join(' + ')) : null)),
       h('div', { class: 'at-ins' }, extra, addIn));
 
     // ---- tree + effects ----

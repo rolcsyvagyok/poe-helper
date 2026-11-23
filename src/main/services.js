@@ -2156,11 +2156,14 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const league = await getLeague();
     const get = async (c) => { try { return await ninja.category(league, c); } catch (e) { log('atlas items', c, e.message); return []; } };
     const threads = (await get('Thread')).map((l) => ({ name: l.name, chaos: l.chaos, icon: l.icon || null })).sort((a, b) => a.name.localeCompare(b.name));
-    const items = [...new Set([...(await get('Scarab')), ...(await get('Fragment'))].map((l) => l.name))].sort();
+    // what else goes into the map device: Delirium Orbs (3.30 has no scarabs)
+    const items = [...new Set((await get('DeliriumOrb')).map((l) => l.name))].sort();
     return { threads, items };
   }
 
   const strategiesAll = () => settings.get('atlasStrategies') || [];
+  // up to 3 thread types a map (1-8 each; Unwavering Vision: one type with up to 10). Older strategies kept one in s.thread
+  const threadsOf = (s) => (Array.isArray(s.threads) ? s.threads : s.thread?.name ? [s.thread] : []).filter((t) => t?.name);
   // map kinds; the ones poe.ninja prices (cat + names) add their price to the cost a map (the middle price when
   // several maps make the kind: the four conqueror maps)
   const ATLAS_MAP_KINDS = [
@@ -2207,7 +2210,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     const list = strategiesAll();
     let tree = null; let treeError = null;
     try { tree = await atlasTreeData(); } catch (e) { treeError = e.message; }
-    const names = list.flatMap((s) => [s.thread?.name, ...(s.inputs || []).map((i) => i.name)]);
+    const names = list.flatMap((s) => [...threadsOf(s).map((t) => t.name), ...(s.inputs || []).map((i) => i.name)]);
     const prices = await namePrices(names, league).catch(() => new Map());
     const divine = await ninja.divinePrice(league).catch(() => null);
     const nw = networth.report(league, { sinceMs: 365 * 86400000 });
@@ -2223,7 +2226,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         const auto = kindPrices.get(s.mapKind) ?? null;
         const mapEach = s.mapPrice != null ? s.mapPrice : auto;
         const mapCost = s.mapKind && s.mapKind !== 'Any maps' && mapEach != null ? { name: s.mapName || s.mapKind.replace(/s\b/, ''), count: 1, chaos: mapEach, icon: null, total: mapEach, map: true, auto, own: s.mapPrice != null } : null;
-        const costs = [mapCost, s.thread?.name && s.thread.count ? priced(s.thread.name, s.thread.count) : null, ...(s.inputs || []).filter((i) => i.name && i.count).map((i) => priced(i.name, i.count))].filter(Boolean);
+        const costs = [mapCost, ...threadsOf(s).filter((t) => t.count).map((t) => ({ ...priced(t.name, t.count), thread: true })), ...(s.inputs || []).filter((i) => i.name && i.count).map((i) => priced(i.name, i.count))].filter(Boolean);
         const costPerMap = costs.reduce((a, i) => a + (i.total || 0), 0);
         const runs = sessions.filter((x) => x.strategy === s.id).map((x) => sessionResult(x, series)).reverse();
         const done = runs.filter((r) => r.gained != null);
@@ -2232,7 +2235,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
         const maps = done.reduce((a, r) => a + (r.maps || 0), 0);
         const fx = tree && s.nodes?.length ? Atlas.effects(tree, s.nodes, s.choices || {}) : null;
         return {
-          ...s, costs, mapAuto: auto, costPerMap: Math.round(costPerMap * 100) / 100,
+          ...s, threads: threadsOf(s), costs, mapAuto: auto, costPerMap: Math.round(costPerMap * 100) / 100,
           summary: fx ? { points: fx.points, notables: fx.notables, keystones: fx.keystones, top: fx.categories.slice(0, 4).map((c) => ({ name: c.name, count: c.nodes.length })) } : null,
           effects: fx?.categories || [],
           sessions: runs,
@@ -2266,7 +2269,12 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     }
     if (input.choices && typeof input.choices === 'object') s.choices = Object.fromEntries(Object.entries(input.choices).filter(([k, v]) => (s.nodes || []).includes(Number(k)) && Number.isInteger(v) && v >= 0));
     if (input.choices && s.from === 'made here' && s.nodes?.length) s.link = 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/' + Atlas.encodeOfficial(s.nodes, s.choices, await atlasTreeData());
-    if (input.thread !== undefined) s.thread = input.thread?.name ? { name: String(input.thread.name).slice(0, 60), count: Math.max(0, Math.min(10, Math.round(Number(input.thread.count) || 0))) } : null;
+    if (input.threads !== undefined) {
+      const seen = new Set();
+      s.threads = (Array.isArray(input.threads) ? input.threads : []).map((t) => ({ name: String(t?.name || '').trim().slice(0, 60), count: Math.max(1, Math.min(10, Math.round(Number(t?.count) || 8))) }))
+        .filter((t) => t.name && !seen.has(t.name) && seen.add(t.name)).slice(0, 3);
+      delete s.thread;
+    }
     if (input.mapKind !== undefined) s.mapKind = String(input.mapKind || '').slice(0, 60);
     if (input.mapPrice !== undefined) { const v = Number(input.mapPrice); s.mapPrice = input.mapPrice === '' || input.mapPrice == null || !(v >= 0) ? null : Math.round(v * 100) / 100; }
     if (input.mapName !== undefined) s.mapName = String(input.mapName || '').slice(0, 60);

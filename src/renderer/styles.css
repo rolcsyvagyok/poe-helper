@@ -2085,8 +2085,9 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .at-row { display: flex; gap: 6px; align-items: center; }
 .at-link { display: grid; gap: 6px; }
 .at-setup { display: grid; gap: 10px; }
-.at-setup-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: end; }
+.at-setup-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: start; }
 .at-field { display: grid; gap: 4px; }
+.at-thr { display: grid; gap: 4px; }
 .at-cost b { font-size: 16px; }
 .at-ins { display: grid; gap: 6px; max-width: 560px; }
 .at-in { display: flex; gap: 6px; align-items: center; }
