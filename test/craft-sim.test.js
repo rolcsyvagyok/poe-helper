@@ -117,3 +117,18 @@ test('the best fossils for life + fire resistance beat a Chaos Orb, never stop a
   // a bigger set is only listed when it does better than the smaller sets inside it
   for (const r of b.best) for (const q of b.best) if (q !== r && q.fossils.every((x) => r.fossils.includes(x))) assert.ok(r.all > q.all - 0.005);
 });
+
+test('Searing Exarch and Eater of Worlds implicits: by base and orb tier, presence ones only from higher tiers', () => {
+  const C = require('../src/core/crafting');
+  const gloves = C.craftView({ base: 'Slink Gloves', ilvl: 86 }).eldritch;
+  assert.ok(gloves && gloves.exarch && gloves.eater);
+  const as = gloves.exarch.families.find((f) => f.key === 'exarch|IncreasedAttackSpeed|');
+  assert.equal(as.text, '13% increased Attack Speed'); // a Perfect Ember
+  assert.ok(Math.abs(gloves.exarch.families.reduce((n, f) => n + f.chance, 0) - 1) < 1e-9);
+  // a Lesser Ember can't give a "Pinnacle Atlas Boss in your Presence" mod
+  const lesser = C.craftView({ base: 'Slink Gloves', ilvl: 86, eldritchTier: 1 }).eldritch.exarch;
+  assert.ok(lesser.families.filter((f) => f.presence && f.weight > 0).length === 0);
+  assert.match(lesser.families.find((f) => f.presence === 'pinnacle').text, /^While a Pinnacle Atlas Boss is in your Presence, /);
+  // weapons have none
+  assert.equal(C.craftView({ base: 'Vaal Axe', ilvl: 86 }).eldritch, null);
+});

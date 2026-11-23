@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.156 - 2026-11-23
+
+* [Crafting] A search box for the mods: type "attack speed", "fire res", "Elder"… and every list shows only the matching mods.
+* [Crafting] Searing Exarch and Eater of Worlds implicits at the bottom: what each Ember or Ichor tier can give the base, with its chance.
+- Crafting: the mod search looks through every tier's text, the tags and the influence of each mod, in the prefixes, suffixes, influence, eldritch and veiled lists. All the words you type must match, in any order.
+- Crafting: body armours, helmets, gloves, boots and amulets list their Searing Exarch (Eldritch Ember) and Eater of Worlds (Eldritch Ichor) implicits. Pick the orb tier (Lesser to Perfect); each implicit shows its roll at that tier and its chance, and the "while a unique enemy / pinnacle boss is in your presence" ones from the tiers that can give them. Opening one lists it at every tier.
+
 ## 1.0.155 - 2026-11-23
 
 * [Base ranks] Fated rares with an influence are hidden by your rare ranks too.

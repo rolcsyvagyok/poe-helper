@@ -3,7 +3,7 @@
    laid out like Craft of Exile: bases on the left, the prefix and suffix pools side by side. */
 (function () {
   const { h, mount, call } = window.UI;
-  const C = { tab: 'mods', sim: null, fossils: [], hTag: 'life', hAddTag: 'life', resFrom: 'Fire', resTo: 'Cold', benchId: '', odds: null, oddsKey: '', targets: new Set(), infTab: 'shaper', item: null, paste: false, bases: null, cls: 'Body Armour', attr: 'INT', base: 'Vaal Regalia', ilvl: 86, inf: [], tag: null, open: {}, q: '' };
+  const C = { tab: 'mods', sim: null, fossils: [], hTag: 'life', hAddTag: 'life', resFrom: 'Fire', resTo: 'Cold', benchId: '', odds: null, oddsKey: '', targets: new Set(), infTab: 'shaper', item: null, paste: false, bases: null, cls: 'Body Armour', attr: 'INT', base: 'Vaal Regalia', ilvl: 86, inf: [], tag: null, open: {}, q: '', mq: '', etab: 'exarch', etier: 6 };
   const pct = (x) => (x >= 0.1 ? `${(x * 100).toFixed(2)}%` : x > 0 ? `${(x * 100).toFixed(2)}%` : '–');
   const INF = [['shaper', 'Shaper'], ['elder', 'Elder'], ['crusader', 'Crusader'], ['basilisk', 'Hunter'], ['eyrie', 'Redeemer'], ['adjudicator', 'Warlord']];
   const GROUPS = [
@@ -25,7 +25,7 @@
     if (!C.bases) C.bases = await call('craft:bases');
     if (C.tab === 'sim') return renderSim(el);
     const targets = [...C.targets];
-    const view = await call('craft:view', C.item ? { item: C.item, ilvl: C.itemIlvl || undefined, influences: C.itemInf || undefined, targets } : { base: C.base, ilvl: C.ilvl, influences: C.inf, targets });
+    const view = await call('craft:view', C.item ? { item: C.item, ilvl: C.itemIlvl || undefined, influences: C.itemInf || undefined, targets, eldritchTier: C.etier } : { base: C.base, ilvl: C.ilvl, influences: C.inf, targets, eldritchTier: C.etier });
     if (C.item && !view) { C.item = null; window.UI.toast('That item\'s base isn\'t one that rolls mods.', true); return render(); }
     // your item: the left side shows its base
     if (C.item && view) { C.cls = view.base.cls; C.base = view.base.name; C.attr = C.bases.find((c) => c.cls === C.cls)?.bases.find((b) => b.name === C.base)?.attr || null; }
@@ -69,7 +69,7 @@
     const openTiers = f.tiers.filter((t) => t.open);
     return h('div', { class: 'co-mod' + (hit ? '' : ' dim') + (open ? ' open' : '') + (f.yours ? ' yours' : '') + (f.blocked ? ' blocked' : '') },
       h('button', { class: 'co-modhead', 'aria-expanded': open ? 'true' : 'false', onclick: () => { C.open[f.key] = !open; render(); } },
-        f.yours || f.blocked || f.offered != null ? h('span', { class: 'co-tiers' }, `${openTiers.length}`) :
+        f.yours || f.blocked || f.offered != null || f.noWant ? h('span', { class: 'co-tiers' }, `${f.noWant ? f.tiers.length : openTiers.length}`) :
           h('span', { class: 'co-want' + (C.targets.has(f.key) ? ' on' : ''), role: 'checkbox', 'aria-checked': C.targets.has(f.key) ? 'true' : 'false', tabindex: 0, title: 'Tick the mods you want: Crafting finds the best blocker for them',
             onclick: (e) => { e.stopPropagation(); if (C.targets.has(f.key)) C.targets.delete(f.key); else C.targets.add(f.key); render(); },
             onkeydown: (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); e.target.click(); } } }, C.targets.has(f.key) ? '✓' : ''),
@@ -78,16 +78,19 @@
           h('div', { class: 'co-tagline' }, f.influence ? h('span', { class: 'co-tag co-inf' }, f.influence) : null, f.tags.map((t) => tagChip(t, C.tag === t ? ' on' : '')))),
         h('span', { class: 'co-w' }, String(f.weight)),
         h('span', { class: 'co-p' }, f.yours ? '✓' : pct(f.chance))),
-      open ? h('div', { class: 'co-tierlist' }, f.tiers.map((t) => h('div', { class: 'co-tier' + (t.open ? '' : ' locked') + (f.yours?.tier === t.tier ? ' yours' : ''), title: t.open ? '' : `Needs item level ${t.lvl}` },
+      open ? h('div', { class: 'co-tierlist' }, f.tiers.map((t) => h('div', { class: 'co-tier' + (t.open ? '' : ' locked') + (f.yours?.tier === t.tier ? ' yours' : ''), title: t.open ? '' : f.tierWord ? `From a ${t.name} orb` : `Needs item level ${t.lvl}` },
         h('span', { class: 'co-tn' }, `T${t.tier}`),
-        h('span', { class: 'co-il' }, `iLvl ${t.lvl}`),
+        h('span', { class: 'co-il' }, f.tierWord ? t.name : `iLvl ${t.lvl}`),
         h('span', { class: 'co-tname' }, t.name || ''),
         h('span', { class: 'co-roll' }, t.text.split('\n').map((l) => h('div', {}, l))),
         h('span', { class: 'co-w' }, String(t.weight)),
         h('span', { class: 'co-p' }, t.open ? pct(t.chance) : '–')))) : null);
   }
 
+  // the mod search: a group is listed when any of its tiers says the words you typed (all of them, any order)
+  const modMatch = (f) => { const q = C.mq.trim().toLowerCase(); if (!q) return true; const words = q.split(/\s+/); const hay = [f.range, f.text, ...f.tiers.map((t) => `${t.text} ${t.name || ''}`), ...f.tags, f.influence || ''].join(' ').toLowerCase(); return words.every((w) => hay.includes(w)); };
   function pool(title, s, side, v) {
+    const shown = s.families.filter(modMatch);
     const sl = v?.item?.slots;
     const full = sl && sl.max && sl[side] >= sl.max;
     const tagged = C.tag ? s.families.filter((f) => f.tags.includes(C.tag)).reduce((n, f) => n + f.chance, 0) : null;
@@ -97,7 +100,7 @@
         h('span', { class: 'spacer' }), C.tag ? h('span', { class: 'small' }, `${C.tag} `, h('b', {}, pct(tagged))) : null),
       h('div', { class: 'co-cols small faint' }, h('span', {}, 'Tiers'), h('span', {}, 'Modifier'), h('span', { class: 'r' }, 'Weight'), h('span', { class: 'r' }, 'Chance')),
       full ? h('div', { class: 'co-note' }, `No open ${side}: a new one can't roll until you remove one.`) : null,
-      s.families.length ? s.families.map(modRow) : h('div', { class: 'small muted', style: { padding: '10px' } }, 'None at this item level.'));
+      shown.length ? shown.map(modRow) : h('div', { class: 'small muted', style: { padding: '10px' } }, s.families.length ? `No mod here says "${C.mq.trim()}".` : 'None at this item level.'));
   }
 
   // the best blockers for the mods you ticked
@@ -383,6 +386,10 @@
           v.canInfluence ? h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Influence, up to two' }, INF.map(([id, name]) => h('button', {
             class: 'co-infbtn co-inf-' + id + (v.influences.includes(id) ? ' on' : ''), 'aria-pressed': v.influences.includes(id) ? 'true' : 'false', title: `${name} influence`,
             onclick: () => { if (C.item) { const cur = C.itemInf || v.influences; C.itemInf = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2); } else C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); C.open = {}; render(); } }, name))) : null) : null,
+        v ? h('div', { class: 'co-search' }, h('input', { type: 'search', class: 'co-modsearch', placeholder: 'Search the mods: life, fire res, attack speed, Elder…', value: C.mq, 'aria-label': 'Search the mods',
+          // the list is drawn again a moment after you stop typing (drawing on every key lost letters)
+          oninput: (e) => { C.mq = e.target.value; clearTimeout(C.mqTimer); C.mqTimer = setTimeout(() => render().then(() => { const i = document.querySelector('.co-modsearch'); if (i && document.activeElement !== i) { i.focus(); const n = i.value.length; i.setSelectionRange(n, n); } }), 250); } }),
+          C.mq ? h('button', { class: 'quiet sm', onclick: () => { C.mq = ''; render(); } }, 'Clear') : null) : null,
         v ? h('div', { class: 'co-tagbar' }, h('span', { class: 'small muted' }, 'Tags'),
           v.tags.map((t) => h('button', { class: 'co-tagbtn' + (C.tag === t.tag ? ' on' : ''), 'aria-pressed': C.tag === t.tag ? 'true' : 'false', onclick: () => { C.tag = C.tag === t.tag ? null : t.tag; render(); }, title: `A new prefix has it ${pct(t.prefix)}, a new suffix ${pct(t.suffix)}` },
             tagChip(t.tag), h('span', { class: 'faint' }, `${t.prefix ? pct(t.prefix) : '–'} / ${t.suffix ? pct(t.suffix) : '–'}`)))) : null,
@@ -393,6 +400,13 @@
             h('span', { class: 'small muted' }, 'Each influence\'s own mods, with their chance if the item had only that influence.'),
             h('div', { class: 'co-infs', role: 'tablist' }, INF.map(([id, name]) => h('button', { class: 'co-infbtn' + (C.infTab === id ? ' on' : ''), role: 'tab', 'aria-selected': C.infTab === id ? 'true' : 'false', onclick: () => { C.infTab = id; render(); } }, name)))),
           h('div', { class: 'co-pools' }, pool(`${INF.find(([i]) => i === C.infTab)[1]} prefixes`, v.influenceMods[C.infTab].prefix), pool(`${INF.find(([i]) => i === C.infTab)[1]} suffixes`, v.influenceMods[C.infTab].suffix))) : null,
+        v?.eldritch ? h('div', { class: 'co-extra' },
+          h('div', { class: 'co-xhead' }, h('h3', {}, 'Searing Exarch and Eater of Worlds implicits'),
+            h('span', { class: 'small muted' }, 'What an Eldritch Ember (Exarch) or Ichor (Eater) of this tier can give this base, with its chance. "Presence" ones need a unique or pinnacle enemy near.'),
+            h('div', { class: 'co-infs', role: 'tablist' }, [['exarch', 'Searing Exarch'], ['eater', 'Eater of Worlds']].filter(([id]) => v.eldritch[id]).map(([id, name]) => h('button', { class: 'co-infbtn co-el-' + id + (C.etab === id ? ' on' : ''), role: 'tab', 'aria-selected': C.etab === id ? 'true' : 'false', onclick: () => { C.etab = id; render(); } }, name))),
+            h('label', { class: 'co-etier' }, h('span', { class: 'small muted' }, 'Orb'), h('select', { 'aria-label': 'Eldritch orb tier', onchange: (e) => { C.etier = Number(e.target.value); C.open = {}; render(); } },
+              v.eldritch.tiers.map((n, i) => h('option', { value: i + 1, selected: v.eldritch.tier === i + 1 }, n))))),
+          h('div', { class: 'co-pools one' }, pool(`${C.etab === 'eater' ? 'Eater of Worlds' : 'Searing Exarch'} implicits (${v.eldritch.tiers[v.eldritch.tier - 1]})`, v.eldritch[C.etab] || v.eldritch.exarch || v.eldritch.eater))) : null,
         v?.veiled && (v.veiled.prefix.families.length || v.veiled.suffix.families.length) ? h('div', { class: 'co-extra' },
           h('div', { class: 'co-xhead' }, h('h3', {}, 'Veiled mods'),
             h('span', { class: 'small muted' }, 'What a Veiled Prefix or Suffix can unveil into on this base. Unveiling offers 3 of them; you keep one.')),

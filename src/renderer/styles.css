@@ -2136,3 +2136,8 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 /* the lines of a one-row multi-line mod use the overlay's compact columns, so their min and max line up with the rows around */
 .ov .tp-mod.tp-hyb { grid-template-columns: auto minmax(0, 1fr); }
 .ov .tp-hyb-line { grid-template-columns: minmax(0, 1fr) 54px 8px 50px; gap: 5px; }
+/* Crafting: the mod search, and the Searing Exarch / Eater of Worlds implicits */
+.co-search { display: flex; gap: 6px; align-items: center; margin: 10px 0 0; }
+.co-modsearch { flex: 1; max-width: 520px; }
+.co-pools.one { grid-template-columns: 1fr; }
+.co-etier { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }

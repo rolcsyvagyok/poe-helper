@@ -153,6 +153,46 @@ function poolsFor(base, tags, ilvl, dom) {
   return sides;
 }
 
+// ---------- Searing Exarch and Eater of Worlds implicits (Eldritch Embers and Ichors) ----------
+let ELDRITCH = null;
+const eldritchData = () => ELDRITCH || (ELDRITCH = require('./regex/eldritch-mods.json'));
+const ELDRITCH_TIERS = ['Lesser', 'Greater', 'Grand', 'Exceptional', 'Exquisite', 'Perfect'];
+const PRESENCE = { unique: 'While a Unique Enemy is in your Presence, ', pinnacle: 'While a Pinnacle Atlas Boss is in your Presence, ' };
+
+/**
+ * The implicits a Searing Exarch (Ember) or Eater of Worlds (Ichor) orb of a tier can give this base, with the chance
+ * of each. side: 'exarch' | 'eater'; tier 1-6 (Lesser … Perfect). -> { total, families } like a mod pool, or null
+ * when the base can't have them (only body armours, helmets, gloves, boots and amulets).
+ */
+function eldritchPool(base, side, tier = 6) {
+  const tags = new Set(base.tags);
+  const fams = new Map();
+  for (const m of eldritchData()[side] || []) {
+    const w = weightOn(m, tags);
+    if (!(w > 0)) continue;
+    const key = `${side}|${m.type}|${m.presence || ''}`;
+    const text = (PRESENCE[m.presence] || '') + cleanText(m.text);
+    if (!fams.has(key)) fams.set(key, { key, aff: side, group: m.type, tags: showTags(m.tags), influence: null, noWant: true, presence: m.presence, tiers: [] });
+    fams.get(key).tiers.push({ tier: m.tier, name: ELDRITCH_TIERS[m.tier - 1], lvl: m.tier, text, weight: w, open: m.tier === tier });
+  }
+  if (!fams.size) return null;
+  const out = { total: 0, families: [] };
+  for (const f of fams.values()) {
+    f.tiers.sort((a, b) => b.tier - a.tier);
+    const at = f.tiers.find((t) => t.open);
+    f.weight = at ? at.weight : 0;
+    f.text = (at || f.tiers[0]).text;
+    f.range = f.text;
+    f.tierWord = true; // the tier list shows the orb name, not an item level
+    out.families.push(f);
+    out.total += f.weight;
+  }
+  for (const f of out.families) { f.chance = out.total ? f.weight / out.total : 0; for (const t of f.tiers) t.chance = t.open && out.total ? t.weight / out.total : 0; }
+  out.families.sort((a, b) => b.chance - a.chance || a.text.localeCompare(b.text));
+  out.families = out.families.filter((f) => f.weight > 0).concat(out.families.filter((f) => !f.weight)); // ones this tier can't give last
+  return out;
+}
+
 /** Unveiling offers 3 different mods: the chance each one is among them (drawn by weight, no repeats). */
 function withOffered(sides) {
   for (const s of Object.values(sides)) {
@@ -324,9 +364,11 @@ function craftView(o = {}) {
       for (const k of ['prefix', 'suffix']) sides[k] = { total: sides[k].total, families: sides[k].families.filter((f) => f.influence === name) };
       return [id, sides];
     })) : null,
+    // the Searing Exarch and Eater of Worlds implicits at the orb tier you pick
+    eldritch: (() => { const t = Math.min(6, Math.max(1, Math.round(Number(o.eldritchTier) || 6))); const ex = eldritchPool(base, 'exarch', t); const ea = eldritchPool(base, 'eater', t); return ex || ea ? { tier: t, tiers: ELDRITCH_TIERS, exarch: ex, eater: ea } : null; })(),
     item: item ? { rarity: item.rarity, fractured: item.fractured, corrupted: item.corrupted, mods: yours, slots: slotsFor(base, item, yours), unknown: item.base ? 0 : 1 } : null,
     tags: [...tagTotals.values()].sort((a, b) => b.prefix + b.suffix - (a.prefix + a.suffix)),
   };
 }
 
-module.exports = { readItem, rangeText, craftView, craftBases, weightOn, showTags, INFLUENCES };
+module.exports = { eldritchPool, ELDRITCH_TIERS, readItem, rangeText, craftView, craftBases, weightOn, showTags, INFLUENCES };
