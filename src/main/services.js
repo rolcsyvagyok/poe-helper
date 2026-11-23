@@ -298,7 +298,7 @@ function createServices({ dataDir, secrets, fetchImpl, log = console.log, labBro
     // a Mercenary Warrant: searched by its build and skills
     if (item.warrant) { bulk = false; tradeable = true; }
     // a temple (Chronicle of Atzoatl) sells for its rooms: a normal search, never the bulk exchange
-    if (/^Chronicle of Atzoatl$/i.test(item.typeLine || item.baseType || '')) { bulk = false; tradeable = true; }
+    if (/^(Chronicle of Atzoatl|Inscribed Ultimatum)$/i.test(item.typeLine || item.baseType || '')) { bulk = false; tradeable = true; }
     // invitations (the Searing Exarch's, the Eater of Worlds'…): sold one at a time with instant buyout; the bulk
     // exchange's offers for them are mostly fake
     if (bulk && / Invitation$/.test(item.typeLine || item.baseType || item.name || '')) { bulk = false; tradeable = true; }

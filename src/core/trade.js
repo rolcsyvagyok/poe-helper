@@ -323,7 +323,10 @@ function defaultProps(item) {
     storedExp: (() => { const v = Number(String(item.properties?.['Stored Experience'] || '').replace(/[^\d]/g, '')); return v > 0 ? { on: true, min: Math.floor(v * 0.9 / 1e5) / 10, max: null, show: true } : { on: false, show: false }; })(), // in millions
     mapTier: { on: !!item.mapTier, min: item.mapTier || null, show: item.mapTier != null },
     // a temple's area level (83 is the best): searched at least this level
-    areaLevel: /^Chronicle of Atzoatl$/i.test(item.typeLine || '') && item.areaLevel ? { on: true, min: item.areaLevel, max: null, show: true } : { on: false, show: false },
+    areaLevel: /^Chronicle of Atzoatl$/i.test(item.typeLine || '') && item.areaLevel ? { on: true, min: item.areaLevel, max: null, show: true }
+      : /^Inscribed Ultimatum$/i.test(item.typeLine || '') && item.areaLevel ? { on: false, min: item.areaLevel, max: null, show: true } : { on: false, show: false },
+    // an Inscribed Ultimatum: the reward and what it takes (ticked), the challenge (not ticked)
+    ultimatum: /^Inscribed Ultimatum$/i.test(item.typeLine || '') ? (() => { const u = ultimatumOf(item); return { show: true, ...u, rewardOn: !!u.reward, inputOn: !!u.input, outputOn: !!u.output, challengeOn: false }; })() : { show: false },
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
     corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' || kind === 'map' ? 'no' : 'any',
@@ -459,6 +462,14 @@ function buildQuery(item, mods, opts = {}) {
     } else if (props.dps?.on && DPS_FILTERS[props.dps.mode] && Number(props.dps.min) > 0) q.query.filters.weapon_filters = { filters: { [DPS_FILTERS[props.dps.mode]]: { min: Number(props.dps.min) } } }; // a search saved before 1.0.155
     if (props.links?.on && range(props.links)) q.query.filters.socket_filters = { filters: { links: range(props.links) } };
     if (props.mapTier?.on && range(props.mapTier)) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), map_tier: range(props.mapTier) } };
+    if (props.ultimatum?.show) {
+      const u = props.ultimatum; const uf = {};
+      if (u.rewardOn && u.reward) uf.ultimatum_reward = { option: u.reward };
+      if (u.inputOn && u.input) uf.ultimatum_input = { option: u.input };
+      if (u.outputOn && u.output) uf.ultimatum_output = { option: u.output };
+      if (u.challengeOn && u.challenge) uf.ultimatum_challenge = { option: u.challenge };
+      if (Object.keys(uf).length) q.query.filters.ultimatum_filters = { filters: uf };
+    }
     if (props.areaLevel?.on && range(props.areaLevel)) q.query.filters.map_filters = { filters: { ...(q.query.filters.map_filters?.filters || {}), area_level: range(props.areaLevel) } };
     if (!useBase && props.category) q.query.filters.type_filters = { filters: { category: { option: props.category } } };
   } else {
@@ -769,6 +780,26 @@ function templeRooms(statsJson, item) {
   return out.sort((a, b) => rank(a) - rank(b));
 }
 
+// ---- Inscribed Ultimatum: searched by its reward and sacrifice (the trade site's Ultimatum filters) ----
+const ULTI_CHALLENGE = { 'defeat waves of enemies': 'Exterminate', survive: 'Survival', 'protect the altar': 'Defense', 'stand in the stone circles': 'Conquer' };
+function ultimatumOf(item) {
+  const p = item.properties || {};
+  const reward = String(p.Reward || '').trim();
+  const input = String(p['Requires Sacrifice'] || '').replace(/\s+x\d+$/i, '').trim();
+  const type = /divination card/i.test(reward) ? 'DoubleDivCards' : /currency/i.test(reward) ? 'DoubleCurrency' : /mirror/i.test(reward) ? 'MirrorRare' : reward ? 'ExchangeUnique' : null;
+  return { challenge: ULTI_CHALLENGE[String(p.Challenge || '').trim().toLowerCase()] || null, challengeText: p.Challenge || null, reward: type, rewardText: reward, input, output: type === 'ExchangeUnique' ? reward : null };
+}
+/** its modifiers ("Razor Dance"), each a trade stat, none ticked: the reward and sacrifice make the price */
+function ultimatumMods(statsJson, item) {
+  const byName = new Map();
+  for (const g of statsJson?.result || []) if (g.id === 'ultimatum') for (const e of g.entries || []) byName.set(e.text.toLowerCase(), e);
+  return (item.mods?.explicit || []).filter((t) => /^[A-Z][A-Za-z' -]+(?: [IV]+)?$/.test(t)).map((t) => {
+    const e = byName.get(t.toLowerCase());
+    return e ? { id: e.id, text: t, statText: e.text, display: null, value: null, negate: false, type: 'ultimatum', group: 'ultimatum', enabled: false, min: null, max: null, meta: null }
+      : { id: null, text: t, type: 'ultimatum', group: 'ultimatum', enabled: false, unmatched: true, meta: null };
+  });
+}
+
 function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
   const PF = require('./price-filters');
   const kind = classify(item);
@@ -789,6 +820,7 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     return { mods, props, presets: null };
   }
   if (/^Chronicle of Atzoatl$/i.test(item.typeLine || item.baseType || '')) return { mods: templeRooms(statsJson, item), props, presets: null };
+  if (/^Inscribed Ultimatum$/i.test(item.typeLine || item.baseType || '')) return { mods: ultimatumMods(statsJson, item), props, presets: null };
   const rows = itemRows(idx, item, tolerance);
   const plain = kind === 'rare' || kind === 'magic' || kind === 'normal';
   const cls = String(item.itemClass || '');

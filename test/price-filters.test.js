@@ -774,3 +774,16 @@ test('maps: not corrupted ones search not corrupted; other special map implicits
   const c = q(map("Map contains Baran's Citadel"));
   assert.ok(!c.stats[1].filters.some((f) => f.id === 'implicit.stat_2563183002'));
 });
+
+test('an Inscribed Ultimatum is searched by its reward and sacrifice; a unique reward by the unique', () => {
+  const stats = { result: [{ id: 'ultimatum', entries: [{ id: 'ultimatum.umod_7052', text: 'Razor Dance', type: 'ultimatum' }] }] };
+  const ulti = (reward, sac) => parseItem(`Item Class: Misc Map Items\nRarity: Currency\nInscribed Ultimatum\n--------\nChallenge: Survive\nArea Level: 83\nRequires Sacrifice: ${sac}\nReward: ${reward}\n--------\nRazor Dance\n(Blades will periodically appear and fly at you, applying Corrupted Blood on Hit)\n--------\nCan be used in a personal map device to open portals to the Trialmaster's Domain.\n`);
+  const q = (it) => { const r = T.prepareSearch(stats, it); return { r, q: T.buildQuery(it, r.mods, { props: r.props }).query }; };
+  const a = q(ulti('Doubles sacrificed Divination Cards', 'The Rite of Elements x3'));
+  assert.deepEqual(a.q.filters.ultimatum_filters.filters, { ultimatum_reward: { option: 'DoubleDivCards' }, ultimatum_input: { option: 'The Rite of Elements' } });
+  assert.deepEqual(a.r.mods.map((m) => [m.id, m.enabled]), [['ultimatum.umod_7052', false]]);
+  a.r.props.ultimatum.challengeOn = true;
+  assert.equal(T.buildQuery(ulti('Doubles sacrificed Divination Cards', 'The Rite of Elements x3'), a.r.mods, { props: a.r.props }).query.filters.ultimatum_filters.filters.ultimatum_challenge.option, 'Survival');
+  const u = q(ulti('Mageblood', 'Headhunter'));
+  assert.deepEqual(u.q.filters.ultimatum_filters.filters, { ultimatum_reward: { option: 'ExchangeUnique' }, ultimatum_input: { option: 'Headhunter' }, ultimatum_output: { option: 'Mageblood' } });
+});

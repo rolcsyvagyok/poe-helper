@@ -22,6 +22,7 @@ const GROUPS = [
   // a Chronicle of Atzoatl's rooms
   ['temple', 'Open rooms'],
   ['temple-closed', 'Obstructed rooms'],
+  ['ultimatum', 'Ultimatum modifiers'],
 ];
 const STATUSES = [['securable', 'Instant buyout'], ['available', 'Instant buyout + in person'], ['online', 'In person, online'], ['any', 'Any']];
 
@@ -261,6 +262,19 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   rangeRow('gemLevel', 'Gem level');
   rangeRow('storedExp', 'Stored experience (million)');
   rangeRow('mapTier', 'Map tier');
+  // an Inscribed Ultimatum: its reward, its sacrifice, the unique it gives, its challenge: each a tick (top of the panel)
+  if (props.ultimatum?.show) {
+    const u = props.ultimatum;
+    const REWARD = { DoubleDivCards: 'Divination Cards', DoubleCurrency: 'Currency', MirrorRare: 'Mirrored Rare Item', ExchangeUnique: 'Unique Item' };
+    const tick = (key, label) => {
+      const cb = h('input', { type: 'checkbox', checked: !!u[key], 'aria-label': label, onchange: (e) => { u[key] = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', u[key]); } });
+      topRows.push(h('div', { class: 'tp-mod' + (u[key] ? ' on' : '') }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, label)), h('span', { class: 'tp-num-empty' }), h('span', { class: 'tp-dash' }), h('span', { class: 'tp-num-empty' })));
+    };
+    if (u.reward) tick('rewardOn', `Reward: ${REWARD[u.reward] || u.rewardText}`);
+    if (u.input) tick('inputOn', `Sacrifice: ${u.input}`);
+    if (u.output) tick('outputOn', `Reward unique: ${u.output}`);
+    if (u.challenge) tick('challengeOn', `Challenge: ${u.challengeText}`);
+  }
   rangeRow('areaLevel', 'Area level');
   // "rare" in the header: only rares (else rares and magic items of the base)
   if (props.rareOnly?.show) {

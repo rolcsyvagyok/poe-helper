@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.161 - 2026-11-23
+
+* Price check: Inscribed Ultimatums are searched on the trade site by their reward and sacrifice (and the unique for a unique reward); the challenge and each modifier can be ticked too.
+- Price check: an Inscribed Ultimatum was sent to the bulk exchange. It now gets a normal search with the trade site's Ultimatum filters: reward type and sacrificed item ticked, the reward unique ticked for a unique swap, the challenge type and area level unticked, and its modifiers listed (unticked).
+
 ## 1.0.160 - 2026-11-23
 
 * Price check: maps compare with maps like them: a not corrupted map searches not corrupted ones, and an Originator map no longer finds Originator maps that are also conqueror, Elder guardian or Shaper / Elder maps.
