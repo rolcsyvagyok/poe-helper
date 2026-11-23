@@ -203,17 +203,69 @@ async function renderFiltersNow() {
     if (!st) return null;
     const own = st.own;
     const cur = st.level ?? own;
-    const pick = async (lv) => {
+    const apply = async (lv) => {
       const level = lv === own ? null : lv; // your download's own level: nothing to change
+      FB.strictPreview = null;
       await call('filter:strictness', level);
       toast(`Strictness: ${st.levels[lv]}. Select the filter in game again`);
       renderFilters();
     };
+    // first a list of what would change; the strictness is switched from there
+    const pick = async (lv) => {
+      if (lv === cur) { FB.strictPreview = null; renderFilters(); return; }
+      try { FB.strictPreview = await call('filter:strictnessPreview', lv === own ? null : lv); } catch (e) { toast(e.message); return; }
+      FB.strictPreview.lv = lv;
+      renderFilters();
+    };
+    const P = FB.strictPreview && FB.strictPreview.lv !== cur ? FB.strictPreview : null;
+    const WORD = { Show: 'Shown', Hide: 'Hidden', Off: 'Off' };
+    const previewBox = P ? (() => {
+      const lessShown = P.changes.filter((c) => c.before === 'Show').length;
+      const moreShown = P.changes.filter((c) => c.after === 'Show').length;
+      const groups = new Map();
+      for (const c of P.changes) { if (!groups.has(c.label)) groups.set(c.label, []); groups.get(c.label).push(c); }
+      return h('div', { class: 'panel fb-strict-prev', role: 'region', 'aria-label': `What ${P.toName} changes` },
+        h('div', { class: 'row', style: { gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' } },
+          h('b', {}, `${P.fromName || 'Now'} → ${P.toName}`),
+          h('span', { class: 'muted small' }, !P.changes.length ? 'nothing changes in your tiers'
+            : [lessShown ? `− ${lessShown} ${lessShown === 1 ? 'tier' : 'tiers'} no longer shown` : '', moreShown ? `+ ${moreShown} ${moreShown === 1 ? 'tier' : 'tiers'} shown again` : ''].filter(Boolean).join(' · ')),
+          h('span', { class: 'spacer' }),
+          h('button', { class: 'primary sm', onclick: () => apply(P.lv) }, `Switch to ${P.toName}`),
+          h('button', { class: 'quiet sm', onclick: () => { FB.strictPreview = null; renderFilters(); } }, 'Cancel')),
+        P.changes.length ? h('div', { class: 'fb-sp-list' }, (() => {
+          // one fold per category (closed: its counts and first items); campaign-only categories at the end
+          const lvl = (l) => /levell?ing|first levels|act \d/i.test(l);
+          const fold = ([label, list]) => {
+            const gone = list.filter((c) => c.before === 'Show');
+            const back = list.filter((c) => c.after === 'Show');
+            const items = [...new Set(gone.flatMap((c) => (c.catchAll ? [] : c.bases)))];
+            return h('details', { class: 'fb-sp-group' },
+              h('summary', {},
+                h('span', { class: 'fb-sp-cat' }, label),
+                gone.length ? h('span', { class: 'fb-sp-count gone' }, `− ${gone.length}`) : null,
+                back.length ? h('span', { class: 'fb-sp-count back' }, `+ ${back.length}`) : null,
+                h('span', { class: 'small muted fb-sp-items' }, items.length ? `${items.slice(0, 5).join(', ')}${items.length > 5 ? ` +${items.length - 5} more` : ''}` : gone.some((c) => c.catchAll) ? 'everything else in this category' : '')),
+              list.map((c) => {
+                const g = c.before === 'Show';
+                return h('div', { class: `fb-sp-row ${g ? 'gone' : 'back'}` },
+                  h('span', { class: 'fb-sp-sign', 'aria-hidden': 'true' }, g ? '−' : '+'),
+                  h('span', { class: 'fb-sp-name' }, tierName(c)),
+                  h('span', { class: 'fb-sp-move' }, `${WORD[c.before] || c.before} → ${WORD[c.after] || c.after}`),
+                  h('span', { class: 'small muted fb-sp-items', title: c.bases.join(', ') }, c.catchAll ? 'everything else in this category' : `${c.bases.slice(0, 6).join(', ')}${c.count > 6 ? ` +${c.count - 6} more` : ''}`));
+              }));
+          };
+          const all = [...groups];
+          const main = all.filter(([l]) => !lvl(l));
+          const camp = all.filter(([l]) => lvl(l));
+          return [...main.map(fold), camp.length ? h('div', { class: 'small muted', style: { marginTop: '6px' } }, 'Only while levelling (campaign):') : null, ...camp.map(fold)];
+        })()) : null);
+    })() : null;
     return h('div', { class: 'fb-strict' },
       h('div', { class: 'row', role: 'group', 'aria-label': 'Strictness', style: { gap: '4px', flexWrap: 'wrap' } },
         h('span', { class: 'muted', style: { marginRight: '6px' } }, 'Strictness'),
         st.levels.map((name, i) => h('button', { class: i === cur ? 'primary sm' : 'sm', 'aria-pressed': i === cur ? 'true' : 'false', title: st.notes[i], onclick: () => pick(i) }, `${i === cur ? '● ' : ''}${name}${i === own ? ' (FilterBlade)' : ''}`))),
-      h('p', { class: 'small muted', style: { margin: '4px 0 0' } }, cur != null ? `${st.levels[cur]}: ${st.notes[cur]} ` : '', 'Each step hides more low value items. Your own tier changes stay on top.'));
+      h('p', { class: 'small muted', style: { margin: '4px 0 0' } }, cur != null ? `${st.levels[cur]}: ${st.notes[cur]} ` : '', 'Each step hides more low value items. Pick one to see what changes first. Your own tier changes stay on top.'),
+      previewBox);
   })();
 
   const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['check', 'Check an item']].map(([id, label]) =>
@@ -520,7 +572,7 @@ function renderTiers(body, view) {
       const size = window.UI.normalizeStyle(st).fontSize || 32;
       // one zoom per name, worked out for the biggest text (45), so a smaller text size really looks smaller
       const scale = Math.max(0.55, Math.min(1, 500 / (sample.length * 45 * 0.6 * 0.6 + 40)));
-      mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, game: true, hidden: t.action === 'Hide' || (type.type === 'maps' && mapTierNo(t) > 0 && ((S.settings.mapHide?.below16 && mapTierNo(t) < 16) || (S.settings.mapHide?.white && mapTierNo(t) <= 5) || (S.settings.mapHide?.yellow && mapTierNo(t) >= 6 && mapTierNo(t) <= 10))) }), soundButton(window.UI.normalizeStyle(st).sound));
+      mount(preview, dropLabel(sample, st, { rarity: rarityFor(type.type), scale, game: true, hidden: (t.action === 'Hide' && !t.allCurrency) || (type.type === 'maps' && mapTierNo(t) > 0 && ((S.settings.mapHide?.below16 && mapTierNo(t) < 16) || (S.settings.mapHide?.white && mapTierNo(t) <= 5) || (S.settings.mapHide?.yellow && mapTierNo(t) >= 6 && mapTierNo(t) <= 10))) }), soundButton(window.UI.normalizeStyle(st).sound));
     };
     drawPreview();
     const folded = FB.collapsed.has(t.key);
@@ -536,7 +588,9 @@ function renderTiers(body, view) {
       renderFilters();
     };
     const visSwitch = t.generated || /^gear->(tiered|memorystrand)$/.test(type.type) ? null : h('div', { class: 'fb-vis', role: 'group', 'aria-label': `${tierName(t)} in game` },
-      [['Show', 'Shown', 'Items in this tier show with this look'], ['Hide', 'Hidden', 'Items in this tier are hidden'], ['Off', 'Off', 'Switched off, like FilterBlade\'s strictness does: the game skips this tier and the items fall through to the rules below it']].map(([v, label, tip]) =>
+      [['Show', 'Shown', 'Items in this tier show with this look'], ['Hide', 'Hidden', 'Items in this tier are hidden'], ['Off', 'Off', 'Switched off, like FilterBlade\'s strictness does: the game skips this tier and the items fall through to the rules below it']]
+        // Off only where the filter switched the tier off (or it is off now): elsewhere Shown and Hidden are all you need
+        .filter(([v]) => v !== 'Off' || state === 'Off' || t.origState === 'Off').map(([v, label, tip]) =>
         h('button', { class: state === v ? `on${v === 'Hide' ? ' hide' : v === 'Off' ? ' off' : ''}` : '', title: tip, 'aria-pressed': state === v ? 'true' : 'false', onclick: () => setAction(v) }, label)));
     const head = h('div', { class: 'fb-tier-head ground' },
       fold,
@@ -544,6 +598,7 @@ function renderTiers(body, view) {
       h('div', { class: 'fb-tier-meta' },
         h('div', { class: 'fb-tier-name' }, tierName(t),
           t.mine ? h('span', { class: 'pill', style: { marginLeft: '8px' } }, 'Your tier') : null,
+          t.allCurrency ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'Your filter hides this tier, but "Show all currency" (Loot filter → Currency) shows it. Press Hidden to keep it hidden anyway.' }, 'Shown by "Show all currency"') : null,
           t.mine ? h('button', { class: 'quiet sm', title: 'Rename this tier', 'aria-label': `Rename ${tierName(t)}`, onclick: async () => { const n = prompt('Name of this tier', tierName(t)); if (n && n.trim()) { await call('tiers:rename', { type: type.type, tier: t.tier, name: n }); renderFilters(); } } }, '✎') : null,
           t.mine ? h('button', { class: 'quiet sm', title: 'Delete this tier; its items go back to where the filter had them', 'aria-label': `Delete ${tierName(t)}`, onclick: async () => { if (!confirm(`Delete ${tierName(t)}? Its items go back to where your filter had them.`)) return; await call('tiers:remove', { type: type.type, tier: t.tier }); delete FB.prices[type.type]; toast(`${tierName(t)} deleted`); renderFilters(); } }, 'Delete') : null, changedAction ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, changedAction === 'Hide' ? 'Hidden by you' : changedAction === 'Off' ? 'Off by you' : t.origState === 'Off' ? 'Switched on by you' : 'Shown by you') : !changedAction && state === 'Off' ? h('span', { class: 'pill', style: { marginLeft: '8px' }, title: 'FilterBlade switched this tier off for your strictness. Press Shown to use it.' }, 'Off in FilterBlade') : null, edited.has(t.key) ? h('span', { class: 'pill warn', style: { marginLeft: '8px' } }, 'Your look') : null, mapHidePill(t)),
         h('div', { class: 'small', style: { color: '#9a9f8c' } }, t.hasBaseList ? `${t.bases.length} ${t.bases.length === 1 ? 'base' : 'bases'}` : t.special ? 'Special case' : 'Catches the rest of this category',

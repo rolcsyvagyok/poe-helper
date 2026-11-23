@@ -316,14 +316,22 @@
     const newBtn = h('button', { class: 'primary', onclick: async () => { const s = await save({ name: `Strategy ${L.strategies.length + 1}` }, true); if (s) toast('New strategy: paste an atlas tree link, or click passives on the tree'); } }, window.UI.icon('plus', { size: 15 }), ' New strategy');
     const head = window.pageHead('Atlas strategies', 'Your farms: the atlas tree, threads and maps each one uses, and what its sessions earned. Start a session here and WealthyExile measures it.', newBtn);
 
-    const cards = h('div', { class: 'at-list' }, L.strategies.length ? L.strategies.map((s) => h('button', {
+    const card = (s) => h('button', {
       class: 'at-card' + (s.id === A.sel ? ' on' : ''), onclick: () => { A.sel = s.id; A.hoverCat = null; render(true); },
     },
       h('div', { class: 'at-card-h' }, h('b', {}, s.name), s.total.running ? h('span', { class: 'at-live' }, '● Running') : null),
       h('div', { class: 'small muted' }, s.summary ? s.summary.top.map((t) => t.name).join(' · ') : 'No tree yet'),
       h('div', { class: 'at-card-n small' },
         h('span', {}, s.total.perHour != null ? `${sign(s.total.perHour, d)} / h` : 'No sessions yet'),
-        s.costPerMap ? h('span', { class: 'faint' }, `${fmtC(s.costPerMap, d)} a map`) : null))) : h('p', { class: 'small muted' }, 'No strategies yet. Click "New strategy".'));
+        s.costPerMap ? h('span', { class: 'faint' }, `${fmtC(s.costPerMap, d)} a map`) : null));
+    // yours first; the guide's strategies after, by their group
+    const mine = L.strategies.filter((s) => !s.guide);
+    const guideGroups = new Map();
+    for (const s of L.strategies.filter((x) => x.guide)) { const g = s.guide.group || 'Guides'; if (!guideGroups.has(g)) guideGroups.set(g, []); guideGroups.get(g).push(s); }
+    const cards = h('div', { class: 'at-list' }, L.strategies.length ? [
+      ...mine.map(card),
+      ...[...guideGroups].flatMap(([g, list]) => [h('div', { class: 'at-group small muted' }, `From the guides: ${g}`), ...list.map(card)]),
+    ] : h('p', { class: 'small muted' }, 'No strategies yet. Click "New strategy".'));
 
     const body = h('div', { class: 'at-body' }, S ? strategyView(S, L) : h('div', { class: 'panel empty' }, 'Make a strategy for each way you farm: Breach with Breach threads, Beasts and Heist, Originator maps… Paste its atlas tree link from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com or a maxroll.gg strategy, or click it together on the tree.'));
     window.UI.keepScroll ? window.UI.keepScroll(() => mount(page, head, h('div', { class: 'at-page' }, cards, body))) : mount(page, head, h('div', { class: 'at-page' }, cards, body));
@@ -478,9 +486,13 @@
         : h('p', { class: 'small muted' }, 'Start a session when you begin farming this way and stop it when you\'re done. WealthyExile takes a snapshot at both ends; what your stash gained is the session\'s result.'),
       T.perMap != null && S.costPerMap ? h('p', { class: 'small muted' }, `Each map costs about ${chaosDiv(S.costPerMap, d)} in threads and items. If you buy them outside the tracked tabs, take that off: about ${sign(T.perMap - S.costPerMap, d)} a map.`) : null);
 
-    const notes = h('textarea', { class: 'at-notes', rows: 3, placeholder: 'Notes: map choice, scarabs, how to run it…', onchange: (e) => save({ id: S.id, notes: e.target.value }, true) }, S.notes || '');
+    const notes = h('textarea', { class: 'at-notes', rows: 3, placeholder: 'Notes: map choice, threads, how to run it…', onchange: (e) => save({ id: S.id, notes: e.target.value }, true) }, S.notes || '');
 
-    return h('div', { class: 'at-detail' }, top, h('div', { class: 'panel at-link' }, linkRow, linkInfo), setup,
+    // a strategy from the poeatlasplanner.com guide: whose tree it is, and where it came from
+    const guideInfo = S.guide ? h('div', { class: 'small at-guide' },
+      h('b', {}, S.guide.author), ` · ${S.guide.about} `,
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); call('shell:open', S.guide.source).catch(() => {}); } }, 'Tree from the poeatlasplanner.com guide')) : null;
+    return h('div', { class: 'at-detail' }, top, h('div', { class: 'panel at-link' }, guideInfo, linkRow, linkInfo), setup,
       h('div', { class: 'at-main' }, h('div', { class: 'at-treecol' }, treeBar, treeBox, h('div', { class: 'small faint' }, 'Drag to move, scroll to zoom. Gold: taken. Blue ring: the group you point at on the right.')), fx),
       sessions, h('div', { class: 'panel' }, h('b', {}, 'Notes'), notes),
       null);

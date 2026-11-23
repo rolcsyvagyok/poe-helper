@@ -114,3 +114,14 @@ test('a maxroll.gg farming strategy: its atlas tree, choices, threads and map', 
   assert.deepEqual(r.threads, [{ name: 'Legion Thread', count: 8 }, { name: 'Abyss Thread', count: 8 }, { name: 'Bestiary Thread', count: 8 }]);
   assert.deepEqual(r.map, { name: 'Dunes Map', tier: 16 });
 });
+
+test('the poeatlasplanner.com guide strategies all read fully', () => {
+  const P = require('../src/core/atlas-presets.json');
+  assert.equal(P.presets.length, 17);
+  for (const p of P.presets) {
+    const r = A.parseLink(p.link, tree);
+    assert.ok(r.nodes.length >= 30, p.id);
+    assert.equal(r.unknown || 0, 0, p.id);
+    assert.ok(p.author && p.name && p.about && p.group, p.id);
+  }
+});

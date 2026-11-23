@@ -1287,7 +1287,11 @@ function updateBox() {
     mount(btns,
       u?.state === 'ready' ? h('button', { class: 'primary', onclick: () => call('update:install') }, 'Restart to update') : null,
       u?.state !== 'dev' && u?.state !== 'ready' ? h('button', { disabled: u?.state === 'checking' || u?.state === 'downloading', onclick: async () => draw(await call('update:check')) }, 'Check now') : null,
-      h('button', { title: 'Opens the folder with poe-helper.log and poe-helper-errors.log. Send these when something broke.', onclick: () => call('app:openLogs').catch(() => {}) }, 'Open logs'));
+      h('button', { title: 'Opens the folder with poe-helper.log and poe-helper-errors.log. Send these when something broke.', onclick: () => call('app:openLogs').catch(() => {}) }, 'Open logs'),
+      h('button', { title: 'Puts the logs, your settings (without your login) and your loot filters in one zip on your Desktop. Nothing is sent: pass the file on to whoever helps you.', onclick: async (e) => {
+        e.target.disabled = true;
+        try { const r = await call('app:report'); toast(`Report saved: ${r.file.split(/[\\/]/).pop()} (on your Desktop). Send that file.`); } catch (err) { toast(`Couldn't make the report: ${err.message}`); } finally { e.target.disabled = false; }
+      } }, 'Make a report'));
   };
   call('update:status').then(draw).catch(() => {});
   window.poe.on('update:status', draw);

@@ -232,7 +232,7 @@ function lockNavigation(win) {
 function openExternal(url) {
   try {
     const u = new URL(url);
-    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com|pobb\.in|pob\.codes|poeprices\.info)$/.test(u.hostname);
+    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com|pobb\.in|pob\.codes|poeprices\.info|poeatlasplanner\.com|maxroll\.gg)$/.test(u.hostname);
     if (ok) shell.openExternal(u.toString());
   } catch { /* ignore */ }
 }
@@ -1474,6 +1474,7 @@ function registerIpc() {
   handle('maps:hide', (a) => services.setMapHide(a || {}));
   handle('currency:showAll', (on) => services.setShowAllCurrency(on));
   handle('filter:strictness', (level) => services.setStrictness(level));
+  handle('filter:strictnessPreview', (level) => services.strictnessPreview(level));
   handle('bases:add', (a) => services.addMyBase(a || {}));
   handle('bases:update', ({ id, patch }) => services.updateMyBase(String(id), patch || {}));
   handle('bases:remove', (id) => services.removeMyBase(String(id)));
@@ -1680,6 +1681,18 @@ function registerIpc() {
   // an error in a window: written to the error log with where it happened
   handle('app:error', (e = {}) => { logError(`window error (${String(e.page || '?').slice(0, 40)})`, Object.assign(new Error(String(e.message || 'unknown').slice(0, 500)), { stack: String(e.stack || '').slice(0, 4000) })); return true; });
   handle('app:openLogs', () => shell.openPath(app.getPath('userData')));
+  // one zip on the Desktop with what's needed to find a problem (no login): shown in Explorer to send on
+  handle('app:report', () => {
+    const files = services.reportFiles({ hotkeys: hotkeyStatus, gameFound: (() => { try { return require('./foreground').poeInFront() !== null; } catch { return null; } })() });
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '');
+    let dir = app.getPath('userData');
+    try { dir = app.getPath('desktop'); } catch { /* no desktop */ }
+    const file = path.join(dir, `PoE Helper report ${stamp}.zip`);
+    fs.writeFileSync(file, require('../core/zip').makeZip(files));
+    log('report made', file, files.map((f) => f.name).join(', '));
+    shell.showItemInFolder(file);
+    return { file, files: files.map((f) => f.name) };
+  });
   handle('lab:get', (a) => services.labLayout(a || {}));
   handle('lab:show', (diff) => { toggleLab(services.LAB_DIFFS.some((d) => d.id === diff) ? diff : services.settings.get('labLast') || 'uber'); return true; });
   handle('lab:hide', () => { labWin?.hide(); return true; });

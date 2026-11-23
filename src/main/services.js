@@ -13,7 +13,7 @@ const { Pricer } = require('../core/pricer');
 const { parseItem, classify } = require('../core/item-parser');
 const { matchItemMods, buildQuery, summarizeListings, defaultProps } = require('../core/trade');
 const { NetWorthTracker } = require('../core/networth');
-const { FilterManager, economyRules, quickRule, SOUNDS, DEFAULT_TIER_SOUNDS, MY_BASES_STYLE } = require('../core/filter/manager');
+const { FilterManager, economyRules, quickRule, SOUNDS, DEFAULT_TIER_SOUNDS, MY_BASES_STYLE, helperPathFor } = require('../core/filter/manager');
 const { explain } = require('../core/filter/matcher');
 const tiers = require('../core/filter/tiers');
 const strictness = require('../core/filter/strictness');
@@ -1079,6 +1079,54 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     } finally { gigaBusy = false; }
   }
 
+  // the tiers as the game will have them at a strictness level (your own changes on top)
+  function viewAtLevel(text, patch, level) {
+    // tiers show what the game will do (with your strictness); "by you" marks only your own changes
+    // base ranks sort rares into FilterBlade's rare tiers (as the written filter has them); your moves win
+    let shown = patch;
+    if (settings.get('rankRareTiers') !== false) {
+      const { rareTierMoves } = require('../core/filter/manager');
+      const rm = rareTierMoves(text, settings.get('baseRanks') || {}, require('../core/filter/manager').RANKED_NAMES || []);
+      shown = { ...patch, moves: { ...rm, ...(patch.moves || {}) } };
+    }
+    const sp = strictness.withStrictness(text, shown, level);
+    const view = tiers.tierView(text, sp);
+    view.editedActions = patch.actions || {};
+    // "Show all currency" shows the currency tiers the filter itself hides (not yours, not your strictness's):
+    // the tiers say so, as the game will show them
+    if (settings.get('showAllCurrency')) {
+      for (const t of view.types) if (/^currency(->|$)/.test(t.type)) for (const x of t.tiers) {
+        if (x.state === 'Hide' && sp.actions?.[x.key] !== 'Hide') { x.state = 'Show'; x.allCurrency = true; }
+      }
+    }
+    return view;
+  }
+
+  /**
+   * What a strictness level would change before you pick it: every tier whose state (Shown, Hidden, Off) differs
+   * from now, with its items. { from, to, changes: [{ type, label, key, tier, name, mine, before, after, bases }] }
+   */
+  function strictnessPreview(level) {
+    const now = tierViewNow();
+    if (!now) throw new Error('Choose your filter first.');
+    const text = filters.readBase();
+    const lv = level == null || level === '' ? strictness.levelOf(text) : Math.max(0, Math.min(strictness.LEVELS.length - 1, Math.round(Number(level))));
+    const next = viewAtLevel(text, settings.get('tierPatch') || {}, lv);
+    const stateOf = (x) => x.state || (x.off ? 'Off' : x.action);
+    const before = new Map(now.types.flatMap((t) => t.tiers.map((x) => [x.key, stateOf(x)])));
+    const changes = [];
+    for (const t of next.types) for (const x of t.tiers) {
+      const was = before.get(x.key);
+      const will = stateOf(x);
+      if (!was || was === will) continue;
+      if (x.hasBaseList && !(x.bases || []).length) continue; // an empty tier: nothing changes in game
+      changes.push({ type: t.type, label: t.label, key: x.key, tier: x.tier, customName: x.customName || null, mine: !!x.mine, before: was, after: will, bases: (x.bases || []).slice(0, 40), count: (x.bases || []).length, catchAll: !x.hasBaseList });
+    }
+    const L = strictness.LEVELS;
+    const from = now.strictness?.level ?? now.strictness?.own ?? null;
+    return { from, fromName: L[from] ?? null, to: lv, toName: L[lv], changes };
+  }
+
   function tierViewNow() {
     const base = filters.basePath();
     if (!base) return null;
@@ -1088,19 +1136,10 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     let head = '';
     try { const fd = require('fs').openSync(base, 'r'); const buf = Buffer.alloc(2048); require('fs').readSync(fd, buf, 0, 2048, 0); require('fs').closeSync(fd); head = buf.toString('utf8'); } catch { /* read below */ }
     const level = strictness.levelFor(settings.get('strictness'), head, base);
-    const sig = `${base}|${mtime}|${level}|${JSON.stringify(patch)}`;
+    const sig = `${base}|${mtime}|${level}|${!!settings.get('showAllCurrency')}|${JSON.stringify(patch)}`;
     if (viewCache?.sig !== sig) {
       const text = filters.readBase();
-      // tiers show what the game will do (with your strictness); "by you" marks only your own changes
-      // base ranks sort rares into FilterBlade's rare tiers (as the written filter has them); your moves win
-      let shown = patch;
-      if (settings.get('rankRareTiers') !== false) {
-        const { rareTierMoves } = require('../core/filter/manager');
-        const rm = rareTierMoves(text, settings.get('baseRanks') || {}, require('../core/filter/manager').RANKED_NAMES || []);
-        shown = { ...patch, moves: { ...rm, ...(patch.moves || {}) } };
-      }
-      const view = tiers.tierView(text, strictness.withStrictness(text, shown, level));
-      view.editedActions = patch.actions || {};
+      const view = viewAtLevel(text, patch, level);
       // scrolls and lifeforce always get their own colours in the written filter: show them that way here
       const { fixedLookOf } = require('../core/filter/manager');
       for (const t of view.types) for (const x of t.tiers) {
@@ -1378,8 +1417,9 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
 
   function setTierAction(key, action) {
     const tier = tierViewNow()?.types.flatMap((t) => t.tiers).find((t) => t.key === key);
-    // back to what FilterBlade had: drop the change rather than store a no-op
-    if (tier && action === tier.origState) action = null;
+    // back to what FilterBlade had: drop the change rather than store a no-op. A Hide is always kept: with
+    // "Show all currency" on, only tiers you hid yourself stay hidden (FilterBlade's own hides are shown)
+    if (tier && action === tier.origState && action !== 'Hide') action = null;
     return savePatch(tiers.withAction(settings.get('tierPatch') || {}, key, action));
   }
 
@@ -2209,11 +2249,30 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return { id: sess.id, name: sess.name, start: sess.start, end: sess.end, hours, gained, perHour: gained != null && hours > 0.05 ? gained / hours : null, maps, perMap: gained != null && maps ? gained / maps : null };
   }
 
+  // community strategies from poeatlasplanner.com's guide, added once (credited; deleted ones don't come back)
+  function addGuidePresets(tree) {
+    if (settings.get('atlasPresetsV1')) return;
+    const P = require('../core/atlas-presets.json');
+    const have = new Set(strategiesAll().map((x) => x.presetId).filter(Boolean));
+    const added = [];
+    for (const p of P.presets) {
+      if (have.has(p.id)) continue;
+      let r;
+      try { r = Atlas.parseLink(p.link, tree); } catch (e) { log('guide preset', p.id, e.message); continue; }
+      added.push({ id: p.id, presetId: p.id, created: Date.now(), name: `${p.author} · ${p.name}`, link: p.link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown,
+        threads: p.threads || [], guide: { author: p.author, group: p.group, about: p.about, source: P.source } });
+    }
+    settings.set('atlasStrategies', [...strategiesAll(), ...added]);
+    settings.set('atlasPresetsV1', true);
+    if (added.length) log('atlas strategies: added', added.length, 'from the poeatlasplanner.com guide');
+  }
+
   async function atlasList() {
     const league = await getLeague();
-    const list = strategiesAll();
     let tree = null; let treeError = null;
     try { tree = await atlasTreeData(); } catch (e) { treeError = e.message; }
+    if (tree) addGuidePresets(tree);
+    const list = strategiesAll();
     const names = list.flatMap((s) => [...threadsOf(s).map((t) => t.name), ...(s.inputs || []).map((i) => i.name)]);
     const prices = await namePrices(names, league).catch(() => new Map());
     const divine = await ninja.divinePrice(league).catch(() => null);
@@ -3075,7 +3134,37 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   // the rank upgrade runs at start, so the filter gets the new ranking without opening the page
   try { if ((migrateRanks() || kindsChanged) && filters.basePath()) filters.write(); } catch (e) { log('ranks upgrade', e.message); }
 
-  return { setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  // ---------------- bug report ----------------
+  // What a report holds: the logs, the settings without the login or contact, the filter the game reads and
+  // the filter it is made from, and a short summary. Nothing is sent: the player passes the file on himself.
+  const REPORT_DROP = /^(sessionEnc|contact|accountName)$|Enc$|token|secret|password/i;
+  function reportFiles(extra = {}) {
+    const fs = require('fs');
+    const files = [];
+    const add = (name, file) => { try { if (fs.existsSync(file) && fs.statSync(file).isFile()) files.push({ name, data: fs.readFileSync(file) }); } catch { /* skip */ } };
+    for (const n of ['poe-helper.log', 'poe-helper.log.old', 'poe-helper-errors.log', 'poe-helper-errors.log.old']) add(n, path.join(dataDir, n));
+    const clean = {};
+    for (const [k, v] of Object.entries(settings.data || {})) clean[k] = REPORT_DROP.test(k) ? (v ? '(left out)' : v) : v;
+    files.push({ name: 'settings.json', data: JSON.stringify(clean, null, 2) });
+    let base = null; let helper = null;
+    try { base = filters.basePath(); } catch { /* none */ }
+    if (base) {
+      add(`filters/${path.basename(base)}`, base);
+      try { helper = helperPathFor(base); add(`filters/${path.basename(helper)}`, helper); } catch { /* none */ }
+    }
+    const lines = [
+      `PoE Helper ${VERSION}`, `Made: ${new Date().toISOString()}`,
+      `Windows: ${require('os').release()} (${process.arch})`, `League: ${settings.get('leagueOverride') || '(auto)'}`,
+      `Base filter: ${base || '(none picked)'}`, `Filter the game reads: ${helper || '(none)'}${helper && fs.existsSync(helper) ? '' : ' (missing)'}`,
+      `Strictness: ${JSON.stringify(settings.get('strictness') || {})}`, `Show all currency: ${!!settings.get('showAllCurrency')}`,
+      `Client.txt set: ${!!settings.get('clientLogPath')}`,
+      ...Object.entries(extra).map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`),
+    ];
+    files.unshift({ name: 'report.txt', data: lines.join('\r\n') + '\r\n' });
+    return files;
+  }
+
+  return { strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

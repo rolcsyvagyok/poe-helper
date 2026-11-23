@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.165 - 2026-11-23
+
+* [Settings] "Make a report" puts the logs, your settings and your loot filters in one zip on your Desktop. When something is wrong, send that file to whoever helps you. Your login is never in it, and nothing is sent by the app.
+* [Tier designer] Fixed: with "Show all currency" on, a currency tier you hid could still show in game (when your FilterBlade filter already hid it). Your Hide is now always kept, and tiers that "Show all currency" brings back say so.
+* [Atlas strategies] 17 ready-made strategies from the poeatlasplanner.com guide are added to your list: league start trees, farming trees (Blight, Legion, red altars, Strongboxes…), Ultimatum and one-mechanic thread trees. Each says whose tree it is. Delete the ones you don't need.
+* [Tier designer] Picking a strictness first lists what would change: every tier that would be hidden or shown again, by category, with its items. Switch from there or cancel.
+- Tier designer: the "Off" button only shows on tiers your filter switched off, so you can switch them back; everywhere else it's Shown or Hidden.
+- Report: the zip holds poe-helper.log, poe-helper-errors.log, settings.json (without your POESESSID, account name or contact), the filter you picked, the filter the game reads, and a short summary (version, Windows, strictness, hotkeys).
+
 ## 1.0.164 - 2026-11-23
 
 * [Atlas strategies] A finished session has an "Open in WealthyExile" button that shows that session there.
