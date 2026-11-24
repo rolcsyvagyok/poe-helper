@@ -2251,22 +2251,36 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return { id: sess.id, name: sess.name, start: sess.start, end: sess.end, hours, gained, perHour: gained != null && hours > 0.05 ? gained / hours : null, maps, perMap: gained != null && maps ? gained / maps : null };
   }
 
-  // community strategies from poeatlasplanner.com's guide, added once (credited; deleted ones don't come back)
+  // community strategies from guide websites (poeatlasplanner.com, maxroll.gg): each added once, credited;
+  // deleted ones don't come back, and a website added later only brings its own
+  const PRESET_FILES = ['../core/atlas-presets.json', '../core/atlas-presets-maxroll.json'];
   function addGuidePresets(tree) {
-    if (settings.get('atlasPresetsV1')) return;
-    const P = require('../core/atlas-presets.json');
-    const have = new Set(strategiesAll().map((x) => x.presetId).filter(Boolean));
+    let seen = settings.get('atlasPresetsSeen');
+    if (!Array.isArray(seen)) seen = settings.get('atlasPresetsV1') ? require('../core/atlas-presets.json').presets.map((p) => p.id) : [];
+    const seenSet = new Set(seen);
     const added = [];
-    for (const p of P.presets) {
-      if (have.has(p.id)) continue;
-      let r;
-      try { r = Atlas.parseLink(p.link, tree); } catch (e) { log('guide preset', p.id, e.message); continue; }
-      added.push({ id: p.id, presetId: p.id, created: Date.now(), name: `${p.author} · ${p.name}`, link: p.link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown,
-        threads: p.threads || [], guide: { author: p.author, group: p.group, about: p.about, source: P.source } });
+    for (const file of PRESET_FILES) {
+      const P = require(file);
+      for (const p of P.presets) {
+        if (seenSet.has(p.id)) continue;
+        seenSet.add(p.id);
+        let r;
+        try {
+          if (p.maxroll) {
+            const m = Atlas.fromMaxroll({ name: p.name, data: { profiles: [{ atlas: { variants: [{ name: '', history: p.maxroll.history, masteries: p.maxroll.masteries }], strategy: { threads: p.maxroll.threads, device: p.maxroll.device } } }] } }, tree);
+            const known = m.nodes.filter((id) => tree.nodes.has(id));
+            r = { nodes: known, choices: Object.fromEntries(Object.entries(m.choices).filter(([k]) => known.includes(Number(k)))), from: 'maxroll.gg', unknown: m.nodes.length - known.length, threads: m.threads, mapName: m.map?.name };
+          } else r = Atlas.parseLink(p.link, tree);
+        } catch (e) { log('guide preset', p.id, e.message); continue; }
+        if (!r.nodes?.length) continue;
+        added.push({ id: p.id, presetId: p.id, created: Date.now(), name: `${p.author} · ${p.name}`, link: p.link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown,
+          threads: p.threads || r.threads || [], mapName: r.mapName || undefined, mapKind: p.mapKind || undefined,
+          guide: { author: p.author, group: p.group, about: p.about, source: p.source || P.source } });
+      }
     }
-    settings.set('atlasStrategies', [...strategiesAll(), ...added]);
-    settings.set('atlasPresetsV1', true);
-    if (added.length) log('atlas strategies: added', added.length, 'from the poeatlasplanner.com guide');
+    if (added.length) settings.set('atlasStrategies', [...strategiesAll(), ...added]);
+    settings.set('atlasPresetsSeen', [...seenSet]);
+    if (added.length) log('atlas strategies: added', added.length, 'from guide websites');
   }
 
   async function atlasList() {
@@ -2302,7 +2316,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
         const fx = tree && s.nodes?.length ? Atlas.effects(tree, s.nodes, s.choices || {}) : null;
         return {
           ...s, mapKind: kind, threads: threadsOf(s), costs, mapAuto: auto, costPerMap: Math.round(costPerMap * 100) / 100,
-          summary: fx ? { points: fx.points, notables: fx.notables, keystones: fx.keystones, top: fx.categories.slice(0, 4).map((c) => ({ name: c.name, count: c.nodes.length })) } : null,
+          summary: fx ? { points: fx.points, notables: fx.notables, keystones: fx.keystones, top: fx.categories.slice(0, 4).map((c) => ({ name: c.name, count: c.nodes.length })), cats: fx.categories.map((c) => ({ name: c.name, count: c.nodes.length })) } : null,
           effects: fx?.categories || [],
           sessions: runs,
           total: { hours, gained: done.length ? gained : null, perHour: hours > 0.05 ? gained / hours : null, maps: maps || null, perMap: maps ? gained / maps : null, running: runs.some((r) => !r.end) },
@@ -3166,7 +3180,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return files;
   }
 
-  return { strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { addGuidePresetsForTest: (tree) => addGuidePresets(tree), strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

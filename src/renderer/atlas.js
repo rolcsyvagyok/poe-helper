@@ -316,22 +316,57 @@
     const newBtn = h('button', { class: 'primary', onclick: async () => { const s = await save({ name: `Strategy ${L.strategies.length + 1}` }, true); if (s) toast('New strategy: paste an atlas tree link, or click passives on the tree'); } }, window.UI.icon('plus', { size: 15 }), ' New strategy');
     const head = window.pageHead('Atlas strategies', 'Your farms: the atlas tree, threads and maps each one uses, and what its sessions earned. Start a session here and WealthyExile measures it.', newBtn);
 
-    const card = (s) => h('button', {
-      class: 'at-card' + (s.id === A.sel ? ' on' : ''), onclick: () => { A.sel = s.id; A.hoverCat = null; render(true); },
-    },
-      h('div', { class: 'at-card-h' }, h('b', {}, s.name), s.total.running ? h('span', { class: 'at-live' }, '● Running') : null),
-      h('div', { class: 'small muted' }, s.summary ? s.summary.top.map((t) => t.name).join(' · ') : 'No tree yet'),
-      h('div', { class: 'at-card-n small' },
-        h('span', {}, s.total.perHour != null ? `${sign(s.total.perHour, d)} / h` : 'No sessions yet'),
-        s.costPerMap ? h('span', { class: 'faint' }, `${fmtC(s.costPerMap, d)} a map`) : null));
-    // yours first; the guide's strategies after, by their group
-    const mine = L.strategies.filter((s) => !s.guide);
-    const guideGroups = new Map();
-    for (const s of L.strategies.filter((x) => x.guide)) { const g = s.guide.group || 'Guides'; if (!guideGroups.has(g)) guideGroups.set(g, []); guideGroups.get(g).push(s); }
-    const cards = h('div', { class: 'at-list' }, L.strategies.length ? [
-      ...mine.map(card),
-      ...[...guideGroups].flatMap(([g, list]) => [h('div', { class: 'at-group small muted' }, `From the guides: ${g}`), ...list.map(card)]),
-    ] : h('p', { class: 'small muted' }, 'No strategies yet. Click "New strategy".'));
+    // ---- the list: a search over names, authors and mechanics; your strategies, then each website's ----
+    const q = (A.q || '').trim().toLowerCase();
+    const catsOf = (s) => (s.summary?.cats || s.summary?.top || []);
+    const hay = (s) => [s.name, s.guide?.author, s.guide?.group, s.mapKind, s.mapName, s.notes, ...(s.threads || []).map((t) => t.name), ...catsOf(s).map((c) => c.name)].filter(Boolean).join(' | ').toLowerCase();
+    const matchCat = (s) => (q ? catsOf(s).find((c) => c.name.toLowerCase().includes(q)) : null);
+    // searching: the ones with the most passives for that mechanic first
+    const shown = q ? L.strategies.filter((s) => hay(s).includes(q)).map((s, i) => [s, matchCat(s)?.count || 0, i]).sort((a, b) => b[1] - a[1] || a[2] - b[2]).map(([s]) => s) : L.strategies;
+    const card = (s) => {
+      const hit = matchCat(s);
+      // the 3 biggest mechanics as chips (the one you searched for first and marked)
+      const chips = [...(hit ? [hit] : []), ...(s.summary?.top || []).filter((t) => t.name !== hit?.name)].slice(0, 3);
+      const thr = (s.threads || []).length;
+      return h('button', { class: 'at-card' + (s.id === A.sel ? ' on' : ''), onclick: () => { A.sel = s.id; A.hoverCat = null; render(true); } },
+        h('div', { class: 'at-card-h' }, h('b', {}, s.guide ? s.name.replace(/^.*? · /, '') : s.name), s.total.running ? h('span', { class: 'at-live' }, '● Running') : null),
+        s.guide ? h('div', { class: 'at-by' }, `by ${s.guide.author}`) : null,
+        chips.length ? h('div', { class: 'at-chips' }, chips.map((c) => h('span', { class: 'at-chip' + (c === hit ? ' hit' : ''), title: `${c.count} passives for ${c.name}` }, c.name, h('i', {}, c.count))))
+          : h('div', { class: 'small faint' }, 'No tree yet'),
+        h('div', { class: 'at-card-n small' },
+          h('span', { class: s.total.perHour != null ? '' : 'faint' }, s.total.perHour != null ? `${sign(s.total.perHour, d)} / h` : 'No sessions yet'),
+          h('span', { class: 'faint' }, [thr ? `${thr} ${thr === 1 ? 'thread' : 'threads'}` : '', s.costPerMap ? `${fmtC(s.costPerMap, d)} a map` : ''].filter(Boolean).join(' · '))));
+    };
+    // sections: yours, then one per website (by its group inside); each folds, and remembers it
+    A.fold = A.fold || {};
+    const section = (id, title, list, sub) => {
+      const open = q ? true : A.fold[id] !== false;
+      return h('details', { class: 'at-sec', open, ontoggle: (e) => { if (!q) A.fold[id] = e.target.open; } },
+        h('summary', {}, h('span', { class: 'at-sec-t' }, title), h('span', { class: 'at-sec-n' }, String(list.length))),
+        sub ? sub : list.map(card));
+    };
+    const mine = shown.filter((s) => !s.guide);
+    const sites = new Map();
+    for (const s of shown.filter((x) => x.guide)) {
+      let site = 'Guides';
+      try { site = new URL(s.guide.source).hostname.replace(/^www\./, ''); } catch { /* keep */ }
+      if (!sites.has(site)) sites.set(site, []);
+      sites.get(site).push(s);
+    }
+    const siteBody = (list) => {
+      const groups = new Map();
+      for (const s of list) { const g = s.guide.group || ''; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(s); }
+      return [...groups].flatMap(([g, l]) => [g ? h('div', { class: 'at-group' }, g) : null, ...l.map(card)]);
+    };
+    const search = h('input', { type: 'search', class: 'at-search', value: A.q || '', placeholder: 'Find a mechanic, name or author', 'aria-label': 'Find strategies', list: 'at-mechs',
+      oninput: (e) => { A.q = e.target.value; clearTimeout(A.qT); A.qT = setTimeout(() => { render(true); const el = document.querySelector('.at-search'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 200); } });
+    const mechs = [...new Set(L.strategies.flatMap((s) => catsOf(s).map((c) => c.name)))].sort();
+    const cards = h('div', { class: 'at-list' },
+      search, h('datalist', { id: 'at-mechs' }, mechs.map((m) => h('option', { value: m }))),
+      !L.strategies.length ? h('p', { class: 'small muted' }, 'No strategies yet. Click "New strategy".')
+        : !shown.length ? h('p', { class: 'small muted' }, `No strategy has "${A.q}".`)
+          : [mine.length || !q ? section('mine', 'My strategies', mine, mine.length ? null : h('p', { class: 'small faint', style: { margin: '2px 4px' } }, 'None yet: click "New strategy", or copy one from below.')) : null,
+            ...[...sites].map(([site, list]) => section(`site:${site}`, site, list, siteBody(list)))]);
 
     const body = h('div', { class: 'at-body' }, S ? strategyView(S, L) : h('div', { class: 'panel empty' }, 'Make a strategy for each way you farm: Breach with Breach threads, Beasts and Heist, Originator maps… Paste its atlas tree link from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com or a maxroll.gg strategy, or click it together on the tree.'));
     window.UI.keepScroll ? window.UI.keepScroll(() => mount(page, head, h('div', { class: 'at-page' }, cards, body))) : mount(page, head, h('div', { class: 'at-page' }, cards, body));
@@ -491,7 +526,7 @@
     // a strategy from the poeatlasplanner.com guide: whose tree it is, and where it came from
     const guideInfo = S.guide ? h('div', { class: 'small at-guide' },
       h('b', {}, S.guide.author), ` · ${S.guide.about} `,
-      h('a', { href: '#', onclick: (e) => { e.preventDefault(); call('shell:open', S.guide.source).catch(() => {}); } }, 'Tree from the poeatlasplanner.com guide')) : null;
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); call('shell:open', S.guide.source).catch(() => {}); } }, `The guide on ${(() => { try { return new URL(S.guide.source).hostname.replace(/^www\./, ''); } catch { return 'its website'; } })()}`)) : null;
     return h('div', { class: 'at-detail' }, top, h('div', { class: 'panel at-link' }, guideInfo, linkRow, linkInfo), setup,
       h('div', { class: 'at-main' }, h('div', { class: 'at-treecol' }, treeBar, treeBox, h('div', { class: 'small faint' }, 'Drag to move, scroll to zoom. Gold: taken. Blue ring: the group you point at on the right.')), fx),
       sessions, h('div', { class: 'panel' }, h('b', {}, 'Notes'), notes),

@@ -298,7 +298,12 @@ function fromMaxroll(json, tree) {
       const idx = tree?.nodes.get(Number(node))?.variants.findIndex((x) => x.effect === Number(effect));
       if (idx >= 0) choices[Number(node)] = idx;
     }
-    return { name: v.name || '', nodes: v.history.map(Number).filter(Number.isFinite), choices };
+    // the history is the order the planner clicked: numbers are taken, { remove: [...] } takes them back out
+    const taken = new Set();
+    for (const x of v.history) {
+      if (x && typeof x === 'object') { for (const r of x.remove || []) taken.delete(Number(r)); } else if (Number.isFinite(Number(x))) taken.add(Number(x));
+    }
+    return { name: v.name || '', nodes: [...taken], choices };
   });
   const full = variants.reduce((a, v) => (v.nodes.length > a.nodes.length ? v : a), variants[0]);
   const st = profile.atlas.strategy || {};

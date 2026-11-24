@@ -2083,8 +2083,8 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .fb-uqrest h3 { margin: 0; font: 600 15px Georgia, serif; }
 
 /* ---- Atlas strategies ---- */
-.at-page { display: grid; grid-template-columns: 240px 1fr; gap: 14px; align-items: start; }
-.at-list { display: grid; gap: 6px; position: sticky; top: 0; }
+.at-page { display: grid; grid-template-columns: 280px 1fr; gap: 14px; align-items: start; }
+.at-list { display: grid; gap: 6px; position: sticky; top: 0; max-height: calc(100vh - 110px); overflow: auto; padding-right: 4px; align-content: start; }
 .at-card { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 3px; padding: 10px 12px; border-radius: var(--r-ctl, 8px); border: 1px solid var(--line-soft); background: var(--surface); }
 .at-card:hover { border-color: var(--line); }
 .at-card.on { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
@@ -2188,6 +2188,20 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .fb-sp-count { font-weight: 600; font-size: 12px; }
 .fb-sp-count.gone { color: #e8973a; }
 .fb-sp-count.back { color: #5aa9e6; }
-.at-group { margin: 10px 2px 2px; text-transform: none; }
+.at-group { margin: 8px 2px 0; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.at-search { width: 100%; box-sizing: border-box; margin-bottom: 4px; }
+.at-sec { display: grid; gap: 6px; }
+.at-sec > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 2px 4px; list-style: none; border-bottom: 1px solid var(--line-soft); margin-bottom: 2px; }
+.at-sec > summary::-webkit-details-marker { display: none; }
+.at-sec > summary::before { content: '▸'; color: var(--faint); font-size: 12px; width: 10px; }
+.at-sec[open] > summary::before { content: '▾'; }
+.at-sec-t { font-weight: 700; font-size: 14px; }
+.at-sec-n { margin-left: auto; font-size: 12px; color: var(--faint); background: var(--surface); border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 7px; }
+.at-sec[open] { margin-bottom: 4px; }
+.at-by { font-size: 12px; color: var(--muted); margin-top: -2px; }
+.at-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 1px; }
+.at-chip { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line-soft); color: var(--text); white-space: nowrap; }
+.at-chip i { font-style: normal; color: var(--faint); margin-left: 5px; font-variant-numeric: tabular-nums; }
+.at-chip.hit { border-color: var(--accent); background: rgba(90, 169, 230, 0.14); }
 .at-guide { margin-bottom: 8px; color: var(--muted); }
 .at-guide b { color: var(--text); }

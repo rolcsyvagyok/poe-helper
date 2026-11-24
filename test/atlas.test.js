@@ -125,3 +125,13 @@ test('the poeatlasplanner.com guide strategies all read fully', () => {
     assert.ok(p.author && p.name && p.about && p.group, p.id);
   }
 });
+
+test('maxroll.gg guide strategies: a passive the planner took back out is left out', () => {
+  const P = require('../src/core/atlas-presets-maxroll.json');
+  assert.equal(P.presets.length, 11);
+  const ess = P.presets.find((p) => p.id === 'mx-6u1smm0g');
+  const m = A.fromMaxroll({ name: ess.name, data: { profiles: [{ atlas: { variants: [{ history: ess.maxroll.history, masteries: ess.maxroll.masteries }] } }] } }, tree);
+  assert.equal(m.nodes.length, 150);
+  for (const gone of [39694, 18958, 37245]) assert.ok(!m.nodes.includes(gone), `${gone} was removed`);
+  for (const p of P.presets) assert.ok(p.author && p.name && p.about && p.group && p.source && p.link, p.id);
+});

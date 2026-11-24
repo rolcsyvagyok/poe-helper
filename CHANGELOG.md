@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.167 - 2026-11-24
+
+* [Atlas strategies] Find strategies by mechanic, name or author (type "legion": the ones with the most Legion passives come first). The list is split into "My strategies" and one folding section per website.
+* [Atlas strategies] 11 farming strategies from maxroll.gg are added in their own section: Blight and Flora, Essences, Rare monster stacking, Stacked Deck Cloister, Bestiary, Harvest, Incursion, Map farming, league start, and Conqueror and Nightmare boss rushes, with their threads and maps.
+- Atlas strategies: a maxroll.gg tree now leaves out passives its author took back out.
+- Atlas strategies: each card shows its 3 biggest mechanics with their passive counts, who made it, its threads and its cost a map.
+
 ## 1.0.166 - 2026-11-24
 
 * [Trade searches] New look: each search shows its cheapest listing in big numbers, and whether it's at your price (✓) or how far above it (↑ 23 div above your 220).

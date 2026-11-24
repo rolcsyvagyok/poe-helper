@@ -78,3 +78,21 @@ test('strictness preview: lists the tiers a stricter level hides, without switch
   assert.ok(p.changes[0].bases.includes('Leather Belt'));
   assert.ok(!Object.keys(s.settings.get('strictness') || {}).length, 'nothing switched yet');
 });
+
+test('guide strategies from every website are added once; a deleted one stays deleted; old installs only get the new website', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-presets-'));
+  const tree = require('../src/core/atlas').buildTree(JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(__dirname, 'fixtures', 'atlas-3.30.json.gz')))));
+  const s = createServices({ dataDir: dir, secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  // an install that already had the poeatlasplanner.com ones (and deleted all but one)
+  s.settings.patch({ atlasPresetsV1: true, atlasStrategies: [{ id: 'pap-red-altars', presetId: 'pap-red-altars', name: 'Fubgun · Red altars', nodes: [1], guide: { author: 'Fubgun' } }] });
+  s.addGuidePresetsForTest(tree);
+  const list = s.settings.get('atlasStrategies');
+  assert.equal(list.filter((x) => x.presetId?.startsWith('pap-')).length, 1, 'deleted poeatlasplanner ones stay deleted');
+  assert.equal(list.filter((x) => x.presetId?.startsWith('mx-')).length, 11, 'maxroll ones added');
+  const nm = list.find((x) => x.presetId === 'mx-sr13h300');
+  assert.equal(nm.mapKind, 'Nightmare maps');
+  assert.match(nm.guide.source, /^https:\/\/maxroll\.gg\//);
+  s.settings.set('atlasStrategies', list.filter((x) => x.presetId !== 'mx-sr13h300'));
+  s.addGuidePresetsForTest(tree);
+  assert.ok(!s.settings.get('atlasStrategies').some((x) => x.presetId === 'mx-sr13h300'), 'a deleted one is not added again');
+});
