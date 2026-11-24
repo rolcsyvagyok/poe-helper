@@ -169,6 +169,17 @@ const KEY_UNIQUE_ROLLS = [
   /^Socketed Gems are Supported by Level \d+ /i, // Forbidden Shako and other random-support uniques: the gem and its level
 ];
 
+// uniques whose versions differ in a fixed line: every fixed line is ticked (the ones all versions share cost nothing)
+const VARIANT_UNIQUES = /^(Sublime Vision|Thread of Hope|Impossible Escape|Forbidden Flame|Forbidden Flesh|Megalomaniac|Split Personality|Voices|Precursor's Emblem|Grand Spectrum|Combat Focus|Impresence|Aul's Uprising|Skin of the Lords|Yriel's Fostering)$/i;
+// version lines, whatever the unique
+const VARIANT_LINES = [
+  /^Aura Skills other than .+ are Disabled$/i, // Sublime Vision
+  /^Only affects Passives in .+ Ring$/i, // Thread of Hope
+  /^Passives in Radius of .+ can be Allocated/i, // Impossible Escape
+  /^Allocates .+ if you have the matching modifier on Forbidden (Flame|Flesh)$/i,
+  /^.+ has no Reservation( if Cast as an Aura)?$/i, // Aul's Uprising, Impresence
+];
+
 const PSEUDO = [
   { key: 'ele', text: '+#% total Elemental Resistance', fallback: 'pseudo.pseudo_total_elemental_resistance', label: (v) => `+${v}% total Elemental Resistance` },
   { key: 'all', text: '+#% total Resistance', fallback: 'pseudo.pseudo_total_resistance', label: (v) => `+${v}% total Resistance` },
@@ -330,6 +341,8 @@ function defaultProps(item) {
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
     corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' || kind === 'map' || isJewel(item) ? 'no' : 'any',
+    // a magic item is compared with magic ones (untick for rares of the base too)
+    magicOnly: kind === 'magic' ? { show: true, on: true } : null,
     // jewels: a fractured one is only compared with fractured ones, and one that isn't with ones that aren't
     fracturedState: isJewel(item) ? (item.flags?.fractured ? 'yes' : 'no') : null,
     // unidentified items are compared with other unidentified ones
@@ -496,7 +509,7 @@ function buildQuery(item, mods, opts = {}) {
   if (kind === 'rare' || kind === 'magic') {
     const tf = q.query.filters.type_filters?.filters || {};
     // a magic item is compared with magic ones only (its one or two mods are what it is)
-    q.query.filters.type_filters = { filters: { ...tf, rarity: { option: kind === 'magic' ? 'magic' : props?.rareOnly?.on ? 'rare' : 'nonunique' } } };
+    q.query.filters.type_filters = { filters: { ...tf, rarity: { option: kind === 'magic' ? (props?.magicOnly?.on === false ? 'nonunique' : 'magic') : props?.rareOnly?.on ? 'rare' : 'nonunique' } } };
   }
   // an unidentified unique is searched by its base: only uniques of it (not rares of the same base)
   if (kind === 'unique' && item.flags.unidentified) {
@@ -894,6 +907,16 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     for (const m of mods) if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; m.hidden = false; }
     // a Foulborn unique sells for its Foulborn mod: ticked (searchable ones)
     for (const m of mods) if (m.foulborn && m.id && !m.unmatched) { m.enabled = true; m.hidden = false; }
+    // a timeless jewel's number is its seed (it decides every passive in the radius): only that exact one
+    for (const m of mods) if (/pseudo_timeless_jewel_/.test(m.id || '') && m.display != null) { m.enabled = true; m.hidden = false; m.min = m.display; m.max = m.display; }
+    // a unique with versions (Sublime Vision's aura, Thread of Hope's ring, Forbidden Flame's notable…): the
+    // version is a fixed line, which would start hidden; it sets the price, so it is ticked
+    const variant = VARIANT_UNIQUES.test(item.name || '');
+    for (const m of mods) {
+      if (!m.id || m.unmatched || m.group !== 'explicit') continue;
+      const fixed = !!item.advanced && !(m.meta?.rolls || []).some((x) => x.min !== x.max); // a plain copy has no ranges
+      if ((variant && fixed) || VARIANT_LINES.some((re) => re.test(m.text || ''))) { m.enabled = true; m.hidden = false; }
+    }
     // Watcher's Eye: the aura mods are the price (the life / mana / energy shield ones hardly matter)
     if (/^Watcher's Eye$/i.test(item.name || '')) for (const m of mods) { m.enabled = /while affected by/i.test(m.text || '') && !m.unmatched && !!m.id; if (m.enabled) m.hidden = false; }
   }

@@ -286,6 +286,10 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   }
   rangeRow('areaLevel', 'Area level');
   // "rare" in the header: only rares (else rares and magic items of the base)
+  if (props.magicOnly?.show) {
+    const cb = h('input', { type: 'checkbox', checked: !!props.magicOnly.on, onchange: (e) => { props.magicOnly.on = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', props.magicOnly.on); } });
+    propRows.push(h('div', { class: 'tp-mod' + (props.magicOnly.on ? ' on' : ''), 'data-k': 'magicOnly' }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, 'Magic items only', h('span', { class: 'faint' }, ' (untick for rares too)')))));
+  }
   if (props.rareOnly?.show) {
     const cb = h('input', { type: 'checkbox', checked: !!props.rareOnly.on, onchange: (e) => { props.rareOnly.on = e.target.checked; e.target.closest('.tp-mod').classList.toggle('on', props.rareOnly.on); } });
     propRows.push(h('div', { class: 'tp-mod' + (props.rareOnly.on ? ' on' : ''), 'data-k': 'rareOnly' }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, 'Rare items only', h('span', { class: 'faint' }, ' (else magic ones too)')))));

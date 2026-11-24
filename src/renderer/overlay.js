@@ -210,7 +210,8 @@ function render(p) {
   const gearRarity = ['Normal', 'Magic', 'Rare'].includes(item.rarity) && !/Currency|Gem|Map|Card|Fragment|Incubator|Contract|Blueprint|Viscera/i.test(item.itemClass || '') ? item.rarity.toLowerCase() : null;
   // only what matters for the price; a fact with k ticks that part of the search when clicked
   const fact = (t, k = null) => facts.push({ t, k });
-  if (gearRarity) fact(gearRarity);
+  // a magic item's search is for magic ones: its chip ticks that (click it for rares too)
+  if (gearRarity) fact(gearRarity, gearRarity === 'magic' ? 'magicOnly' : null);
   if (item.typeLine && item.name && item.name !== item.typeLine) fact(item.typeLine, 'base');
   else if (gearRarity === 'magic' && item.baseType && item.baseType !== item.typeLine) fact(item.baseType, 'base');
   if (item.itemLevel) fact(`item level ${item.itemLevel}`, 'ilvl');

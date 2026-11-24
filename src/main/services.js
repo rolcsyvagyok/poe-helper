@@ -246,6 +246,15 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     }
     return list;
   };
+  // gear bases on the trade site's item list are real too (Imbued Wand isn't in every FilterBlade filter);
+  // only gear: other kinds on that list include items the game has removed. No request for it: the saved
+  // list now, and the list again whenever the price check loads it
+  const addTradeBases = (d) => {
+    for (const g of d?.result || []) if (/^(accessory|armour|weapon|jewel|flask)$/.test(g.id)) for (const e of g.entries || []) if (e.type && !e.name && !e.disc) filters.verifiedNames.add(e.type);
+    return d;
+  };
+  try { addTradeBases(ggg.cache?.get?.('ggg_trade_items')?.data); } catch { /* the filter's own names */ }
+  if (typeof ggg.tradeItems === 'function') { const ti = ggg.tradeItems.bind(ggg); ggg.tradeItems = async () => addTradeBases(await ti()); }
 
   function applySettings() {
     ninja.userAgent = userAgent();
@@ -1326,15 +1335,22 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   }
 
   function moveBases(type, bases, to, { force = false } = {}) {
+    return moveMany([{ type, bases, to }], { force });
+  }
+  /** Several moves, one filter write: [{ type, bases, to }]. */
+  function moveMany(list, { force = false } = {}) {
     const view = tierViewNow();
     if (!view) throw new Error('Choose your filter first.');
-    if (force) trustNames(bases);
+    if (force) trustNames(list.flatMap((m) => m.bases));
     let patch = settings.get('tierPatch') || {};
-    const origType = tiers.extractTiers(require('../core/filter/parser').parse(filters.readBase())).find((t) => t.type === type);
-    for (const base of bases) {
-      // Moving a base back to where the filter originally had it just drops the edit.
-      const orig = origType?.tiers.find((t) => t.bases.includes(base))?.tier;
-      patch = orig === to ? tiers.withoutMove(patch, type, base) : tiers.withMove(patch, type, base, to);
+    const orig = tiers.extractTiers(require('../core/filter/parser').parse(filters.readBase()));
+    for (const { type, bases, to } of list) {
+      const origType = orig.find((t) => t.type === type);
+      for (const base of bases) {
+        // Moving a base back to where the filter originally had it just drops the edit.
+        const was = origType?.tiers.find((t) => t.bases.includes(base))?.tier;
+        patch = was === to ? tiers.withoutMove(patch, type, base) : tiers.withMove(patch, type, base, to);
+      }
     }
     return savePatch(patch);
   }
@@ -2679,11 +2695,9 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(m.base);
     }
-    let result = null;
-    for (const [k, bases] of groups) {
-      const [type, to] = k.split('\u0000');
-      result = moveBases(type, bases, to);
-    }
+    // one filter write for the whole run (it was one per tier)
+    const list = [...groups].map(([k, bases]) => { const [type, to] = k.split('\u0000'); return { type, bases, to }; });
+    const result = list.length ? moveMany(list) : null;
     if (moves.length) {
       const logList = settings.get('priceReviewLog') || [];
       logList.unshift({ at: Date.now(), auto, moves: moves.map(({ type, base, from, to, chaos }) => ({ type, base, from, to, chaos })) });
@@ -2697,15 +2711,17 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const logList = settings.get('priceReviewLog') || [];
     const last = logList.shift();
     if (!last) throw new Error('Nothing to undo.');
+    const back = [];
     for (const m of last.moves) {
       if (m.type === 'cluster') {
         // pinned as your own choice, so the next price check doesn't change it straight back
         if (m.from) setCluster({ keys: [m.key], value: m.from });
         continue;
       }
-      if (m.from) moveBases(m.type, [m.base], m.from);
+      if (m.from) back.push({ type: m.type, bases: [m.base], to: m.from });
       else resetTiers({ type: m.type, base: m.base });
     }
+    if (back.length) moveMany(back);
     settings.set('priceReviewLog', logList);
     return { undone: last.moves.length, at: last.at };
   }

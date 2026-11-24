@@ -333,8 +333,8 @@ body.overlay { background: transparent; padding: 8px; overflow: hidden; user-sel
 .rule-edit { grid-column: 1 / -1; padding: 12px 0 4px; }
 .fb-price { margin-left: 6px; font: 600 11px var(--ui); letter-spacing: 0; opacity: 0.75; -webkit-text-stroke: 0; }
 .fb-sugg { margin-left: 5px; font-size: 10px; -webkit-text-stroke: 0; }
-.fb-sugg.up { color: #3ddc6b; text-shadow: 0 0 3px #000; }
-.fb-sugg.down { color: #ff6b5e; text-shadow: 0 0 3px #000; }
+.fb-sugg.up { color: var(--good); text-shadow: 0 0 3px #000; }
+.fb-sugg.down { color: var(--bad); text-shadow: 0 0 3px #000; }
 .fb-pricebar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-panel); font-size: 13px; }
 /* price review */
 .rv-card { border: 1px solid var(--line-soft); border-radius: var(--r-panel); background: var(--surface); }

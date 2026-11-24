@@ -1,0 +1,19 @@
+Item Class: Jewels
+Rarity: Unique
+Sublime Vision
+Prismatic Jewel
+--------
+Limited to: 1
+--------
+Item Level: 84
+--------
+{ Unique Modifier }
+Auras from your Skills have 31(20-40)% increased Effect on you
+{ Unique Modifier }
+Always Scorch while affected by Anger
+{ Unique Modifier }
+Aura Skills other than Anger are Disabled
+--------
+Mere mortals should not wield so much power.
+--------
+Place into an allocated Jewel Socket on the Passive Skill Tree. Right click to remove from the Socket.

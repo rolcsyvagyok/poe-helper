@@ -1,0 +1,20 @@
+Item Class: Jewels
+Rarity: Unique
+Thread of Hope
+Crimson Jewel
+--------
+Limited to: 1
+Radius: Variable
+--------
+Item Level: 84
+--------
+{ Unique Modifier }
+Only affects Passives in Very Large Ring
+{ Unique Modifier }
+Passives in Radius can be Allocated without being connected to your tree
+{ Unique Modifier — Resistance }
+-15(-20--10)% to all Elemental Resistances
+--------
+Though we may grow apart, our resolve binds us still.
+--------
+Place into an allocated Jewel Socket on the Passive Skill Tree. Right click to remove from the Socket.

@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.171 - 2026-11-25
+
+* [Price check] A timeless jewel is searched by its exact number (Commissioned 28120 coins…), not "28120 or more".
+* [Price check] A magic item's "magic" tag is ticked: the search is for magic ones only. Click the tag (or untick "Magic items only") to include rares.
+* [Price check] Uniques that come in versions search for the same version: Sublime Vision's aura, Thread of Hope's ring, Forbidden Flame/Flesh's notable, Megalomaniac's notables, Impossible Escape's keystone, Aul's Uprising's aura, Split Personality's stats and more.
+* [My collection] Fixed: a base your filter doesn't name (Imbued Wand) was left out of "Remove not valuable from loot filter". Gear bases on the trade site's item list now count as real names too.
+- Loot filter: Update prices (by hand or automatic) and its Undo write the filter once, not once per tier.
+- Loot filter: the ▲ / ▼ price arrows are blue and orange, like the rest of the app (they were green and red).
+
 ## 1.0.170 - 2026-11-24
 
 * [Tier designer] A hidden currency tier now says when stacks of its items still show (NeverSink shows stacks of 3+, 6+… in their own tiers first), with "Hide the stacks too".

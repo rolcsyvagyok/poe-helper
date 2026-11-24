@@ -831,3 +831,41 @@ test('a Foulborn unique with a rolled Foulborn mod: that mod starts ticked', () 
   assert.ok(foul.foulborn && foul.enabled && !foul.hidden);
   assert.ok(foul.min != null && foul.min <= 69);
 });
+
+test('a timeless jewel: its exact seed; a magic jewel: magic ones only (a tick to switch off)', () => {
+  const fs = require('fs'); const path = require('path');
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.pseudo_timeless_jewel_caspiro', text: 'Commissioned # coins to commemorate Caspiro', type: 'explicit' },
+    { id: 'explicit.stat_983749596', text: '#% increased maximum Life', type: 'explicit' },
+    { id: 'explicit.stat_2915988346', text: '+#% to Fire and Cold Resistances', type: 'explicit' },
+  ] }] };
+  const hub = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'elegant-hubris.txt'), 'utf8'));
+  const seed = T.prepareSearch(stats, hub).mods.find((m) => /Commissioned/.test(m.text));
+  assert.deepEqual([seed.enabled, seed.min, seed.max], [true, 28120, 28120]);
+  const mj = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'magic-crimson-jewel.txt'), 'utf8'));
+  const r = T.prepareSearch(stats, mj);
+  assert.deepEqual(r.props.magicOnly, { show: true, on: true });
+  assert.equal(T.buildQuery(mj, r.mods, { props: r.props }).query.filters.type_filters.filters.rarity.option, 'magic');
+  r.props.magicOnly.on = false;
+  assert.equal(T.buildQuery(mj, r.mods, { props: r.props }).query.filters.type_filters.filters.rarity.option, 'nonunique');
+});
+
+test('uniques with versions: the version line is ticked (Sublime Vision, Thread of Hope)', () => {
+  const fs = require('fs'); const path = require('path');
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_sv_eff', text: 'Auras from your Skills have #% increased Effect on you', type: 'explicit' },
+    { id: 'explicit.stat_sv_scorch', text: 'Always Scorch while affected by Anger', type: 'explicit' },
+    { id: 'explicit.stat_sv_anger', text: 'Aura Skills other than Anger are Disabled', type: 'explicit' },
+  ] }] };
+  const sv = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'sublime-vision.txt'), 'utf8'));
+  const m = T.prepareSearch(stats, sv).mods.find((x) => /other than Anger/.test(x.text));
+  assert.ok(m && m.enabled && !m.hidden);
+  const st2 = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_toh_ring', text: 'Only affects Passives in Very Large Ring', type: 'explicit' },
+    { id: 'explicit.stat_toh_conn', text: 'Passives in Radius can be Allocated without being connected to your tree', type: 'explicit' },
+    { id: 'explicit.stat_toh_res', text: '#% to all Elemental Resistances', type: 'explicit' },
+  ] }] };
+  const toh = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'thread-of-hope.txt'), 'utf8'));
+  const ring = T.prepareSearch(st2, toh).mods.find((x) => /Very Large Ring/.test(x.text));
+  assert.ok(ring && ring.enabled && !ring.hidden);
+});

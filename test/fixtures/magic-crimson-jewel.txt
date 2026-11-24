@@ -1,0 +1,17 @@
+Item Class: Jewels
+Rarity: Magic
+Vivid Crimson Jewel of the Hearth
+--------
+Item Level: 85
+--------
+{ Corruption Implicit Modifier — Curse }
+20(25-20)% reduced Effect of Curses on you
+--------
+{ Prefix Modifier "Vivid" (Tier: 1) — Life }
+7(5-7)% increased maximum Life
+{ Suffix Modifier "of the Hearth" (Tier: 1) — Elemental, Fire, Cold, Resistance }
++12(10-12)% to Fire and Cold Resistances
+--------
+Place into an allocated Jewel Socket on the Passive Skill Tree. Right click to remove from the Socket.
+--------
+Corrupted
