@@ -2237,7 +2237,8 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   function sessionResult(sess, series) {
     const base = [...series].reverse().find((p) => p.ts <= sess.start + 60000) || series.find((p) => p.ts >= sess.start);
     const end = [...series].reverse().find((p) => p.ts <= (sess.end ? sess.end + 120000 : Infinity));
-    const gained = base && end && end.ts > base.ts ? end.chaos - base.chaos : null;
+    // items left out of the session (a sale or a buy in the middle of it) don't count
+    const gained = base && end && end.ts > base.ts ? end.chaos - base.chaos - (sess.adjustChaos ?? require('../core/networth').adjustOf(sess)) : null;
     const hours = ((sess.end || Date.now()) - sess.start) / 3600000;
     let maps = null;
     const logPath = settings.get('clientLogPath');
@@ -2254,33 +2255,126 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   // community strategies from guide websites (poeatlasplanner.com, maxroll.gg): each added once, credited;
   // deleted ones don't come back, and a website added later only brings its own
   const PRESET_FILES = ['../core/atlas-presets.json', '../core/atlas-presets-maxroll.json'];
-  function addGuidePresets(tree) {
+  // one key per tree, so the same strategy found again (bundled or by the weekly check) isn't added twice
+  const presetKey = (p) => {
+    const mx = Atlas.maxrollId(p.link || '');
+    if (mx) return `mx:${mx}`;
+    const code = /#p=([A-Za-z0-9_-]+)/.exec(p.link || '')?.[1];
+    return code ? `pap:${code}` : `id:${p.id}`;
+  };
+  function presetSeen() {
     let seen = settings.get('atlasPresetsSeen');
     if (!Array.isArray(seen)) seen = settings.get('atlasPresetsV1') ? require('../core/atlas-presets.json').presets.map((p) => p.id) : [];
-    const seenSet = new Set(seen);
+    return new Set(seen);
+  }
+  /** Adds the presets not seen before. A preset: { id, group, author, name, about, source, link, and the tree as
+   *  maxroll history, or nodes/choices already read, or only the link }. */
+  function addPresets(list, tree) {
+    const seenSet = presetSeen();
+    // a bundled preset seen under its id also counts as seen under its key (and the other way round)
+    for (const P of PRESET_FILES.map((f) => require(f))) for (const p of P.presets) if (seenSet.has(p.id)) seenSet.add(presetKey(p));
     const added = [];
-    for (const file of PRESET_FILES) {
-      const P = require(file);
-      for (const p of P.presets) {
-        if (seenSet.has(p.id)) continue;
-        seenSet.add(p.id);
-        let r;
-        try {
-          if (p.maxroll) {
-            const m = Atlas.fromMaxroll({ name: p.name, data: { profiles: [{ atlas: { variants: [{ name: '', history: p.maxroll.history, masteries: p.maxroll.masteries }], strategy: { threads: p.maxroll.threads, device: p.maxroll.device } } }] } }, tree);
-            const known = m.nodes.filter((id) => tree.nodes.has(id));
-            r = { nodes: known, choices: Object.fromEntries(Object.entries(m.choices).filter(([k]) => known.includes(Number(k)))), from: 'maxroll.gg', unknown: m.nodes.length - known.length, threads: m.threads, mapName: m.map?.name };
-          } else r = Atlas.parseLink(p.link, tree);
-        } catch (e) { log('guide preset', p.id, e.message); continue; }
-        if (!r.nodes?.length) continue;
-        added.push({ id: p.id, presetId: p.id, created: Date.now(), name: `${p.author} · ${p.name}`, link: p.link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown,
-          threads: p.threads || r.threads || [], mapName: r.mapName || undefined, mapKind: p.mapKind || undefined,
-          guide: { author: p.author, group: p.group, about: p.about, source: p.source || P.source } });
-      }
+    for (const p of list) {
+      const key = presetKey(p);
+      if (seenSet.has(p.id) || seenSet.has(key)) continue;
+      seenSet.add(p.id); seenSet.add(key);
+      let r;
+      try {
+        if (p.maxroll) {
+          const m = Atlas.fromMaxroll({ name: p.name, data: { profiles: [{ atlas: { variants: [{ name: '', history: p.maxroll.history, masteries: p.maxroll.masteries }], strategy: { threads: p.maxroll.threads, device: p.maxroll.device } } }] } }, tree);
+          const known = m.nodes.filter((id) => tree.nodes.has(id));
+          r = { nodes: known, choices: Object.fromEntries(Object.entries(m.choices).filter(([k]) => known.includes(Number(k)))), from: 'maxroll.gg', unknown: m.nodes.length - known.length, threads: m.threads, mapName: m.map?.name };
+        } else r = Atlas.parseLink(p.link, tree);
+      } catch (e) { log('guide preset', p.id, e.message); continue; }
+      if (!r.nodes?.length) continue;
+      added.push({ id: p.id, presetId: p.id, created: Date.now(), name: `${p.author} · ${p.name}`, link: p.link, nodes: r.nodes, choices: r.choices, from: r.from, unknown: r.unknown,
+        threads: p.threads || r.threads || [], mapName: r.mapName || undefined, mapKind: p.mapKind || undefined,
+        guide: { author: p.author, group: p.group, about: p.about, source: p.source } });
     }
     if (added.length) settings.set('atlasStrategies', [...strategiesAll(), ...added]);
     settings.set('atlasPresetsSeen', [...seenSet]);
-    if (added.length) log('atlas strategies: added', added.length, 'from guide websites');
+    if (added.length) log('atlas strategies: added', added.length, 'from guide websites:', added.map((x) => x.name).join(', '));
+    return added;
+  }
+  function addGuidePresets(tree) {
+    const list = PRESET_FILES.flatMap((f) => { const P = require(f); return P.presets.map((p) => ({ ...p, source: p.source || P.source })); });
+    return addPresets(list, tree);
+  }
+
+  // ---- the weekly check of the guide websites: new strategies there come into the list by themselves ----
+  const PAP_GUIDE = 'https://poeatlasplanner.com/guides/best-atlas-tree';
+  const MAXROLL_CAT = 'https://maxroll.gg/poe/category/currency';
+  const unhtml = (x) => String(x || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#x27;|&#39;|&rsquo;|’/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+  /** poeatlasplanner.com's guide page -> presets: each tree is a section with "Author · Name", a goal line and its link. */
+  function papPresetsFrom(html) {
+    const out = [];
+    const heads = [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => ({ at: m.index, text: unhtml(m[1]) }));
+    for (const m of html.matchAll(/<section class="guide-preset[^"]*" id="([^"]+)">([\s\S]*?)<\/section>/g)) {
+      const body = m[2];
+      const title = unhtml(/<h3[^>]*>([\s\S]*?)<\/h3>/.exec(body)?.[1]);
+      const href = /href="(\/\?preset=[^"]*#p=[A-Za-z0-9_-]+)"/.exec(body)?.[1];
+      if (!title || !href) continue;
+      const [author, ...rest] = title.split(' · ');
+      const group = heads.filter((x) => x.at < m.index).pop()?.text || 'Guides';
+      out.push({ id: `pap-${m[1]}`, group: group.replace(/\s*\(.*\)$|:.*$/g, '').slice(0, 40), author: rest.length ? author : 'poeatlasplanner.com', name: (rest.length ? rest.join(' · ') : title).slice(0, 60),
+        about: unhtml(/class="guide-preset-goal"[^>]*>([\s\S]*?)<\/p>/.exec(body)?.[1]).slice(0, 140) || title, source: PAP_GUIDE, link: `https://poeatlasplanner.com${href.replace(/&amp;/g, '&')}` });
+    }
+    return out;
+  }
+  async function syncGuideSites({ force = false } = {}) {
+    const last = settings.get('atlasSyncAt') || 0;
+    if (!force && Date.now() - last < 7 * 86400000) return { skipped: true, at: last };
+    settings.set('atlasSyncAt', Date.now());
+    const get = webFetch || fetchImpl || globalThis.fetch;
+    const text = async (url) => { const r = await get(url, { headers: { 'User-Agent': userAgent(), Accept: 'text/html' } }); if (!r.ok) throw new Error(`${new URL(url).hostname} answered ${r.status}`); return r.text(); };
+    const tree = await atlasTreeData();
+    const found = []; const errors = [];
+    try { found.push(...papPresetsFrom(await text(PAP_GUIDE))); } catch (e) { errors.push(e.message); }
+    try {
+      // maxroll: its farming guides; each guide page is read once (the ones with an atlas planner become strategies)
+      const cat = await text(MAXROLL_CAT);
+      const slugs = [...new Set([...cat.matchAll(/href="\/poe\/currency\/([a-z0-9/-]+)"/g)].map((m) => m[1]))];
+      const done = new Set(settings.get('atlasSyncMaxrollPages') || []);
+      for (const P of PRESET_FILES.map((f) => require(f))) for (const p of P.presets) if (/maxroll\.gg\/poe\/currency\//.test(p.source || '')) done.add(p.source.replace(/.*\/poe\/currency\//, ''));
+      for (const slug of slugs.filter((x) => !done.has(x)).slice(0, 8)) {
+        done.add(slug);
+        try {
+          const page = await text(`https://maxroll.gg/poe/currency/${slug}`);
+          const id = Atlas.maxrollId(page);
+          if (!id) continue;
+          const res = await get(`https://planners.maxroll.gg/profiles/poe/${id}`, { headers: { 'User-Agent': userAgent(), Accept: 'application/json' } });
+          if (!res.ok) continue;
+          const json = await res.json();
+          let data = json.data; if (typeof data === 'string') data = JSON.parse(data);
+          const prof = (data?.profiles || []).find((x) => x?.atlas?.variants?.some((v) => v.history?.length));
+          if (!prof) continue;
+          const vs = prof.atlas.variants.filter((v) => v.history?.length);
+          const full = vs.reduce((a, v) => (v.history.length > a.history.length ? v : a), vs[0]);
+          const who = data.author?.contentCreator || '';
+          const shown = [...page.matchAll(/href="\/@([\w-]+)"[^>]*>([^<]{2,40})</g)].find(([, s2]) => s2.toLowerCase() === who.toLowerCase())?.[2];
+          const name = String(json.name || prof.name || slug).replace(/^"[^"]*":\s*/, '').slice(0, 60);
+          found.push({ id: `mx-${id}`, group: /boss/i.test(name) ? 'Boss rush' : /league ?start/i.test(name) ? 'League start' : 'Farming', author: shown || who || 'maxroll.gg', name, about: unhtml(/<meta name="description" content="([^"]*)"/.exec(page)?.[1]).slice(0, 140) || name,
+            source: `https://maxroll.gg/poe/currency/${slug}`, link: `https://maxroll.gg/poe/farming-strategy-planner/${id}`,
+            maxroll: { history: full.history, masteries: full.masteries || {}, threads: prof.atlas.strategy?.threads || [], device: prof.atlas.strategy?.device || [] } });
+        } catch (e) { log('maxroll guide', slug, e.message); }
+      }
+      settings.set('atlasSyncMaxrollPages', [...done].slice(-300));
+    } catch (e) { errors.push(e.message); }
+    const added = addPresets(found, tree);
+    log('guide websites checked:', found.length, 'strategies found,', added.length, 'new', errors.length ? `(${errors.join('; ')})` : '');
+    return { at: Date.now(), added: added.map((x) => x.name), errors };
+  }
+
+  /** A copy of a strategy (a guide's one too) in My strategies, to change as you like. */
+  function atlasCopy(id) {
+    const all = strategiesAll();
+    const s = all.find((x) => x.id === id);
+    if (!s) throw new Error('That strategy is gone.');
+    const { guide, presetId, sessions, ...rest } = s;
+    const copy = { ...JSON.parse(JSON.stringify(rest)), id: `s${Date.now().toString(36)}`, created: Date.now(), name: `${s.name.replace(/^.*? · /, '')}${guide ? ` (${guide.author})` : ' (copy)'}`.slice(0, 80),
+      notes: [s.notes, guide ? `From ${guide.author}: ${guide.source}` : ''].filter(Boolean).join('\n') };
+    settings.set('atlasStrategies', [...all, copy]);
+    return copy;
   }
 
   async function atlasList() {
@@ -2288,6 +2382,8 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     let tree = null; let treeError = null;
     try { tree = await atlasTreeData(); } catch (e) { treeError = e.message; }
     if (tree) addGuidePresets(tree);
+    // once a week, in the background: new strategies on the guide websites (the list picks them up next time)
+    if (tree) syncGuideSites().catch((e) => log('guide websites:', e.message));
     const list = strategiesAll();
     const names = list.flatMap((s) => [...threadsOf(s).map((t) => t.name), ...(s.inputs || []).map((i) => i.name)]);
     const prices = await namePrices(names, league).catch(() => new Map());
@@ -2298,7 +2394,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const kindPrices = new Map();
     for (const k of new Set(list.map(mapKindOf))) kindPrices.set(k, await mapKindPrice(k, league));
     return {
-      league, divine, treeError, mapKinds: ATLAS_MAP_KINDS.map((k) => k.name), clientLog: !!settings.get('clientLogPath'),
+      league, divine, treeError, guideSyncAt: settings.get('atlasSyncAt') || null, mapKinds: ATLAS_MAP_KINDS.map((k) => k.name), clientLog: !!settings.get('clientLogPath'),
       strategies: list.map((s) => {
         const priced = (name, count) => { const p = prices.get(String(name || '').toLowerCase()); return { name, count, chaos: p?.chaos ?? null, icon: p?.icon || null, total: p?.chaos != null ? Math.round(p.chaos * count * 100) / 100 : null }; };
         // the map itself when it isn't a normal one: poe.ninja's price, or the price you typed
@@ -3180,7 +3276,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return files;
   }
 
-  return { addGuidePresetsForTest: (tree) => addGuidePresets(tree), strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

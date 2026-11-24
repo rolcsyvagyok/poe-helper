@@ -16,10 +16,11 @@ const DATA = require('./map-mods.json');
 const MAX = 250;
 // lines every map can show besides its mods; a search piece must not be found in them
 const STATIC_TEXT = [
-  'item quantity: +', 'item rarity: +', 'monster pack size: +', 'more currency: +', 'more scarabs: +', 'more maps: +', 'more divination cards: +',
-  'quality: +', 'quality (quantity): +', 'quality (currency): +', 'quality (divination cards): +', 'quality (rarity): +', 'quality (pack size): +', 'quality (scarabs): +',
+  'atlas drops: +', 'item quantity: +', 'item rarity: +', 'monster pack size: +', 'more currency: +', 'more threads: +', 'more scarabs: +', 'more maps: +', 'more divination cards: +',
+  'quality: +', 'quality (quantity): +', 'quality (currency): +', 'quality (divination cards): +', 'quality (rarity): +', 'quality (pack size): +', 'quality (threads): +', 'quality (scarabs): +',
   'map tier: ', 'item level: ', 'monster level: ', 'rarity: normal', 'rarity: magic', 'rarity: rare', 'rarity: unique', 'item class: maps', 'corrupted', 'unidentified', 'mirrored', 'note: ',
   'travel to this map by using it in a personal map device. maps can only be used once.',
+  'travel to a map of this tier or lower by using this in a personal map device. maps can only be used once.',
   'area is influenced by the shaper', 'area is influenced by the elder', 'area is influenced by the originator\'s memories',
   'map contains al-hezmin\'s citadel', 'map contains baran\'s citadel', 'map contains drox\'s citadel', 'map contains veritania\'s citadel',
   'area is infested with fungal growths', 'natural inhabitants of this area have been removed', 'map\'s item quantity modifiers also affect blight chest count at 25% value',
@@ -28,12 +29,13 @@ const STATIC_TEXT = [
 ];
 
 const NUMBERS = [
-  { id: 'quantity', label: 'Item quantity', prefix: 'tity: \\+' },
+  // 3.30 names: "Atlas Drops" (was Item Quantity), "More Threads" (was More Scarabs)
+  { id: 'quantity', label: 'Atlas drops (quantity)', prefix: 'ops: \\+' },
   { id: 'rarity', label: 'Item rarity', prefix: 'rity: \\+' },
   { id: 'packSize', label: 'Pack size', prefix: 'ize: \\+' },
   { id: 'maps', label: 'More maps', prefix: 'aps: \\+' },
   { id: 'currency', label: 'More currency', prefix: 'ncy: \\+' },
-  { id: 'scarabs', label: 'More scarabs', prefix: 'abs: \\+' },
+  { id: 'scarabs', label: 'More threads', prefix: 'ads: \\+' },
   { id: 'divination', label: 'More divination cards', prefix: 'rds: \\+' },
 ];
 const QUALITY = [
@@ -41,7 +43,7 @@ const QUALITY = [
   { id: 'rarity', label: 'Quality (rarity)', prefix: 'rity\\): \\+' },
   { id: 'packSize', label: 'Quality (pack size)', prefix: 'ize\\): \\+' },
   { id: 'currency', label: 'Quality (currency)', prefix: 'ncy\\): \\+' },
-  { id: 'scarabs', label: 'Quality (scarabs)', prefix: 'abs\\): \\+' },
+  { id: 'scarabs', label: 'Quality (threads)', prefix: 'ads\\): \\+' },
   { id: 'divination', label: 'Quality (divination cards)', prefix: 'rds\\): \\+' },
 ];
 const MAP_TYPES = [
@@ -71,7 +73,10 @@ function universe(kind) {
   // the mods that can be on such a map, picked or not (nightmare ones can always roll on regular maps)
   const mods = kind === 't17' ? DATA.mods.filter((m) => m.kinds.includes('t17')) : DATA.mods.filter((m) => m.kinds.includes('regular') || m.kinds.includes('nightmare'));
   const texts = mods.map((m) => ({ id: m.id, lines: m.lines.map(lower), name: lower(m.name || '') }));
-  const outside = [...STATIC_TEXT, ...(DATA.mapNames || []).map(lower)];
+  // a piece must match nothing else on a map: its fixed lines, map names, and the reminders the game shows
+  // under some mods ("(Elemental Weakness is a Hex which inflicts -15% to all Elemental Resistances…)")
+  const reminders = [...new Set(DATA.mods.flatMap((m) => m.reminders || []))].map((r) => lower(r).replace(/\d+(\.\d+)?/g, '#'));
+  const outside = [...STATIC_TEXT, ...(DATA.mapNames || []).map(lower), ...reminders];
   // hits: the mods whose text has the piece, so the piece finds them on any map. touches: those plus the mods
   // whose name has it: a magic map's name carries its mods' names ("Strand Map of Giants"), so such a piece also
   // finds that mod there. A piece only covers a mod it hits (a rare map shows no mod names), and it may only touch

@@ -27,7 +27,7 @@ function matches(cond, v) {
   const inside = (cond.min == null || v >= cond.min) && (cond.max == null || v <= cond.max);
   return cond.negated ? !inside : inside;
 }
-function linesOf(stats, trade = []) {
+function linesOf(stats, trade = [], reminders = []) {
   const used = new Set();
   const out = [];
   for (const s of stats) {
@@ -41,6 +41,9 @@ function linesOf(stats, trade = []) {
     // the game's markup: [Tag|Shown text] or [Text]
     str = str.replace(/\[([^\]|]+)\|([^\]]+)\]/g, '$2').replace(/\[([^\]]+)\]/g, '$1');
     for (const line of str.split('\n')) if (line.trim()) out.push(line.trim().replace(/\s+/g, ' '));
+    // the game shows a reminder under some lines ("(Enfeeble is a Hex which …)"), and the map search reads it too
+    const rem = String(pick.reminder_text || '').replace(/\[([^\]|]+)\|([^\]]+)\]/g, '$2').replace(/\[([^\]]+)\]/g, '$1').replace(/\s+/g, ' ').trim();
+    if (rem && !reminders.includes(rem)) reminders.push(rem);
     // the trade site's id for this line (pathofexile.com/trade), when it has one
     const ts = (t.trade_stats || []).find((x) => x.type === 'explicit');
     if (ts && !trade.includes(ts.id)) trade.push(ts.id);
@@ -55,17 +58,18 @@ for (const [id, m] of Object.entries(mods)) {
   const kind = tags.some((t) => NIGHTMARE.has(t)) ? 'nightmare' : tags.some((t) => UBER.has(t)) ? 't17' : tags.some((t) => REGULAR.has(t)) ? 'regular' : null;
   if (!kind) continue;
   const trade = [];
-  const lines = linesOf(m.stats || [], trade);
+  const reminders = [];
+  const lines = linesOf(m.stats || [], trade, reminders);
   if (!lines.length) continue;
   const key = [...lines].sort().join('\n'); // the same lines in another order are the same mod
-  const e = found.get(key) || { lines, affix: m.generation_type, kinds: [], names: [], ids: [], trade };
+  const e = found.get(key) || { lines, affix: m.generation_type, kinds: [], names: [], ids: [], trade, reminders };
   if (!e.kinds.includes(kind)) e.kinds.push(kind);
   if (m.name && !e.names.includes(m.name)) e.names.push(m.name);
   e.ids.push(id);
   found.set(key, e);
 }
 const list = [...found.values()]
-  .map((e) => ({ id: e.ids.sort()[0], affix: e.affix, kinds: e.kinds.sort(), name: e.names[0] || '', lines: e.lines, trade: e.trade }))
+  .map((e) => ({ id: e.ids.sort()[0], affix: e.affix, kinds: e.kinds.sort(), name: e.names[0] || '', lines: e.lines, trade: e.trade, ...(e.reminders.length ? { reminders: e.reminders } : {}) }))
   .sort((a, b) => a.lines[0].localeCompare(b.lines[0]));
 // map names: search terms must not match them (every map's name is in its text)
 let mapNames = [];

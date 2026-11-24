@@ -47,3 +47,18 @@ test('3.30 maps: a plain T16, a conqueror one by its citadel, a Nightmare map, a
   assert.equal(v('Nightmare Map').each, 74);
   assert.equal(v('Vaal Temple Map').each, 30);
 });
+
+test('a session can leave out items (a sale or a buy in the middle of it)', () => {
+  const { NetWorthTracker, adjustOf } = require('../src/core/networth');
+  const data = { sessions: [{ id: '1', league: 'L', name: 'Session 1', start: 1000, end: 5000 }] };
+  const store = { get: (k) => data[k], set: (k, v) => { data[k] = v; } };
+  const t = new NetWorthTracker({ ggg: {}, ninja: {}, store, getLeague: () => 'L' });
+  // sold something for 150 divines (200c each), bought a 20c item
+  const s = t.setSessionAdjust('L', '1', [{ n: 'Divine Orb', q: 150, e: 200 }, { n: 'Chaos Orb', q: -20, e: 1 }, { n: '', q: 3, e: 1 }, { n: 'X', q: 0, e: 5 }]);
+  assert.equal(s.adjust.length, 2);
+  assert.equal(adjustOf(s), 150 * 200 - 20);
+  assert.equal(t.sessions('L')[0].adjustChaos, 29980);
+  t.setSessionAdjust('L', '1', []);
+  assert.equal(t.sessions('L')[0].adjust, undefined);
+  assert.throws(() => t.setSessionAdjust('L', 'nope', []), /gone/);
+});

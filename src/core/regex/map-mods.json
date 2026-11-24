@@ -1,6 +1,6 @@
 {
  "source": "Path of Exile game data (RePoE export)",
- "count": 115,
+ "count": 124,
  "mods": [
   {
    "id": "MapUberModRareFracture",
@@ -178,6 +178,129 @@
    ],
    "trade": [
     "explicit.stat_816367946"
+   ],
+   "reminders": [
+    "(Ignite deals Fire Damage over time, based on the base Fire Damage of the Skill, for 4 seconds)"
+   ]
+  },
+  {
+   "id": "MapContainsSentinelApexWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Unearthed Technology",
+   "lines": [
+    "Area contains a buried Apex Sentinel"
+   ],
+   "trade": [
+    "explicit.stat_2788592463"
+   ]
+  },
+  {
+   "id": "MapContainsSentinelPandemoniumWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Unearthed Technology",
+   "lines": [
+    "Area contains a buried Pandemonium Sentinel"
+   ],
+   "trade": [
+    "explicit.stat_70969043"
+   ]
+  },
+  {
+   "id": "MapContainsSentinelStalkerWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Unearthed Technology",
+   "lines": [
+    "Area contains a buried Stalker Sentinel"
+   ],
+   "trade": [
+    "explicit.stat_2712450522"
+   ]
+  },
+  {
+   "id": "MapContainsMirageWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Zarokh",
+   "lines": [
+    "Area contains a Mirage"
+   ],
+   "trade": [
+    "explicit.stat_2436559047"
+   ]
+  },
+  {
+   "id": "MapContainsDeliriumMirrorWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Insanity",
+   "lines": [
+    "Area contains a Mirror of Delirium"
+   ],
+   "trade": [
+    "explicit.stat_2398157267"
+   ]
+  },
+  {
+   "id": "MapContainsBeyondPaleFactionWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Beidat",
+   "lines": [
+    "Area contains an Evocator of Beidat"
+   ],
+   "trade": [
+    "explicit.stat_260515856"
+   ]
+  },
+  {
+   "id": "MapContainsBeyondFleshFactionWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of Ghorr",
+   "lines": [
+    "Area contains an Evocator of Ghorr"
+   ],
+   "trade": [
+    "explicit.stat_1290924623"
+   ]
+  },
+  {
+   "id": "MapContainsBeyondDemonFactionWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of K'Tash",
+   "lines": [
+    "Area contains an Evocator of K'Tash"
+   ],
+   "trade": [
+    "explicit.stat_2896557935"
    ]
   },
   {
@@ -248,6 +371,21 @@
    ],
    "trade": [
     "explicit.stat_2073168229"
+   ]
+  },
+  {
+   "id": "MapContainsWildwoodWorlds",
+   "affix": "suffix",
+   "kinds": [
+    "regular",
+    "t17"
+   ],
+   "name": "of the Woods",
+   "lines": [
+    "Area contains the Viridian Wildwood"
+   ],
+   "trade": [
+    "explicit.stat_1975119765"
    ]
   },
   {
@@ -322,6 +460,9 @@
    ],
    "trade": [
     "explicit.stat_349586058"
+   ],
+   "reminders": [
+    "(You are Chilled while standing in Chilled Ground)"
    ]
   },
   {
@@ -834,6 +975,9 @@
    "trade": [
     "explicit.stat_1840747977",
     "explicit.stat_3044826007"
+   ],
+   "reminders": [
+    "(Withered applies 6% increased Chaos Damage Taken, and can be inflicted up to 15 times)"
    ]
   },
   {
@@ -958,6 +1102,9 @@
    ],
    "trade": [
     "explicit.stat_322206271"
+   ],
+   "reminders": [
+    "(Elemental Ailments are Ignited, Scorched, Chilled, Frozen, Brittle, Shocked, and Sapped)"
    ]
   },
   {
@@ -1038,6 +1185,9 @@
    ],
    "trade": [
     "explicit.stat_2138205941"
+   ],
+   "reminders": [
+    "(40% of Damage from Suppressed Hits and Ailments they inflict is prevented)"
    ]
   },
   {
@@ -1085,6 +1235,9 @@
    ],
    "trade": [
     "explicit.stat_962720646"
+   ],
+   "reminders": [
+    "(Hinder reduces movement speed by 30% for 4 seconds)"
    ]
   },
   {
@@ -1101,6 +1254,9 @@
    "trade": [
     "explicit.stat_2553656203",
     "explicit.stat_2919181457"
+   ],
+   "reminders": [
+    "(Shock increases Damage taken by up to 50%, depending on the amount of Lightning Damage in the hit, for 2 seconds)"
    ]
   },
   {
@@ -1115,6 +1271,9 @@
    ],
    "trade": [
     "explicit.stat_1751584857"
+   ],
+   "reminders": [
+    "(Up to 10 Vines can grasp you, inflicting 8% less Movement Speed per Vine. Broken by moving)"
    ]
   },
   {
@@ -1131,6 +1290,9 @@
    ],
    "trade": [
     "explicit.stat_4164174520"
+   ],
+   "reminders": [
+    "(Maimed enemies have 30% reduced Movement Speed)"
    ]
   },
   {
@@ -1146,6 +1308,9 @@
    ],
    "trade": [
     "explicit.stat_3350803563"
+   ],
+   "reminders": [
+    "(Poison deals Chaos Damage over time, based on the base Physical and Chaos Damage of the Skill. Multiple instances of Poison stack)"
    ]
   },
   {
@@ -1164,6 +1329,9 @@
     "explicit.stat_3350803563",
     "explicit.stat_134839587",
     "explicit.stat_3555807120"
+   ],
+   "reminders": [
+    "(Poison deals Chaos Damage over time, based on the base Physical and Chaos Damage of the Skill. Multiple instances of Poison stack)"
    ]
   },
   {
@@ -1231,6 +1399,9 @@
    ],
    "trade": [
     "explicit.stat_1541224187"
+   ],
+   "reminders": [
+    "(When an Impaled enemy is hit, the Impale reflects 10% of the physical damage of the Impaling hit to that enemy. Impale lasts for 5 hits or 8 seconds)"
    ]
   },
   {
@@ -1292,6 +1463,9 @@
    ],
    "trade": [
     "explicit.stat_558910024"
+   ],
+   "reminders": [
+    "(Elemental Weakness is a Hex which inficts -15% to all Elemental Resistances. It lasts 8 seconds)"
    ]
   },
   {
@@ -1308,6 +1482,9 @@
    ],
    "trade": [
     "explicit.stat_4103440490"
+   ],
+   "reminders": [
+    "(Enfeeble is a Hex which reduces the targets' Accuracy Rating by 10% and Damage by 15%, or 9% on Rare or Unique targets. It lasts 8 seconds)"
    ]
   },
   {
@@ -1324,6 +1501,9 @@
    ],
    "trade": [
     "explicit.stat_2326202293"
+   ],
+   "reminders": [
+    "(Temporal Chains is a Hex which reduces Action Speed by 15%, or 9% on Rare or Unique targets, and makes other effects on the target expire 40% slower. It has 50% less effect on Players and lasts 5 seconds)"
    ]
   },
   {
@@ -1340,6 +1520,9 @@
    ],
    "trade": [
     "explicit.stat_1366534040"
+   ],
+   "reminders": [
+    "(Vulnerability is a Hex which increases Physical Damage taken by 15% and causes Hits to have +25% chance to inflict Bleeding on the target. It lasts 8 seconds)"
    ]
   },
   {
@@ -1358,6 +1541,11 @@
     "explicit.stat_1366534040",
     "explicit.stat_2326202293",
     "explicit.stat_558910024"
+   ],
+   "reminders": [
+    "(Vulnerability is a Hex which increases Physical Damage taken by 15% and causes Hits to have +25% chance to inflict Bleeding on the target. It lasts 8 seconds)",
+    "(Temporal Chains is a Hex which reduces Action Speed by 15%, or 9% on Rare or Unique targets, and makes other effects on the target expire 40% slower. It has 50% less effect on Players and lasts 5 seconds)",
+    "(Elemental Weakness is a Hex which inficts -15% to all Elemental Resistances. It lasts 8 seconds)"
    ]
   },
   {
@@ -1480,6 +1668,9 @@
    ],
    "trade": [
     "explicit.stat_943960754"
+   ],
+   "reminders": [
+    "(Armour, Evasion Rating and Energy Shield are the standard Defences)"
    ]
   },
   {
@@ -1592,6 +1783,9 @@
    "trade": [
     "explicit.stat_286947568",
     "explicit.stat_1588049749"
+   ],
+   "reminders": [
+    "(40% of Damage from Suppressed Hits and Ailments they inflict is prevented)"
    ]
   },
   {
@@ -1622,7 +1816,9 @@
    "lines": [
     "Rare Monsters have Elemental Thorns reflecting # Elemental Damage"
    ],
-   "trade": []
+   "trade": [
+    "explicit.stat_3938822425"
+   ]
   },
   {
    "id": "MapMonsterPhysicalReflection2MapWorlds",
@@ -1636,7 +1832,9 @@
    "lines": [
     "Rare Monsters have Physical Thorns reflecting # Physical Damage"
    ],
-   "trade": []
+   "trade": [
+    "explicit.stat_3278889477"
+   ]
   },
   {
    "id": "MapUberModReflect",
@@ -1649,7 +1847,10 @@
     "Rare Monsters have Physical Thorns reflecting # Physical Damage",
     "Rare Monsters have Elemental Thorns reflecting # Elemental Damage"
    ],
-   "trade": []
+   "trade": [
+    "explicit.stat_3278889477",
+    "explicit.stat_3938822425"
+   ]
   },
   {
    "id": "MapUberModVolatiles",

@@ -17,8 +17,8 @@ function gameSearch(search, text) {
 }
 const mapText = (lines, { quantity = 60, pack = 20, rarity = 'Rare', corrupted = false } = {}) => [
   'Item Class: Maps', `Rarity: ${rarity}`, 'Grim Haven', 'Strand Map', '--------', 'Map Tier: 16',
-  `Item Quantity: +${quantity}% (augmented)`, 'Item Rarity: +40% (augmented)', `Monster Pack Size: +${pack}% (augmented)`, '--------', 'Item Level: 83', '--------',
-  ...lines.map((l) => l.replace(/#/g, '23')), '--------', 'Travel to this Map by using it in a personal Map Device. Maps can only be used once.', ...(corrupted ? ['Corrupted'] : []),
+  `Atlas Drops: +${quantity}% (augmented)`, 'Item Rarity: +40% (augmented)', `Monster Pack Size: +${pack}% (augmented)`, '--------', 'Item Level: 83', '--------',
+  ...lines.map((l) => l.replace(/#/g, '23')), '--------', 'Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once.', ...(corrupted ? ['Corrupted'] : []),
 ].join('\n');
 const find = (s, kind = 'regular') => R.modsFor(kind).find((m) => m.lines.join(' ').toLowerCase().includes(s.toLowerCase()));
 
@@ -167,4 +167,35 @@ test('map regex: each picked mod is found by its own text (not only by its name 
   const aoe = MR.coverMods(['MapMonsterAreaOfEffect2MapWorlds'], 'regular');
   assert.deepEqual(aoe.extra, []);
   assert.match(aoe.pieces[0], /\\d\+/);
+});
+
+test('map regex: a skipped mod\'s piece never matches the reminder text under another mod (3.30 map)', () => {
+  const MR = require('../src/core/regex/maps');
+  const DATA = require('../src/core/regex/map-mods.json');
+  const map = [
+    'Item Class: Maps', 'Rarity: Rare', 'Woe Resolve', 'Map (Tier 16)', 'Atlas Drops: +78% (augmented)', 'Item Rarity: +47% (augmented)', 'Monster Pack Size: +30% (augmented)',
+    'Item Level: 84', 'Monster Level: 83', 'Area has increased monster variety', '30% increased number of Rare Monsters', 'Monsters deal 106% extra Physical Damage as Cold',
+    'Players gain 50% reduced Flask Charges', 'Players are Cursed with Enfeeble',
+    "(Enfeeble is a Hex which reduces the targets' Accuracy Rating by 10% and Damage by 15%, or 9% on Rare or Unique targets. It lasts 8 seconds)",
+    'Players are Cursed with Elemental Weakness', '(Elemental Weakness is a Hex which inficts -15% to all Elemental Resistances. It lasts 8 seconds)',
+    'Travel to a Map of this tier or lower by using this in a personal Map Device. Maps can only be used once.',
+  ].join('\n');
+  const skip = MR.modsFor('regular', { nightmare: true }).filter((m) => m.lines.some((l) => /cannot regenerate|less cooldown recovery|less recovery rate of life|reduced chance to block|to all maximum resistances/i.test(l))).map((m) => m.id);
+  assert.equal(skip.length, 5);
+  const re = new RegExp(MR.coverMods(skip, 'regular').pieces.join('|'), 'im');
+  assert.ok(!re.test(map), 'the map is not hidden');
+  // and in general: no single mod's piece matches any reminder text
+  const rem = DATA.mods.flatMap((m) => (m.reminders || []).map((r) => [m.id, r]));
+  assert.ok(rem.length > 10);
+  for (const m of MR.modsFor('regular', { nightmare: true })) {
+    const r = new RegExp(MR.coverMods([m.id], 'regular').pieces.join('|'), 'im');
+    for (const [id, text] of rem) if (id !== m.id) assert.ok(!r.test(text), `${m.id} matches the reminder of ${id}`);
+  }
+});
+
+test('map regex: 3.30 map lines (Atlas Drops, More Threads)', () => {
+  const MR = require('../src/core/regex/maps');
+  const r = MR.buildMapRegex({ numbers: { quantity: 70, scarabs: 20 } });
+  assert.match(r.regex, /ops: \\\+/);
+  assert.match(r.regex, /ads: \\\+/);
 });

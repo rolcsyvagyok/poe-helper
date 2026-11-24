@@ -1030,6 +1030,8 @@ function registerIpc() {
   handle('atlas:threads', () => services.atlasThreads());
   handle('atlas:save', (s) => services.atlasSave(s || {}));
   handle('atlas:remove', (id) => services.atlasRemove(String(id)));
+  handle('atlas:copy', (id) => services.atlasCopy(String(id)));
+  handle('atlas:syncGuides', () => services.syncGuideSites({ force: true }));
   handle('atlas:links', (id) => services.atlasLinks(String(id)));
   // a farming session for a strategy: a WealthyExile session marked with it (snapshots at the start and stop)
   handle('atlas:session', async ({ id, action } = {}) => {
@@ -1044,6 +1046,7 @@ function registerIpc() {
     await snapshotNow('session').catch(() => {});
     return s;
   });
+  handle('networth:adjust', async (o = {}) => services.networth.setSessionAdjust(await services.getLeague(), o.id, o.list));
   handle('networth:report', async (sinceMs, at = null) => services.networth.report(await services.getLeague(), { sinceMs, at }));
   handle('networth:compare', async (o = {}) => services.networth.compare(await services.getLeague(), { from: o.from || null, to: o.to || null }));
   handle('networth:clear', async () => {

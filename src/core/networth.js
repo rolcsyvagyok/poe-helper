@@ -320,9 +320,25 @@ class NetWorthTracker {
     return { list: all.map((s) => ({ ts: s.ts, chaos: s.totalChaos, reason: s.reason })), result: a ? compareSnaps(a, b) : null };
   }
 
-  /** Farming sessions: a start and an end (open while running); profit is measured from the snapshot at the start. */
+  /** Farming sessions: a start and an end (open while running); profit is measured from the snapshot at the start.
+   *  adjustChaos: what the items you left out were worth (a sale or a buy during the session), taken off its profit. */
   sessions(league) {
-    return (this.store.get('sessions') || []).filter((s) => !league || s.league === league);
+    return (this.store.get('sessions') || []).filter((s) => !league || s.league === league).map((s) => ({ ...s, adjustChaos: adjustOf(s) }));
+  }
+
+  /**
+   * Leave items out of a session: list = [{ n: item name, q: how many (+ came in from outside the farm, like a sale;
+   * − went out, like a buy), e: chaos each }]. Their worth no longer counts as profit or loss.
+   */
+  setSessionAdjust(league, id, list) {
+    const all = this.store.get('sessions') || [];
+    const s = all.find((x) => x.id === String(id) && (!league || x.league === league));
+    if (!s) throw new Error('That session is gone.');
+    const clean = (Array.isArray(list) ? list : []).map((x) => ({ n: String(x?.n || '').slice(0, 80), q: Math.round(Number(x?.q) * 100) / 100, e: Math.max(0, Number(x?.e) || 0) }))
+      .filter((x) => x.n && x.q && Number.isFinite(x.q)).slice(0, 50);
+    if (clean.length) s.adjust = clean; else delete s.adjust;
+    this.store.set('sessions', all);
+    return { ...s, adjustChaos: adjustOf(s) };
   }
 
   /** strategy: an Atlas strategy's id, so the strategy can show what its sessions earned */
@@ -364,6 +380,11 @@ class NetWorthTracker {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
   }
+}
+
+/** What a session's left-out items were worth, in chaos (taken off its profit). */
+function adjustOf(s) {
+  return Math.round((s?.adjust || []).reduce((a, x) => a + (Number(x.q) || 0) * (Number(x.e) || 0), 0) * 10) / 10;
 }
 
 function diffItems(a, b) {
@@ -442,4 +463,5 @@ function isPlaying(clientLogPath, idleMs = 15 * 60 * 1000) {
   }
 }
 
-module.exports = { NetWorthTracker, valueTabs, buildIndex, valueItem, neededCategories, diffItems, compareSnaps, stashKind, isPlaying };
+module.exports = {
+  adjustOf, NetWorthTracker, valueTabs, buildIndex, valueItem, neededCategories, diffItems, compareSnaps, stashKind, isPlaying };

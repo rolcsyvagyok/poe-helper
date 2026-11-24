@@ -96,3 +96,36 @@ test('guide strategies from every website are added once; a deleted one stays de
   s.addGuidePresetsForTest(tree);
   assert.ok(!s.settings.get('atlasStrategies').some((x) => x.presetId === 'mx-sr13h300'), 'a deleted one is not added again');
 });
+
+test('guide website check: reads poeatlasplanner.com sections; a tree already in the list is not added twice', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-sync-'));
+  const tree = require('../src/core/atlas').buildTree(JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(__dirname, 'fixtures', 'atlas-3.30.json.gz')))));
+  const s = createServices({ dataDir: dir, secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  const red = require('../src/core/atlas-presets.json').presets.find((p) => p.id === 'pap-red-altars');
+  const code = red.link.split('#p=')[1];
+  const html = `<h2 id="farm">Farming trees</h2><div><section class="guide-preset guide-preset-compact" id="red-altars"><div class="guide-preset-heading"><h3>Fubgun · Red altars</h3><span>150<!-- --> pts</span></div><p class="guide-preset-goal">Exarch loot · stronger map modifiers</p><div class="guide-preset-footer"><a class="guide-button" href="/?preset=red-altars#p=${code}">Open tree</a></div></section></div>
+    <h2 id="u">Ultimatum farming: the 121-point tree and what to change</h2><section class="guide-preset" id="new-one"><h3>Someone · Brand new</h3><p class="guide-preset-goal">Something new</p><a href="/?preset=new-one#p=${code}x">Open</a></section>`;
+  const found = s.papPresetsFrom(html);
+  assert.deepEqual(found.map((p) => [p.id, p.group, p.author, p.name, p.about]), [
+    ['pap-red-altars', 'Farming trees', 'Fubgun', 'Red altars', 'Exarch loot · stronger map modifiers'],
+    ['pap-new-one', 'Ultimatum farming', 'Someone', 'Brand new', 'Something new'],
+  ]);
+  s.addGuidePresetsForTest(tree);
+  const before = s.settings.get('atlasStrategies').length;
+  // the same tree found on the page under another id: already there
+  const again = found[0];
+  assert.equal(s.addPresetsForTest([again], tree).length, 0);
+  assert.equal(s.settings.get('atlasStrategies').length, before);
+});
+
+test('copy a guide strategy to My strategies', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'poeh-copy-'));
+  const s = createServices({ dataDir: dir, secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  s.settings.patch({ atlasStrategies: [{ id: 'pap-red-altars', presetId: 'pap-red-altars', name: 'Fubgun · Red altars', nodes: [1, 2], choices: { 2: 1 }, threads: [{ name: 'Abyss Thread', count: 8 }], guide: { author: 'Fubgun', source: 'https://poeatlasplanner.com/guides/best-atlas-tree' } }] });
+  const c = s.atlasCopy('pap-red-altars');
+  assert.equal(c.name, 'Red altars (Fubgun)');
+  assert.ok(!c.guide && !c.presetId);
+  assert.deepEqual(c.nodes, [1, 2]);
+  assert.match(c.notes, /poeatlasplanner\.com/);
+  assert.equal(s.settings.get('atlasStrategies').length, 2);
+});

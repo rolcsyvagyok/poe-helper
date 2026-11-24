@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.169 - 2026-11-24
+
+* [Map regex] Fixed: maps with a curse could be hidden by mistake (a skipped mod's search piece matched the curse's reminder text, like "-15% to all Elemental Resistances"). Every piece is now checked against the reminder texts too, as poe.re does.
+* [Map regex] 3.30 map lines: "Atlas Drops" (quantity) and "More Threads" searches work again, and 9 new 3.30 map mods are listed (Mirage, Wildwood, Beyond evocators, buried Sentinels, Mirror of Delirium).
+* [Tier designer] Picking a sound (or dropping in your own, or moving the volume) saves it straight away: no Done and Save look needed.
+* [WealthyExile] Sold or bought something in the middle of a session? Leave those items out (all or some) and the session's profit counts only what you farmed. Atlas strategies use the same numbers.
+* [Atlas strategies] "Copy to My strategies" puts a guide's strategy in your own list, to change as you like.
+* [Atlas strategies] The guide websites (poeatlasplanner.com and maxroll.gg) are checked once a week: new strategies there are added by themselves. "Check now" at the bottom of the list checks straight away.
+
 ## 1.0.168 - 2026-11-24
 
 - Atlas strategies: a passive's tooltip no longer stays on screen after the mouse leaves the tree (switching windows, scrolling, or moving off fast).

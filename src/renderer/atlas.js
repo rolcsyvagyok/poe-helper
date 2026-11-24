@@ -5,6 +5,7 @@
 (() => {
   const { h, mount, call, toast, chaosDiv } = window.UI;
 
+  const agoDays = (t) => { const d = Math.floor((Date.now() - t) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
   const A = { tree: null, list: null, threads: null, sel: null, hoverCat: null, error: null, views: {}, edit: {}, undo: {} };
 
   // ---------- the tree ----------
@@ -378,7 +379,13 @@
       !L.strategies.length ? h('p', { class: 'small muted' }, 'No strategies yet. Click "New strategy".')
         : !shown.length ? h('p', { class: 'small muted' }, `No strategy has "${A.q}".`)
           : [mine.length || !q ? section('mine', 'My strategies', mine, mine.length ? null : h('p', { class: 'small faint', style: { margin: '2px 4px' } }, 'None yet: click "New strategy", or copy one from below.')) : null,
-            ...[...sites].map(([site, list]) => section(`site:${site}`, site, list, siteBody(list)))]);
+            ...[...sites].map(([site, list]) => section(`site:${site}`, site, list, siteBody(list)))],
+      h('div', { class: 'at-sync small faint' },
+        h('span', {}, L.guideSyncAt ? `Guide websites checked ${agoDays(L.guideSyncAt)}` : 'Guide websites: checked once a week'),
+        h('button', { class: 'quiet sm', title: 'Look for new strategies on poeatlasplanner.com and maxroll.gg now', onclick: async (e) => {
+          e.target.disabled = true; e.target.textContent = 'Checking…';
+          try { const r = await call('atlas:syncGuides'); toast(r.added?.length ? `New from the guide websites: ${r.added.join(', ')}` : r.errors?.length ? `Couldn't check: ${r.errors.join('; ')}` : 'No new strategies on the guide websites'); render(); } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = 'Check now'; }
+        } }, 'Check now')));
 
     const body = h('div', { class: 'at-body' }, S ? strategyView(S, L) : h('div', { class: 'panel empty' }, 'Make a strategy for each way you farm: Breach with Breach threads, Beasts and Heist, Originator maps… Paste its atlas tree link from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com or a maxroll.gg strategy, or click it together on the tree.'));
     window.UI.keepScroll ? window.UI.keepScroll(() => mount(page, head, h('div', { class: 'at-page' }, cards, body))) : mount(page, head, h('div', { class: 'at-page' }, cards, body));
@@ -401,7 +408,11 @@
       if (del.dataset.sure !== '1') { del.dataset.sure = '1'; del.textContent = 'Click again to delete'; setTimeout(() => { del.dataset.sure = ''; del.textContent = 'Delete'; }, 3000); return; }
       await call('atlas:remove', S.id); A.sel = null; toast(`${S.name} deleted. Its sessions stay in WealthyExile.`); render();
     } }, 'Delete');
-    const top = h('div', { class: 'at-top' }, name, h('span', { class: 'spacer' }), sessBtn, del);
+    // a copy in My strategies: a guide's tree to change as you like (the guide's own stays as it is)
+    const copyBtn = h('button', { class: S.guide ? '' : 'quiet', title: S.guide ? 'Put a copy in My strategies, to change its tree, threads and maps' : 'Make a copy of this strategy', onclick: async () => {
+      try { const c = await call('atlas:copy', S.id); A.sel = c.id; A.q = ''; toast(`Copied to My strategies: ${c.name}`); render(); } catch (e) { toast(e.message, true); }
+    } }, S.guide ? 'Copy to My strategies' : 'Copy');
+    const top = h('div', { class: 'at-top' }, name, h('span', { class: 'spacer' }), copyBtn, sessBtn, del);
 
     // ---- the tree link ----
     const link = h('input', { type: 'text', value: S.link || '', placeholder: 'Atlas tree link (pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com, maxroll.gg), or click passives on the tree', 'aria-label': 'Atlas tree link', style: { flex: 1 } });

@@ -2205,3 +2205,11 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .at-chip.hit { border-color: var(--accent); background: rgba(90, 169, 230, 0.14); }
 .at-guide { margin-bottom: 8px; color: var(--muted); }
 .at-guide b { color: var(--text); }
+.at-sync { display: flex; gap: 6px; align-items: center; justify-content: space-between; padding: 10px 2px 4px; border-top: 1px solid var(--line-soft); margin-top: 6px; }
+.at-sync button { white-space: nowrap; flex: none; }
+.nw-adjust { margin-top: 12px; }
+.nw-adj-list { display: grid; gap: 4px; }
+.nw-adj-row { display: grid; grid-template-columns: 18px auto 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
+.nw-adj-sign { font-weight: 700; text-align: center; }
+.nw-adj-sign.in { color: #e8973a; }
+.nw-adj-sign.out { color: #5aa9e6; }

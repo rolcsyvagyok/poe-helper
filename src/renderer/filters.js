@@ -2604,6 +2604,14 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
   // sound: keep the filter's own sound, one of our tinks, a game sound, or none
   const ownCustom = tier.style?.customSound && !/^poehelper-sounds\//.test(tier.style.customSound) ? tier.style.customSound : null;
   const current = d.customSound ? (window.UI.soundIdFromPath(d.customSound) || 'own') : d.sound?.id ? `game:${d.sound.id}` : 'none';
+  // a new sound (or volume) is saved straight away, with the look as it is in the editor: no Done, no Save look
+  const saveSound = async (msg) => {
+    try {
+      if (!d.text) d.text = [200, 200, 200, 255];
+      if (opts.onSave) await opts.onSave(d); else await call('tiers:style', { key: tier.key, style: d });
+      toast(msg || `Saved the sound of ${opts.name || tierName(tier)}`);
+    } catch (err) { toast(err.message, true); }
+  };
   const soundSel = h('select', { 'aria-label': 'Drop sound', onchange: (e) => {
     const v = e.target.value;
     delete d.customSound; delete d.customVolume; delete d.sound; delete d.keepSound;
@@ -2613,6 +2621,8 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
     else if (v !== 'none') d.customSound = window.UI.soundPath(v);
     playSound(v);
     changed();
+    FB.soundOpen = null;
+    saveSound();
     redraw();
   } },
   ownCustom ? h('option', { value: 'own', selected: current === 'own' }, `Filter's sound (${ownCustom})`) : null,
@@ -2621,7 +2631,8 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
   h('optgroup', { label: 'PoE Helper tinks' }, S.sounds.filter((s) => !s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, `${s.name}, ${s.note}`))),
   S.sounds.some((s) => s.user) ? h('optgroup', { label: 'Your sounds' }, S.sounds.filter((s) => s.user).map((s) => h('option', { value: s.id, selected: current === s.id }, s.name))) : null,
   h('optgroup', { label: 'Game sounds (heard in game only)' }, Array.from({ length: 16 }, (_, i) => h('option', { value: `game:${i + 1}`, selected: current === `game:${i + 1}` }, `Game sound ${i + 1}${GAME_SOUND_USE[i + 1] ? ` (FilterBlade: ${GAME_SOUND_USE[i + 1]})` : ''}`))));
-  const vol = h('input', { type: 'range', min: 0, max: 300, value: d.sound?.volume ?? d.customVolume ?? 300, style: { width: '100px' }, 'aria-label': 'Volume', oninput: (e) => { if (d.sound) d.sound.volume = +e.target.value; else if (d.customSound) d.customVolume = +e.target.value; } });
+  const vol = h('input', { type: 'range', min: 0, max: 300, value: d.sound?.volume ?? d.customVolume ?? 300, style: { width: '100px' }, 'aria-label': 'Volume', oninput: (e) => { if (d.sound) d.sound.volume = +e.target.value; else if (d.customSound) d.customVolume = +e.target.value; },
+    onchange: () => { if (d.sound || d.customSound) saveSound(`Volume saved: ${vol.value}`); } });
 
   const beamSel = h('select', { 'aria-label': 'Light beam', onchange: (e) => { d.beam = e.target.value ? { color: e.target.value, temp: beamTemp.checked } : null; if (!e.target.value) delete d.beam; changed(); } },
     h('option', { value: '' }, 'No beam'), COLOURS.map((c) => h('option', { value: c, selected: d.beam?.color === c }, `${c} beam`)));
@@ -2649,7 +2660,7 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
   const soundBox = h('div', { class: 'fb-ed-sound' },
     h('div', { class: 'fb-ed-row' }, h('span', {}, 'Sound'),
       h('b', { class: 'small' }, soundName), window.UI.soundButton(window.UI.normalizeStyle(d).sound),
-      h('button', { class: 'quiet sm', 'aria-expanded': soundOpen ? 'true' : 'false', onclick: () => { FB.soundOpen = soundOpen ? null : tier.key; redraw(); } }, soundOpen ? 'Done' : 'Change')),
+      h('button', { class: 'quiet sm', 'aria-expanded': soundOpen ? 'true' : 'false', onclick: () => { FB.soundOpen = soundOpen ? null : tier.key; redraw(); } }, soundOpen ? 'Close' : 'Change')),
     soundOpen ? h('div', { class: 'stack', style: { gap: '8px', marginTop: '8px' } },
       h('div', { class: 'fb-ed-row' }, h('span', {}, ''), soundSel),
       h('div', { class: 'fb-ed-row' }, h('span', {}, 'Volume'), vol),
@@ -2658,6 +2669,8 @@ function lookEditor(tier, redraw, onPreview, opts = {}) {
         delete d.sound; delete d.customVolume;
         d.customSound = window.UI.soundPath(snd.id);
         playSound(snd.id);
+        FB.soundOpen = null;
+        saveSound(`Saved your sound ${snd.name || ''} on ${opts.name || tierName(tier)}`);
         redraw();
       }))) : null);
 

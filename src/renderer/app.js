@@ -872,11 +872,39 @@ async function renderNetworthNow() {
 
   // ---- a session: its result and what each tab gained ----
   let sessBox = null;
+  let adjustBox = null;
   if (sess) {
     const base = [...all].reverse().find((p) => p.ts <= sess.start + 60000) || all.find((p) => p.ts >= sess.start);
     const end = [...all].reverse().find((p) => p.ts <= (sess.end ? sess.end + 120000 : Infinity));
-    const profit = base && end ? end.chaos - base.chaos : 0;
+    const left = sess.adjustChaos || 0; // items left out (a sale or a buy in the middle of the session)
+    const profit = base && end ? end.chaos - base.chaos - left : 0;
     const hrs = played(sess) / 3600000;
+    // ---- leave items out: what changed in the session, to pick from ----
+    let changed = [];
+    if (base && end && end.ts > base.ts) { try { const c = await call('networth:compare', { from: base.ts, to: end.ts }); changed = [...(c.result?.gained || []), ...(c.result?.lost || [])]; } catch { /* none */ } }
+    const adj = (sess.adjust || []).map((x) => ({ ...x }));
+    const saveAdj = async (list, msg) => { try { await call('networth:adjust', { id: sess.id, list }); toast(msg); } catch (e) { toast(e.message, true); } renderNetworth(); };
+    const pick = h('select', { 'aria-label': 'Item to leave out' }, h('option', { value: '' }, 'Pick an item that changed…'),
+      changed.filter((c) => !adj.some((a) => a.n === c.n)).sort((a, b) => Math.abs(b.fromQty) - Math.abs(a.fromQty)).map((c) => h('option', { value: c.n }, `${c.dq > 0 ? '+' : '−'}${Math.abs(c.dq)} ${c.n} (${c.dq > 0 ? '+' : '−'}${chaosDiv(Math.abs(c.fromQty), d)})`)));
+    const qty = h('input', { type: 'number', min: 0, step: 'any', placeholder: 'How many', 'aria-label': 'How many to leave out', style: { width: '118px' } });
+    pick.addEventListener('change', () => { const c = changed.find((x) => x.n === pick.value); if (c) qty.value = Math.abs(c.dq); });
+    const addAdj = () => {
+      const c = changed.find((x) => x.n === pick.value);
+      const n = Math.abs(Number(qty.value));
+      if (!c || !(n > 0)) { toast('Pick an item and how many.', true); return; }
+      const q = Math.sign(c.dq) * Math.min(n, Math.abs(c.dq) || n);
+      saveAdj([...adj, { n: c.n, q, e: c.e1 }], `${Math.abs(q)} ${c.n} left out of ${sess.name}`);
+    };
+    const leaveOut = adjustBox = h('div', { class: 'nw-panel nw-adjust' },
+      h('div', { class: 'nw-ph' }, h('h2', {}, 'Left out of this session'),
+        window.UI.infoTip('Sold or bought something in the middle of a session? Leave those items out and the session\'s profit counts only what you farmed. A sale: leave out the currency you got. A buy: leave out the currency you paid (it is put back).', { label: 'About leaving items out' })),
+      adj.length ? h('div', { class: 'nw-adj-list' }, adj.map((x, i) => h('div', { class: 'nw-adj-row' },
+        h('span', { class: 'nw-adj-sign ' + (x.q > 0 ? 'in' : 'out'), 'aria-hidden': 'true' }, x.q > 0 ? '−' : '+'),
+        h('span', {}, `${Math.abs(x.q)} × ${x.n}`),
+        h('span', { class: 'small muted' }, x.q > 0 ? `came in from outside: ${chaosDiv(x.q * x.e, d)} off the profit` : `went out: ${chaosDiv(-x.q * x.e, d)} added back`),
+        h('button', { class: 'quiet sm', 'aria-label': `Count ${x.n} again`, title: 'Count it again', onclick: () => saveAdj(adj.filter((_, j) => j !== i), `${x.n} counts again`) }, '✕')))) : null,
+      changed.length ? h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap', marginTop: adj.length ? '8px' : 0 } }, pick, qty, h('button', { class: 'sm', onclick: addAdj }, 'Leave out'))
+        : h('p', { class: 'small muted' }, 'Nothing changed in this session yet: take a snapshot first.'));
     const tabs = base?.tabs && end?.tabs ? [...new Set([...Object.keys(base.tabs), ...Object.keys(end.tabs)])].map((t) => [t, (end.tabs[t] || 0) - (base.tabs[t] || 0)]).filter(([, v]) => Math.abs(v) >= 1).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])) : [];
     const mx = Math.max(1, ...tabs.map(([, v]) => Math.abs(v)));
     const sign = (v) => `${v >= 0 ? '+' : '−'}${chaosDiv(Math.abs(v), d)}`;
@@ -891,7 +919,8 @@ async function renderNetworthNow() {
         h('div', { class: 'nw-ph' }, h('h2', {}, 'Session result')),
         h('div', { class: 'nw-res-grid' },
           h('span', {}, ''), h('span', { class: 'small faint r' }, 'Total'), h('span', { class: 'small faint r' }, '/ h'),
-          h('b', {}, 'Profit'), h('b', { class: 'r ' + (profit >= 0 ? 'good' : 'bad') }, sign(profit)), h('b', { class: 'r' }, hrs > 0.05 ? sign(profit / hrs) : '–')),
+          h('b', {}, 'Profit'), h('b', { class: 'r ' + (profit >= 0 ? 'good' : 'bad') }, sign(profit)), h('b', { class: 'r' }, hrs > 0.05 ? sign(profit / hrs) : '–'),
+          left ? [h('span', { class: 'small muted' }, 'Left out'), h('span', { class: 'small muted r' }, sign(-left)), h('span', {})] : null),
         h('div', { class: 'nw-res-grid two' },
           h('span', { class: 'muted' }, 'Played'), h('b', { class: 'r' }, dur(played(sess))),
           h('span', { class: 'muted' }, 'Snapshots'), h('b', { class: 'r' }, String(all.filter((p) => p.ts >= sess.start - 60000 && p.ts <= (sess.end || Infinity) + 120000).length)),
@@ -933,6 +962,7 @@ async function renderNetworthNow() {
       tabBar,
       h('div', { class: 'nw-top' }, chartBox, catBox),
       sessBox,
+      adjustBox,
       latest ? null : h('div', { class: 'nw-panel row' }, snapBtn, h('span', { class: 'small muted' }, 'Your net worth, categories and items show up here after your first snapshot.')),
       latest ? nwItems(latest, tabNames, snapBtn) : null));
 }
