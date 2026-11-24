@@ -135,3 +135,11 @@ test('maxroll.gg guide strategies: a passive the planner took back out is left o
   for (const gone of [39694, 18958, 37245]) assert.ok(!m.nodes.includes(gone), `${gone} was removed`);
   for (const p of P.presets) assert.ok(p.author && p.name && p.about && p.group && p.source && p.link, p.id);
 });
+
+test('a current poeplanner link (little-endian, with gzipped notes)', () => {
+  const code = 'BQAeAACWANvWXXvIAl8-Ri9jD0z167skl74uAEhiA7L63qIiaYa0uy4sksHuCHr-xW2IwCqn4nQ5NyC9V1XqQqKAuYOOxoaMQd_yzgBenc5aX0E9b0y6yf0_3SKIfOPT6UyEKru_HYyRL-q92h19VER0HYvhCnvfFtxp3v6qCmC_sZ00fdcraIlPXSTRosqspIed1I_QvNDGDPT_QhzetdiCp73H1T9Fdo45WYZr4HDjfjfhZTfjAPmCGcSm4RDTDhkKzOT7setfXHURt6Vz4g5N3F7f6SghTDUwL6gXUBN9UTjUmcFR6hzoChmUyXAYi8Gv5ewLcTp25yZxC31tWx5j0Y_lAzCIB2aH2vrB-wx2qj8JNkGWwnbZXHs3oHFmH7linX1-6_zSK7e51OlnI9_QKHEAH4sIAAAAAAAAAy3MsQrCUAwF0L1fke_oJuL4sODgHNr7-i6URJJU_HwdXM9wmh7cTa2k-cZORM6yBDo_yGnRGuJdnh45-Jrl6m-UnymPETSIh1zWFQdCi25_nu5nJTfIzYpF_MrG0B1f2d7g1G4AAAA=';
+  const r = A.parseLink(`https://poeplanner.com/atlas-tree/${code}`, tree);
+  assert.equal(r.from, 'poeplanner.com');
+  assert.equal(r.nodes.length, 150);
+  assert.ok(!r.unknown);
+});

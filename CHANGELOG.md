@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.168 - 2026-11-24
+
+- Atlas strategies: a passive's tooltip no longer stays on screen after the mouse leaves the tree (switching windows, scrolling, or moving off fast).
+* [Atlas strategies] Fixed: current poeplanner.com atlas tree links came in with almost no passives (poeplanner changed its link format). Older links still work.
+
 ## 1.0.167 - 2026-11-24
 
 * [Atlas strategies] Find strategies by mechanic, name or author (type "legion": the ones with the most Legion passives come first). The list is split into "My strategies" and one folding section per website.

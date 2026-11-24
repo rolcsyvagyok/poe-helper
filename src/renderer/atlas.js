@@ -262,7 +262,19 @@
       canvas.style.cursor = n && (editing() ? n.kind !== 'mastery' : n.variants.length && picked().has(n.id)) ? 'pointer' : 'grab';
       showTip(n, e);
     });
-    canvas.addEventListener('mouseleave', () => { tip.hidden = true; if (hover) { hover = null; preview = null; draw(); } });
+    // the tip goes away whenever the pointer isn't on the tree: leaving it, switching windows, scrolling,
+    // or any move that lands somewhere else (mouseleave alone misses some of these)
+    const hideTip = () => { tip.hidden = true; if (hover) { hover = null; preview = null; draw(); } };
+    canvas.addEventListener('mouseleave', hideTip);
+    const offTree = (e) => { if (!tip.hidden && e.target !== canvas) hideTip(); };
+    document.addEventListener('mousemove', offTree, true);
+    window.addEventListener('blur', hideTip);
+    document.addEventListener('visibilitychange', hideTip);
+    const onScroll = () => { if (!tip.hidden) hideTip(); };
+    document.addEventListener('scroll', onScroll, true);
+    // the listeners go with the tree when the page draws a new one
+    new MutationObserver((_, obs) => { if (!canvas.isConnected) { document.removeEventListener('mousemove', offTree, true); window.removeEventListener('blur', hideTip); document.removeEventListener('visibilitychange', hideTip); document.removeEventListener('scroll', onScroll, true); obs.disconnect(); } })
+      .observe(document.body, { childList: true, subtree: true });
     function zoomAt(f, ev) {
       const r = canvas.getBoundingClientRect();
       const sx = ev ? ev.clientX - r.left : r.width / 2; const sy = ev ? ev.clientY - r.top : r.height / 2;

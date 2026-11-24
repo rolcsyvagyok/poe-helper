@@ -169,15 +169,24 @@ function encodeOfficial(nodes, choices = {}, tree = null) {
   return toB64url(b.subarray(0, p));
 }
 
-function decodePoeplanner(code) {
+function decodePoeplanner(code, tree) {
   const b = fromB64url(code);
   if (b.length < 6) return null;
-  const fmt = b.readUInt16BE(0);
-  let p = 4;
-  if (fmt >= 5) p += 1;
-  const n = b.readUInt16BE(p); p += 2;
-  const nodes = [];
-  for (let i = 0; i < n && p + 1 < b.length; i++, p += 2) nodes.push(b.readUInt16BE(p));
+  // the same layout in two byte orders: older links big-endian (00 05 …), current ones little-endian (05 00 …)
+  const read = (le) => {
+    const u16 = (p) => (le ? b.readUInt16LE(p) : b.readUInt16BE(p));
+    const fmt = u16(0);
+    let p = 4;
+    if (fmt >= 5) p += 1; // a PoE 2 flag
+    const n = u16(p); p += 2;
+    const nodes = [];
+    for (let i = 0; i < n && p + 1 < b.length; i++, p += 2) nodes.push(u16(p));
+    return nodes;
+  };
+  const be = read(false);
+  const le = b[0] !== 0 ? read(true) : [];
+  const known = (l) => (tree ? l.filter((id) => tree.nodes.has(id)).length : 0);
+  const nodes = le.length && (!tree || known(le) > known(be)) ? le : be;
   return { nodes, choices: {} };
 }
 
@@ -337,7 +346,7 @@ function parseLink(link, tree) {
     if (!code) throw new Error('That isn\'t an atlas tree link. Links from pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com and maxroll.gg work.');
     from = /poeplanner/.test(s) ? 'poeplanner.com' : /wealthyexile/.test(s) ? 'wealthyexile.com' : /pathofexile/.test(s) ? 'pathofexile.com' : 'code';
     const b = fromB64url(code);
-    r = b.length >= 3 && b[0] + b[1] + b[2] === 0 ? decodeOfficial(code, tree) : decodePoeplanner(code);
+    r = b.length >= 3 && b[0] + b[1] + b[2] === 0 ? decodeOfficial(code, tree) : decodePoeplanner(code, tree);
     if (!r) throw new Error('That tree link couldn\'t be read.');
   }
   const known = r.nodes.filter((id) => tree.nodes.has(id));
