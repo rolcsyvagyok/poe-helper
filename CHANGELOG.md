@@ -5,6 +5,10 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.170 - 2026-11-24
+
+* [Tier designer] A hidden currency tier now says when stacks of its items still show (NeverSink shows stacks of 3+, 6+… in their own tiers first), with "Hide the stacks too".
+
 ## 1.0.169 - 2026-11-24
 
 * [Map regex] Fixed: maps with a curse could be hidden by mistake (a skipped mod's search piece matched the curse's reminder text, like "-15% to all Elemental Resistances"). Every piece is now checked against the reminder texts too, as poe.re does.

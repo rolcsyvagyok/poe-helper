@@ -177,6 +177,13 @@ async function renderFiltersNow() {
   if (info.base) {
     try { const raw = await call('tiers:view'); FB.alwaysShow = raw?.alwaysShow || {}; view = splitTypes(raw); } catch { view = null; }
   }
+  // stacks: NeverSink shows stacks of cheap currency (3+, 5+, 10+) in their own tiers, before the single ones.
+  // base -> the stack tiers that hold it, so a hidden tier can say "stacks of it still show"
+  FB.stackIdx = new Map();
+  for (const ty of view?.types || []) for (const x of ty.tiers || []) {
+    if (!x.stackSize || !x.hasBaseList) continue;
+    for (const b of x.bases || []) { if (!FB.stackIdx.has(b)) FB.stackIdx.set(b, []); FB.stackIdx.get(b).push({ t: x, label: ty.label, type: ty.type }); }
+  }
   const themes = await call('themes:list').catch(() => []);
   const edits = view ? Object.keys(S.settings.tierPatch?.moves || {}).length + (view.editedStyles || []).length : 0;
 
@@ -580,6 +587,27 @@ function renderTiers(body, view) {
     const changedAction = view.editedActions && view.editedActions[t.key];
     const state = t.state || (t.off ? 'Off' : t.action);
     const hidden = state === 'Hide' || state === 'Off';
+    // a hidden tier whose items still show when stacked (a stack tier comes first in the filter)
+    const stackLeaks = (() => {
+      if (!hidden || t.stackSize || !t.hasBaseList) return [];
+      const seen = new Map();
+      for (const b of t.bases || []) for (const e of FB.stackIdx?.get(b) || []) {
+        const st2 = e.t.state || (e.t.off ? 'Off' : e.t.action);
+        // campaign-only stack tiers don't matter in maps
+        if (st2 === 'Show' && e.t.key !== t.key && !/leveling/.test(e.type) && !seen.has(e.t.key)) seen.set(e.t.key, e);
+      }
+      return [...seen.values()].sort((a, b) => (a.t.stackSize.value || 0) - (b.t.stackSize.value || 0));
+    })();
+    const stackNote = stackLeaks.length ? h('div', { class: 'fb-stack-leak small' },
+      h('span', { 'aria-hidden': 'true' }, '⚠ '),
+      `Stacks still show: ${stackLeaks.map((e) => `${e.t.stackSize.value}+ (${e.label}, ${tierName(e.t)})`).join(', ')}. `,
+      h('button', { class: 'quiet sm', onclick: async () => {
+        const others = [...new Set(stackLeaks.flatMap((e) => e.t.bases).filter((b) => !(t.bases || []).includes(b)))];
+        if (others.length && !confirm(`These stack tiers also hold ${others.slice(0, 6).join(', ')}${others.length > 6 ? ` and ${others.length - 6} more` : ''}. Hide their stacks too?`)) return;
+        for (const e of stackLeaks) await call('tiers:action', { key: e.t.key, action: 'Hide' });
+        toast(`Stacks hidden too: ${stackLeaks.map((e) => `${e.t.stackSize.value}+`).join(', ')}`);
+        FB.prices = {}; renderFilters();
+      } }, 'Hide the stacks too')) : null;
     const setAction = async (want) => {
       if (want === state) return;
       await call('tiers:action', { key: t.key, action: want });
@@ -608,6 +636,7 @@ function renderTiers(body, view) {
             if (set != null && set !== '') return `, ${typeof set === 'number' ? `${set}c` : String(set).replace(/\s*div$/i, 'd').replace(/\s*c$/i, 'c')}+`;
             return pricing?.tiers?.[t.key]?.median != null ? `, typically ${fmtC(pricing.tiers[t.key].median)}` : '';
           })()),
+        stackNote,
         t.stackSize ? stackBox(t) : t.special ? h('div', { class: 'small', style: { color: '#7d8272' }, title: t.conditions.join('\n') }, `Only when: ${t.conditions.filter((c) => !/^(Class|Rarity|ItemLevel|AreaLevel|Quality|GemLevel)\b/.test(c)).join(', ') || 'the conditions below'}`) : null),
       h('span', { class: 'spacer' }),
       visSwitch,

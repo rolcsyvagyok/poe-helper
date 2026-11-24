@@ -2213,3 +2213,5 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .nw-adj-sign { font-weight: 700; text-align: center; }
 .nw-adj-sign.in { color: #e8973a; }
 .nw-adj-sign.out { color: #5aa9e6; }
+.fb-stack-leak { margin-top: 4px; color: #e8973a; max-width: 560px; }
+.fb-stack-leak button { margin-left: 4px; padding-top: 0; padding-bottom: 0; }
