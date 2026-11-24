@@ -373,20 +373,40 @@ async function renderTrade() {
         redraw(await call('trade:list'));
       } }, 'Check now');
       const c = s.last?.cheapest;
-      const status = s.error ? h('span', { class: 'small bad' }, `Last check failed: ${s.error}`)
-        : s.last ? h('span', { class: 'small muted' }, c ? `Cheapest: ${c.amount} ${c.currency}${c.name ? ` · ${c.name}` : ''} · ${s.last.total} listed · ${agoText(s.last.at)}` : `Nothing listed · ${agoText(s.last.at)}`)
-          : h('span', { class: 'small faint' }, s.kind === 'exchange' ? 'Bulk exchange links can be opened, not price watched.' : 'Not checked yet.');
+      // the cheapest listing, big; next to it how far it is from your price (blue ✓ at or under it, orange ↑ above)
+      const CUR = { chaos: 'c', divine: 'div' };
+      const fmtN = (n) => (n >= 100 ? Math.round(n) : Math.round(n * 10) / 10).toLocaleString('en-US');
+      const div = s.last?.divine || null;
+      const toChaos = (amt, cur) => (cur === 'chaos' ? amt : cur === 'divine' && div ? amt * div : null);
+      const cheapC = c ? (c.chaos ?? toChaos(c.amount, c.currency)) : null;
+      const goalC = s.max?.amount > 0 ? toChaos(s.max.amount, s.max.unit || 'chaos') : null;
+      const inUnit = (chaos, unit) => (unit === 'divine' && div ? chaos / div : chaos);
+      let verdict = null;
+      if (cheapC != null && goalC != null) {
+        const unit = s.max.unit || 'chaos';
+        if (cheapC <= goalC + 1e-9) verdict = h('span', { class: 'ts-verdict ok' }, '✓ At your price');
+        else verdict = h('span', { class: 'ts-verdict over' }, `↑ ${fmtN(inUnit(cheapC - goalC, unit))} ${CUR[unit]} above your ${fmtN(s.max.amount)}`);
+      }
+      const priceBox = s.error ? h('div', { class: 'ts-price' }, h('div', { class: 'ts-big bad' }, '!'), h('div', { class: 'small bad' }, `Last check failed: ${s.error}`))
+        : s.last ? h('div', { class: 'ts-price' },
+          c ? h('div', { class: 'ts-big' }, fmtN(c.amount), h('span', { class: 'ts-cur' }, ` ${CUR[c.currency] || c.currency}`)) : h('div', { class: 'ts-big faint' }, '–'),
+          verdict,
+          h('div', { class: 'small muted' }, c ? `cheapest of ${s.last.total.toLocaleString('en-US')} · ${agoText(s.last.at)}` : `nothing listed · ${agoText(s.last.at)}`))
+          : h('div', { class: 'ts-price' }, h('div', { class: 'ts-big faint' }, '–'), h('div', { class: 'small faint' }, s.kind === 'exchange' ? 'Bulk exchange: open it on the site' : 'Not checked yet'));
       const nameEdit = h('input', { value: s.name, maxlength: 80, class: 'ts-name', 'aria-label': 'Search name', onchange: (e) => save({ name: e.target.value }, 'Renamed') });
-      return h('div', { class: 'panel stack ts-card' + (s.watch ? ' on' : '') },
-        h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } },
-          nameEdit, h('span', { class: 'pill' }, kind), h('span', { class: 'small faint' }, s.league), h('span', { class: 'spacer' }),
-          h('button', { class: 'primary sm', title: s.link, onclick: () => call('trade:open', s.key).catch((e) => toast(cleanErr(e), true)) }, s.live ? 'Open live search' : 'Open'),
+      return h('div', { class: 'panel ts-card' + (s.watch ? ' on' : '') },
+        h('div', { class: 'ts-main' },
+          h('div', { class: 'ts-head' }, nameEdit),
+          h('div', { class: 'ts-meta' }, h('span', { class: 'pill' }, kind), h('span', {}, s.league), c?.name ? h('span', {}, c.name) : null),
+          s.kind !== 'exchange' ? h('div', { class: 'ts-watch' }, watch, h('span', { class: 'muted' }, 'Tell me at'), amount, unit, h('span', { class: 'muted' }, 'or less,'), every) : null),
+        priceBox,
+        h('div', { class: 'ts-actions' },
+          h('button', { class: 'primary', title: s.link, onclick: () => call('trade:open', s.key).catch((e) => toast(cleanErr(e), true)) }, s.live ? 'Open live search' : 'Open'),
           s.kind !== 'exchange' ? check : null,
-          h('button', { class: 'quiet sm', title: 'Move up', 'aria-label': 'Move up', disabled: i === 0, onclick: async () => redraw(await call('trade:move', { key: s.key, dir: -1 })) }, '↑'),
-          h('button', { class: 'quiet sm', title: 'Move down', 'aria-label': 'Move down', disabled: i === d.list.length - 1, onclick: async () => redraw(await call('trade:move', { key: s.key, dir: 1 })) }, '↓'),
-          h('button', { class: 'quiet sm', onclick: async () => { if (!confirm(`Remove "${s.name}"?`)) return; redraw(await call('trade:remove', s.key)); toast('Removed'); } }, 'Remove')),
-        s.kind !== 'exchange' ? h('div', { class: 'row small', style: { gap: '8px', flexWrap: 'wrap' } }, watch, h('span', { class: 'muted' }, 'Tell me at'), amount, unit, h('span', { class: 'muted' }, 'or less,'), every) : null,
-        status);
+          h('div', { class: 'ts-small' },
+            h('button', { class: 'quiet sm', title: 'Move up', 'aria-label': 'Move up', disabled: i === 0, onclick: async () => redraw(await call('trade:move', { key: s.key, dir: -1 })) }, '↑'),
+            h('button', { class: 'quiet sm', title: 'Move down', 'aria-label': 'Move down', disabled: i === d.list.length - 1, onclick: async () => redraw(await call('trade:move', { key: s.key, dir: 1 })) }, '↓'),
+            h('button', { class: 'quiet sm', onclick: async () => { if (!confirm(`Remove "${s.name}"?`)) return; redraw(await call('trade:remove', s.key)); toast('Removed'); } }, 'Remove'))));
     };
 
     mount(page,

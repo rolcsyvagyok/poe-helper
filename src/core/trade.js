@@ -329,7 +329,9 @@ function defaultProps(item) {
     ultimatum: /^Inscribed Ultimatum$/i.test(item.typeLine || '') ? (() => { const u = ultimatumOf(item); const swap = !!u.output; return { show: true, ...u, rewardOn: !!u.reward && !swap, inputOn: !!u.input && !swap, outputOn: swap, challengeOn: false }; })() : { show: false },
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
-    corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' || kind === 'map' ? 'no' : 'any',
+    corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' || kind === 'map' || isJewel(item) ? 'no' : 'any',
+    // jewels: a fractured one is only compared with fractured ones, and one that isn't with ones that aren't
+    fracturedState: isJewel(item) ? (item.flags?.fractured ? 'yes' : 'no') : null,
     // unidentified items are compared with other unidentified ones
     identified: item.flags?.unidentified ? 'no' : 'any',
     influences: Object.fromEntries((item.influences || []).map((i) => [i, true])),
@@ -443,7 +445,8 @@ function buildQuery(item, mods, opts = {}) {
     if (props.identified === 'yes') misc.identified = { option: 'true' };
     if (props.identified === 'no') misc.identified = { option: 'false' };
     for (const [inf, on] of Object.entries(props.influences || {})) if (on) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };
-    if (props.fractured) misc.fractured_item = { option: 'true' };
+    if (props.fracturedState === 'yes' || (props.fracturedState == null && props.fractured)) misc.fractured_item = { option: 'true' };
+    if (props.fracturedState === 'no') misc.fractured_item = { option: 'false' };
     if (props.synthesised) misc.synthesised_item = { option: 'true' };
     // armour / evasion / energy shield / ward (at 20% quality, as the trade site counts them)
     const def = {};
@@ -889,6 +892,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     // whole-number rolls get a whole-number minimum (4.8 -> 4)
     for (const m of mods) if (Number.isInteger(m.display) && m.min != null && !Number.isInteger(m.min)) m.min = Math.floor(m.min);
     for (const m of mods) if (KEY_UNIQUE_ROLLS.some((re) => re.test(m.text))) { m.enabled = true; m.min = m.display; m.hidden = false; }
+    // a Foulborn unique sells for its Foulborn mod: ticked (searchable ones)
+    for (const m of mods) if (m.foulborn && m.id && !m.unmatched) { m.enabled = true; m.hidden = false; }
     // Watcher's Eye: the aura mods are the price (the life / mana / energy shield ones hardly matter)
     if (/^Watcher's Eye$/i.test(item.name || '')) for (const m of mods) { m.enabled = /while affected by/i.test(m.text || '') && !m.unmatched && !!m.id; if (m.enabled) m.hidden = false; }
   }
@@ -1016,6 +1021,11 @@ function sacrificeOf(item) {
   if (!v.length) return null;
   const n = /^x(\d+)$/i.exec(v[1] || '');
   return n ? `${v[0]} ×${n[1]}` : v.join(' ');
+}
+
+/** Jewels of every kind (normal, abyss, cluster). */
+function isJewel(item) {
+  return /^(Abyss )?Jewels?$/i.test(item?.itemClass || '') || /\bJewel$/i.test(item?.baseType || item?.typeLine || '');
 }
 
 function summarizeListings(fetchJson, divineChaos, { me = '' } = {}) {

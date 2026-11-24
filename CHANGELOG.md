@@ -5,6 +5,13 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.166 - 2026-11-24
+
+* [Trade searches] New look: each search shows its cheapest listing in big numbers, and whether it's at your price (✓) or how far above it (↑ 23 div above your 220).
+* [What to farm] New "Nightmare boss rush" group: Nightmare Map prices next to the uber boss fragments they drop (Cosmic, Reality, Devouring, Blazing, Echo and Memory fragments…) and Yoke of Suffering, with their 7 day moves.
+* [Price check] A Foulborn unique's Foulborn mod starts ticked, with its roll.
+* [Price check] Jewels (cluster, abyss and normal ones) are compared with jewels in the same state: not corrupted and not fractured, unless yours is. Both can be changed under More.
+
 ## 1.0.165 - 2026-11-23
 
 * [Settings] "Make a report" puts the logs, your settings and your loot filters in one zip on your Desktop. When something is wrong, send that file to whoever helps you. Your login is never in it, and nothing is sent by the app.

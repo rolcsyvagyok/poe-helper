@@ -804,3 +804,30 @@ test('an Inscribed Ultimatum listing shows what it asks you to sacrifice', () =>
   const s = T.summarizeListings({ result: [L(10, 1), L(20, 1), { listing: { price: { amount: 3, currency: 'chaos' }, account: { name: 'b' } }, item: {} }] }, 200);
   assert.deepEqual(s.prices.map((x) => [x.note, x.times]), [['Chaos Orb ×10', 1], ['Chaos Orb ×20', 1], [null, 1]]);
 });
+
+test('a jewel that is not corrupted or fractured only compares with ones that are neither', () => {
+  const it = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'cluster-large-spell.txt'), 'utf8'));
+  const { mods, props } = T.prepareSearch(STATS, it);
+  assert.equal(props.corrupted, 'no');
+  assert.equal(props.fracturedState, 'no');
+  const q = T.buildQuery(it, mods, { props });
+  assert.deepEqual(q.query.filters.misc_filters.filters.corrupted, { option: 'false' });
+  assert.deepEqual(q.query.filters.misc_filters.filters.fractured_item, { option: 'false' });
+  // a fractured, corrupted jewel: only those
+  const f = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'cluster-large-spell.txt'), 'utf8').replace('Item Level: 84\n--------', 'Item Level: 84\n--------').replace(/Right click to remove from the Socket\.\n?$/, 'Right click to remove from the Socket.\n--------\nCorrupted\n--------\nFractured Item\n'));
+  const pf = T.prepareSearch(STATS, f).props;
+  assert.equal(pf.corrupted, 'yes');
+  assert.equal(pf.fracturedState, 'yes');
+});
+
+test('a Foulborn unique with a rolled Foulborn mod: that mod starts ticked', () => {
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_2250533757', text: '#% increased Movement Speed', type: 'explicit' },
+    { id: 'explicit.stat_2723294374', text: '#% increased Armour while Bleeding', type: 'explicit' },
+  ] }] };
+  const item = parseItem(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'foulborn.txt'), 'utf8'));
+  const r = T.prepareSearch(stats, item);
+  const foul = r.mods.find((m) => /Armour while Bleeding/.test(m.text));
+  assert.ok(foul.foulborn && foul.enabled && !foul.hidden);
+  assert.ok(foul.min != null && foul.min <= 69);
+});

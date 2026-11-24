@@ -602,7 +602,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
         : TW.listingsOf(top.length ? await ggg.tradeFetch(res.id, top, { interactive: false }) : { result: [] }, divine);
       const { hits, cheapest } = TW.priceHits(listings, s.max, divine, s.told || []);
       const told = [...new Set([...(s.told || []), ...hits.map((x) => x.id)])].slice(-200);
-      update({ lastCheck: Date.now(), error: null, told, lastTop: top.join(','), lastListings: listings.map(({ chaos, ...l }) => l), last: { total: res.total ?? res.result?.length ?? 0, cheapest, at: Date.now(), url: ggg.tradeUrl(s.league, res.id) } });
+      update({ lastCheck: Date.now(), error: null, told, lastTop: top.join(','), lastListings: listings.map(({ chaos, ...l }) => l), last: { total: res.total ?? res.result?.length ?? 0, cheapest, divine: divine || null, at: Date.now(), url: ggg.tradeUrl(s.league, res.id) } });
       return { entry: publicSearch(s), hits, url: ggg.tradeUrl(s.league, res.id) };
     } catch (e) {
       update({ lastCheck: Date.now(), error: e.message });
@@ -2070,6 +2070,8 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   // league mechanics only (no plain currency, scarabs or cards) and their loot: [poe.ninja list, only these names, not these names]
   const FARM_GROUPS = [
     { id: 'eldritch', name: 'Eldritch altars', src: [['Currency', /eldritch|ember|ichor/i], ['Invitation', /^(Incandescent|Screaming) Invitation/]], art: 'Exceptional Eldritch Ember' },
+    // Nightmare maps' bosses drop the uber pinnacle fragments (and Yoke of Suffering): what the maps cost and what they give
+    { id: 'nightmare', name: 'Nightmare boss rush', src: [['Map', /^Nightmare Map$/], ['Fragment', /^(Awakening|Blazing|Cosmic|Decaying|Devouring|Reality|Synthesising|Lonely|Reverent|Traumatic) Fragment$|^Fragment of (Emptiness|Terror|Shape|Knowledge)$|^(Echo|Memory) of (Loneliness|Reverence|Trauma)$/], ['UniqueAccessory', /^Yoke of Suffering$/]], art: 'Reality Fragment' },
     { id: 'breach', name: 'Breach', src: [['Fragment', /breach|chayula|xoph|tul|esh|uul|hivebrain/i], ['Currency', /blessing of|splinter of (xoph|tul|esh|uul|chayula)/i]], art: 'Hivebrain Gland' },
     { id: 'legion', name: 'Legion', src: [['Fragment', /^Timeless/]], art: 'Timeless Karui Emblem' },
     { id: 'delirium', name: 'Delirium', src: [['DeliriumOrb'], ['Fragment', /simulacrum/i]], art: '*DeliriumOrb' },
@@ -2093,7 +2095,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     for (const [cat, only, skip] of g.src) {
       for (const l of await load(cat)) {
         if (!l.name || !(l.chaos > 0) || (only && !only.test(l.name)) || (skip && skip.test(l.name))) continue;
-        const name = l.variant && cat !== 'Viscera' ? `${l.name} (${l.variant})` : l.name;
+        const name = l.variant && cat !== 'Viscera' && cat !== 'Map' ? `${l.name} (${l.variant})` : l.name;
         const prev = byName.get(name);
         if (!prev || (l.volume ?? l.listingCount ?? 0) > (prev.volume ?? prev.listingCount ?? 0)) byName.set(name, { ...l, name });
       }

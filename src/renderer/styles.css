@@ -1275,9 +1275,23 @@ html[data-ui-theme] .rail .nav-group { font: 400 12.5px var(--item); text-transf
 .macro-row .macro-key { display: flex; justify-content: center; align-items: center; height: 32px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--raised); font-weight: 650; letter-spacing: .02em; }
 
 /* trade searches */
-.ts-card { gap: 8px; margin-top: 10px; }
+.ts-card { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 220px auto; gap: 18px; align-items: center; padding: 16px 18px; }
 .ts-card.on { border-color: var(--good); }
-.ts-name { font-weight: 650; min-width: 160px; flex: 1 1 200px; max-width: 360px; }
+.ts-main { display: grid; gap: 8px; min-width: 0; }
+.ts-card input.ts-name { font-weight: 700; font-size: 17px; width: 100%; max-width: 420px; background: transparent; border-color: transparent; padding-left: 6px; margin-left: -6px; }
+.ts-card input.ts-name:hover, .ts-card input.ts-name:focus { border-color: var(--line); background: var(--bg); }
+.ts-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.ts-meta > span + span:not(.pill)::before { content: '·'; margin-right: 10px; color: var(--faint); }
+.ts-watch { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.ts-price { display: grid; gap: 4px; justify-items: start; border-left: 1px solid var(--line); padding-left: 18px; }
+.ts-big { font-size: 34px; font-weight: 750; line-height: 1.05; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.ts-cur { font-size: 18px; font-weight: 600; color: var(--muted); }
+.ts-verdict { font-size: 13px; font-weight: 650; padding: 2px 8px; border-radius: 999px; }
+.ts-verdict.ok { color: #5aa9e6; background: rgba(90, 169, 230, 0.14); }
+.ts-verdict.over { color: #e8973a; background: rgba(232, 151, 58, 0.12); }
+.ts-actions { display: grid; gap: 8px; justify-items: stretch; min-width: 130px; }
+.ts-small { display: flex; gap: 2px; justify-content: flex-end; }
+@media (max-width: 900px) { .ts-card { grid-template-columns: 1fr; } .ts-price { border-left: 0; padding-left: 0; } .ts-actions { grid-auto-flow: column; justify-content: start; } }
 
 /* overview: the top banner, with your background picture when you picked one */
 .ov-hero { position: relative; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(135deg, var(--raised), var(--surface)); padding: 34px 32px 28px; overflow: hidden; min-height: 210px; display: flex; flex-direction: column; justify-content: flex-end; }

@@ -291,6 +291,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     propRows.push(h('div', { class: 'tp-mod' + (props.rareOnly.on ? ' on' : ''), 'data-k': 'rareOnly' }, h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, 'Rare items only', h('span', { class: 'faint' }, ' (else magic ones too)')))));
   }
   const corr = h('select', { 'data-k': 'corrupted', 'aria-label': 'Corrupted', onchange: (e) => { props.corrupted = e.target.value; } }, [['any', 'Corrupted or not'], ['yes', props.twiceCorrupted ? 'Twice corrupted only' : 'Corrupted only'], ['no', 'Not corrupted']].map(([v, l]) => h('option', { value: v, selected: props.corrupted === v }, l)));
+  const frac = props.fracturedState ? h('select', { 'data-k': 'fracturedState', 'aria-label': 'Fractured', onchange: (e) => { props.fracturedState = e.target.value; } }, [['any', 'Fractured or not'], ['yes', 'Fractured only'], ['no', 'Not fractured']].map(([v, l]) => h('option', { value: v, selected: props.fracturedState === v }, l))) : null;
   const ident = h('select', { 'data-k': 'unid', 'aria-label': 'Identified', onchange: (e) => { props.identified = e.target.value; } }, [['any', 'Identified or not'], ['yes', 'Identified only'], ['no', 'Unidentified only']].map(([v, l]) => h('option', { value: v, selected: (props.identified || 'any') === v }, l)));
   const foul = props.foulborn?.show ? h('label', { class: 'check small tp-foul', 'data-k': 'foulborn' }, h('input', { type: 'checkbox', checked: !!props.foulborn.on, onchange: (e) => { props.foulborn.on = e.target.checked; } }), 'Foulborn only') : null;
   const infl = Object.keys(props.influences || {}).map((inf) => h('label', { class: 'check small', 'data-k': `infl:${inf}` }, h('input', { type: 'checkbox', checked: props.influences[inf], onchange: (e) => { props.influences[inf] = e.target.checked; } }), `${inf} item`));
@@ -423,7 +424,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
       results,
       topRows.length ? h('div', { class: 'tp-group tp-top' }, topRows) : null,
       groups,
-      propRows.length || infl.length || foul ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'More'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, ident, foul, infl)) : null,
+      propRows.length || infl.length || foul || frac ? h('div', { class: 'tp-group' }, h('div', { class: 'tp-ghead' }, 'More'), propRows, h('div', { class: 'row', style: { gap: '10px', padding: '3px 0', flexWrap: 'wrap' } }, corr, frac, ident, foul, infl)) : null,
       h('div', { class: 'row tp-go' }, go, statusSel, countEl, mods.length ? h('button', { class: 'quiet sm', title: 'Tick or untick every mod', onclick: () => { const on = !mods.some((m) => m.enabled && m.id); mods.forEach((m) => { if (m.id && (!m.hidden || showHidden || (byGen && AFFIX.includes(m.group)))) m.enabled = on; }); mountAgain(); } }, 'All / none') : null)));
   onFit();
 
