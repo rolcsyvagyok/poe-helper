@@ -5,6 +5,11 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.172 - 2026-11-25
+
+* [Price check] A unique's lines are ticked one by one, even when the game puts them under one heading (Sublime Vision's aura effect, curse and aura are three ticks now).
+- Price check: a unique's flavour text no longer shows as a mod when "Foil Unique" or "Shaper Item" follows it.
+
 ## 1.0.171 - 2026-11-25
 
 * [Price check] A timeless jewel is searched by its exact number (Commissioned 28120 coins…), not "28120 or more".

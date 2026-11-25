@@ -78,7 +78,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   const rowsOf = new Map(); // mod -> its row element
   function siblings(m) {
     // (lines counted in a total stay with lines counted in a total: Urchin's armour and life)
-    if (m.meta?.n == null || m.unmatched || !m.id) return [m];
+    // (a unique's lines are separate mods even under one header: Sublime Vision's aura effect, curse and aura)
+    if (m.meta?.n == null || m.meta.unique || m.unmatched || !m.id) return [m];
     return mods.filter((x) => x.group === m.group && x.meta?.n === m.meta.n && !!x.hidden === !!m.hidden && !x.unmatched && x.id);
   }
   // one tick for the whole mod from the start: ticked when any of its lines is

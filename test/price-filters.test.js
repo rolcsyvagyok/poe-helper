@@ -868,4 +868,14 @@ test('uniques with versions: the version line is ticked (Sublime Vision, Thread 
   const toh = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'thread-of-hope.txt'), 'utf8'));
   const ring = T.prepareSearch(st2, toh).mods.find((x) => /Very Large Ring/.test(x.text));
   assert.ok(ring && ring.enabled && !ring.hidden);
+  // a real copy: three lines under one header, flavour text, Foil and Shaper sections after it
+  const st3 = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_sv_eff', text: 'Auras from your Skills have #% increased Effect on you', type: 'explicit' },
+    { id: 'explicit.stat_sv_curse', text: 'You can apply an additional Curse while affected by Malevolence', type: 'explicit' },
+    { id: 'explicit.stat_sv_mal', text: 'Aura Skills other than Malevolence are Disabled', type: 'explicit' },
+  ] }] };
+  const svm = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'sublime-vision-malevolence.txt'), 'utf8'));
+  assert.equal(svm.mods.explicit.length, 3, 'flavour text is not a mod');
+  const mm = T.prepareSearch(st3, svm).mods;
+  assert.deepEqual(mm.map((x) => !!x.enabled), [true, true, true]);
 });

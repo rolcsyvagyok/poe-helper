@@ -275,6 +275,11 @@ function parseItem(rawText) {
     if (sec.every((l) => /^(Right click|Place into|Shift click|Can be used|Use this|This is a)/i.test(String(l).trim()))) modSections.splice(i, 1);
     else if (/flask/i.test(item.itemClass || '') && sec.some((l) => /^(Lasts [\d.]+ Seconds|Consumes \d+ of \d+ Charges on use|Currently has \d+ Charges?)$/.test(String(l).trim()))) modSections.splice(i, 1);
   }
+  // Ctrl+Alt+C puts a { header } over every mod: on a unique, a section without one is flavour text
+  // (it isn't always the last section: "Foil Unique", "Shaper Item" can follow it)
+  if (item.rarity === 'Unique' && modSections.some((sec) => sec.some(isAdvancedHeader))) {
+    for (let i = modSections.length - 1; i >= 0; i--) if (!modSections[i].some(isAdvancedHeader)) modSections.splice(i, 1);
+  }
   // Uniques carry flavour text as the last mod-like section; it never contains digits.
   if (item.rarity === 'Unique' && modSections.length > 1) {
     const last = modSections[modSections.length - 1];

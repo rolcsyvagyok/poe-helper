@@ -1,0 +1,25 @@
+Item Class: Jewels
+Rarity: Unique
+Sublime Vision
+Prismatic Jewel
+--------
+Limited to: 1
+--------
+Item Level: 84
+--------
+{ Unique Modifier — Curse }
+Auras from your Skills have 25(20-40)% increased Effect on you
+You can apply an additional Curse while affected by Malevolence
+Aura Skills other than Malevolence are Disabled — Unscalable Value
+--------
+This world is not good enough for her,
+so I will make a better one. Nothing
+matters but the pursuit of perfection.
+--------
+Place into an allocated Jewel Socket on the Passive Skill Tree. Right click to remove from the Socket.
+--------
+Foil Unique (Celestial Amethyst)
+--------
+Shaper Item
+--------
+Note: ~b/o 6 divine
