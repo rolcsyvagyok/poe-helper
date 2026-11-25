@@ -4,7 +4,14 @@
  * how likely a new prefix or suffix is each mod (a Chaos Orb, an Exalted Orb, an Orb of Alchemy…), and
  * each mod's tags (Fire, Attack, Life…). Data: the game's files, through scripts/build-item-mods.js.
  */
-const DATA = require('./regex/item-mods.json');
+// the gear mods, and the cluster jewels' (their own file: scripts/build-cluster-mods.js); a copy, so the item regex
+// (core/regex/items.js, same item-mods.json) doesn't get cluster jewels
+const DATA = (() => {
+  const d = require('./regex/item-mods.json');
+  let c = { bases: [], mods: [] };
+  try { c = require('./regex/cluster-mods.json'); } catch { /* without cluster jewels */ }
+  return { ...d, bases: [...d.bases, ...c.bases], mods: [...d.mods, ...c.mods] };
+})();
 
 const baseByName = new Map(DATA.bases.map((b) => [b.name, b]));
 const INFLUENCES = [['shaper', 'Shaper'], ['elder', 'Elder'], ['crusader', 'Crusader'], ['basilisk', 'Hunter'], ['eyrie', 'Redeemer'], ['adjudicator', 'Warlord']];
@@ -15,10 +22,30 @@ const TAG_NAMES = { dot_multi: 'Damage over Time', energy_shield: 'Energy Shield
 const tagName = (t) => TAG_NAMES[t] || t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const showTags = (tags = []) => tags.filter((t) => !HIDDEN_TAGS.has(t)).map(tagName);
 
-/** The weight a mod has on a base with these tags: the first of its tags the base has decides. */
+/**
+ * The weight a mod has on a base with these tags: the first of its tags the base has decides. Cluster jewel mods
+ * also have generation weights (a percentage, the first matching tag again): tags other mods add
+ * ("has_affliction_notable") change them, so a Small Cluster Jewel with a notable can't roll another.
+ */
 function weightOn(mod, tags) {
-  for (const [tag, w] of mod.w) if (tags.has(tag)) return w;
-  return 0;
+  let w = 0;
+  for (const [tag, n] of mod.w) if (tags.has(tag)) { w = n; break; }
+  if (w > 0 && mod.gw) for (const [tag, n] of mod.gw) if (tags.has(tag)) { w = (w * n) / 100; break; }
+  return w;
+}
+
+/** A cluster jewel's small passive kinds (from its enchantment); the kind's tag lets its notables roll. */
+const kindsOf = (base) => base?.kinds || null;
+function kindOf(base, enchant) {
+  const k = kindsOf(base);
+  if (!k) return null;
+  return k.find((x) => x.tag === enchant || x.name === enchant) || k[0];
+}
+/** The tags the item's own mods add (a notable adds "has_affliction_notable"). */
+function addedTags(mods) {
+  const out = [];
+  for (const m of mods || []) { const d = m?.id ? DATA.mods.find((x) => x.id === m.id) : m; for (const t of d?.adds || []) out.push(t); }
+  return out;
 }
 
 // the game's markup: "[PlayerItemRarity|Item Rarity]" -> "Item Rarity"
@@ -78,7 +105,19 @@ function readItem(text) {
     const cand = blocks.slice(k + 1).filter((b) => !/\(implicit\)|\(enchant\)|^(Corrupted|Mirrored|Fractured Item|Note:)/m.test(b) && !/^"/.test(b.trim()));
     plain = (cand[0] || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => ({ line: l.replace(/ \((fractured|crafted)\)$/, '').replace(/(\d)\(-?[\d.]+--?[\d.]+\)/g, '$1').replace(/ — Unscalable Value$/, ''), crafted: / \(crafted\)$/.test(l), fractured: / \(fractured\)$/.test(l) }));
   }
-  return { base, ilvl, rarity, influences: inf, mods, plain, fractured: /^Fractured Item$/m.test(raw), corrupted: /^Corrupted$/m.test(raw) };
+  // a cluster jewel's enchantment: its passive count and the small passives' kind ("Added Small Passive Skills grant:
+  // 12% increased Fire Damage"; two lines for some kinds)
+  let enchant = null; let passives = null;
+  const kinds = kindsOf(baseByName.get(base));
+  if (kinds) {
+    const clean = (l) => l.replace(/ \(enchant\)$/, '').replace(/ — Unscalable Value$/, '').replace(/(\d)\(-?[\d.]+--?[\d.]+\)/g, '$1');
+    const grants = lines.map(clean).map((l) => /^Added Small Passive Skills grant: (.+)$/.exec(l)?.[1]).filter(Boolean);
+    const tpl = (t) => t.replace(/-?\d+(?:\.\d+)?/g, '#').toLowerCase();
+    const want = tpl(grants.join('\n'));
+    enchant = grants.length ? (kinds.find((k) => tpl(k.text) === want) || kinds.find((k) => tpl(k.text).split('\n')[0] === want.split('\n')[0]))?.tag || null : null;
+    passives = Number((/^Adds (\d+) Passive Skills/m.exec(raw) || [])[1]) || null;
+  }
+  return { base, ilvl, rarity, influences: inf, mods, plain, fractured: /^Fractured Item$/m.test(raw), corrupted: /^Corrupted$/m.test(raw), enchant, passives };
 }
 
 const TPL = (t) => t.replace(/\((-?[\d.]+)-(-?[\d.]+)\)|-?\d+(?:\.\d+)?/g, '#').toLowerCase();
@@ -266,6 +305,16 @@ function craftView(o = {}) {
   const infTags = DATA.influence[base.cls] || [];
   const influences = (o.influences || []).filter((i) => INFLUENCES.some(([id]) => id === i)).slice(0, 2);
   for (const inf of influences) { const t = infTags.find((x) => x.endsWith(`_${inf}`)); if (t) tags.add(t); }
+  // a cluster jewel: the small passives' kind (from your item's enchantment, or picked) decides its notables
+  const kind = kindOf(base, o.enchant || item?.enchant);
+  if (kind) tags.add(kind.tag);
+  // tags your item's mods add (a cluster jewel's notable: "has_affliction_notable"): they change the chances of
+  // the next mod, not which families your mods are found in
+  const tagsNow = new Set(tags);
+  if (item && base.dom === 'affliction_jewel') {
+    const lines = [...item.mods.map((md) => md.text), ...item.plain.map((p) => p.line)];
+    for (const l of lines) { const d = DATA.mods.find((x) => x.dom === base.dom && x.adds && TPL(cleanText(x.text)) === TPL(l)); for (const t of d?.adds || []) tagsNow.add(t); }
+  }
   const fams = new Map();
   for (const m of DATA.mods) {
     if (m.dom !== base.dom) continue;
@@ -276,7 +325,7 @@ function craftView(o = {}) {
       const inf = INFLUENCES.find(([id]) => m.w.some(([tag, n]) => n > 0 && tags.has(tag) && tag.endsWith(`_${id}`)));
       fams.set(key, { key, aff: m.aff === 'p' ? 'prefix' : 'suffix', group: m.grp || m.type, tags: showTags(m.tags), rawTags: m.tags || [], influence: inf ? inf[1] : null, tiers: [] });
     }
-    fams.get(key).tiers.push({ name: m.name, lvl: m.lvl, text: cleanText(m.text), weight: w, open: m.lvl <= ilvl });
+    fams.get(key).tiers.push({ name: m.name, lvl: m.lvl, text: cleanText(m.text), weight: tagsNow.size > tags.size ? weightOn(m, tagsNow) : w, open: m.lvl <= ilvl });
   }
   // your item's mods: which family and tier each is; their groups can't roll again
   const yours = [];
@@ -368,7 +417,9 @@ function craftView(o = {}) {
     eldritch: (() => { const t = Math.min(6, Math.max(1, Math.round(Number(o.eldritchTier) || 6))); const ex = eldritchPool(base, 'exarch', t); const ea = eldritchPool(base, 'eater', t); return ex || ea ? { tier: t, tiers: ELDRITCH_TIERS, exarch: ex, eater: ea } : null; })(),
     item: item ? { rarity: item.rarity, fractured: item.fractured, corrupted: item.corrupted, mods: yours, slots: slotsFor(base, item, yours), unknown: item.base ? 0 : 1 } : null,
     tags: [...tagTotals.values()].sort((a, b) => b.prefix + b.suffix - (a.prefix + a.suffix)),
+    // a cluster jewel: the small passive kinds its enchantment can be (the picked one decides the notables)
+    cluster: kind ? { kinds: kindsOf(base).map((k) => ({ tag: k.tag, name: k.name, text: k.text })), enchant: kind.tag, passives: item?.passives || null, range: base.passives || null, fromItem: !!item?.enchant } : null,
   };
 }
 
-module.exports = { eldritchPool, ELDRITCH_TIERS, readItem, rangeText, craftView, craftBases, weightOn, showTags, INFLUENCES };
+module.exports = { eldritchPool, ELDRITCH_TIERS, readItem, rangeText, craftView, craftBases, weightOn, showTags, INFLUENCES, DATA, kindOf, addedTags };

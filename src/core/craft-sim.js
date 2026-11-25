@@ -11,8 +11,7 @@
  * 6 mods 1 in 12 (jewels: 3 or 4). Transmutation and Alteration: 1 or 2 mods, half each. These are the
  * usual community numbers; the game doesn't publish them.
  */
-const DATA = require('./regex/item-mods.json');
-const { readItem, craftView, weightOn, showTags, INFLUENCES } = require('./crafting');
+const { readItem, craftView, weightOn, showTags, INFLUENCES, DATA, kindOf, addedTags } = require('./crafting'); // DATA: gear and cluster jewel mods
 
 const baseByName = new Map(DATA.bases.map((b) => [b.name, b]));
 const modById = new Map(DATA.mods.map((m) => [m.id, m]));
@@ -30,12 +29,16 @@ function seeded(seed = 1) {
 }
 
 // ---------- the item ----------
-function itemTags(base, influences) {
+function itemTags(base, influences, enchant) {
   const tags = new Set(base.tags);
   const infTags = DATA.influence[base.cls] || [];
   for (const inf of influences || []) { const t = infTags.find((x) => x.endsWith(`_${inf}`)); if (t) tags.add(t); }
+  const k = kindOf(base, enchant); // a cluster jewel's small passive kind
+  if (k) tags.add(k.tag);
   return tags;
 }
+/** The tags now, with the ones the item's mods add (a cluster jewel's notable: no second one on a Small). */
+const tagsNow = (state, base) => { const t = itemTags(base, state.influences, state.enchant); for (const x of addedTags(state.mods)) t.add(x); return t; };
 const isJewel = (base) => /Jewel/.test(base.cls);
 const maxPerSide = (base, rarity) => (rarity === 'Magic' ? 1 : rarity === 'Rare' ? (isJewel(base) ? 2 : 3) : 0);
 const count = (state, sd) => state.mods.filter((m) => m.aff === sd).length;
@@ -79,7 +82,7 @@ function fossilFactor(m, fossils) {
 /** Every mod the item could get (before slots and groups): { m, w, key, inf }. */
 function candidates(state, o = {}) {
   const base = baseByName.get(state.base);
-  const tags = itemTags(base, state.influences);
+  const tags = itemTags(base, state.influences, state.enchant);
   const fossils = o.fossils || [];
   const added = new Set(fossils.flatMap((f) => f.added));
   const out = [];
@@ -91,7 +94,7 @@ function candidates(state, o = {}) {
     if (fossils.length) w *= fossilFactor(m, fossils);
     if (!(w > 0)) continue;
     const inf = m.w.some(([t, n]) => n > 0 && tags.has(t) && INFLUENCES.some(([id]) => t.endsWith(`_${id}`)));
-    out.push({ m, w, key: keyOf(m), inf, aff: side(m.aff), grp: m.grp, tags: m.tags || [] });
+    out.push({ m, w, key: keyOf(m), inf, aff: side(m.aff), grp: m.grp, tags: m.tags || [], ...(m.gw ? { gw: true } : {}) });
   }
   return out;
 }
@@ -103,9 +106,13 @@ function fits(state, cands, o = {}) {
   const taken = takenGroups(state);
   const me = metas(state);
   const open = { prefix: count(state, 'prefix') < max, suffix: count(state, 'suffix') < max };
-  return cands.filter((c) => open[c.aff] && !(c.grp && taken.has(c.grp))
+  const ok = cands.filter((c) => open[c.aff] && !(c.grp && taken.has(c.grp))
     && !(me.has('attack') && c.tags.includes('attack')) && !(me.has('caster') && c.tags.includes('caster'))
     && (!o.tag || c.tags.includes(o.tag)) && (!o.influence || c.inf));
+  // cluster jewel mods: their weight with the tags the item's mods add now (a Small Cluster Jewel's second notable: 0)
+  if (!ok.some((c) => c.gw)) return ok;
+  const now = tagsNow(state, base);
+  return ok.map((c) => (c.gw ? { ...c, w: (c.w / weightOn(c.m, itemTags(base, state.influences, state.enchant))) * weightOn(c.m, now) } : c)).filter((c) => c.w > 0);
 }
 
 function pickWeighted(list, rng) {
@@ -228,7 +235,7 @@ function resistOf(m) {
 /** The same tier of another element's resistance. */
 function swapResist(state, m, to, rng) {
   const base = baseByName.get(state.base);
-  const tags = itemTags(base, state.influences);
+  const tags = itemTags(base, state.influences, state.enchant);
   const fam = (type) => DATA.mods.filter((x) => x.dom === base.dom && x.type === type && x.aff === m.aff[0] && weightOn(x, tags) > 0).sort((a, b) => b.lvl - a.lvl);
   const from = fam(modById.get(m.id).type);
   const into = fam(`${to}Resistance`);
@@ -324,17 +331,18 @@ function startItem(o = {}) {
       mods.push({ id: m?.id || null, aff: y.aff, text: y.text, groups: m?.grp ? [m.grp] : y.group ? [y.group] : [], tags: m?.tags || [], ...(y.fractured ? { fractured: true } : {}), ...(m ? {} : { unknown: true }) });
     }
     const rarity = ['Normal', 'Magic', 'Rare'].includes(it.rarity) ? it.rarity : mods.length > 2 ? 'Rare' : mods.length ? 'Magic' : 'Normal';
-    return { state: { base: base.name, ilvl: it.ilvl || 86, rarity, influences: v.influences, corrupted: !!it.corrupted, mods } };
+    return { state: { base: base.name, ilvl: it.ilvl || 86, rarity, influences: v.influences, corrupted: !!it.corrupted, mods, ...(v.cluster ? { enchant: v.cluster.enchant, passives: it.passives || null } : {}) } };
   }
   const base = baseByName.get(o.base);
   if (!base) return { error: 'Pick a base' };
-  return { state: { base: base.name, ilvl: Math.max(1, Math.min(100, Number(o.ilvl) || 86)), rarity: 'Normal', influences: (o.influences || []).slice(0, 2), corrupted: false, mods: [] } };
+  const kind = kindOf(base, o.enchant);
+  return { state: { base: base.name, ilvl: Math.max(1, Math.min(100, Number(o.ilvl) || 86)), rarity: 'Normal', influences: (o.influences || []).slice(0, 2), corrupted: false, mods: [], ...(kind ? { enchant: kind.tag } : {}) } };
 }
 
 /** What the page shows: each mod with its tier and tags, and which crafts can be used. */
 function simView(state) {
   const base = baseByName.get(state.base);
-  const tags = itemTags(base, state.influences);
+  const tags = itemTags(base, state.influences, state.enchant);
   const tierOf = (id) => {
     const m = modById.get(id);
     if (!m) return null;
@@ -348,10 +356,12 @@ function simView(state) {
   for (const a of ['removeCrafted', 'harvestReforge', 'harvestAdd', 'harvestInfluence']) can[a] = whyNot(state, a, { tag: 'fire' });
   for (const f of RES) for (const t of RES) if (f !== t) can[`harvestResist:${f}:${t}`] = whyNot(state, 'harvestResist', { from: f, to: t });
   const bench = state.rarity === 'Normal' || state.corrupted ? [] : (DATA.benchAll || []).filter((b) => b.cls.includes(base.cls) && b.lvl <= Math.max(state.ilvl, 1)).map((b) => ({ id: b.id, aff: side(b.aff), text: b.text, cost: b.cost, meta: b.meta || null, why: whyNot(state, 'bench', { id: b.id }) }));
-  const fossils = (DATA.fossils || []).map((f) => ({ name: f.name, text: f.text, fits: !((f.allowed.length && !f.allowed.some((t) => base.tags.includes(t))) || f.forbidden.some((t) => base.tags.includes(t))),
+  // fossils can't be used on cluster jewels
+  const fossils = base.dom === 'affliction_jewel' ? [] : (DATA.fossils || []).map((f) => ({ name: f.name, text: f.text, fits: !((f.allowed.length && !f.allowed.some((t) => base.tags.includes(t))) || f.forbidden.some((t) => base.tags.includes(t))),
     special: !f.more.length && !f.less.length && !f.added.length && !f.lucky && !f.fracture }));
   return {
     base: { name: base.name, cls: base.cls }, ilvl: state.ilvl, rarity: state.rarity, influences: state.influences, corrupted: state.corrupted,
+    cluster: base.kinds ? { kinds: base.kinds.map((k) => ({ tag: k.tag, name: k.name, text: k.text })), enchant: kindOf(base, state.enchant).tag } : null,
     max: maxPerSide(base, state.rarity), prefixes: mods.filter((m) => m.aff === 'prefix'), suffixes: mods.filter((m) => m.aff === 'suffix'),
     can, bench, fossils, currency: CURRENCY.map(([id, name, what]) => ({ id, name, what })), harvestTags: HARVEST_TAGS,
   };

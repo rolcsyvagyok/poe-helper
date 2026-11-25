@@ -5,6 +5,15 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.174 - 2026-11-26
+
+* [Price check] An item that isn't mirrored is no longer compared with mirrored copies ("Not mirrored", under More; a mirrored one is compared with mirrored ones).
+- Price check: a Manifold Ring's open prefix and suffix count its "+1 Prefix / -2 Suffix Modifiers allowed" (it said 2 open suffixes).
+* [Crafting] Cluster jewels (Small, Medium, Large), as on Craft of Exile: pick the small passives (the enchantment, read from your item when you paste one) and see which notables and other mods can roll and how likely. Try crafts works on them too: a Small one never gets a second notable, as in the game.
+* [Price check] Fixed mods that couldn't be searched: "Grants Call of Steel", "Trigger Level 10 Void Gaze…" (the game hides an invisible character in skill names), "Critical Strikes with Spells inflict Impale", and two-line mods like Arn's Anguish's "Linked Targets…".
+- Price check: a unique's quoted flavour text (timeless jewels) no longer shows as mods.
+* [Price check] The Tides of Time: "Life Flasks gain 0 Charges" was read as 1.5. Small whole-number rolls (0-3 charges) search their own number, and a roll at the bottom of its range starts unticked.
+
 ## 1.0.173 - 2026-11-25
 
 * [Atlas strategies] Read your tree from a screenshot: open the Atlas passive tree in the game, zoom all the way out and take a screenshot. Then click "From screenshot" at the top (a new strategy) or in a strategy (its tree), or paste it on the page with Ctrl+V. Several zoomed-in screenshots work too. Check it against the game after: notables with a choice still need it picked.

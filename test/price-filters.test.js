@@ -890,3 +890,55 @@ test('a socketed support mod is found even when the list drops the last "Support
   assert.equal(m.id, 'explicit.indexable_support_74');
   assert.ok(!m.unmatched);
 });
+
+test('Entropic Devastation: "Grants Call of Steel" (a zero-width space in it) and "Spells inflict Impale" are found', () => {
+  const fs = require('fs'); const path = require('path');
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.effect_3467858890', text: 'Grants Call of Steel', type: 'explicit' },
+    { id: 'explicit.stat_4084476257', text: 'Critical Strikes with Spells have #% chance to inflict Impale', type: 'explicit' },
+    { id: 'explicit.stat_3678739763', text: 'Linked Targets always count as in range of Non-Curse Auras from your Skills\nNon-Curse Auras from your Skills only apply to you and Linked Targets', type: 'explicit' },
+  ] }] };
+  const it = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'entropic-devastation.txt'), 'utf8'));
+  const mods = T.prepareSearch(stats, it).mods;
+  assert.equal(mods.find((m) => /Call of Steel/.test(m.text)).id, 'explicit.effect_3467858890');
+  const imp = mods.find((m) => /inflict Impale/.test(m.text));
+  assert.equal(imp.id, 'explicit.stat_4084476257');
+  assert.equal(imp.display, 100);
+  // two lines that are one stat, from a plain copy; and quoted flavour text isn't a mod
+  const arn = parseItem('Item Class: Body Armours\nRarity: Unique\nArn\'s Anguish\nVaal Regalia\n--------\nItem Level: 80\n--------\nLinked Targets always count as in range of Non-Curse Auras from your Skills\nNon-Curse Auras from your Skills only apply to you and Linked Targets\n--------\n"The clans came together.\nAnd more."\n');
+  const am = T.prepareSearch(stats, arn).mods;
+  assert.equal(am.length, 1);
+  assert.equal(am[0].id, 'explicit.stat_3678739763');
+});
+
+test('The Tides of Time: "gain 0 Charges" is 0 (the trade site says "Charge"), not 1.5; a 0 roll isn\'t searched', () => {
+  const fs = require('fs'); const path = require('path');
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_2592686757', text: 'Life Flasks gain # Charge every 3 seconds', type: 'explicit' },
+    { id: 'explicit.stat_1193925814', text: 'Mana Flasks gain # Charge every 3 seconds', type: 'explicit' },
+    { id: 'explicit.stat_2567919918', text: 'Utility Flasks gain # Charge every 3 seconds', type: 'explicit' },
+  ] }] };
+  const mods = T.prepareSearch(stats, parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'tides-of-time.txt'), 'utf8'))).mods;
+  const life = mods.find((m) => /^Life Flasks/.test(m.text));
+  const mana = mods.find((m) => /^Mana Flasks/.test(m.text));
+  const util = mods.find((m) => /^Utility Flasks/.test(m.text));
+  assert.deepEqual([life.display, mana.display, util.display], [0, 1, 3]);
+  assert.equal(life.enabled, false);
+  assert.deepEqual([mana.min, util.min], [1, 3]);
+});
+
+test('a not mirrored item is searched "not mirrored"; a mirrored one "mirrored"', () => {
+  const fs = require('fs'); const path = require('path');
+  const text = fs.readFileSync(path.join(__dirname, 'fixtures', 'manifold-ring.txt'), 'utf8');
+  const stats = { result: [{ id: 'explicit', entries: [{ id: 'explicit.stat_1050105434', text: '# to maximum Mana', type: 'explicit' }] }] };
+  const it = parseItem(text);
+  const r = T.prepareSearch(stats, it);
+  assert.equal(r.props.mirrored, 'no');
+  assert.deepEqual(T.buildQuery(it, r.mods, { props: r.props }).query.filters.misc_filters.filters.mirrored, { option: 'false' });
+  const m = parseItem(`${text}--------\nMirrored\n`);
+  const rm = T.prepareSearch(stats, m);
+  assert.equal(rm.props.mirrored, 'yes');
+  assert.deepEqual(T.buildQuery(m, rm.mods, { props: rm.props }).query.filters.misc_filters.filters.mirrored, { option: 'true' });
+  // a Manifold Ring: 4 prefixes and 1 suffix allowed, so 1 open prefix and no open suffix
+  assert.deepEqual(PF.emptyAffix(it), { prefix: 1, suffix: 0 });
+});

@@ -1,0 +1,32 @@
+Item Class: Gloves
+Rarity: Unique
+Entropic Devastation
+Assassin's Mitts
+--------
+Evasion Rating: 260 (augmented)
+Energy Shield: 52 (augmented)
+--------
+Requirements:
+Level: 58
+Dex: 45
+Int: 45
+--------
+Sockets: W-W-W 
+--------
+Item Level: 87
+--------
+{ Unique Modifier }
+Grants ​Call of Steel — Unscalable Value
+{ Unique Modifier — Defences, Evasion, Energy Shield }
+115(100-150)% increased Evasion and Energy Shield
+{ Unique Modifier }
+44(30-50)% increased Effect of Impales inflicted with Spells
+(When an Impaled enemy is hit, the Impale reflects 10% of the physical damage of the Impaling hit to that enemy. Impale lasts for 5 hits or 8 seconds)
+{ Unique Modifier }
+Critical Strikes with Spells inflict Impale — Unscalable Value
+(When an Impaled enemy is hit, the Impale reflects 10% of the physical damage of the Impaling hit to that enemy. Impale lasts for 5 hits or 8 seconds)
+--------
+A legion of lives claimed
+by the shards of obliterated worlds.
+--------
+Shaper Item

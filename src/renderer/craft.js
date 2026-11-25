@@ -25,7 +25,7 @@
     if (!C.bases) C.bases = await call('craft:bases');
     if (C.tab === 'sim') return renderSim(el);
     const targets = [...C.targets];
-    const view = await call('craft:view', C.item ? { item: C.item, ilvl: C.itemIlvl || undefined, influences: C.itemInf || undefined, targets, eldritchTier: C.etier } : { base: C.base, ilvl: C.ilvl, influences: C.inf, targets, eldritchTier: C.etier });
+    const view = await call('craft:view', C.item ? { item: C.item, ilvl: C.itemIlvl || undefined, influences: C.itemInf || undefined, enchant: C.itemEnchant || undefined, targets, eldritchTier: C.etier } : { base: C.base, ilvl: C.ilvl, influences: C.inf, enchant: C.enchant, targets, eldritchTier: C.etier });
     if (C.item && !view) { C.item = null; window.UI.toast('That item\'s base isn\'t one that rolls mods.', true); return render(); }
     // your item: the left side shows its base
     if (C.item && view) { C.cls = view.base.cls; C.base = view.base.name; C.attr = C.bases.find((c) => c.cls === C.cls)?.bases.find((b) => b.name === C.base)?.attr || null; }
@@ -34,7 +34,7 @@
   const pick = (cls, base) => {
     const c = C.bases.find((x) => x.cls === cls);
     if (!c) return;
-    C.item = null; C.itemIlvl = null; C.itemInf = null; C.targets = new Set();
+    C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set();
     C.cls = cls; C.base = base || c.bases[c.bases.length - 1].name;
     C.attr = c.bases.find((b) => b.name === C.base)?.attr || null;
     C.inf = []; C.tag = null; C.open = {}; C.sim = null; C.odds = null; render();
@@ -276,6 +276,7 @@
   }
 
   function fossilPanel(v) {
+    if (v.cluster) return null; // fossils can't be used on cluster jewels
     const on = new Set(C.fossils);
     const fWhy = !C.fossils.length ? 'Pick up to 4 fossils' : v.corrupted ? 'The item is corrupted' : null;
     return h('section', { class: 'cs-panel cs-fossils' }, h('h3', {}, 'Fossils'),
@@ -315,7 +316,7 @@
   }
 
   async function renderSim(el) {
-    if (!C.sim) await startSim(C.item ? { text: C.item } : { base: C.base, ilvl: C.ilvl, influences: C.inf });
+    if (!C.sim) await startSim(C.item ? { text: C.item } : { base: C.base, ilvl: C.ilvl, influences: C.inf, enchant: C.enchant });
     if (!C.sim) { C.tab = 'mods'; return render(); }
     const v = C.sim.view;
     // the mod kinds this base can roll, for "Add a mod you want"
@@ -340,14 +341,14 @@
             simItem(v),
             h('div', { class: 'cs-row' },
               btn('Undo', S.undo.length ? null : 'Nothing to undo', undo),
-              h('button', { class: 'sm quiet', onclick: async () => { await startSim(C.item ? { text: C.item } : { base: C.base, ilvl: C.ilvl, influences: C.inf }); render(); }, title: C.item ? 'Back to your item as you pasted it' : `A new normal ${C.base}` }, 'Start over'),
+              h('button', { class: 'sm quiet', onclick: async () => { await startSim(C.item ? { text: C.item } : { base: C.base, ilvl: C.ilvl, influences: C.inf, enchant: C.enchant }); render(); }, title: C.item ? 'Back to your item as you pasted it' : `A new normal ${C.base}` }, 'Start over'),
               h('button', { class: 'sm quiet', onclick: () => { C.paste = true; render(); } }, 'Use my item'),
-              C.item ? h('button', { class: 'sm quiet', onclick: async () => { C.item = null; await startSim({ base: C.base, ilvl: C.ilvl, influences: C.inf }); render(); }, title: 'Craft on a new normal base from the list on the left' }, 'Use a new base') : null),
+              C.item ? h('button', { class: 'sm quiet', onclick: async () => { C.item = null; await startSim({ base: C.base, ilvl: C.ilvl, influences: C.inf, enchant: C.enchant }); render(); }, title: 'Craft on a new normal base from the list on the left' }, 'Use a new base') : null),
             !C.item ? h('div', { class: 'cs-row small' },
-              h('label', { class: 'cs-row' }, h('span', { class: 'muted' }, 'Item level'), h('input', { type: 'number', min: 1, max: 100, value: C.ilvl, style: { width: '58px' }, 'aria-label': 'Item level', onchange: async (e) => { C.ilvl = Math.max(1, Math.min(100, Number(e.target.value) || 86)); await startSim({ base: C.base, ilvl: C.ilvl, influences: C.inf }); render(); } })),
-              h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Influence, up to two' }, INF.map(([id, name]) => h('button', {
+              h('label', { class: 'cs-row' }, h('span', { class: 'muted' }, 'Item level'), h('input', { type: 'number', min: 1, max: 100, value: C.ilvl, style: { width: '58px' }, 'aria-label': 'Item level', onchange: async (e) => { C.ilvl = Math.max(1, Math.min(100, Number(e.target.value) || 86)); await startSim({ base: C.base, ilvl: C.ilvl, influences: C.inf, enchant: C.enchant }); render(); } })),
+              v.cluster ? kindPick(v.cluster, async (tag) => { C.enchant = tag; await startSim({ base: C.base, ilvl: C.ilvl, influences: C.inf, enchant: C.enchant }); render(); }) : h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Influence, up to two' }, INF.map(([id, name]) => h('button', {
                 class: 'co-infbtn' + (C.inf.includes(id) ? ' on' : ''), 'aria-pressed': C.inf.includes(id) ? 'true' : 'false',
-                onclick: async () => { C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); await startSim({ base: C.base, ilvl: C.ilvl, influences: C.inf }); render(); } }, name)))) : null,
+                onclick: async () => { C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); await startSim({ base: C.base, ilvl: C.ilvl, influences: C.inf, enchant: C.enchant }); render(); } }, name)))) : null,
             used.length ? h('section', { class: 'cs-panel' }, h('h3', {}, 'Used'),
               h('div', { class: 'cs-used small' }, used.map(([k, n]) => h('span', {}, `${n} × ${k}`)))) : null,
             S.log.length ? h('section', { class: 'cs-panel' }, h('h3', {}, 'Last crafts'),
@@ -356,12 +357,23 @@
         h('p', { class: 'small faint' }, 'Rolls use the game\'s own mod weights. How many mods a reforge gives (4: 8 in 12, 5: 3 in 12, 6: 1 in 12) and Transmutation\'s 1 or 2 mods are the usual community numbers.'))));
   }
 
+  /** A cluster jewel's enchantment: the small passives' kind, which decides the notables (as on Craft of Exile). */
+  function kindPick(cl, onPick) {
+    const k = cl.kinds.find((x) => x.tag === cl.enchant);
+    return h('label', { class: 'co-kind small', title: 'A cluster jewel\'s enchantment ("Added Small Passive Skills grant: …") decides which notables it can roll' },
+      h('span', { class: 'muted' }, 'Small passives'),
+      h('select', { 'aria-label': 'Small passives (the enchantment)', disabled: cl.fromItem, onchange: (e) => onPick(e.target.value) },
+        cl.kinds.map((x) => h('option', { value: x.tag, selected: x.tag === cl.enchant }, x.name))),
+      k ? h('span', { class: 'faint co-kindtext' }, k.text.replace(/\n/g, ' · ')) : null,
+      cl.passives ? h('span', { class: 'faint' }, `· ${cl.passives} passives`) : cl.range ? h('span', { class: 'faint' }, `· ${cl.range[0]}-${cl.range[1]} passives`) : null);
+  }
+
   function draw(el, v) {
     const ilvl = h('input', { type: 'range', min: 1, max: 100, value: C.ilvl, 'aria-label': 'Item level', oninput: (e) => { num.value = e.target.value; }, onchange: (e) => { if (C.item) C.itemIlvl = Number(e.target.value); else C.ilvl = Number(e.target.value); render(); } });
     const num = h('input', { type: 'number', min: 1, max: 100, value: C.ilvl, style: { width: '58px' }, 'aria-label': 'Item level', onchange: (e) => { const n = Math.max(1, Math.min(100, Number(e.target.value) || 86)); if (C.item) C.itemIlvl = n; else C.ilvl = n; render(); } });
     if (v) { ilvl.value = v.ilvl; num.value = v.ilvl; }
     const box = h('textarea', { class: 'co-paste', rows: 8, placeholder: 'Paste your item here (Ctrl+C on it in game; Ctrl+Alt+C also gives the mod names and tiers)', 'aria-label': 'Your item\'s text' });
-    const useItem = () => { const t = box.value.trim(); if (!t) return; C.item = t; C.itemIlvl = null; C.itemInf = null; C.paste = false; C.tag = null; C.open = {}; C.sim = null; render(); };
+    const useItem = () => { const t = box.value.trim(); if (!t) return; C.item = t; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.paste = false; C.tag = null; C.open = {}; C.sim = null; render(); };
     const pastePanel = C.paste ? h('div', { class: 'panel co-pastebox' }, box,
       h('div', { class: 'row small', style: { gap: '8px' } }, h('button', { class: 'sm', onclick: useItem }, 'Use this item'), h('button', { class: 'quiet sm', onclick: () => { C.paste = false; render(); } }, 'Cancel'),
         h('span', { class: 'faint' }, 'Or press "Craft" on a price check.'))) : null;
@@ -370,7 +382,7 @@
       ` · ${it.slots.prefix} prefix${it.slots.prefix === 1 ? '' : 'es'}, ${it.slots.suffix} suffix${it.slots.suffix === 1 ? '' : 'es'}`,
       it.fractured ? ' · fractured' : '', it.corrupted ? ' · corrupted (can\'t be changed)' : '',
       it.mods.some((m) => !m.key && !/Veil/.test(m.name)) ? h('span', { class: 'faint' }, ' · some mods not found') : null,
-      h('button', { class: 'quiet sm', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.sim = null; render(); } }, 'Back to bases')) : null;
+      h('button', { class: 'quiet sm', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.sim = null; render(); } }, 'Back to bases')) : null;
     if (C.paste) setTimeout(() => box.focus(), 0);
     mount(el, h('div', { class: 'co' },
       sidebar(v),
@@ -385,7 +397,8 @@
           h('label', { class: 'co-ilvl' }, h('span', { class: 'small muted' }, 'Item level'), ilvl, num),
           v.canInfluence ? h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Influence, up to two' }, INF.map(([id, name]) => h('button', {
             class: 'co-infbtn co-inf-' + id + (v.influences.includes(id) ? ' on' : ''), 'aria-pressed': v.influences.includes(id) ? 'true' : 'false', title: `${name} influence`,
-            onclick: () => { if (C.item) { const cur = C.itemInf || v.influences; C.itemInf = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2); } else C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); C.open = {}; render(); } }, name))) : null) : null,
+            onclick: () => { if (C.item) { const cur = C.itemInf || v.influences; C.itemInf = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2); } else C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); C.open = {}; render(); } }, name))) : null,
+          v.cluster ? kindPick(v.cluster, (tag) => { if (C.item) C.itemEnchant = tag; else C.enchant = tag; C.open = {}; render(); }) : null) : null,
         v ? h('div', { class: 'co-search' }, h('input', { type: 'search', class: 'co-modsearch', placeholder: 'Search the mods: life, fire res, attack speed, Elder…', value: C.mq, 'aria-label': 'Search the mods',
           // the list is drawn again a moment after you stop typing (drawing on every key lost letters)
           oninput: (e) => { C.mq = e.target.value; clearTimeout(C.mqTimer); C.mqTimer = setTimeout(() => render().then(() => { const i = document.querySelector('.co-modsearch'); if (i && document.activeElement !== i) { i.focus(); const n = i.value.length; i.setSelectionRange(n, n); } }), 250); } }),
@@ -415,6 +428,6 @@
   }
 
   // from a price check: open with that item
-  function load(text) { C.item = text; C.itemIlvl = null; C.itemInf = null; C.paste = false; C.tag = null; C.open = {}; C.sim = null; C.odds = null; }
+  function load(text) { C.item = text; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.paste = false; C.tag = null; C.open = {}; C.sim = null; C.odds = null; }
   window.CraftView = { render, load };
 })();

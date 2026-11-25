@@ -215,11 +215,20 @@ function uniqueRolls(rows, item, tol) {
     }
     const sign = r.negate ? -1 : 1;
     const perfect = sign > 0 ? x.value >= x.max : x.value <= x.min;
-    if (r.display != null) r.min = perfect ? r.display : Math.floor((r.display - Math.abs(x.max - x.min) * tol) * 100) / 100;
+    if (r.display != null) {
+      const span = Math.abs(x.max - x.min);
+      const whole = rolls.every((y) => Number.isInteger(y.value) && Number.isInteger(y.min) && Number.isInteger(y.max));
+      // a small whole-number range (Tides of Time's 0-3 charges): a tenth of it is under one, so the value itself;
+      // never under the range's bottom
+      r.min = perfect || (whole && span * tol < 1) ? r.display : Math.floor((r.display - span * tol) * 100) / 100;
+      if (sign > 0 && whole && r.min < Math.min(x.min, x.max)) r.min = Math.min(x.min, x.max);
+    }
     r.goodness = x.max === x.min ? 1 : (x.value - x.min) / (x.max - x.min);
+    // the lowest roll there is: searching for it narrows nothing
+    if (sign > 0 && x.value <= x.min) r.lowest = true;
   }
   const visible = rows.filter((r) => !r.hidden && !r.unmatched && r.id && !/indexable_skill/.test(r.id));
-  if (item.advanced && visible.length && visible.length <= 3) for (const r of visible) r.enabled = true;
+  if (item.advanced && visible.length && visible.length <= 3) for (const r of visible) r.enabled = !r.lowest;
 }
 
 /** An open prefix or suffix on a rare with five mods (six with a crafted one): 'prefix' | 'suffix' | null. */
@@ -231,8 +240,14 @@ function emptyAffix(item) {
   if (mods.some((m) => m.gen !== 'prefix' && m.gen !== 'suffix')) return null;
   // how many each side can have: 1 on magic items, 2 on jewels, 3 on other rares
   const cap = item.rarity === 'Magic' ? 1 : /jewel/i.test(`${item.itemClass || ''} ${item.baseType || ''}`) ? 2 : 3;
-  const prefix = Math.max(0, cap - mods.filter((m) => m.gen === 'prefix').length);
-  const suffix = Math.max(0, cap - mods.filter((m) => m.gen === 'suffix').length);
+  // a Manifold Ring's "+1 Prefix Modifier allowed" / "-2 Suffix Modifiers allowed" change the caps
+  const allowed = (side) => {
+    let n = 0;
+    for (const l of item.mods?.implicit || []) { const m = new RegExp(`^([+-]\\d+) ${side} Modifiers? allowed$`, 'i').exec(l); if (m) n += Number(m[1]); }
+    return n;
+  };
+  const prefix = Math.max(0, cap + allowed('Prefix') - mods.filter((m) => m.gen === 'prefix').length);
+  const suffix = Math.max(0, cap + allowed('Suffix') - mods.filter((m) => m.gen === 'suffix').length);
   return prefix || suffix ? { prefix, suffix } : null;
 }
 

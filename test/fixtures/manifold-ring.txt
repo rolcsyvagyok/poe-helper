@@ -1,0 +1,24 @@
+Item Class: Rings
+Rarity: Rare
+Horror Knuckle
+Manifold Ring
+--------
+Requirements:
+Level: 64
+--------
+Item Level: 85
+--------
+{ Implicit Modifier }
++1 Prefix Modifier allowed
+-2 Suffix Modifiers allowed
+Implicit Modifiers Cannot Be Changed — Unscalable Value
+50% increased Prefix Modifier magnitudes — Unscalable Value
+--------
+{ Prefix Modifier "Zaffre" (Tier: 2) — Mana  — 50% Increased }
++71(69-73) to maximum Mana
+{ Prefix Modifier "Resplendent" (Tier: 1) — Defences, Energy Shield  — 50% Increased }
++44(44-47) to maximum Energy Shield
+{ Prefix Modifier "Gleaming" (Tier: 2) — Damage, Physical, Attack  — 50% Increased }
+Adds 5(5-7) to 11(11-12) Physical Damage to Attacks
+{ Suffix Modifier "of the Ranger" (Tier: 1) — Attack }
++421(351-480) to Accuracy Rating

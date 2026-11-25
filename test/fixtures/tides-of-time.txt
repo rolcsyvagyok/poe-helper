@@ -1,0 +1,30 @@
+Item Class: Belts
+Rarity: Unique
+The Tides of Time
+Vanguard Belt
+--------
+Requirements:
+Level: 78
+--------
+Item Level: 87
+--------
+{ Implicit Modifier — Defences, Armour, Evasion }
++458(260-480) to Armour and Evasion Rating
+--------
+{ Unique Modifier — Life }
+100% increased Life Recovery from Flasks
+{ Unique Modifier — Mana }
+100% increased Mana Recovery from Flasks
+{ Unique Modifier }
+Flasks applied to you have 25% increased Effect
+{ Unique Modifier }
+Life Flasks gain 0(0-3) Charges every 3 seconds
+{ Unique Modifier }
+Mana Flasks gain 1(0-3) Charge every 3 seconds
+{ Unique Modifier }
+Utility Flasks gain 3(0-3) Charges every 3 seconds
+--------
+There is an ebb and flow to all things,
+tangible to those who watch and wait.
+--------
+Shaper Item

@@ -99,7 +99,8 @@ function isAdvancedHeader(line) {
 
 function parseItem(rawText) {
   if (!isPoeItemText(rawText)) return null;
-  const text = rawText.replace(/\r/g, '').trim();
+  // zero-width spaces sit inside some skill names ("Grants \u200bCall of Steel"): the trade site's text has none
+  const text = rawText.replace(/\r/g, '').replace(/[\u200b-\u200d\u2060\ufeff]/g, '').trim();
   const sections = text.split(`\n${SEP}\n`).map((s) => s.split('\n').map((l) => l.trimEnd()).filter((l) => l.length));
 
   const item = {
@@ -279,6 +280,10 @@ function parseItem(rawText) {
   // (it isn't always the last section: "Foil Unique", "Shaper Item" can follow it)
   if (item.rarity === 'Unique' && modSections.some((sec) => sec.some(isAdvancedHeader))) {
     for (let i = modSections.length - 1; i >= 0; i--) if (!modSections[i].some(isAdvancedHeader)) modSections.splice(i, 1);
+  }
+  // a quoted section is flavour (timeless jewels: "The first city was completed, and others sprouted. …")
+  if (item.rarity === 'Unique') {
+    for (let i = modSections.length - 1; i >= 0; i--) if (/^["“]/.test(modSections[i][0] || '')) modSections.splice(i, 1);
   }
   // Uniques carry flavour text as the last mod-like section; it never contains digits.
   if (item.rarity === 'Unique' && modSections.length > 1) {

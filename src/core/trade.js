@@ -71,7 +71,8 @@ function valuesAt(statText, modText) {
   const lines = String(statText || '').split('\n');
   const one = lines.find((l) => l.includes('#')) || '';
   if ((one.match(/#/g) || []).length === 0) return null;
-  const esc = one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/#/g, '([+-]?\\d+(?:\\.\\d+)?)');
+  // a word's last "s" either way: the trade site's "gain # Charge every 3 seconds" is the item's "gain 0 Charges…"
+  const esc = one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/#/g, '([+-]?\\d+(?:\\.\\d+)?)').replace(/([a-z])(?=\s|$)/gi, '$1s?');
   const m = new RegExp(`^\\+?${esc}$`, 'i').exec(String(modText || '').split('\n')[0].trim());
   if (!m) return null;
   return m.slice(1).map(Number);
@@ -119,6 +120,11 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
   if (!hits && /\binflict\b/i.test(modText) && !/chance/i.test(modText)) {
     const k4 = key.replace(/^(monsters|minions|enemies) inflict\b/, '$1 have #% chance to inflict').replace(/^inflict\b/, '#% chance to inflict');
     if (k4 !== key) { hits = table[k4] || table[`~${looseKey(k4)}`]; always = !!hits; }
+    // "Critical Strikes with Spells inflict Impale" is "Critical Strikes with Spells have #% chance to inflict Impale"
+    if (!hits && !/\d/.test(modText)) {
+      const k7 = key.replace(/^(.+?) inflict\b/, '$1 have #% chance to inflict');
+      if (k7 !== key) { hits = table[k7] || table[`~${looseKey(k7)}`]; always = !!hits; }
+    }
   }
   // "expires 75% slower" is stored as "expires #% faster" at -75 (The Infinite Pursuit), and the other way round
   for (const [a, b] of [['slower', 'faster'], ['faster', 'slower']]) {
@@ -346,6 +352,8 @@ function defaultProps(item) {
     // its own state, as Awakened does: a not corrupted item isn't compared with corrupted ones (they can't be changed)
     twiceCorrupted: !!item.flags?.twiceCorrupted,
     corrupted: item.flags?.corrupted ? 'yes' : kind === 'unique' || kind === 'gem' || kind === 'rare' || kind === 'magic' || kind === 'map' || isJewel(item) ? 'no' : 'any',
+    // a not mirrored item isn't compared with mirrored copies (and a mirrored one with mirrored ones)
+    mirrored: item.flags?.mirrored ? 'yes' : ['unique', 'rare', 'magic'].includes(kind) || isJewel(item) ? 'no' : 'any',
     // a magic item is compared with magic ones (untick for rares of the base too)
     magicOnly: kind === 'magic' ? { show: true, on: true } : null,
     // jewels: a fractured one is only compared with fractured ones, and one that isn't with ones that aren't
@@ -458,6 +466,8 @@ function buildQuery(item, mods, opts = {}) {
     // twice corrupted (3.30): only other twice corrupted ones compare
     if (props.corrupted === 'yes' && (props.twiceCorrupted || item.flags?.twiceCorrupted)) misc.twice_corrupted = { option: 'true' };
     if (props.corrupted === 'no') misc.corrupted = { option: 'false' };
+    if (props.mirrored === 'yes') misc.mirrored = { option: 'true' };
+    if (props.mirrored === 'no') misc.mirrored = { option: 'false' };
     if (props.foulborn ? props.foulborn.on : item.flags?.foulborn) misc.mutated = { option: 'true' }; // Foulborn: the trade site's "mutated"
     if (item.flags?.vestigial) misc.vestigial = { option: 'true' }; // a vestigial base ("Vestigial Tricorne")
     if (props.identified === 'yes') misc.identified = { option: 'true' };
@@ -505,6 +515,8 @@ function buildQuery(item, mods, opts = {}) {
     if (item.flags.vestigial) misc.vestigial = { option: 'true' };
     else if (kind === 'unique' || kind === 'gem') misc.corrupted = { option: 'false' };
     if (item.flags.unidentified) misc.identified = { option: 'false' };
+    if (item.flags.mirrored) misc.mirrored = { option: 'true' };
+    else if (['unique', 'rare', 'magic'].includes(kind)) misc.mirrored = { option: 'false' };
     if (item.flags.fractured) misc.fractured_item = { option: 'true' };
     if (item.flags.synthesised) misc.synthesised_item = { option: 'true' };
     for (const inf of item.influences) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };
@@ -582,6 +594,18 @@ function itemRows(idx, item, tol) {
         if (e) {
           joined.add(i + 1);
           out.push({ id: e.id, text: `${m}\n${list[i + 1]}`, display: null, value: null, negate: false, type: kind, group: kind, enabled: false, special: true, min: null, max: null, meta: null });
+          return;
+        }
+      }
+      // any other stat the trade site writes on two lines ("Linked Targets always count as in range of Non-Curse
+      // Auras…" + "Non-Curse Auras from your Skills only apply to you and Linked Targets"), when the first alone isn't one
+      if (list[i + 1] && !/^Map contains /i.test(m) && !matchMod(idx, m, kind, item.itemClass, opts)) {
+        const two = matchMod(idx, `${m}\n${list[i + 1]}`, kind, item.itemClass, opts);
+        if (two) {
+          joined.add(i + 1);
+          const row = { ...two, text: `${m}\n${list[i + 1]}`, group: kind, enabled: item.rarity === 'Unique', meta: item.modMeta?.[kind]?.[i] || null, min: null, max: null };
+          if (row.display != null) { row.min = PF.minOf(row.display, tol); takenAsMax(row, tol); }
+          out.push(row);
           return;
         }
       }
