@@ -364,8 +364,8 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       if (fresh !== stats) { stats = fresh; ({ mods, props, presets } = require('../core/trade').prepareSearch(stats, item, { tolerance: settings.get('tradeTolerance') ?? 0.1 })); }
     }
     const kind = classify(item);
-    // an imbued support the trade site's list didn't match: its exact characters, to see why (no private data)
-    for (const m of mods) if (m.group === 'imbued' && m.unmatched) log('imbued not matched', JSON.stringify(m.text), [...String(m.text)].map((c) => c.charCodeAt(0)).filter((c) => c > 126 || c < 32).join(',') || 'plain');
+    // a mod the trade site's list didn't match: its text and any odd characters, to see why (no private data)
+    for (const m of mods) if (m.unmatched) log(`${m.group} not matched`, JSON.stringify(m.text), [...String(m.text)].map((c) => c.charCodeAt(0)).filter((c) => c > 126 || c < 32).join(',') || 'plain');
     // only an identified unique is searched at once; everything else waits for Search (saves GGG requests)
     // an unidentified unique: which uniques its base can be (the trade site's item list, cached). One (Voices on a
     // Large Cluster Jewel): that's it. More: you pick, as in Awakened PoE Trade
@@ -2455,6 +2455,25 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return r;
   }
 
+  /**
+   * Screenshots of the game's atlas tree ([{ width, height, data, bgra }]) → { nodes, read, of, points }.
+   * Several zoomed-in screenshots are joined into one tree.
+   */
+  async function atlasFromShots(images = []) {
+    const tree = await atlasTreeData();
+    const Shot = require('../core/atlas-shot');
+    const reads = [];
+    for (const img of images.slice(0, 12)) {
+      const r = img?.width && img?.height && img?.data ? Shot.readAtlasShot(img, tree, { bgra: !!img.bgra }) : null;
+      if (r) reads.push(r);
+    }
+    if (!reads.length) throw new Error(`No atlas tree found in ${images.length === 1 ? 'that screenshot' : 'those screenshots'}. Open the Atlas passive tree in the game, zoom all the way out, and take the screenshot again.`);
+    const nodes = Shot.joinReads(tree, reads);
+    if (!nodes.length) throw new Error('The atlas tree was found, but no taken passives were. Take the screenshot with your points applied (not while choosing).');
+    log('atlas screenshot', `${nodes.length} passives from ${reads.length} of ${images.length}`);
+    return { nodes, read: reads.length, of: images.length, points: tree.points };
+  }
+
   async function atlasSave(input = {}) {
     const all = strategiesAll();
     const old = input.id ? all.find((s) => s.id === input.id) : null;
@@ -3292,7 +3311,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return files;
   }
 
-  return { addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

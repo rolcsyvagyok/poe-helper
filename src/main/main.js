@@ -1031,6 +1031,13 @@ function registerIpc() {
   handle('atlas:save', (s) => services.atlasSave(s || {}));
   handle('atlas:remove', (id) => services.atlasRemove(String(id)));
   handle('atlas:copy', (id) => services.atlasCopy(String(id)));
+  // screenshots of the game's atlas tree (PNG / JPG bytes) → the passives taken on them
+  handle('atlas:fromShots', (files) => services.atlasFromShots((Array.isArray(files) ? files : []).map((f) => {
+    const img = nativeImage.createFromBuffer(Buffer.from(f instanceof Uint8Array ? f : new Uint8Array(f || [])));
+    if (img.isEmpty()) return null;
+    const { width, height } = img.getSize();
+    return { width, height, data: img.toBitmap(), bgra: true }; // Windows bitmaps are BGRA
+  })));
   handle('atlas:syncGuides', () => services.syncGuideSites({ force: true }));
   handle('atlas:links', (id) => services.atlasLinks(String(id)));
   // a farming session for a strategy: a WealthyExile session marked with it (snapshots at the start and stop)

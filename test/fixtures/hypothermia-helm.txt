@@ -1,0 +1,41 @@
+Item Class: Helmets
+Rarity: Rare
+Blood Brow
+Archdemon Crown
+--------
+Quality: +16% (augmented)
+Armour: 400 (augmented)
+Energy Shield: 82 (augmented)
+--------
+Requirements:
+Level: 75
+Str: 79
+Int: 79
+--------
+Sockets: W-W-W 
+--------
+Item Level: 85
+--------
+{ Implicit Modifier }
+-2 to Level of Socketed Support Gems
++2 to Level of Socketed Skill Gems
+--------
+{ Prefix Modifier "Chosen" (Tier: 1) — Gem }
++2 to Level of Socketed AoE Gems
+9(8-10)% increased Area of Effect
+{ Prefix Modifier "Inculcated" (Tier: 3) — Defences, Armour, Energy Shield }
+68(68-79)% increased Armour and Energy Shield
+{ Master Crafted Prefix Modifier "Upgraded" (Rank: 4) — Life }
++64(56-70) to maximum Life
+{ Suffix Modifier "of the Essence" — Damage, Elemental, Gem }
+Socketed Gems deal 30% more Elemental Damage — Unscalable Value
+{ Suffix Modifier "of Shaping" (Tier: 1) — Elemental, Cold, Ailment, Gem }
+Socketed Gems are Supported by Level 20 Hypothermia Support — Unscalable Value
+20(17-20)% increased Effect of Cold Ailments
+(Cold Ailments are Chilled, Frozen and Brittle)
+{ Suffix Modifier "of Shaping" (Tier: 2) — Caster, Critical, Gem }
+Socketed Spells have +2% to Critical Strike Chance — Unscalable Value
+--------
+Shaper Item
+--------
+Note: ~b/o 25 divine

@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.173 - 2026-11-25
+
+* [Atlas strategies] Read your tree from a screenshot: open the Atlas passive tree in the game, zoom all the way out and take a screenshot. Then click "From screenshot" at the top (a new strategy) or in a strategy (its tree), or paste it on the page with Ctrl+V. Several zoomed-in screenshots work too. Check it against the game after: notables with a choice still need it picked.
+* [Price check] "Socketed Gems are Supported by Level 20 Hypothermia Support" (and other socketed supports) is found on the trade site in both of its spellings.
+- Price check: a mod the trade site's list doesn't know is written to the log with its exact text, to find out why.
+
 ## 1.0.172 - 2026-11-25
 
 * [Price check] A unique's lines are ticked one by one, even when the game puts them under one heading (Sublime Vision's aura effect, curse and aura are three ticks now).

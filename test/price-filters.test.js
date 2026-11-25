@@ -879,3 +879,14 @@ test('uniques with versions: the version line is ticked (Sublime Vision, Thread 
   const mm = T.prepareSearch(st3, svm).mods;
   assert.deepEqual(mm.map((x) => !!x.enabled), [true, true, true]);
 });
+
+test('a socketed support mod is found even when the list drops the last "Support"', () => {
+  const fs = require('fs'); const path = require('path');
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.indexable_support_74', text: 'Socketed Gems are Supported by Level # Hypothermia', type: 'explicit' },
+  ] }] };
+  const it = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'hypothermia-helm.txt'), 'utf8'));
+  const m = T.prepareSearch(stats, it).mods.find((x) => /Hypothermia/.test(x.text));
+  assert.equal(m.id, 'explicit.indexable_support_74');
+  assert.ok(!m.unmatched);
+});

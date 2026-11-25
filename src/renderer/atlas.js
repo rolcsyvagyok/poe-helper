@@ -306,6 +306,36 @@
     if (!A.sel && list.strategies.length) A.sel = list.strategies[0].id;
   }
 
+  /**
+   * Screenshots of the game's atlas tree → the passives taken on them, into S (one of yours) or a new strategy
+   * (when none is open, or the open one is a website's).
+   */
+  async function readShots(files, S) {
+    const imgs = [...files].filter((f) => /^image\//.test(f.type || ''));
+    if (!imgs.length) return toast('That isn\'t a picture. Use a PNG or JPG screenshot.', true);
+    toast(`Reading ${imgs.length === 1 ? 'the screenshot' : `${imgs.length} screenshots`}…`);
+    try {
+      const bytes = await Promise.all(imgs.map(async (f) => new Uint8Array(await f.arrayBuffer())));
+      const r = await call('atlas:fromShots', bytes);
+      const into = S && !S.guide ? S.id : null;
+      const patch = into ? { id: into, nodes: r.nodes } : { name: `My atlas tree ${new Date().toLocaleDateString()}`, nodes: r.nodes };
+      const s = await save(patch, true);
+      if (!s) return;
+      A.edit[s.id] = true; // to fix what was misread
+      await render(true);
+      toast(`Read ${r.nodes.length} of ${r.points} points${r.read < r.of ? ` (no tree found on ${r.of - r.read} screenshot${r.of - r.read === 1 ? '' : 's'})` : ''}${into ? '' : ', as a new strategy'}. Check it against the game; click passives to fix it.`);
+    } catch (e) { toast(e.message, true); }
+  }
+  // Ctrl+V of a screenshot on the page (not in a text box): into the open strategy
+  document.addEventListener('paste', (e) => {
+    const page = document.getElementById('page-atlas');
+    if (!page || !page.offsetParent) return;
+    const f = [...(e.clipboardData?.files || [])].filter((x) => /^image\//.test(x.type || ''));
+    if (!f.length) return;
+    e.preventDefault();
+    readShots(f, A.current);
+  });
+
   async function save(patch, quiet) {
     try {
       const s = await call('atlas:save', patch);
@@ -327,7 +357,10 @@
     const d = L.divine;
     const S = L.strategies.find((s) => s.id === A.sel) || null;
     const newBtn = h('button', { class: 'primary', onclick: async () => { const s = await save({ name: `Strategy ${L.strategies.length + 1}` }, true); if (s) toast('New strategy: paste an atlas tree link, or click passives on the tree'); } }, window.UI.icon('plus', { size: 15 }), ' New strategy');
-    const head = window.pageHead('Atlas strategies', 'Your farms: the atlas tree, threads and maps each one uses, and what its sessions earned. Start a session here and WealthyExile measures it.', newBtn);
+    const headIn = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/bmp', multiple: true, hidden: true, onchange: (e) => { readShots(e.target.files, null); e.target.value = ''; } });
+    const headShot = h('button', { title: 'A new strategy with the tree read from a screenshot of the game\'s Atlas passive tree (zoomed all the way out; several zoomed-in screenshots work too). Or paste a screenshot on this page with Ctrl+V.', onclick: () => headIn.click() }, window.UI.icon('image', { size: 15 }), ' From screenshot', headIn);
+    A.current = S;
+    const head = window.pageHead('Atlas strategies', 'Your farms: the atlas tree, threads and maps each one uses, and what its sessions earned. Start a session here and WealthyExile measures it.', h('span', { class: 'at-headbtns' }, headShot, newBtn));
 
     // ---- the list: a search over names, authors and mechanics; your strategies, then each website's ----
     const q = (A.q || '').trim().toLowerCase();
@@ -418,7 +451,9 @@
     const link = h('input', { type: 'text', value: S.link || '', placeholder: 'Atlas tree link (pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith, wealthyexile.com, maxroll.gg), or click passives on the tree', 'aria-label': 'Atlas tree link', style: { flex: 1 } });
     const imp = h('button', { onclick: () => save({ id: S.id, link: link.value }) }, S.link ? 'Update tree' : 'Import tree');
     link.addEventListener('keydown', (e) => { if (e.key === 'Enter') imp.click(); });
-    const linkRow = h('div', { class: 'at-row' }, link, imp);
+    const shotIn = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/bmp', multiple: true, hidden: true, onchange: (e) => { readShots(e.target.files, S); e.target.value = ''; } });
+    const shotBtn = h('button', { title: 'Read your tree from a screenshot of the game\'s Atlas passive tree (zoomed all the way out). Several zoomed-in screenshots work too. You can also paste a screenshot on this page with Ctrl+V.' + (S.guide ? ' It makes a new strategy in My strategies.' : ''), onclick: () => shotIn.click() }, 'From screenshot');
+    const linkRow = h('div', { class: 'at-row' }, link, imp, shotBtn, shotIn);
     const linkInfo = S.nodes?.length ? h('div', { class: 'small muted at-linkinfo' },
       `${S.summary?.points ?? S.nodes.length} of ${A.tree?.points || 150} points`, S.summary ? ` · ${S.summary.notables} notable${S.summary.notables === 1 ? '' : 's'} · ${S.summary.keystones} keystone${S.summary.keystones === 1 ? '' : 's'}` : '', S.from ? ` · from ${S.from}` : '',
       S.unknown ? ` · ${S.unknown} passive${S.unknown === 1 ? '' : 's'} not in this tree left out` : '',

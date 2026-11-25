@@ -283,6 +283,7 @@ const ICONS = {
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>',
   dots: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  image: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3.5 2.5-2 4.5 3.5"/>',
   plusc: '<circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.2"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/>',

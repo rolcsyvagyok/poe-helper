@@ -42,6 +42,7 @@ A Path of Exile 1 desktop helper with an in-game overlay. It combines a price ch
 
 **Atlas strategies**
 - One card per way you farm. Paste its atlas tree link (pathofexile.com, poeplanner.com, poeatlasplanner.com, hypostasis.faith or wealthyexile.com), or click the tree together and the tree is drawn; point at a passive for what it does, click a multiple-choice passive to pick its option.
+- Or read the tree from a screenshot of the game's Atlas passive tree (zoomed out; several zoomed-in screenshots work too). The app finds the tree on the picture and takes the passives with the blue "allocated" frame.
 - What the tree does, added up and grouped by league mechanic; point at a group to light up its passives.
 - The threads (with their poe.ninja price), map kind (Conqueror, guardian, Nightmare maps… priced from poe.ninja) and other items each map uses, with the cost a map.
 - Start a session from the strategy: WealthyExile takes a snapshot at the start and stop, and the strategy lists each session's gain, per hour and (from Client.txt) per map.

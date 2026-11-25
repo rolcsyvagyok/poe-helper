@@ -100,6 +100,11 @@ function matchMod(idx, modText, type, itemClass, { unique = false } = {}) {
     const alias = { '#% to item rarity': '#% increased rarity of items found', '#% to item quantity': '#% increased quantity of items found', '# added passive skill is a jewel socket': '# added passive skills are jewel sockets' }[key];
     if (alias) hits = table[alias] || table[`~${looseKey(alias)}`];
   }
+  // "Supported by Level 20 Hypothermia Support": the trade site also lists it without the last "Support"
+  if (!hits && /\bsupport$/.test(key)) {
+    const k5 = key.replace(/ support$/, '');
+    hits = table[k5] || table[`~${looseKey(k5)}`];
+  }
   // the item says "+3 to maximum Blooms", the trade site "+# maximum Bloom"
   if (!hits && /# to maximum /.test(key)) {
     const k2 = key.replace('# to maximum ', '# maximum ');
