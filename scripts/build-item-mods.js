@@ -17,16 +17,23 @@ const mods = read('mods.json');
 const bases = read('base_items.json');
 const classes = read('item_classes.json');
 
-const DOMAINS = ['item', 'flask', 'misc', 'abyss_jewel'];
+const DOMAINS = ['item', 'flask', 'misc', 'jewel', 'abyss_jewel'];
+// newer exports call the jewels' domain "jewel" (it was "misc"); the app keeps "misc"
+const dom = (d) => (d === 'jewel' ? 'misc' : d);
 const SKIP_CLASSES = new Set(['HiddenItem', 'FishingRod']);
 
 const baseList = [];
 for (const b of Object.values(bases)) {
   if (b.release_state !== 'released' || !DOMAINS.includes(b.domain) || SKIP_CLASSES.has(b.item_class)) continue;
   if (/^(Demigod|Golden) /.test(b.name)) continue; // never drop
+  if (/^Mycelium Core$/.test(b.name)) continue; // a league item in the Jewel class, not a jewel you craft
   // its implicit lines are on the item too, so the search terms must not match them
   const imp = (b.implicits || []).map((id) => mods[id]?.text).filter(Boolean).map((t) => t.replace(/\r/g, ''));
-  baseList.push({ name: b.name, cls: b.item_class, dom: b.domain, lvl: b.drop_level || 1, tags: b.tags, ...(imp.length ? { imp } : {}) });
+  // tags the export leaves out: Ghostflame Blade rolls the Deepwater sword mods (fire only), as in the game
+  // warstaves roll the mods weighted for "warstaff" (more attack block, less spell block), as Craft of Exile has it
+  const extra = [b.name === 'Ghostflame Blade' ? 'deepwater_sword' : null, b.item_class === 'Warstaff' ? 'warstaff' : null].filter((t) => t && !b.tags.includes(t));
+  const tags = extra.length ? [...extra, ...b.tags] : b.tags;
+  baseList.push({ name: b.name, cls: b.item_class, dom: dom(b.domain), lvl: b.drop_level || 1, tags, ...(imp.length ? { imp } : {}) });
 }
 baseList.sort((a, b) => a.cls.localeCompare(b.cls) || a.lvl - b.lvl || a.name.localeCompare(b.name));
 
@@ -34,21 +41,24 @@ const modList = [];
 for (const [id, m] of Object.entries(mods)) {
   // "unveiled": the mods Jun's Veiled mods unveil into (Crafting shows them; the item regex leaves them out)
   if (!(DOMAINS.includes(m.domain) || m.domain === 'unveiled') || !['prefix', 'suffix'].includes(m.generation_type) || m.is_essence_only) continue;
+  if (/Royale/.test(id)) continue; // Battle Royale event mods: they don't roll in the normal game
   const w = (m.spawn_weights || []).map((x) => [x.tag, x.weight]);
   if (!w.some(([, n]) => n > 0) || !m.text) continue;
   // tags: the mod's own tags (Fire, Attack, Life…) as the game shows them; grp: mods in one group can't roll together
   const tags = (m.implicit_tags || []).filter((t) => t !== 'default');
   // "Socketed Gems are Supported by Level 20 Hypothermia": the export leaves this line out of the text
-  let text = m.text.replace(/\r/g, '');
+  // the game's markup ("[SupportFortify::20|Fortify Support]" -> "Fortify Support") and HTML entities out
+  let text = m.text.replace(/\r/g, '').replace(/\[([^\]|]+)\|([^\]]+)\]/g, '$2').replace(/\[([^\]]+)\]/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .replace(/^(Grants Level \d+ .+?)(?<! Skill)$/gm, '$1 Skill'); // the game says "Grants Level 22 Wrath Skill"
   for (const st of m.stats || []) {
     const g = /^local_display_socketed_gems_(?:supported_by_level_x_|supported_by_x_|get_)(.+?)(?:_level)?$/.exec(st.id);
-    if (!g) continue;
+    if (!g || /Supported by Level/i.test(text)) continue; // newer exports write the line themselves
     const gem = g[1].split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
     // the game's files don't say the gem level here (it comes with the tier): "#"
     const lvl = !st.max ? '#' : st.min === st.max ? String(st.min) : `(${st.min}-${st.max})`;
     text = `Socketed Gems are Supported by Level ${lvl} ${gem} Support\n${text}`;
   }
-  modList.push({ id, aff: m.generation_type[0], dom: m.domain, type: m.type, name: m.name || '', lvl: m.required_level || 1, text, w, ...(tags.length ? { tags } : {}), ...(m.groups?.length ? { grp: m.groups[0] } : {}) });
+  modList.push({ id, aff: m.generation_type[0], dom: dom(m.domain), type: m.type, name: m.name || '', lvl: m.required_level || 1, text, w, ...(tags.length ? { tags } : {}), ...(m.groups?.length ? { grp: m.groups[0] } : {}) });
 }
 
 const influence = {};

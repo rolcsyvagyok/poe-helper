@@ -282,7 +282,9 @@ function magicView(o = {}) {
   const base = baseFor(o);
   const r = base && families({ base, also: alsoFor(o) });
   if (!r) return null;
-  const fams = r.families.filter((f) => !f.influence).map((f) => ({ key: f.key, aff: f.aff, text: f.show, tiers: f.tiers.filter((t) => t.tier <= TOP).map((t) => ({ tier: t.tier, lvl: t.lvl, name: t.name, text: t.text })) }))
+  // flasks: every tier (their best tiers aren't always wanted; "of the Rainbow" has one)
+  const top = o.allTiers ? Infinity : TOP;
+  const fams = r.families.filter((f) => !f.influence).map((f) => ({ key: f.key, aff: f.aff, text: f.show, tiers: f.tiers.filter((t) => t.tier <= top).map((t) => ({ tier: t.tier, lvl: t.lvl, name: t.name, text: t.text })) }))
     .filter((f) => f.tiers.length)
     .sort((a, b) => (a.aff === b.aff ? 0 : a.aff === 'prefix' ? -1 : 1) || a.text[0].localeCompare(b.text[0]));
   return { type: o.type, variant: o.variant || null, base, families: fams };
@@ -320,7 +322,7 @@ function buildMagicRegex(choices = {}) {
   for (const f of r.families) for (const t of f.tiers) if (t.name) allNames.push({ f, t, n: t.name.toLowerCase() });
   const lines = [...r.families.flatMap((f) => f.tpl), ...NOISE, ...classNames(b.cls), ...(b.imp || []).flatMap((t) => t.split('\n')).map((l) => template(l).tpl)];
   for (const f of r.families) {
-    const want = (picks[f.key] || []).map(Number).filter((n) => n >= 1 && n <= TOP);
+    const want = (picks[f.key] || []).map(Number).filter((n) => n >= 1 && n <= (choices.allTiers ? Infinity : TOP));
     if (!want.length) continue;
     const tiers = f.tiers.filter((t) => want.includes(t.tier) && t.name);
     if (!tiers.length) continue;
@@ -350,8 +352,20 @@ function buildMagicRegex(choices = {}) {
   }
   const prefixes = parts.filter((p) => p.aff === 'prefix').length;
   const suffixes = parts.length - prefixes;
-  if (prefixes > 1 || suffixes > 1) notes.push('A magic item has one prefix and one suffix: with two mods of the same kind ticked nothing can match.');
-  const regex = parts.map((p) => `"${p.text}"`).join(' ');
+  // how the ticked mods combine: every one (the default), any one, or one ticked prefix and one ticked suffix
+  const mode = choices.mode || 'all';
+  let terms;
+  if (mode === 'any') terms = parts.length ? [parts.map((p) => p.text).join('|')] : [];
+  else if (mode === 'ps') {
+    const pre = parts.filter((p) => p.aff === 'prefix').map((p) => p.text);
+    const suf = parts.filter((p) => p.aff === 'suffix').map((p) => p.text);
+    if (parts.length && (!pre.length || !suf.length)) notes.push('Tick at least one prefix and one suffix for "a prefix and a suffix".');
+    terms = [pre.join('|'), suf.join('|')].filter(Boolean);
+  } else {
+    if (prefixes > 1 || suffixes > 1) notes.push('A magic item has one prefix and one suffix: with two mods of the same kind ticked nothing can match. Use "Any one" or "A prefix and a suffix".');
+    terms = parts.map((p) => p.text);
+  }
+  const regex = terms.map((t) => `"${t}"`).join(' ');
   return { regex, length: regex.length, max: MAX, parts, notes };
 }
 

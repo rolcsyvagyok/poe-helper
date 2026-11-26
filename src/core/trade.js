@@ -357,7 +357,8 @@ function defaultProps(item) {
     // a magic item is compared with magic ones (untick for rares of the base too)
     magicOnly: kind === 'magic' ? { show: true, on: true } : null,
     // jewels: a fractured one is only compared with fractured ones, and one that isn't with ones that aren't
-    fracturedState: isJewel(item) ? (item.flags?.fractured ? 'yes' : 'no') : null,
+    // (and gear: a not fractured item isn't compared with fractured ones, which cost more as crafting bases)
+    fracturedState: isJewel(item) || ['unique', 'rare', 'magic'].includes(kind) ? (item.flags?.fractured ? 'yes' : 'no') : null,
     // unidentified items are compared with other unidentified ones
     identified: item.flags?.unidentified ? 'no' : 'any',
     influences: Object.fromEntries((item.influences || []).map((i) => [i, true])),
@@ -518,6 +519,7 @@ function buildQuery(item, mods, opts = {}) {
     if (item.flags.mirrored) misc.mirrored = { option: 'true' };
     else if (['unique', 'rare', 'magic'].includes(kind)) misc.mirrored = { option: 'false' };
     if (item.flags.fractured) misc.fractured_item = { option: 'true' };
+    else if (['unique', 'rare', 'magic'].includes(kind)) misc.fractured_item = { option: 'false' };
     if (item.flags.synthesised) misc.synthesised_item = { option: 'true' };
     for (const inf of item.influences) misc[`${inf.toLowerCase()}_item`] = { option: 'true' };
     if (opts.useLinks !== false && item.sockets?.links >= 5) q.query.filters.socket_filters = { filters: { links: { min: item.sockets.links } } };

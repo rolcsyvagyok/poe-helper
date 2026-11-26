@@ -939,6 +939,7 @@ test('a not mirrored item is searched "not mirrored"; a mirrored one "mirrored"'
   const rm = T.prepareSearch(stats, m);
   assert.equal(rm.props.mirrored, 'yes');
   assert.deepEqual(T.buildQuery(m, rm.mods, { props: rm.props }).query.filters.misc_filters.filters.mirrored, { option: 'true' });
+  assert.deepEqual(T.buildQuery(it, r.mods, { props: r.props }).query.filters.misc_filters.filters.fractured_item, { option: 'false' }, 'not fractured');
   // a Manifold Ring: 4 prefixes and 1 suffix allowed, so 1 open prefix and no open suffix
   assert.deepEqual(PF.emptyAffix(it), { prefix: 1, suffix: 0 });
 });

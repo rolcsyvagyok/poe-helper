@@ -5,6 +5,17 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.175 - 2026-11-26
+
+* [Crafting] A new look, like Craft of Exile: the base and "Import an item" at the top, a table for prefixes and one for suffixes (then one each for an influence you pick) with Tiers, item level, Weight, Type % and Weight %, and your item on the right as the game shows it. Your item's mods are marked in the tables. "Try crafts" is gone.
+* [Regex] New Flasks page: tick the flask mods you'd keep (every tier, with the item level each needs) and choose "A prefix and a suffix", "Any one" or "Every one".
+* [Regex] Map mods: Quality is back (quantity, rarity, pack size, currency, threads, divination cards), "Reach all / Any one" for the numbers and for quality, a P / S mark on each mod and "Prefixes / suffixes apart" to list them separately.
+* [Regex] Map mods: the search pieces are a little longer and safer, like poe.re's: no more 2-letter pieces ("a d", "c m") that could also be in a rare map's random name and skip the wrong map. Checked against every map mod line the game has: each piece finds its own mod and no other.
+- Regex: wanted mods are blue and skipped ones orange (they were green and red).
+* [Crafting] Checked against Craft of Exile for every base type: the mods that were missing are in (the Elder and Shaper "Socketed Gems are Supported by…" and "Grants Level 22 Wrath Skill" mods and others), event-only mods are out, and Warstaves and Ghostflame Blade roll what they really roll.
+* [Price check] An item that isn't fractured is no longer compared with fractured ones ("Not fractured", under More; a fractured one is compared with fractured ones).
+- Crafting and Regex: Mycelium Core is no longer listed with the jewels.
+
 ## 1.0.174 - 2026-11-26
 
 * [Price check] An item that isn't mirrored is no longer compared with mirrored copies ("Not mirrored", under More; a mirrored one is compared with mirrored ones).

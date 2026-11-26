@@ -86,6 +86,8 @@ const DEFAULT_SETTINGS = {
   regexItems: { type: '', variant: null, picks: {} }, // the Regex page's magic item mod choices ({ mod: [tiers] })
   regexBeasts: { minChaos: 10 }, // the Regex page's beast choices
   regexFavMods: [], // map mods kept at the top of the list
+  regexFlasks: {}, // Regex > Flasks: { type, variant, picks, mode }
+  regexGroupAffix: false, // Regex > Map mods: prefixes and suffixes listed apart
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons
   regexPresets: [], // saved searches: [{ name, kind: 'maps', choices }]
   baseRanks: require('../core/base-ranks').DEFAULT_RANKS, // { "Vaal Regalia": 'B' }: S best, missing = D (untiered, the lowest)
@@ -901,7 +903,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   // your PC (Path of Exile, Path of Building, the filter), history, net worth or caches.
   const APP_KEYS = ['uiTheme', 'collectAutoHours', 'hotkeyPrice', 'hotkeySnapshot', 'hotkeyPobTest', 'chatMacrosOn', 'chatMacroClear', 'chatMacros', 'pobCompareOn',
     'hotkeyLab', 'hotkeyAltClick', 'hotkeyClick', 'labFavorite', 'labOpacity', 'clipboardMode', 'restoreClipboard', 'overlayCloseOnMouseAway', 'minimizeToTray',
-    'appIconStyle', 'regexMaps', 'regexGems', 'regexGemClass', 'regexCampaign', 'regexItems', 'regexBeasts', 'regexFavMods',
+    'appIconStyle', 'regexMaps', 'regexGems', 'regexGemClass', 'regexCampaign', 'regexItems', 'regexFlasks', 'regexGroupAffix', 'regexBeasts', 'regexFavMods',
     'regexTrade', 'regexPresets', 'dailyGggBudget', 'ninjaTtlMin', 'autoSnapshotMin', 'minItemChaos', 'tradeTolerance',
     'tradeStatus', 'tradeFetchListings', 'tradeAutoSearch', 'tradeSearches', 'overviewBgOff', 'fbSideMini', 'fbSideWidth', 'filterPins', 'autoWatchFilter'];
   const APP_SHARE_KIND = 'poe-helper-app-settings';
@@ -1772,7 +1774,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   function regexItemBases() { return require('../core/regex/items').itemTypes(); }
   function regexItemView(o = {}) { return require('../core/regex/items').magicView(o); }
   function regexItemBuild(choices = {}) {
-    settings.set('regexItems', choices);
+    settings.set(choices.flasks ? 'regexFlasks' : 'regexItems', choices);
     return require('../core/regex/items').buildMagicRegex(choices);
   }
   function regexCampaignView(o = {}) { return require('../core/regex/items').campaignView(o); }

@@ -61,13 +61,16 @@ function rangeText(texts) {
   const lo = []; const hi = [];
   for (const t of texts) {
     let i = 0;
-    for (const m of t.matchAll(NUM)) {
+    // a "#" already in the text (a level the files leave open) keeps its place
+    for (const m of t.matchAll(/\((-?[\d.]+)-(-?[\d.]+)\)|(-?\d+(?:\.\d+)?)|#/g)) {
+      if (m[0] === '#') { i++; continue; }
       const a = Number(m[1] ?? m[3]); const b = Number(m[2] ?? m[3]);
       lo[i] = Math.min(lo[i] ?? a, a); hi[i] = Math.max(hi[i] ?? b, b); i++;
     }
   }
   let i = 0;
-  return first.replace(/#/g, () => { const a = lo[i]; const b = hi[i]; i++; return a === b ? String(a) : `(${a}-${b})`; });
+  // a "#" the game's files leave open (a socketed support's level) stays "#"
+  return first.replace(/#/g, () => { const a = lo[i]; const b = hi[i]; i++; return a == null || b == null ? '#' : a === b ? String(a) : `(${a}-${b})`; });
 }
 
 /**
@@ -378,7 +381,7 @@ function craftView(o = {}) {
     f.range = rangeText(f.tiers.filter((t) => t.open).map((t) => t.text)) || f.text;
     const mine = yours.find((y) => y.key === f.key);
     if (mine) mine.tier = f.tiers.find((t) => t.name === mine.tierName && t.text === mine.tierText)?.tier ?? null;
-    if (mine) f.yours = { tier: mine.tier, name: mine.name, crafted: mine.crafted, fractured: mine.fractured };
+    if (mine) f.yours = { tier: mine.tier, name: mine.name, crafted: mine.crafted, fractured: mine.fractured, text: mine.text };
     // a group already on your item can't roll again: it stays listed, at 0%
     f.blocked = !mine && taken.has(f.group);
     if (!f.weight) continue;

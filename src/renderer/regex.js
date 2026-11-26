@@ -9,6 +9,7 @@
   const CATS = [
     { id: 'maps', name: 'Map mods', art: '*Map16', icon: 'map' }, // a tier 16 map's picture
     { id: 'items', name: 'Magic item mods', art: 'Orb of Alteration', icon: 'drop' },
+    { id: 'flasks', name: 'Flasks', art: 'Divine Life Flask', icon: 'flask' },
     { id: 'campaign', name: 'Campaign items', art: 'Scroll of Wisdom', icon: 'leaf' },
     { id: 'gems', name: 'Gems', art: 'Gemcutter\'s Prism', icon: 'hex' },
     { id: 'beasts', name: 'Beasts', art: 'Bestiary Orb', icon: 'leaf' },
@@ -30,9 +31,9 @@
 
   // influenced and blighted maps are skipped unless you say otherwise
   const SKIP_TYPES = { shaper: 'avoid', elder: 'avoid', conqueror: 'avoid', originator: 'avoid', blighted: 'avoid', ravaged: 'avoid' };
-  const blank = () => ({ kind: 'regular', nightmare: false, avoid: [], want: [], numbers: {}, mapTypes: { ...SKIP_TYPES }, rarity: {}, corrupted: null, unidentified: null, custom: '' });
+  const blank = () => ({ kind: 'regular', nightmare: false, avoid: [], want: [], numbers: {}, numbersAny: false, quality: {}, qualityAny: false, mapTypes: { ...SKIP_TYPES }, rarity: {}, corrupted: null, unidentified: null, custom: '' });
   // the search is always what you set up: every wanted mod and every number must be there
-  const choices = () => ({ ...blank(), ...(S.settings?.regexMaps || {}), wantAll: true, numbersAny: false });
+  const choices = () => ({ ...blank(), ...(S.settings?.regexMaps || {}), wantAll: true });
 
   let saveTimer = null;
   async function update(c, { redraw = false } = {}) {
@@ -63,6 +64,11 @@
   }
 
   // three-way choice: either / want / skip
+  // every minimum must be reached, or any one of them is enough
+  function allAny(any, onPick) {
+    return h('div', { class: 'rx-seg sm', role: 'radiogroup', 'aria-label': 'Reach all or any one' },
+      [[false, 'Reach all'], [true, 'Any one']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': any === val ? 'true' : 'false', class: any === val ? 'on' : '', title: val ? 'A map reaching any one of these minimums is found' : 'A map must reach every minimum you typed', onclick: () => onPick(val) }, l)));
+  }
   function tri(label, value, onPick, { want = 'Want', avoid = 'Skip' } = {}) {
     const opt = (v, text) => h('button', { type: 'button', class: 'rx-tri-b' + ((value || null) === v ? ' on' : '') + (v ? ` ${v}` : ''), 'aria-pressed': (value || null) === v ? 'true' : 'false', onclick: () => onPick(v) }, text);
     return h('div', { class: 'rx-tri', role: 'group', 'aria-label': label }, h('span', { class: 'rx-tri-l' }, label), opt(null, 'Either'), opt('want', want), opt('avoid', avoid));
@@ -163,6 +169,7 @@
       h('span', { class: 'rx-mod-t' }, m.lines.map((l) => h('span', {}, l.replace(/#/g, '#')))),
       h('span', { class: 'rx-mod-m' },
         m.nightmareOnly ? h('span', { class: 'rx-badge nm', title: 'Originator mod (Originator-influenced maps)' }, 'Orig') : null,
+        m.affix ? h('span', { class: 'rx-badge ' + (m.affix === 'prefix' ? 'pre' : 'suf'), title: `${m.affix === 'prefix' ? 'Prefix' : 'Suffix'}${m.name ? ` "${m.name}"` : ''}` }, m.affix === 'prefix' ? 'P' : 'S') : null,
         h('span', { class: 'rx-mod-s' }, stateOf(m.id) === 'avoid' ? 'Skip' : stateOf(m.id) === 'want' ? 'Want' : '')));
       rows.set(m.id, el);
       return h('div', { class: 'rx-mod-row' }, star, el);
@@ -221,8 +228,10 @@
           c.kind === 'regular' ? toggle(!!c.nightmare, (val) => set({ nightmare: val }, true), 'Show Originator mods') : null,
           h('span', { class: 'small faint' }, 'The search only knows the mods of the maps you pick here, so the pieces stay short.')),
         h('div', { class: 'rx-grid' },
-          h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), h('span', { class: 'small faint' }, 'at least')),
+          h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Numbers'), h('span', { class: 'small faint' }, 'at least'), h('span', { class: 'spacer' }), allAny(!!c.numbersAny, (val) => set({ numbersAny: val }, true))),
             h('div', { class: 'rx-nums' }, v.numbers.map((n) => num(n.label, c.numbers?.[n.id], (val) => setIn('numbers', n.id, val))))),
+          c.kind === 't17' ? null : h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Quality'), h('span', { class: 'small faint' }, 'at least'), h('span', { class: 'spacer' }), allAny(!!c.qualityAny, (val) => set({ qualityAny: val }, true))),
+            h('div', { class: 'rx-nums' }, v.quality.map((n) => num(n.label.replace(/^Quality \((.+)\)$/, (_, x) => x[0].toUpperCase() + x.slice(1)), c.quality?.[n.id], (val) => setIn('quality', n.id, val))))),
           h('div', { class: 'rx-box' }, h('div', { class: 'rx-box-h' }, h('b', {}, 'Map')),
             c.kind === 't17' ? null : h('div', { class: 'small faint' }, 'Map types are for the trade search; the map stash already keeps them apart.'),
             // nightmare maps are always rare and never influenced: only corrupted and identified apply
@@ -238,21 +247,32 @@
       h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } },
         h('h2', { style: { margin: 0 } }, 'Map mods'), counts,
         h('span', { class: 'small faint' }, 'Left click: skip maps with it. Right click: want it. Click again to undo.'),
-        h('span', { class: 'spacer' }), search, showSel),
+        h('span', { class: 'spacer' }), search, showSel,
+        toggle(!!S.settings.regexGroupAffix, (val) => { S.settings.regexGroupAffix = val; call('settings:set', { regexGroupAffix: val }).catch(() => {}); renderRegexPage(); }, 'Prefixes / suffixes apart')),
       favShown.length ? h('div', { class: 'rx-list-h' }, `Favourites (${favShown.length})`) : null,
       favShown.length ? h('div', { class: 'rx-list' }, favShown.map(modRow)) : null,
-      favShown.length && restShown.length ? h('div', { class: 'rx-list-h' }, 'All the others') : null,
-      restShown.length ? h('div', { class: 'rx-list' }, restShown.map(modRow)) : (favShown.length ? null : h('div', { class: 'panel small muted' }, 'No mod matches that.')));
+      ...(S.settings.regexGroupAffix && restShown.length
+        ? [['prefix', 'Prefixes'], ['suffix', 'Suffixes'], [null, 'Other']].flatMap(([a, l]) => { const g = restShown.filter((m) => (a ? m.affix === a : m.affix !== 'prefix' && m.affix !== 'suffix')); return g.length ? [h('div', { class: 'rx-list-h' }, `${l} (${g.length})`), h('div', { class: 'rx-list' }, g.map(modRow))] : []; })
+        : [favShown.length && restShown.length ? h('div', { class: 'rx-list-h' }, 'All the others') : null,
+          restShown.length ? h('div', { class: 'rx-list' }, restShown.map(modRow)) : (favShown.length ? null : h('div', { class: 'panel small muted' }, 'No mod matches that.'))]));
 
     drawOutput(await call('regex:mapBuild', c));
   }
 
   // ---------- item mods: magic items by their mod names ("Searing … of Success"), for rolling with alterations ----------
+  // the same page does Flasks: every flask kind, every tier, and how the ticked mods combine
+  const isFlasks = () => R.cat === 'flasks';
+  const itemKey = () => (isFlasks() ? 'regexFlasks' : 'regexItems');
   const itemDefaults = { type: '', variant: null, picks: {} };
-  const itemChoices = () => { const c = { ...itemDefaults, ...(S.settings?.regexItems || {}) }; if (c.picks && Object.values(c.picks).some((v) => !Array.isArray(v))) c.picks = {}; return c; };
+  const itemChoices = () => {
+    const c = { ...itemDefaults, ...(isFlasks() ? { type: 'LifeFlask', mode: 'ps' } : {}), ...(S.settings?.[itemKey()] || {}) };
+    if (c.picks && Object.values(c.picks).some((v) => !Array.isArray(v))) c.picks = {};
+    if (isFlasks()) { c.flasks = true; c.allTiers = true; }
+    return c;
+  };
   async function setItems(patch, redraw = true) {
-    S.settings.regexItems = { ...itemChoices(), ...patch };
-    R.itemOut = await call('regex:itemBuild', S.settings.regexItems);
+    S.settings[itemKey()] = { ...itemChoices(), ...patch };
+    R.itemOut = await call('regex:itemBuild', S.settings[itemKey()]);
     if (redraw) renderRegexPage(); else drawItemOut();
   }
   const io = { box: null, count: null, parts: null, notes: null };
@@ -276,17 +296,20 @@
   };
   async function renderItems(main) {
     if (!R.itemTypes) R.itemTypes = await call('regex:itemBases');
+    const F = isFlasks();
+    const types = R.itemTypes.filter((t) => (F ? /Flask$/.test(t.id) : !/Flask$/.test(t.id)));
     const c = itemChoices();
-    const type = R.itemTypes.find((t) => t.id === (c.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : c.type)) || null;
+    const type = types.find((t) => t.id === (c.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : c.type)) || null;
     const variant = type?.variants ? (type.variants.find((v) => v.id === c.variant) || type.variants[0]) : null;
-    const viewKey = JSON.stringify([c.type, variant?.id || null]);
-    if (type && R.itemViewKey !== viewKey) { R.itemView = await call('regex:itemView', { type: c.type, variant: variant?.id || null }); R.itemViewKey = viewKey; R.itemOut = null; }
+    const viewKey = JSON.stringify([R.cat, c.type, variant?.id || null]);
+    if (type && R.itemViewKey !== viewKey) { R.itemView = await call('regex:itemView', { type: c.type, variant: variant?.id || null, allTiers: F }); R.itemViewKey = viewKey; R.itemOut = null; }
     const v = type ? R.itemView : null;
-    if (!R.itemOut) R.itemOut = await call('regex:itemBuild', c);
-    const presets = (S.settings.regexPresets || []).filter((p) => p.kind === 'items');
+    if (!R.itemOut || R.itemOutCat !== R.cat) { R.itemOut = await call('regex:itemBuild', c); R.itemOutCat = R.cat; }
+    const presetKind = F ? 'flasks' : 'items';
+    const presets = (S.settings.regexPresets || []).filter((p) => p.kind === presetKind);
 
     const typeSel = h('select', { 'aria-label': 'Item type', onchange: (e) => setItems({ type: e.target.value, variant: null, picks: {} }) },
-      h('option', { value: '' }, 'Pick an item type…'), typeOptions(R.itemTypes, c.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : c.type));
+      F ? null : h('option', { value: '' }, 'Pick an item type…'), typeOptions(types, c.type === 'Thrusting One Hand Sword' ? 'One Hand Sword' : c.type));
     const varSel = type?.variants ? h('select', { 'aria-label': type.variants[0].id.endsWith('_armour') ? 'Defence' : 'Base', onchange: (e) => setItems({ variant: e.target.value, picks: {} }) },
       type.variants.map((x) => h('option', { value: x.id, selected: x.id === variant.id }, x.name))) : null;
 
@@ -309,7 +332,7 @@
       if (p) { setItems({ ...itemDefaults, ...p.choices }); toast(`"${p.name}" loaded`); } else renderRegexPage();
     } }, h('option', { value: '' }, presets.length ? 'Saved searches…' : 'No saved searches yet'), presets.map((p) => h('option', { value: p.name, selected: R.itemPreset === p.name }, p.name)));
     const nameIn = h('input', { placeholder: 'New name, e.g. Spell wand T1', style: { width: '200px' }, 'aria-label': 'Name for a new saved search', onkeydown: (e) => { if (e.key === 'Enter') saveNew(); } });
-    const save = async (name) => { S.settings.regexPresets = await call('regex:savePreset', { name, kind: 'items', choices: itemChoices() }); R.itemPreset = name; renderRegexPage(); };
+    const save = async (name) => { S.settings.regexPresets = await call('regex:savePreset', { name, kind: presetKind, choices: itemChoices() }); R.itemPreset = name; renderRegexPage(); };
     const saveNew = async () => {
       const name = nameIn.value.trim();
       if (!name) { nameIn.focus(); return toast('Type a name for the new search first.', true); }
@@ -319,7 +342,7 @@
     const delPreset = async () => {
       const name = R.itemPreset;
       if (!name || !confirm(`Delete the saved search "${name}"?`)) return;
-      S.settings.regexPresets = await call('regex:deletePreset', { name, kind: 'items' });
+      S.settings.regexPresets = await call('regex:deletePreset', { name, kind: presetKind });
       R.itemPreset = null; renderRegexPage();
     };
 
@@ -369,7 +392,10 @@
       h('div', { class: 'panel rx-opts' },
         h('div', { class: 'row', style: { gap: '12px' } }, typeSel, varSel,
           v ? h('span', { class: 'small faint' }, `Mods of ${type.name.toLowerCase()}${variant && type.variants[0].id.endsWith('_armour') ? ` (${variant.name.toLowerCase()})` : ''}, like ${v.base}.`) : null),
-        h('div', { class: 'small faint' }, 'For magic items: a magic item\'s name has its mods\' names in it ("Searing Goat\'s Horn of Success"), so the search looks for those. Tick the tiers of each mod you want (T1 to T4); the item must have every mod you tick.')),
+        F ? h('div', { class: 'row', style: { gap: '10px' } }, h('span', { class: 'small muted' }, 'Match'),
+          h('div', { class: 'rx-seg', role: 'radiogroup', 'aria-label': 'How the ticked mods combine' }, [['ps', 'A prefix and a suffix'], ['any', 'Any one'], ['all', 'Every one']].map(([val, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': (c.mode || 'all') === val ? 'true' : 'false', class: (c.mode || 'all') === val ? 'on' : '', onclick: () => setItems({ mode: val }) }, l)))) : null,
+        h('div', { class: 'small faint' }, F ? 'A magic flask\'s name has its mods\' names in it ("Experimenter\'s Diamond Flask of the Rainbow"), so the search looks for those. Tick the tiers you\'d keep (a tier\'s level is the item level it needs). "A prefix and a suffix": one of your prefixes and one of your suffixes; "Any one": a flask with any of them.'
+          : 'For magic items: a magic item\'s name has its mods\' names in it ("Searing Goat\'s Horn of Success"), so the search looks for those. Tick the tiers of each mod you want (T1 to T4); the item must have every mod you tick.')),
       v ? h('div', { class: 'row', style: { gap: '10px', margin: '14px 0 8px' } },
         h('h2', { style: { margin: 0 } }, 'Mods'),
         (countEl = h('span', { class: 'small muted' }, `${Object.keys(picks).length} ticked`)),
@@ -740,7 +766,7 @@
       h('span', { class: 'fb-cat-ic' }, window.UI.icon(`art:${cat.art}`, { size: 26, fallback: cat.icon })), h('span', { class: 'n' }, cat.name))));
     if (R.cat === 'maps') await renderMaps(main);
     else if (R.cat === 'beasts') await renderBeasts(main);
-    else if (R.cat === 'items') await renderItems(main);
+    else if (R.cat === 'items' || R.cat === 'flasks') await renderItems(main);
     else if (R.cat === 'campaign') await renderCampaign(main);
     else if (R.cat === 'gems') await renderGems(main);
     mount(el,

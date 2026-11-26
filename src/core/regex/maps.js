@@ -25,7 +25,7 @@ const STATIC_TEXT = [
   'map contains al-hezmin\'s citadel', 'map contains baran\'s citadel', 'map contains drox\'s citadel', 'map contains veritania\'s citadel',
   'area is infested with fungal growths', 'natural inhabitants of this area have been removed', 'map\'s item quantity modifiers also affect blight chest count at 25% value',
   'map\'s item quantity modifiers also affect blight chest count at 50% value', 'can be anointed up to 3 times', 'delirium reward type: ', 'players in area are #% delirious',
-  'blighted', 'blight-ravaged', 'shaped', 'elder', 'memory', 'unique', 'requirements: ',
+  'blighted', 'blight-ravaged', 'shaped', 'elder', 'memory', 'unique', 'requirements: ', 'map area: ', 'area level: ',
 ];
 
 const NUMBERS = [
@@ -102,6 +102,10 @@ function universe(kind) {
             const key = text + (end ? '$' : '');
             if (seen.has(key)) continue;
             seen.add(key);
+            // at least 3 letters (2 when the piece ends a line, "va$"): shorter pieces ("a d", "c m") turn up in
+            // things the list can't know, like a rare map's random name ("Sea Dream"), as poe.re avoids them too
+            const letters = text.replace(/[ #]/g, '').length;
+            if (letters < 3 && !(end && letters >= 2)) continue;
             if (outside.some((o) => has(o, text, end))) continue;
             const { hits, touches } = piecesOf(text, end);
             if (!hits.has(t.id)) continue; // only in the mod's name: misses it on rare maps
@@ -230,7 +234,7 @@ function buildMapRegex(o = {}) {
     if (o.numbersAny && nums.length > 1) parts.push({ label: 'At least one of', text: quote(nums.map((x) => `${x.n.prefix}${x.r}%`).join('|')) });
     else for (const x of nums) parts.push({ label: `${x.n.label} ${o.numbers[x.n.id]}%+`, text: quote(`${x.n.prefix}${x.r}%`) });
   }
-  const qs = []; // quality isn't asked any more (the page has no quality box)
+  const qs = QUALITY.map((q) => ({ q, r: atLeast(o.quality?.[q.id]) })).filter((x) => x.r);
   if (qs.length) {
     if (o.qualityAny && qs.length > 1) parts.push({ label: 'Quality, one of', text: quote(qs.map((x) => `${x.q.prefix}${x.r}%`).join('|')) });
     else for (const x of qs) parts.push({ label: `${x.q.label} ${o.quality[x.q.id]}%+`, text: quote(`${x.q.prefix}${x.r}%`) });

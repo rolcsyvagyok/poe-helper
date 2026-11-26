@@ -1,6 +1,7 @@
 'use strict';
-/* Crafting: every mod a base can roll at an item level, how likely each one is, and its tags,
-   laid out like Craft of Exile: bases on the left, the prefix and suffix pools side by side. */
+/* Crafting: every mod a base can roll at an item level, how likely each one is, and its tags, laid out like
+   Craft of Exile: the base and your imported item at the top, a table a side (base, then each influence), and the
+   item itself on the right, drawn like the game's tooltip. */
 (function () {
   const { h, mount, call } = window.UI;
   const C = { tab: 'mods', sim: null, fossils: [], hTag: 'life', hAddTag: 'life', resFrom: 'Fire', resTo: 'Cold', benchId: '', odds: null, oddsKey: '', targets: new Set(), infTab: 'shaper', item: null, paste: false, bases: null, cls: 'Body Armour', attr: 'INT', base: 'Vaal Regalia', ilvl: 86, inf: [], tag: null, open: {}, q: '', mq: '', etab: 'exarch', etier: 6 };
@@ -37,7 +38,7 @@
     C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set();
     C.cls = cls; C.base = base || c.bases[c.bases.length - 1].name;
     C.attr = c.bases.find((b) => b.name === C.base)?.attr || null;
-    C.inf = []; C.tag = null; C.open = {}; C.sim = null; C.odds = null; render();
+    C.inf = []; C.tag = null; C.open = {}; C.sim = null; C.odds = null; C.pick = false; render();
   };
 
   // ---------- left: item classes and bases ----------
@@ -56,7 +57,7 @@
           h('div', { class: 'co-classes' }, classes.filter((c) => have.has(c)).map((c) => h('button', { class: 'co-cls' + (c === C.cls ? ' on' : ''), onclick: () => pick(c) }, nm(c)))))),
         attrs.length > 1 ? h('div', { class: 'co-attrs', role: 'tablist' }, attrs.map((a) => h('button', { class: 'co-deftab' + (a === C.attr ? ' on' : ''), role: 'tab', 'aria-selected': a === C.attr ? 'true' : 'false',
           onclick: () => { C.attr = a; const b = cur.bases.filter((x) => x.attr === a); C.base = b[b.length - 1].name; C.open = {}; C.sim = null; C.item = null; render(); } }, a))) : null,
-        h('div', { class: 'co-bases' }, list.map((b) => h('button', { class: 'co-base' + (b.name === C.base ? ' on' : ''), onclick: () => { C.base = b.name; C.open = {}; C.sim = null; C.item = null; render(); } },
+        h('div', { class: 'co-bases' }, list.map((b) => h('button', { class: 'co-base' + (b.name === C.base ? ' on' : ''), onclick: () => { C.base = b.name; C.open = {}; C.sim = null; C.item = null; C.pick = false; render(); } },
           window.UI.itemPic(b.name, { size: 30 }), h('span', {}, b.name, h('small', {}, `level ${b.lvl}`))))),
       ]);
   }
@@ -368,63 +369,159 @@
       cl.passives ? h('span', { class: 'faint' }, `· ${cl.passives} passives`) : cl.range ? h('span', { class: 'faint' }, `· ${cl.range[0]}-${cl.range[1]} passives`) : null);
   }
 
-  function draw(el, v) {
-    const ilvl = h('input', { type: 'range', min: 1, max: 100, value: C.ilvl, 'aria-label': 'Item level', oninput: (e) => { num.value = e.target.value; }, onchange: (e) => { if (C.item) C.itemIlvl = Number(e.target.value); else C.ilvl = Number(e.target.value); render(); } });
-    const num = h('input', { type: 'number', min: 1, max: 100, value: C.ilvl, style: { width: '58px' }, 'aria-label': 'Item level', onchange: (e) => { const n = Math.max(1, Math.min(100, Number(e.target.value) || 86)); if (C.item) C.itemIlvl = n; else C.ilvl = n; render(); } });
-    if (v) { ilvl.value = v.ilvl; num.value = v.ilvl; }
-    const box = h('textarea', { class: 'co-paste', rows: 8, placeholder: 'Paste your item here (Ctrl+C on it in game; Ctrl+Alt+C also gives the mod names and tiers)', 'aria-label': 'Your item\'s text' });
-    const useItem = () => { const t = box.value.trim(); if (!t) return; C.item = t; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.paste = false; C.tag = null; C.open = {}; C.sim = null; render(); };
-    const pastePanel = C.paste ? h('div', { class: 'panel co-pastebox' }, box,
-      h('div', { class: 'row small', style: { gap: '8px' } }, h('button', { class: 'sm', onclick: useItem }, 'Use this item'), h('button', { class: 'quiet sm', onclick: () => { C.paste = false; render(); } }, 'Cancel'),
-        h('span', { class: 'faint' }, 'Or press "Craft" on a price check.'))) : null;
+  // ---------- the mod tables, laid out like Craft of Exile: one table a side, a row a mod group ----------
+  // Tiers: how many tiers can roll at this item level; iLvl: the best of them needs; Type %: its chance as a new
+  // prefix (or suffix); Weight %: its share of every mod the item can roll. A row opens to its tiers.
+  function modTable(title, fams, sideTotal, allTotal, o = {}) {
+    const shown = fams.filter(modMatch);
+    if (!shown.length && !o.always) return null;
+    // totals of what can still roll (your item's own mods and the groups they block are left out)
+    const free = shown.filter((f) => !f.yours && !f.blocked);
+    const sum = free.reduce((n, f) => n + f.weight, 0);
+    const typeSum = free.reduce((n, f) => n + (f.chance || 0), 0);
+    const sl = o.slots;
+    const full = sl && sl.max && sl.n >= sl.max;
+    return h('section', { class: 'cx-table' },
+      h('div', { class: 'cx-thead' },
+        h('h3', {}, o.mark ? h('span', { class: 'cx-mark' }, o.mark) : null, title),
+        h('span', { class: 'cx-slots' + (full ? ' full' : '') }, sl && sl.max ? `${sl.n} / ${sl.max} on your item${full ? ' · full' : ''}` : ''),
+        h('span', { class: 'cx-c' }, 'Tiers'), h('span', { class: 'cx-c' }, 'iLvl'), h('span', { class: 'cx-c' }, 'Weight'), h('span', { class: 'cx-c' }, 'Type %'), h('span', { class: 'cx-c' }, 'Weight %')),
+      shown.length ? shown.map((f) => modLine(f, sideTotal, allTotal, o)) : h('div', { class: 'cx-empty small muted' }, fams.length ? `No mod here says "${C.mq.trim()}".` : 'None at this item level.'),
+      shown.length ? h('div', { class: 'cx-row cx-total' }, h('span', { class: 'cx-want none' }), h('span', { class: 'cx-text' }, 'Totals'),
+        h('span', { class: 'cx-c' }, String(shown.reduce((n, f) => n + f.tiers.filter((t) => t.open).length, 0))), h('span', { class: 'cx-c' }),
+        h('span', { class: 'cx-c' }, String(sum)), h('span', { class: 'cx-c' }, pct(typeSum)), h('span', { class: 'cx-c' }, allTotal ? pct(sum / allTotal) : '–')) : null);
+  }
+  function modLine(f, sideTotal, allTotal, o) {
+    const open = !!C.open[f.key];
+    const hit = !C.tag || f.tags.includes(C.tag);
+    const openTiers = f.tiers.filter((t) => t.open);
+    const best = openTiers[0];
+    const want = !o.noWant && !f.yours && !f.blocked && f.offered == null && !f.noWant;
+    // your item's mod: its own line (the numbers it rolled), marked; a group already on it can't roll again
+    const text = f.yours?.text || f.range;
+    return h('div', { class: 'cx-mod' + (hit ? '' : ' dim') + (open ? ' open' : '') + (f.yours ? ' yours' : '') + (f.blocked ? ' blocked' : '') },
+      h('div', { class: 'cx-row', role: 'button', tabindex: 0, 'aria-expanded': open ? 'true' : 'false', onclick: () => { C.open[f.key] = !open; render(); }, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); C.open[f.key] = !open; render(); } } },
+        want ? h('span', { class: 'cx-want' + (C.targets.has(f.key) ? ' on' : ''), role: 'checkbox', 'aria-checked': C.targets.has(f.key) ? 'true' : 'false', tabindex: 0, title: 'Tick the mods you want: Crafting finds the bench craft that blocks the most of the rest',
+          onclick: (e) => { e.stopPropagation(); if (C.targets.has(f.key)) C.targets.delete(f.key); else C.targets.add(f.key); render(); },
+          onkeydown: (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); e.target.click(); } } }, C.targets.has(f.key) ? '✓' : '') : h('span', { class: 'cx-want none' }, f.yours ? '◆' : ''),
+        h('span', { class: 'cx-text' },
+          h('span', { class: 'cx-line' }, text.split('\n').join(', ')),
+          f.yours ? h('span', { class: 'cx-yours' }, `Your item${f.yours.tier ? ` · T${f.yours.tier}` : ''}${f.yours.name ? ` ${f.yours.name}` : ''}${f.yours.crafted ? ' · crafted' : f.yours.fractured ? ' · fractured' : ''}`) : null,
+          f.blocked ? h('span', { class: 'cx-blk' }, 'Can\'t roll: a mod of this kind is on your item') : null,
+          f.offered != null ? h('span', { class: 'cx-offer' }, `In the 3 you're offered: ${pct(f.offered)}`) : null,
+          f.influence && !o.mark ? h('span', { class: 'co-tag co-inf' }, f.influence) : null,
+          f.tags.map((t) => tagChip(t, C.tag === t ? ' on' : ''))),
+        h('span', { class: 'cx-c' }, String(f.noWant ? f.tiers.length : openTiers.length)),
+        h('span', { class: 'cx-c faint' }, best && !f.tierWord ? String(best.lvl) : ''),
+        h('span', { class: 'cx-c faint' }, String(f.weight)),
+        h('span', { class: 'cx-c b' }, f.yours ? '✓' : pct(f.chance)),
+        h('span', { class: 'cx-c' }, allTotal && !f.yours ? pct(f.weight / allTotal) : '')),
+      open ? h('div', { class: 'cx-tiers' }, f.tiers.map((t) => h('div', { class: 'cx-row cx-tier' + (t.open ? '' : ' locked') + (f.yours?.tier === t.tier ? ' yours' : ''), title: t.open ? '' : f.tierWord ? `From a ${t.name} orb` : `Needs item level ${t.lvl}` },
+        h('span', { class: 'cx-want none cx-tn' }, `T${t.tier}`),
+        h('span', { class: 'cx-text' }, h('span', { class: 'cx-line' }, t.text.split('\n').join(', ')), t.name ? h('span', { class: 'faint' }, ` (${t.name})`) : null),
+        h('span', { class: 'cx-c' }, ''),
+        h('span', { class: 'cx-c faint' }, f.tierWord ? '' : String(t.lvl)),
+        h('span', { class: 'cx-c faint' }, String(t.weight)),
+        h('span', { class: 'cx-c' }, t.open ? pct(t.chance) : '–'),
+        h('span', { class: 'cx-c' }, t.open && allTotal ? pct(t.weight / allTotal) : '')))) : null);
+  }
+
+  // ---------- right: the item, drawn like the game's tooltip ----------
+  function itemCard(v) {
     const it = v?.item;
-    const mineLine = it ? h('div', { class: 'co-yours small' }, h('b', {}, `Your ${it.rarity ? it.rarity.toLowerCase() + ' ' : ''}item`),
-      ` · ${it.slots.prefix} prefix${it.slots.prefix === 1 ? '' : 'es'}, ${it.slots.suffix} suffix${it.slots.suffix === 1 ? '' : 'es'}`,
-      it.fractured ? ' · fractured' : '', it.corrupted ? ' · corrupted (can\'t be changed)' : '',
-      it.mods.some((m) => !m.key && !/Veil/.test(m.name)) ? h('span', { class: 'faint' }, ' · some mods not found') : null,
-      h('button', { class: 'quiet sm', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.sim = null; render(); } }, 'Back to bases')) : null;
+    const raw = C.item ? String(C.item).replace(/\r/g, '') : '';
+    const blocks = raw ? raw.split(/\n--------\n/) : [];
+    const head = blocks[0] ? blocks[0].split('\n').filter((l) => !/^(Item Class|Rarity):/.test(l)) : [];
+    const rarity = (/^Rarity: (\w+)/m.exec(raw) || [])[1] || 'Normal';
+    const line = (l) => {
+      if (/^\{.*\}$/.test(l)) return h('div', { class: 'cx-ihdr' }, l.slice(1, -1).trim());
+      if (/^\(.*\)$/.test(l)) return h('div', { class: 'cx-irem' }, l);
+      if (/^(Shaper|Elder|Crusader|Hunter|Redeemer|Warlord|Searing Exarch|Eater of Worlds) Item$/.test(l) || /^(Corrupted|Mirrored|Fractured Item|Synthesised Item)$/.test(l)) return h('div', { class: 'cx-iflag' }, l);
+      if (/^[\w ]+:( |$)/.test(l)) return h('div', { class: 'cx-iprop' }, l);
+      return h('div', { class: 'cx-imod' + (/\(crafted\)$/.test(l) ? ' crafted' : '') }, l.replace(/ — Unscalable Value$/, ''));
+    };
+    const body = raw ? blocks.slice(1).filter((b) => !/^Note: /.test(b.trim()) && b.trim()).map((b) => h('div', { class: 'cx-isec' }, b.split('\n').filter(Boolean).map(line))) : [
+      h('div', { class: 'cx-isec' }, h('div', { class: 'cx-iprop' }, `Item level: ${v?.ilvl ?? C.ilvl}`), v?.base ? h('div', { class: 'cx-iprop' }, `Base level: ${v.base.lvl}`) : null),
+      v?.influences?.length ? h('div', { class: 'cx-isec' }, v.influences.map((i) => h('div', { class: 'cx-iflag' }, `${INF.find(([x]) => x === i)?.[1]} Item`))) : null,
+      h('div', { class: 'cx-isec' }, h('div', { class: 'cx-irem' }, 'A new item: the tables show what can roll on it. Import your own item to see what it has and what can still roll.'))];
+    return h('aside', { class: 'cx-card' },
+      h('div', { class: `cx-ihead r-${rarity}` }, raw ? head.map((l) => h('div', {}, l)) : [h('div', {}, 'New item'), h('div', {}, v?.base?.name || C.base)]),
+      body,
+      it ? h('div', { class: 'cx-isum small' }, `${it.slots.prefix} prefix${it.slots.prefix === 1 ? '' : 'es'}, ${it.slots.suffix} suffix${it.slots.suffix === 1 ? '' : 'es'}${it.slots.max ? ` (of ${it.slots.max} each)` : ''}`,
+        it.corrupted ? ' · corrupted (can\'t be changed)' : '', it.mods.some((m) => !m.key && !/Veil/.test(m.name)) ? h('span', { class: 'faint' }, ' · some mods not found') : null) : null,
+      h('div', { class: 'cx-ibtns' },
+        h('button', { class: 'sm', onclick: () => { C.paste = true; render(); } }, raw ? 'Import another' : 'Import an item'),
+        raw ? h('button', { class: 'sm quiet', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set(); render(); }, title: 'A new item of this base' }, 'Reset') : null));
+  }
+
+  function draw(el, v) {
+    const num = h('input', { type: 'number', min: 1, max: 100, value: v?.ilvl ?? C.ilvl, class: 'cx-ilvl', 'aria-label': 'Item level', onchange: (e) => { const n = Math.max(1, Math.min(100, Number(e.target.value) || 86)); if (C.item) C.itemIlvl = n; else C.ilvl = n; render(); } });
+    const box = h('textarea', { class: 'co-paste', rows: 12, placeholder: 'Paste your item here: hover it in the game and press Ctrl+Alt+C (Ctrl+C works too, without the mod names and tiers)', 'aria-label': 'Your item\'s text' });
+    const useItem = () => { const t = box.value.trim(); if (!t) return; C.item = t; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.paste = false; C.tag = null; C.open = {}; C.targets = new Set(); render(); };
+    const importer = C.paste ? h('div', { class: 'cx-modal', role: 'dialog', 'aria-label': 'Import an item', onclick: (e) => { if (e.target.classList.contains('cx-modal')) { C.paste = false; render(); } } },
+      h('div', { class: 'panel cx-importer' }, h('h3', {}, 'Import an item'), box,
+        h('div', { class: 'row small', style: { gap: '8px' } }, h('button', { onclick: useItem }, 'Import'), h('button', { class: 'quiet sm', onclick: () => { C.paste = false; render(); } }, 'Cancel'),
+          h('span', { class: 'faint' }, 'Or press "Craft" on a price check.')))) : null;
     if (C.paste) setTimeout(() => box.focus(), 0);
-    mount(el, h('div', { class: 'co' },
-      sidebar(v),
-      h('div', { class: 'co-main' },
-        tabs(),
-        pastePanel,
-        v ? h('div', { class: 'co-item panel' },
-          window.UI.itemPic(v.base.name, { size: 56 }),
-          h('div', { class: 'co-iname' }, h('b', {}, v.base.name), h('span', { class: 'small muted' }, `${nm(v.base.cls)} · base level ${v.base.lvl}`)),
-          C.paste ? null : h('button', { class: 'sm', onclick: () => { C.paste = true; render(); }, title: 'Paste an item from the game to see what can still roll on it' }, it ? 'Paste another item' : 'Use my item'),
-          mineLine,
-          h('label', { class: 'co-ilvl' }, h('span', { class: 'small muted' }, 'Item level'), ilvl, num),
-          v.canInfluence ? h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Influence, up to two' }, INF.map(([id, name]) => h('button', {
-            class: 'co-infbtn co-inf-' + id + (v.influences.includes(id) ? ' on' : ''), 'aria-pressed': v.influences.includes(id) ? 'true' : 'false', title: `${name} influence`,
-            onclick: () => { if (C.item) { const cur = C.itemInf || v.influences; C.itemInf = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2); } else C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); C.open = {}; render(); } }, name))) : null,
-          v.cluster ? kindPick(v.cluster, (tag) => { if (C.item) C.itemEnchant = tag; else C.enchant = tag; C.open = {}; render(); }) : null) : null,
-        v ? h('div', { class: 'co-search' }, h('input', { type: 'search', class: 'co-modsearch', placeholder: 'Search the mods: life, fire res, attack speed, Elder…', value: C.mq, 'aria-label': 'Search the mods',
-          // the list is drawn again a moment after you stop typing (drawing on every key lost letters)
-          oninput: (e) => { C.mq = e.target.value; clearTimeout(C.mqTimer); C.mqTimer = setTimeout(() => render().then(() => { const i = document.querySelector('.co-modsearch'); if (i && document.activeElement !== i) { i.focus(); const n = i.value.length; i.setSelectionRange(n, n); } }), 250); } }),
-          C.mq ? h('button', { class: 'quiet sm', onclick: () => { C.mq = ''; render(); } }, 'Clear') : null) : null,
-        v ? h('div', { class: 'co-tagbar' }, h('span', { class: 'small muted' }, 'Tags'),
+    const grp = GROUPS.find(([, cls]) => cls.includes(C.cls))?.[0] || '';
+    const allTotal = v ? v.prefix.total + v.suffix.total : 0;
+    const sl = v?.item?.slots;
+    const mt = C.mtab || 'explicit';
+    const types = v ? [['explicit', 'Explicits'],
+      v.eldritch?.exarch ? ['exarch', 'Exarch implicits'] : null, v.eldritch?.eater ? ['eater', 'Eater implicits'] : null,
+      v.veiled && (v.veiled.prefix.families.length || v.veiled.suffix.families.length) ? ['veiled', 'Veiled'] : null].filter(Boolean) : [];
+    const infName = (id) => INF.find(([x]) => x === id)?.[1];
+    const split = (s, inf) => s.families.filter((f) => (inf ? f.influence === inf : !f.influence));
+    let tables = [];
+    if (v && mt === 'explicit') {
+      tables = [
+        modTable('Base prefixes', split(v.prefix, null), v.prefix.total, allTotal, { slots: sl && { n: sl.prefix, max: sl.max }, always: true }),
+        modTable('Base suffixes', split(v.suffix, null), v.suffix.total, allTotal, { slots: sl && { n: sl.suffix, max: sl.max }, always: true }),
+        ...v.influences.flatMap((i) => [modTable(`${infName(i)} prefixes`, split(v.prefix, infName(i)), v.prefix.total, allTotal, { mark: infName(i) }), modTable(`${infName(i)} suffixes`, split(v.suffix, infName(i)), v.suffix.total, allTotal, { mark: infName(i) })]),
+      ];
+    } else if (v && (mt === 'exarch' || mt === 'eater')) {
+      const e = v.eldritch[mt];
+      tables = [h('div', { class: 'cx-subbar' }, h('span', { class: 'small muted' }, `What an Eldritch ${mt === 'eater' ? 'Ichor (Eater of Worlds)' : 'Ember (Searing Exarch)'} gives this base. "Presence" ones need a unique or pinnacle enemy near.`),
+        h('label', { class: 'co-etier' }, h('span', { class: 'small muted' }, 'Orb'), h('select', { 'aria-label': 'Eldritch orb tier', onchange: (ev) => { C.etier = Number(ev.target.value); C.open = {}; render(); } },
+          v.eldritch.tiers.map((n, i) => h('option', { value: i + 1, selected: v.eldritch.tier === i + 1 }, n))))),
+      modTable(`${mt === 'eater' ? 'Eater of Worlds' : 'Searing Exarch'} implicits (${v.eldritch.tiers[v.eldritch.tier - 1]})`, e.families, e.total, 0, { noWant: true, always: true })];
+    } else if (v && mt === 'veiled') {
+      tables = [h('div', { class: 'cx-subbar small muted' }, 'What a Veiled Prefix or Suffix can unveil into on this base. Unveiling offers 3 of them; you keep one.'),
+        modTable('Unveiled prefixes', v.veiled.prefix.families, v.veiled.prefix.total, 0, { noWant: true, always: true }),
+        modTable('Unveiled suffixes', v.veiled.suffix.families, v.veiled.suffix.total, 0, { noWant: true, always: true })];
+    }
+    mount(el, h('div', { class: 'cx' },
+      importer,
+      h('div', { class: 'cx-main' },
+        h('section', { class: 'panel cx-top' },
+          h('div', { class: 'cx-baserow' },
+            h('span', { class: 'cx-lbl' }, 'Item base'),
+            h('span', { class: 'cx-crumb' }, grp, h('span', { class: 'faint' }, ' › '), nm(C.cls), C.attr ? [h('span', { class: 'faint' }, ' › '), C.attr] : null, h('span', { class: 'faint' }, ' › '), h('b', {}, v?.base?.name || C.base)),
+            h('button', { class: 'sm quiet', 'aria-expanded': C.pick ? 'true' : 'false', onclick: () => { C.pick = !C.pick; render(); } }, C.pick ? 'Done' : 'Change'),
+            h('span', { class: 'spacer' }),
+            h('button', { class: 'sm primary', onclick: () => { C.paste = true; render(); } }, 'Import an item'),
+            C.item ? h('button', { class: 'sm quiet', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set(); render(); } }, 'Reset') : null),
+          C.pick ? h('div', { class: 'cx-picker' }, sidebar(v)) : null,
+          h('div', { class: 'cx-ctrlrow' },
+            h('input', { type: 'search', class: 'co-modsearch', placeholder: 'Search modifiers for this base: life, fire res, attack speed…', value: C.mq, 'aria-label': 'Search the mods',
+              // drawn again a moment after you stop typing (drawing on every key lost letters)
+              oninput: (e) => { C.mq = e.target.value; clearTimeout(C.mqTimer); C.mqTimer = setTimeout(() => render().then(() => { const i = document.querySelector('.co-modsearch'); if (i && document.activeElement !== i) { i.focus(); const n = i.value.length; i.setSelectionRange(n, n); } }), 250); } }),
+            h('label', { class: 'cx-il' }, h('span', { class: 'small muted' }, 'iLvl'), num),
+            v?.cluster ? kindPick(v.cluster, (tag) => { if (C.item) C.itemEnchant = tag; else C.enchant = tag; C.open = {}; render(); }) : null),
+          v?.canInfluence ? h('div', { class: 'cx-infrow' }, h('span', { class: 'cx-lbl' }, 'Influences'),
+            h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Influence, up to two' }, INF.map(([id, name]) => h('button', {
+              class: 'co-infbtn co-inf-' + id + (v.influences.includes(id) ? ' on' : ''), 'aria-pressed': v.influences.includes(id) ? 'true' : 'false', title: `${name} influence: its own mods are listed below`,
+              onclick: () => { if (C.item) { const cur = C.itemInf || v.influences; C.itemInf = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2); } else C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); C.open = {}; render(); } }, v.influences.includes(id) ? `✓ ${name}` : name)))) : null),
+        v ? h('div', { class: 'cx-tagbar' }, h('span', { class: 'cx-lbl' }, 'Tag filter'),
           v.tags.map((t) => h('button', { class: 'co-tagbtn' + (C.tag === t.tag ? ' on' : ''), 'aria-pressed': C.tag === t.tag ? 'true' : 'false', onclick: () => { C.tag = C.tag === t.tag ? null : t.tag; render(); }, title: `A new prefix has it ${pct(t.prefix)}, a new suffix ${pct(t.suffix)}` },
-            tagChip(t.tag), h('span', { class: 'faint' }, `${t.prefix ? pct(t.prefix) : '–'} / ${t.suffix ? pct(t.suffix) : '–'}`)))) : null,
-        v?.blockers ? blockerPanel(v) : C.targets.size === 0 && v ? h('div', { class: 'small faint', style: { margin: '0 0 8px' } }, 'Tick the mods you want (the box left of each mod) to see which bench craft blocks the most of the rest.') : null,
-        v ? h('div', { class: 'co-pools' }, pool('Prefixes', v.prefix, 'prefix', v), pool('Suffixes', v.suffix, 'suffix', v)) : h('div', { class: 'panel' }, 'Pick a base.'),
-        v?.influenceMods ? h('div', { class: 'co-extra' },
-          h('div', { class: 'co-xhead' }, h('h3', {}, 'Influence mods'),
-            h('span', { class: 'small muted' }, 'Each influence\'s own mods, with their chance if the item had only that influence.'),
-            h('div', { class: 'co-infs', role: 'tablist' }, INF.map(([id, name]) => h('button', { class: 'co-infbtn' + (C.infTab === id ? ' on' : ''), role: 'tab', 'aria-selected': C.infTab === id ? 'true' : 'false', onclick: () => { C.infTab = id; render(); } }, name)))),
-          h('div', { class: 'co-pools' }, pool(`${INF.find(([i]) => i === C.infTab)[1]} prefixes`, v.influenceMods[C.infTab].prefix), pool(`${INF.find(([i]) => i === C.infTab)[1]} suffixes`, v.influenceMods[C.infTab].suffix))) : null,
-        v?.eldritch ? h('div', { class: 'co-extra' },
-          h('div', { class: 'co-xhead' }, h('h3', {}, 'Searing Exarch and Eater of Worlds implicits'),
-            h('span', { class: 'small muted' }, 'What an Eldritch Ember (Exarch) or Ichor (Eater) of this tier can give this base, with its chance. "Presence" ones need a unique or pinnacle enemy near.'),
-            h('div', { class: 'co-infs', role: 'tablist' }, [['exarch', 'Searing Exarch'], ['eater', 'Eater of Worlds']].filter(([id]) => v.eldritch[id]).map(([id, name]) => h('button', { class: 'co-infbtn co-el-' + id + (C.etab === id ? ' on' : ''), role: 'tab', 'aria-selected': C.etab === id ? 'true' : 'false', onclick: () => { C.etab = id; render(); } }, name))),
-            h('label', { class: 'co-etier' }, h('span', { class: 'small muted' }, 'Orb'), h('select', { 'aria-label': 'Eldritch orb tier', onchange: (e) => { C.etier = Number(e.target.value); C.open = {}; render(); } },
-              v.eldritch.tiers.map((n, i) => h('option', { value: i + 1, selected: v.eldritch.tier === i + 1 }, n))))),
-          h('div', { class: 'co-pools one' }, pool(`${C.etab === 'eater' ? 'Eater of Worlds' : 'Searing Exarch'} implicits (${v.eldritch.tiers[v.eldritch.tier - 1]})`, v.eldritch[C.etab] || v.eldritch.exarch || v.eldritch.eater))) : null,
-        v?.veiled && (v.veiled.prefix.families.length || v.veiled.suffix.families.length) ? h('div', { class: 'co-extra' },
-          h('div', { class: 'co-xhead' }, h('h3', {}, 'Veiled mods'),
-            h('span', { class: 'small muted' }, 'What a Veiled Prefix or Suffix can unveil into on this base. Unveiling offers 3 of them; you keep one.')),
-          h('div', { class: 'co-pools' }, pool('Unveiled prefixes', v.veiled.prefix), pool('Unveiled suffixes', v.veiled.suffix))) : null,
-        h('p', { class: 'small faint' }, 'Chance: how likely one new prefix (or suffix) is that mod group, e.g. from a Chaos Orb, Exalted Orb or Orb of Alchemy. Mods already on the item would raise the others a bit. Weights come from the game\'s files.'))));
+            tagChip(t.tag), h('span', { class: 'faint' }, `${t.prefix ? pct(t.prefix) : '–'} / ${t.suffix ? pct(t.suffix) : '–'}`))),
+          C.tag ? h('button', { class: 'quiet sm', onclick: () => { C.tag = null; render(); } }, 'Clear') : null) : null,
+        types.length > 1 ? h('div', { class: 'cx-types', role: 'tablist', 'aria-label': 'Modifier types' }, types.map(([id, name]) => h('button', { class: 'co-infbtn' + (mt === id ? ' on' : ''), role: 'tab', 'aria-selected': mt === id ? 'true' : 'false', onclick: () => { C.mtab = id; C.open = {}; render(); } }, name))) : null,
+        mt === 'explicit' && v?.blockers ? blockerPanel(v) : null,
+        v ? tables : h('div', { class: 'panel' }, 'Pick a base.'),
+        mt === 'explicit' && v && !v.blockers ? h('p', { class: 'small faint' }, 'Tick the mods you want (the box at the left of a row) to see which bench craft blocks the most of the rest. Click a row for its tiers.') : null,
+        h('p', { class: 'small faint' }, 'Type %: how likely one new prefix (or suffix) is that mod, from a Chaos Orb, Exalted Orb or Orb of Alchemy. Weight %: its share of every mod the item can roll. Weights come from the game\'s files.')),
+      itemCard(v)));
   }
 
   // from a price check: open with that item

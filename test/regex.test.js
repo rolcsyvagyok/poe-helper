@@ -199,3 +199,31 @@ test('map regex: 3.30 map lines (Atlas Drops, More Threads)', () => {
   assert.match(r.regex, /ops: \\\+/);
   assert.match(r.regex, /ads: \\\+/);
 });
+
+test('map regex: quality kinds, and "any one" for numbers and quality', () => {
+  const M = require('../src/core/regex/maps');
+  const r = M.buildMapRegex({ kind: 'regular', quality: { currency: 10, rarity: 20 }, qualityAny: true, numbers: { quantity: 80, packSize: 30 }, numbersAny: true });
+  assert.match(r.regex, /ncy\\\): \\\+/);
+  assert.equal(r.parts.filter((p) => /one of/.test(p.label)).length, 2);
+});
+
+test('flask regex: a prefix and a suffix, or any one', () => {
+  const I = require('../src/core/regex/items');
+  const v = I.magicView({ type: 'LifeFlask', allTiers: true });
+  const p = v.families.find((f) => f.aff === 'prefix'); const s = v.families.find((f) => f.aff === 'suffix');
+  const picks = { [p.key]: [1], [s.key]: [1] };
+  assert.equal((I.buildMagicRegex({ type: 'LifeFlask', allTiers: true, mode: 'ps', picks }).regex.match(/"/g) || []).length, 4);
+  assert.equal((I.buildMagicRegex({ type: 'LifeFlask', allTiers: true, mode: 'any', picks }).regex.match(/"/g) || []).length, 2);
+});
+
+test('map regex: every piece has at least 3 letters (2 when it ends a line), so rare map names don\'t trip it', () => {
+  const M = require('../src/core/regex/maps');
+  for (const kind of ['regular', 't17']) {
+    for (const m of M.mapRegexView({ kind, nightmare: true }).mods) {
+      for (const p of M.coverMods([m.id], kind).pieces) {
+        const letters = p.replace(/\$$/, '').replace(/\\d\+/g, '').replace(/ /g, '').length;
+        assert.ok(letters >= 3 || (p.endsWith('$') && letters >= 2), `${m.lines[0]}: "${p}"`);
+      }
+    }
+  }
+});

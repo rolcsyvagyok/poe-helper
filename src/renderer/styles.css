@@ -844,10 +844,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 .rx-mod-t span + span { color: var(--muted); }
 .rx-mod-m { display: flex; align-items: center; gap: 6px; flex: none; }
 .rx-mod-s { font: 700 11px var(--ui); min-width: 30px; text-align: right; }
-.rx-mod.avoid { background: #3a1f1d; border-color: #8a3a32; }
+.rx-mod.avoid { background: #3d2412; border-color: #b0652a; }
 .rx-mod.avoid .rx-mod-t span:first-child { text-decoration: line-through; text-decoration-color: #ff8a3d99; }
 .rx-mod.avoid .rx-mod-s { color: var(--bad); }
-.rx-mod.want { background: #203a27; border-color: #4d8a5c; }
+.rx-mod.want { background: #172c45; border-color: #4f8bd0; }
 .rx-mod.want .rx-mod-s { color: var(--good); }
 .rx-badge { font: 700 10px var(--ui); padding: 1px 5px; border-radius: 3px; }
 .rx-badge.nm { background: #3b2a52; color: #d7c4f0; }
@@ -2219,3 +2219,77 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .co-kind { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .co-kind select { max-width: 220px; }
 .co-kindtext { max-width: 320px; }
+
+/* Crafting, laid out like Craft of Exile */
+.cx { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
+.cx-main { min-width: 0; display: grid; gap: 12px; }
+.cx-top { display: grid; gap: 10px; padding: 12px 14px; }
+.cx-baserow, .cx-ctrlrow, .cx-infrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cx-lbl { font: 600 10.5px system-ui; letter-spacing: 1px; text-transform: uppercase; color: #c8a96a; }
+.cx-crumb { font-size: 14px; }
+.cx-crumb b { font: 600 16px Georgia, serif; color: #f3dfae; }
+.cx-ctrlrow .co-modsearch { flex: 1; min-width: 220px; }
+.cx-il { display: inline-flex; align-items: center; gap: 6px; }
+.cx-ilvl { width: 64px; }
+.cx-infrow .co-infs { width: auto; }
+.cx-picker .co-side { position: static; max-height: 360px; }
+.cx-tagbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cx-types { display: flex; gap: 6px; flex-wrap: wrap; }
+.cx-subbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.cx-table { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.cx-thead, .cx-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 46px 40px 58px 62px 66px; gap: 8px; align-items: center; }
+.cx-thead { grid-template-columns: minmax(0, 1fr) auto 46px 40px 58px 62px 66px; padding: 8px 10px; background: linear-gradient(#2a2418, #1e1a12); border-bottom: 1px solid #4a3d22; font-size: 11px; color: var(--faint); }
+.cx-thead h3 { margin: 0; font: 600 15px Georgia, serif; color: #f3dfae; display: flex; align-items: center; gap: 8px; }
+.cx-mark { font: 600 10.5px system-ui; padding: 1px 7px; border-radius: 10px; background: #6a4214; border: 1px solid #c8853a; color: #fff; }
+.cx-slots { font-size: 12px; color: var(--muted); }
+.cx-slots.full { color: #f0a060; font-weight: 600; }
+.cx-c { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cx-c.b { font-weight: 600; color: var(--text); font-size: 13px; }
+.cx-row { padding: 5px 10px; cursor: pointer; border-bottom: 1px solid #ffffff0d; }
+.cx-row:hover { background: #ffffff08; }
+.cx-row:focus-visible { outline: 2px solid #4f8bff; outline-offset: -2px; }
+.cx-mod.open > .cx-row { background: #2a2418; }
+.cx-mod.dim { opacity: .3; }
+.cx-text { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+.cx-line { font-size: 13px; color: #b8c4ff; }
+.cx-mod.yours > .cx-row { background: #2a2418; box-shadow: inset 4px 0 0 #e0a040; }
+.cx-mod.yours .cx-line { color: #f3dfae; font-weight: 600; }
+.cx-yours { font-size: 11px; font-weight: 600; color: #e0a040; }
+.cx-mod.blocked .cx-line { text-decoration: line-through; color: var(--faint); }
+.cx-blk { font-size: 11px; color: var(--faint); }
+.cx-offer { font-size: 11px; color: #9fc6ff; }
+.cx-want { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; border: 1.5px solid var(--faint); color: #fff; font-size: 12px; }
+.cx-want.on { background: #2d5aa0; border-color: #6fb0ff; }
+.cx-want.none { border: 0; color: #e0a040; }
+.cx-tiers { background: #15130e; border-top: 1px solid #3a3020; }
+.cx-tier { cursor: default; font-size: 12px; padding: 3px 10px; }
+.cx-tier .cx-line { font-size: 12px; }
+.cx-tn { color: #c8a96a; font-weight: 600; font-size: 11px; }
+.cx-tier.locked { opacity: .45; }
+.cx-tier.locked .cx-line { text-decoration: line-through; }
+.cx-tier.yours { background: #3a2f17; box-shadow: inset 4px 0 0 #e0a040; }
+.cx-total { cursor: default; font-weight: 600; background: #ffffff06; }
+.cx-total .cx-text { color: var(--muted); font-size: 12px; }
+.cx-empty { padding: 10px; }
+/* the item, like the game's tooltip */
+.cx-card { position: sticky; top: 0; background: #0b0a08; border: 1px solid #6b5a33; border-radius: 6px; overflow: hidden; text-align: center; font-size: 12.5px; }
+.cx-ihead { padding: 8px 10px; background: linear-gradient(#3a2f17, #221c0f); border-bottom: 1px solid #6b5a33; font: 600 15px Georgia, serif; line-height: 1.35; }
+.cx-ihead.r-Normal { color: #e8e8e8; } .cx-ihead.r-Magic { color: var(--magic); } .cx-ihead.r-Rare { color: var(--rare); } .cx-ihead.r-Unique { color: var(--unique); }
+.cx-isec { padding: 6px 12px; border-bottom: 1px solid #3a3020; display: grid; gap: 2px; }
+.cx-iprop { color: #9a9a9a; }
+.cx-imod { color: #8f97ff; }
+.cx-imod.crafted { color: #b8daf2; }
+.cx-ihdr { color: #777; font-size: 11px; margin-top: 3px; }
+.cx-irem { color: #6f6f6f; font-style: italic; font-size: 11px; }
+.cx-iflag { color: #c8a96a; }
+.cx-isum { padding: 6px 12px; color: var(--muted); }
+.cx-ibtns { display: flex; gap: 6px; justify-content: center; padding: 8px; flex-wrap: wrap; }
+.cx-modal { position: fixed; inset: 0; background: #000a; display: grid; place-items: center; z-index: 50; }
+.cx-importer { width: min(640px, 92vw); display: grid; gap: 10px; padding: 16px; }
+.cx-importer h3 { margin: 0; font: 600 16px Georgia, serif; color: #f3dfae; }
+@media (max-width: 1100px) { .cx { grid-template-columns: 1fr; } .cx-card { position: static; } }
+/* Regex: prefix / suffix badges (blue / orange, and a letter), and the small "Reach all / Any one" switch */
+.rx-badge.pre { background: #1f3a5c; color: #a9cdf5; }
+.rx-badge.suf { background: #5a3412; color: #f5c99a; }
+.rx-seg.sm button { padding: 2px 8px; font-size: 11.5px; }
+.rx-box-h .spacer { flex: 1; }
