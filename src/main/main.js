@@ -1038,6 +1038,8 @@ function registerIpc() {
     const { width, height } = img.getSize();
     return { width, height, data: img.toBitmap(), bgra: true }; // Windows bitmaps are BGRA
   })));
+  // a screenshot on the clipboard (Print Screen, Win+Shift+S) as PNG bytes, or null
+  handle('atlas:clipboardShot', () => { const img = clipboard.readImage(); return img.isEmpty() ? null : new Uint8Array(img.toPNG()); });
   handle('atlas:syncGuides', () => services.syncGuideSites({ force: true }));
   handle('atlas:links', (id) => services.atlasLinks(String(id)));
   // a farming session for a strategy: a WealthyExile session marked with it (snapshots at the start and stop)

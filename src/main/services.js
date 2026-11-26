@@ -85,7 +85,9 @@ const DEFAULT_SETTINGS = {
   regexCampaign: { type: '', variant: null, picks: {}, mode: 'any' }, // the Regex page's campaign item choices ({ mod: tier, 0 = any })
   regexItems: { type: '', variant: null, picks: {} }, // the Regex page's magic item mod choices ({ mod: [tiers] })
   regexBeasts: { minChaos: 10 }, // the Regex page's beast choices
-  regexFavMods: [], // map mods kept at the top of the list
+  // map mods kept at the top of the list: by default the ones most builds skip
+  regexFavMods: ['MapMonsterLifeLeechImmunityMapWorlds', 'MapMonstersStealChargesOnHitMapWorlds', 'MapPlayerNoLifeESRegenMapWorlds', 'MapPlayersLessCooldownRecovery2MapWorlds',
+    'MapPlayerReducedRegen1MapWorlds', 'MapPlayersBlockAndArmour2MapWorlds', 'MapPlayersReducedAuraEffect2MapWorlds', 'MapPlayerMaxResists1MapWorlds'],
   regexFlasks: {}, // Regex > Flasks: { type, variant, picks, mode }
   regexGroupAffix: false, // Regex > Map mods: prefixes and suffixes listed apart
   regexTrade: { tier16: true, eightMods: false }, // the trade search's quick buttons

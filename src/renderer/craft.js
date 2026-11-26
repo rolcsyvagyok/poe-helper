@@ -1,10 +1,10 @@
 'use strict';
 /* Crafting: every mod a base can roll at an item level, how likely each one is, and its tags, laid out like
-   Craft of Exile: the base and your imported item at the top, a table a side (base, then each influence), and the
-   item itself on the right, drawn like the game's tooltip. */
+   Craft of Exile: a start page (pick a base or import an item), then the base at the top and every kind of mod
+   on one page, prefixes left and suffixes right. Your item, drawn like the game's tooltip, opens in a popup. */
 (function () {
   const { h, mount, call } = window.UI;
-  const C = { tab: 'mods', sim: null, fossils: [], hTag: 'life', hAddTag: 'life', resFrom: 'Fire', resTo: 'Cold', benchId: '', odds: null, oddsKey: '', targets: new Set(), infTab: 'shaper', item: null, paste: false, bases: null, cls: 'Body Armour', attr: 'INT', base: 'Vaal Regalia', ilvl: 86, inf: [], tag: null, open: {}, q: '', mq: '', etab: 'exarch', etier: 6 };
+  const C = { tab: 'mods', sim: null, fossils: [], hTag: 'life', hAddTag: 'life', resFrom: 'Fire', resTo: 'Cold', benchId: '', odds: null, oddsKey: '', targets: new Set(), infTab: 'shaper', item: null, paste: false, bases: null, cls: 'Body Armour', attr: 'INT', base: 'Vaal Regalia', home: true, ilvl: 86, inf: [], tag: null, open: {}, q: '', mq: '', etab: 'exarch', etier: 6 };
   const pct = (x) => (x >= 0.1 ? `${(x * 100).toFixed(2)}%` : x > 0 ? `${(x * 100).toFixed(2)}%` : '–');
   const INF = [['shaper', 'Shaper'], ['elder', 'Elder'], ['crusader', 'Crusader'], ['basilisk', 'Hunter'], ['eyrie', 'Redeemer'], ['adjudicator', 'Warlord']];
   const GROUPS = [
@@ -30,6 +30,21 @@
     if (C.item && !view) { C.item = null; window.UI.toast('That item\'s base isn\'t one that rolls mods.', true); return render(); }
     // your item: the left side shows its base
     if (C.item && view) { C.cls = view.base.cls; C.base = view.base.name; C.attr = C.bases.find((c) => c.cls === C.cls)?.bases.find((b) => b.name === C.base)?.attr || null; }
+    if (C.home && !C.item) return drawHome(el);
+    // every influence is listed, not only the item's: each one as if it were the item's only influence
+    if (view) {
+      view.byInf = {};
+      if (view.canInfluence) {
+        const args = C.item ? { item: C.item, ilvl: C.itemIlvl || undefined, enchant: C.itemEnchant || undefined, eldritchTier: C.etier } : { base: C.base, ilvl: C.ilvl, enchant: C.enchant, eldritchTier: C.etier };
+        await Promise.all(INF.filter(([id]) => !view.influences.includes(id)).map(async ([id, name]) => {
+          const key = JSON.stringify([args, id]);
+          C.infCache = C.infCache || new Map();
+          if (!C.infCache.has(key)) { if (C.infCache.size > 60) C.infCache.clear(); C.infCache.set(key, await call('craft:view', { ...args, influences: [id] })); }
+          const w = C.infCache.get(key);
+          if (w) view.byInf[id] = { prefix: w.prefix.families.filter((f) => f.influence === name), suffix: w.suffix.families.filter((f) => f.influence === name), pt: w.prefix.total, st: w.suffix.total };
+        }));
+      }
+    }
     draw(el, view);
   }
   const pick = (cls, base) => {
@@ -38,8 +53,32 @@
     C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set();
     C.cls = cls; C.base = base || c.bases[c.bases.length - 1].name;
     C.attr = c.bases.find((b) => b.name === C.base)?.attr || null;
-    C.inf = []; C.tag = null; C.open = {}; C.sim = null; C.odds = null; C.pick = false; render();
+    C.inf = []; C.tag = null; C.open = {}; C.sim = null; C.odds = null; C.pick = false; C.home = false; render();
   };
+  // the start: pick a base, or import an item
+  function goHome() { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set(); C.tag = null; C.open = {}; C.mq = ''; C.pick = false; C.home = true; C.q = ''; render(); }
+  function drawHome(el) {
+    const have = new Set(C.bases.map((c) => c.cls));
+    const q = C.q.trim().toLowerCase();
+    const found = q ? C.bases.flatMap((c) => c.bases.filter((b) => b.name.toLowerCase().includes(q)).map((b) => ({ ...b, cls: c.cls }))).slice(0, 40) : null;
+    const box = h('textarea', { class: 'co-paste', rows: 12, placeholder: 'Paste your item here: hover it in the game and press Ctrl+Alt+C (Ctrl+C works too, without the mod names and tiers)', 'aria-label': 'Your item\'s text' });
+    const useItem = () => { const t = box.value.trim(); if (!t) return; load(t); render(); };
+    if (C.paste) setTimeout(() => box.focus(), 0);
+    mount(el, h('div', { class: 'cx-home' },
+      C.paste ? h('div', { class: 'cx-modal', role: 'dialog', 'aria-label': 'Import an item', onclick: (e) => { if (e.target.classList.contains('cx-modal')) { C.paste = false; render(); } } },
+        h('div', { class: 'panel cx-importer' }, h('h3', {}, 'Import an item'), box,
+          h('div', { class: 'row small', style: { gap: '8px' } }, h('button', { onclick: useItem }, 'Import'), h('button', { class: 'quiet sm', onclick: () => { C.paste = false; render(); } }, 'Cancel')))) : null,
+      h('section', { class: 'panel cx-homehead' },
+        h('div', {}, h('h2', {}, 'Crafting'), h('div', { class: 'small muted' }, 'Pick a base to see every mod it can roll, or import your item to see what it has and what can still roll.')),
+        h('button', { class: 'primary', onclick: () => { C.paste = true; render(); } }, 'Import an item')),
+      h('section', { class: 'panel cx-homebody' },
+        h('input', { type: 'search', class: 'cx-homeq', placeholder: 'Find a base: Vaal Regalia, Stygian Vise…', value: C.q, 'aria-label': 'Find a base',
+          oninput: (e) => { C.q = e.target.value; const pos = e.target.selectionStart; render().then(() => { const i = document.querySelector('.cx-homeq'); if (i) { i.focus(); i.setSelectionRange(pos, pos); } }); } }),
+        found ? h('div', { class: 'co-bases cx-homebases' }, found.length ? found.map((b) => h('button', { class: 'co-base', onclick: () => { C.q = ''; pick(b.cls, b.name); } },
+          window.UI.itemPic(b.name, { size: 30 }), h('span', {}, b.name, h('small', {}, `${nm(b.cls)} · level ${b.lvl}`)))) : h('div', { class: 'small muted' }, 'No base matches.')) :
+          h('div', { class: 'cx-homegroups' }, GROUPS.map(([g, classes]) => h('div', { class: 'co-group' }, h('div', { class: 'co-ghead' }, g),
+            h('div', { class: 'co-classes' }, classes.filter((c) => have.has(c)).map((c) => h('button', { class: 'co-cls', onclick: () => pick(c) }, nm(c))))))))));
+  }
 
   // ---------- left: item classes and bases ----------
   function sidebar(v) {
@@ -57,7 +96,7 @@
           h('div', { class: 'co-classes' }, classes.filter((c) => have.has(c)).map((c) => h('button', { class: 'co-cls' + (c === C.cls ? ' on' : ''), onclick: () => pick(c) }, nm(c)))))),
         attrs.length > 1 ? h('div', { class: 'co-attrs', role: 'tablist' }, attrs.map((a) => h('button', { class: 'co-deftab' + (a === C.attr ? ' on' : ''), role: 'tab', 'aria-selected': a === C.attr ? 'true' : 'false',
           onclick: () => { C.attr = a; const b = cur.bases.filter((x) => x.attr === a); C.base = b[b.length - 1].name; C.open = {}; C.sim = null; C.item = null; render(); } }, a))) : null,
-        h('div', { class: 'co-bases' }, list.map((b) => h('button', { class: 'co-base' + (b.name === C.base ? ' on' : ''), onclick: () => { C.base = b.name; C.open = {}; C.sim = null; C.item = null; C.pick = false; render(); } },
+        h('div', { class: 'co-bases' }, list.map((b) => h('button', { class: 'co-base' + (b.name === C.base ? ' on' : ''), onclick: () => { C.base = b.name; C.open = {}; C.sim = null; C.item = null; C.pick = false; C.home = false; render(); } },
           window.UI.itemPic(b.name, { size: 30 }), h('span', {}, b.name, h('small', {}, `level ${b.lvl}`))))),
       ]);
   }
@@ -450,8 +489,8 @@
       it ? h('div', { class: 'cx-isum small' }, `${it.slots.prefix} prefix${it.slots.prefix === 1 ? '' : 'es'}, ${it.slots.suffix} suffix${it.slots.suffix === 1 ? '' : 'es'}${it.slots.max ? ` (of ${it.slots.max} each)` : ''}`,
         it.corrupted ? ' · corrupted (can\'t be changed)' : '', it.mods.some((m) => !m.key && !/Veil/.test(m.name)) ? h('span', { class: 'faint' }, ' · some mods not found') : null) : null,
       h('div', { class: 'cx-ibtns' },
-        h('button', { class: 'sm', onclick: () => { C.paste = true; render(); } }, raw ? 'Import another' : 'Import an item'),
-        raw ? h('button', { class: 'sm quiet', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set(); render(); }, title: 'A new item of this base' }, 'Reset') : null));
+        h('button', { class: 'sm', onclick: () => { C.showCard = false; C.paste = true; render(); } }, raw ? 'Import another' : 'Import an item'),
+        raw ? h('button', { class: 'sm quiet', onclick: () => { C.showCard = false; C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set(); render(); }, title: 'A new item of this base' }, 'Reset') : null));
   }
 
   function draw(el, v) {
@@ -466,41 +505,68 @@
     const grp = GROUPS.find(([, cls]) => cls.includes(C.cls))?.[0] || '';
     const allTotal = v ? v.prefix.total + v.suffix.total : 0;
     const sl = v?.item?.slots;
-    const mt = C.mtab || 'explicit';
-    const types = v ? [['explicit', 'Explicits'],
-      v.eldritch?.exarch ? ['exarch', 'Exarch implicits'] : null, v.eldritch?.eater ? ['eater', 'Eater implicits'] : null,
-      v.veiled && (v.veiled.prefix.families.length || v.veiled.suffix.families.length) ? ['veiled', 'Veiled'] : null].filter(Boolean) : [];
     const infName = (id) => INF.find(([x]) => x === id)?.[1];
     const split = (s, inf) => s.families.filter((f) => (inf ? f.influence === inf : !f.influence));
-    let tables = [];
-    if (v && mt === 'explicit') {
-      tables = [
-        modTable('Base prefixes', split(v.prefix, null), v.prefix.total, allTotal, { slots: sl && { n: sl.prefix, max: sl.max }, always: true }),
-        modTable('Base suffixes', split(v.suffix, null), v.suffix.total, allTotal, { slots: sl && { n: sl.suffix, max: sl.max }, always: true }),
-        ...v.influences.flatMap((i) => [modTable(`${infName(i)} prefixes`, split(v.prefix, infName(i)), v.prefix.total, allTotal, { mark: infName(i) }), modTable(`${infName(i)} suffixes`, split(v.suffix, infName(i)), v.suffix.total, allTotal, { mark: infName(i) })]),
-      ];
-    } else if (v && (mt === 'exarch' || mt === 'eater')) {
-      const e = v.eldritch[mt];
-      tables = [h('div', { class: 'cx-subbar' }, h('span', { class: 'small muted' }, `What an Eldritch ${mt === 'eater' ? 'Ichor (Eater of Worlds)' : 'Ember (Searing Exarch)'} gives this base. "Presence" ones need a unique or pinnacle enemy near.`),
-        h('label', { class: 'co-etier' }, h('span', { class: 'small muted' }, 'Orb'), h('select', { 'aria-label': 'Eldritch orb tier', onchange: (ev) => { C.etier = Number(ev.target.value); C.open = {}; render(); } },
-          v.eldritch.tiers.map((n, i) => h('option', { value: i + 1, selected: v.eldritch.tier === i + 1 }, n))))),
-      modTable(`${mt === 'eater' ? 'Eater of Worlds' : 'Searing Exarch'} implicits (${v.eldritch.tiers[v.eldritch.tier - 1]})`, e.families, e.total, 0, { noWant: true, always: true })];
-    } else if (v && mt === 'veiled') {
-      tables = [h('div', { class: 'cx-subbar small muted' }, 'What a Veiled Prefix or Suffix can unveil into on this base. Unveiling offers 3 of them; you keep one.'),
-        modTable('Unveiled prefixes', v.veiled.prefix.families, v.veiled.prefix.total, 0, { noWant: true, always: true }),
-        modTable('Unveiled suffixes', v.veiled.suffix.families, v.veiled.suffix.total, 0, { noWant: true, always: true })];
+    // every kind of mod on one page, prefixes left and suffixes right; the buttons jump to a part
+    const pair = (id, title, left, right, extra) => {
+      if (!left && !right) return null;
+      return h('section', { class: 'cx-sec', id: `cx-sec-${id}` }, h('h2', { class: 'cx-sech' }, title), extra || null, h('div', { class: 'cx-pair' }, left || h('div'), right || h('div')));
+    };
+    const secs = [];
+    const jumps = [];
+    if (v) {
+      secs.push(pair('explicit', v.influences.length ? `Explicits · ${v.influences.map(infName).join(' + ')} item` : 'Explicits',
+        modTable('Prefixes', split(v.prefix, null), v.prefix.total, allTotal, { slots: sl && { n: sl.prefix, max: sl.max }, always: true }),
+        modTable('Suffixes', split(v.suffix, null), v.suffix.total, allTotal, { slots: sl && { n: sl.suffix, max: sl.max }, always: true })));
+      jumps.push(['explicit', 'Explicits']);
+      if (v.canInfluence) {
+        for (const [id, name] of INF) {
+          let sec;
+          if (v.influences.includes(id)) {
+            sec = pair(id, `${name}${C.item ? ' · on your item' : ''}`,
+              modTable(`${name} prefixes`, split(v.prefix, name), v.prefix.total, allTotal, { mark: name }),
+              modTable(`${name} suffixes`, split(v.suffix, name), v.suffix.total, allTotal, { mark: name }));
+          } else if (v.byInf?.[id]) {
+            const w = v.byInf[id];
+            sec = pair(id, name,
+              modTable(`${name} prefixes`, w.prefix, w.pt, 0, { mark: name, noWant: true }),
+              modTable(`${name} suffixes`, w.suffix, w.st, 0, { mark: name, noWant: true }));
+          }
+          if (sec) { secs.push(sec); jumps.push([id, name]); }
+        }
+      }
+      if (v.eldritch?.exarch || v.eldritch?.eater) {
+        const tierSel = h('div', { class: 'cx-subbar' }, h('span', { class: 'small muted' }, 'Implicits from Eldritch Embers (Searing Exarch) and Ichors (Eater of Worlds). "Presence" ones need a unique or pinnacle enemy near.'),
+          h('label', { class: 'co-etier' }, h('span', { class: 'small muted' }, 'Orb'), h('select', { 'aria-label': 'Eldritch orb tier', onchange: (ev) => { C.etier = Number(ev.target.value); C.open = {}; render(); } },
+            v.eldritch.tiers.map((n, i) => h('option', { value: i + 1, selected: v.eldritch.tier === i + 1 }, n)))));
+        const et = (k, name) => (v.eldritch[k] ? modTable(`${name} (${v.eldritch.tiers[v.eldritch.tier - 1]})`, v.eldritch[k].families, v.eldritch[k].total, 0, { noWant: true, always: true }) : null);
+        secs.push(pair('eldritch', 'Eldritch implicits', et('exarch', 'Searing Exarch'), et('eater', 'Eater of Worlds'), tierSel));
+        jumps.push(['eldritch', 'Exarch / Eater']);
+      }
+      if (v.veiled && (v.veiled.prefix.families.length || v.veiled.suffix.families.length)) {
+        secs.push(pair('veiled', 'Veiled', modTable('Unveiled prefixes', v.veiled.prefix.families, v.veiled.prefix.total, 0, { noWant: true, always: true }),
+          modTable('Unveiled suffixes', v.veiled.suffix.families, v.veiled.suffix.total, 0, { noWant: true, always: true }), h('div', { class: 'cx-subbar small muted' }, 'What a Veiled Prefix or Suffix can unveil into. Unveiling offers 3 of them; you keep one.')));
+        jumps.push(['veiled', 'Veiled']);
+      }
     }
-    mount(el, h('div', { class: 'cx' },
-      importer,
+    const jump = (id) => { const t = document.getElementById(`cx-sec-${id}`); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    const onItem = (id) => v?.influences?.includes(id);
+    const card = C.showCard ? h('div', { class: 'cx-modal', role: 'dialog', 'aria-label': 'The item', onclick: (e) => { if (e.target.classList.contains('cx-modal')) { C.showCard = false; render(); } } },
+      h('div', { class: 'cx-cardpop' }, itemCard(v), h('button', { class: 'sm quiet', onclick: () => { C.showCard = false; render(); } }, 'Close'))) : null;
+    mount(el, h('div', { class: 'cx cx-one' },
+      importer, card,
       h('div', { class: 'cx-main' },
         h('section', { class: 'panel cx-top' },
           h('div', { class: 'cx-baserow' },
+            h('button', { class: 'sm quiet', onclick: goHome, title: 'Back to the start: pick another base or import an item' }, '‹ All bases'),
             h('span', { class: 'cx-lbl' }, 'Item base'),
             h('span', { class: 'cx-crumb' }, grp, h('span', { class: 'faint' }, ' › '), nm(C.cls), C.attr ? [h('span', { class: 'faint' }, ' › '), C.attr] : null, h('span', { class: 'faint' }, ' › '), h('b', {}, v?.base?.name || C.base)),
             h('button', { class: 'sm quiet', 'aria-expanded': C.pick ? 'true' : 'false', onclick: () => { C.pick = !C.pick; render(); } }, C.pick ? 'Done' : 'Change'),
             h('span', { class: 'spacer' }),
-            h('button', { class: 'sm primary', onclick: () => { C.paste = true; render(); } }, 'Import an item'),
-            C.item ? h('button', { class: 'sm quiet', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set(); render(); } }, 'Reset') : null),
+            v?.item ? h('span', { class: 'small muted' }, `${v.item.slots.prefix} prefix${v.item.slots.prefix === 1 ? '' : 'es'}, ${v.item.slots.suffix} suffix${v.item.slots.suffix === 1 ? '' : 'es'}${v.item.corrupted ? ' · corrupted' : ''}`) : null,
+            C.item ? h('button', { class: 'sm quiet', onclick: () => { C.showCard = true; render(); } }, 'Show item') : null,
+            h('button', { class: 'sm primary', onclick: () => { C.paste = true; render(); } }, C.item ? 'Import another' : 'Import an item'),
+            C.item ? h('button', { class: 'sm quiet', onclick: () => { C.item = null; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.targets = new Set(); render(); }, title: 'A new item of this base' }, 'Reset') : null),
           C.pick ? h('div', { class: 'cx-picker' }, sidebar(v)) : null,
           h('div', { class: 'cx-ctrlrow' },
             h('input', { type: 'search', class: 'co-modsearch', placeholder: 'Search modifiers for this base: life, fire res, attack speed…', value: C.mq, 'aria-label': 'Search the mods',
@@ -508,23 +574,21 @@
               oninput: (e) => { C.mq = e.target.value; clearTimeout(C.mqTimer); C.mqTimer = setTimeout(() => render().then(() => { const i = document.querySelector('.co-modsearch'); if (i && document.activeElement !== i) { i.focus(); const n = i.value.length; i.setSelectionRange(n, n); } }), 250); } }),
             h('label', { class: 'cx-il' }, h('span', { class: 'small muted' }, 'iLvl'), num),
             v?.cluster ? kindPick(v.cluster, (tag) => { if (C.item) C.itemEnchant = tag; else C.enchant = tag; C.open = {}; render(); }) : null),
-          v?.canInfluence ? h('div', { class: 'cx-infrow' }, h('span', { class: 'cx-lbl' }, 'Influences'),
-            h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Influence, up to two' }, INF.map(([id, name]) => h('button', {
-              class: 'co-infbtn co-inf-' + id + (v.influences.includes(id) ? ' on' : ''), 'aria-pressed': v.influences.includes(id) ? 'true' : 'false', title: `${name} influence: its own mods are listed below`,
-              onclick: () => { if (C.item) { const cur = C.itemInf || v.influences; C.itemInf = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2); } else C.inf = C.inf.includes(id) ? C.inf.filter((x) => x !== id) : [...C.inf, id].slice(-2); C.open = {}; render(); } }, v.influences.includes(id) ? `✓ ${name}` : name)))) : null),
+          jumps.length > 1 ? h('div', { class: 'cx-infrow' }, h('span', { class: 'cx-lbl' }, 'Jump to'),
+            h('div', { class: 'co-infs', role: 'group', 'aria-label': 'Jump to a part' }, jumps.map(([id, name]) => h('button', {
+              class: 'co-infbtn' + (INF.some(([x]) => x === id) ? ` co-inf-${id}` : '') + (onItem(id) ? ' on' : ''), title: onItem(id) ? `${name}: on your item` : `Jump to ${name}`,
+              onclick: () => jump(id) }, onItem(id) ? `✓ ${name}` : name)))) : null),
         v ? h('div', { class: 'cx-tagbar' }, h('span', { class: 'cx-lbl' }, 'Tag filter'),
           v.tags.map((t) => h('button', { class: 'co-tagbtn' + (C.tag === t.tag ? ' on' : ''), 'aria-pressed': C.tag === t.tag ? 'true' : 'false', onclick: () => { C.tag = C.tag === t.tag ? null : t.tag; render(); }, title: `A new prefix has it ${pct(t.prefix)}, a new suffix ${pct(t.suffix)}` },
             tagChip(t.tag), h('span', { class: 'faint' }, `${t.prefix ? pct(t.prefix) : '–'} / ${t.suffix ? pct(t.suffix) : '–'}`))),
           C.tag ? h('button', { class: 'quiet sm', onclick: () => { C.tag = null; render(); } }, 'Clear') : null) : null,
-        types.length > 1 ? h('div', { class: 'cx-types', role: 'tablist', 'aria-label': 'Modifier types' }, types.map(([id, name]) => h('button', { class: 'co-infbtn' + (mt === id ? ' on' : ''), role: 'tab', 'aria-selected': mt === id ? 'true' : 'false', onclick: () => { C.mtab = id; C.open = {}; render(); } }, name))) : null,
-        mt === 'explicit' && v?.blockers ? blockerPanel(v) : null,
-        v ? tables : h('div', { class: 'panel' }, 'Pick a base.'),
-        mt === 'explicit' && v && !v.blockers ? h('p', { class: 'small faint' }, 'Tick the mods you want (the box at the left of a row) to see which bench craft blocks the most of the rest. Click a row for its tiers.') : null,
-        h('p', { class: 'small faint' }, 'Type %: how likely one new prefix (or suffix) is that mod, from a Chaos Orb, Exalted Orb or Orb of Alchemy. Weight %: its share of every mod the item can roll. Weights come from the game\'s files.')),
-      itemCard(v)));
+        v?.blockers ? blockerPanel(v) : null,
+        v ? secs : h('div', { class: 'panel' }, 'Pick a base.'),
+        v && !v.blockers ? h('p', { class: 'small faint' }, 'Tick the mods you want (the box at the left of a row) to see which bench craft blocks the most of the rest. Click a row for its tiers.') : null,
+        h('p', { class: 'small faint' }, 'Type %: how likely one new prefix (or suffix) is that mod, from a Chaos Orb, Exalted Orb or Orb of Alchemy. Influence tables you don\'t have show the odds as if the item had only that influence. Weight %: its share of every mod the item can roll. Weights come from the game\'s files.'))));
   }
 
   // from a price check: open with that item
-  function load(text) { C.item = text; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.paste = false; C.tag = null; C.open = {}; C.sim = null; C.odds = null; }
+  function load(text) { C.home = false; C.item = text; C.itemIlvl = null; C.itemInf = null; C.itemEnchant = null; C.paste = false; C.tag = null; C.open = {}; C.sim = null; C.odds = null; }
   window.CraftView = { render, load };
 })();

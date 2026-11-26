@@ -326,14 +326,28 @@
       toast(`Read ${r.nodes.length} of ${r.points} points${r.read < r.of ? ` (no tree found on ${r.of - r.read} screenshot${r.of - r.read === 1 ? '' : 's'})` : ''}${into ? '' : ', as a new strategy'}. Check it against the game; click passives to fix it.`);
     } catch (e) { toast(e.message, true); }
   }
-  // Ctrl+V of a screenshot on the page (not in a text box): into the open strategy
+  // Ctrl+V of a screenshot on the page (not in a text box): into the open strategy. A copied file comes with the
+  // paste event; a screenshot (Print Screen, Win+Shift+S) is read from the clipboard by the app, also when the
+  // window sends no paste event for a page without a text box
+  const onAtlas = () => { const page = document.getElementById('page-atlas'); return !!(page && page.offsetParent); };
+  const typing = (t) => t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  let pasted = 0;
+  async function pasteShot(S = A.current) {
+    const bytes = await call('atlas:clipboardShot');
+    if (!bytes) return toast('No screenshot on the clipboard. Take one with Print Screen or Win+Shift+S, then press Ctrl+V here.', true);
+    readShots([{ type: 'image/png', arrayBuffer: async () => bytes }], S);
+  }
   document.addEventListener('paste', (e) => {
-    const page = document.getElementById('page-atlas');
-    if (!page || !page.offsetParent) return;
-    const f = [...(e.clipboardData?.files || [])].filter((x) => /^image\//.test(x.type || ''));
-    if (!f.length) return;
+    if (!onAtlas() || typing(e.target)) return;
+    pasted = Date.now();
     e.preventDefault();
-    readShots(f, A.current);
+    const f = [...(e.clipboardData?.files || [])].filter((x) => /^image\//.test(x.type || ''));
+    if (f.length) readShots(f, A.current); else pasteShot();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'v' || e.shiftKey || e.altKey || !onAtlas() || typing(e.target)) return;
+    const at = Date.now();
+    setTimeout(() => { if (pasted < at) pasteShot(); }, 200);
   });
 
   async function save(patch, quiet) {
@@ -359,8 +373,9 @@
     const newBtn = h('button', { class: 'primary', onclick: async () => { const s = await save({ name: `Strategy ${L.strategies.length + 1}` }, true); if (s) toast('New strategy: paste an atlas tree link, or click passives on the tree'); } }, window.UI.icon('plus', { size: 15 }), ' New strategy');
     const headIn = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/bmp', multiple: true, hidden: true, onchange: (e) => { readShots(e.target.files, null); e.target.value = ''; } });
     const headShot = h('button', { title: 'A new strategy with the tree read from a screenshot of the game\'s Atlas passive tree (zoomed all the way out; several zoomed-in screenshots work too). Or paste a screenshot on this page with Ctrl+V.', onclick: () => headIn.click() }, window.UI.icon('image', { size: 15 }), ' From screenshot', headIn);
+    const headPaste = h('button', { title: 'Paste a screenshot of the Atlas passive tree from the clipboard (or press Ctrl+V on this page)', onclick: () => pasteShot(null) }, 'Paste screenshot');
     A.current = S;
-    const head = window.pageHead('Atlas strategies', 'Your farms: the atlas tree, threads and maps each one uses, and what its sessions earned. Start a session here and WealthyExile measures it.', h('span', { class: 'at-headbtns' }, headShot, newBtn));
+    const head = window.pageHead('Atlas strategies', 'Your farms: the atlas tree, threads and maps each one uses, and what its sessions earned. Start a session here and WealthyExile measures it.', h('span', { class: 'at-headbtns' }, headShot, headPaste, newBtn));
 
     // ---- the list: a search over names, authors and mechanics; your strategies, then each website's ----
     const q = (A.q || '').trim().toLowerCase();
@@ -453,7 +468,7 @@
     link.addEventListener('keydown', (e) => { if (e.key === 'Enter') imp.click(); });
     const shotIn = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/bmp', multiple: true, hidden: true, onchange: (e) => { readShots(e.target.files, S); e.target.value = ''; } });
     const shotBtn = h('button', { title: 'Read your tree from a screenshot of the game\'s Atlas passive tree (zoomed all the way out). Several zoomed-in screenshots work too. You can also paste a screenshot on this page with Ctrl+V.' + (S.guide ? ' It makes a new strategy in My strategies.' : ''), onclick: () => shotIn.click() }, 'From screenshot');
-    const linkRow = h('div', { class: 'at-row' }, link, imp, shotBtn, shotIn);
+    const linkRow = h('div', { class: 'at-row' }, link, imp, shotBtn, shotIn, h('button', { title: 'Paste a screenshot of the Atlas passive tree from the clipboard (or press Ctrl+V on this page)', onclick: () => pasteShot(S) }, 'Paste screenshot'));
     const linkInfo = S.nodes?.length ? h('div', { class: 'small muted at-linkinfo' },
       `${S.summary?.points ?? S.nodes.length} of ${A.tree?.points || 150} points`, S.summary ? ` · ${S.summary.notables} notable${S.summary.notables === 1 ? '' : 's'} · ${S.summary.keystones} keystone${S.summary.keystones === 1 ? '' : 's'}` : '', S.from ? ` · from ${S.from}` : '',
       S.unknown ? ` · ${S.unknown} passive${S.unknown === 1 ? '' : 's'} not in this tree left out` : '',

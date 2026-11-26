@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.176 - 2026-11-26
+
+* [Crafting] Opens on a start page: pick a base or import an item. "‹ All bases" takes you back there.
+* [Crafting] Prefixes and suffixes side by side, and every kind of mod on one page: the base's, each influence's, Exarch and Eater implicits, and Veiled. The buttons at the top jump to a part. Your imported item opens in a popup with "Show item".
+* [Map regex] Map mods: the 8 mods most builds skip (no Leech, steal charges, no regen, less cooldown recovery, less recovery rate, less block and armour, less aura effect, less max resistances) use poe.re's search pieces and start as favourites.
+- Regex: a map search no longer skips Tier 17 maps by a T17 mod you didn't pick (an "ecov" piece was also in a T17 Leech mod), and its pieces have no "-" any more.
+* [Atlas strategies] Ctrl+V a screenshot (Print Screen or Win+Shift+S) on the page to read your tree from it, or press "Paste screenshot".
+
 ## 1.0.175 - 2026-11-26
 
 * [Crafting] A new look, like Craft of Exile: the base and "Import an item" at the top, a table for prefixes and one for suffixes (then one each for an influence you pick) with Tiers, item level, Weight, Type % and Weight %, and your item on the right as the game shows it. Your item's mods are marked in the tables. "Try crafts" is gone.

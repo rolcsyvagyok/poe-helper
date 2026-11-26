@@ -61,9 +61,9 @@ function modsFor(kind = 'regular', { nightmare = false } = {}) {
 }
 
 // ---------- search pieces ----------
-// a piece may hold letters, spaces, ' , - %, and # for a number (searched as \d+); a piece at the end of a mod
+// a piece may hold letters, spaces, ' , %, and # for a number (searched as \d+); a piece at the end of a mod
 // line may end in $ ("unned$"), which tells "Monsters cannot be Stunned" from a longer line (as poe.re does)
-const OK_CHAR = /^[a-z ',%#-]+$/;
+const OK_CHAR = /^[a-z ',%#]+$/; // no "-": poe.re never uses one
 const toRegex = (piece, end) => piece.replace(/#/g, '\\d+') + (end ? '$' : '');
 const lower = (s) => s.toLowerCase();
 const cache = new Map(); // kind -> { mods, texts, candidates: Map(modId -> [{ piece, hits:Set }]) }
@@ -76,6 +76,10 @@ function universe(kind) {
   // a piece must match nothing else on a map: its fixed lines, map names, and the reminders the game shows
   // under some mods ("(Elemental Weakness is a Hex which inflicts -15% to all Elemental Resistances…)")
   const reminders = [...new Set(DATA.mods.flatMap((m) => m.reminders || []))].map((r) => lower(r).replace(/\d+(\.\d+)?/g, '#'));
+  // the other kind's mods are avoided when there's a choice: a stash often holds both kinds of map, and a "!"
+  // search that also hits a T17 mod skips T17 maps you didn't mean to ("ecov" is in a T17 Leech mod too)
+  const own = new Set(mods.map((m) => m.id));
+  const foreign = DATA.mods.filter((m) => !own.has(m.id)).flatMap((m) => [...m.lines.map(lower), ...(m.name ? [lower(m.name)] : [])]);
   const outside = [...STATIC_TEXT, ...(DATA.mapNames || []).map(lower), ...reminders];
   // hits: the mods whose text has the piece, so the piece finds them on any map. touches: those plus the mods
   // whose name has it: a magic map's name carries its mods' names ("Strand Map of Giants"), so such a piece also
@@ -109,19 +113,31 @@ function universe(kind) {
             if (outside.some((o) => has(o, text, end))) continue;
             const { hits, touches } = piecesOf(text, end);
             if (!hits.has(t.id)) continue; // only in the mod's name: misses it on rare maps
-            list.push({ piece: toRegex(text, end), hits, touches });
+            list.push({ piece: toRegex(text, end), hits, touches, foreign: foreign.some((o) => has(o, text, end)) });
           }
         }
       }
     }
-    // shortest first; among equals the one that touches the fewest mods
-    list.sort((a, b) => a.piece.length - b.piece.length || a.touches.size - b.touches.size || a.piece.localeCompare(b.piece));
+    // clear of the other kind first, then shortest; among equals the one that touches the fewest mods
+    list.sort((a, b) => a.foreign - b.foreign || a.piece.length - b.piece.length || a.touches.size - b.touches.size || a.piece.localeCompare(b.piece));
     candidates.set(t.id, list);
   }
-  const u = { mods, candidates };
+  const u = { mods, candidates, texts, has };
   cache.set(kind, u);
   return u;
 }
+
+// set pieces for mods many players skip, as poe.re writes them (they work in game)
+const SET_PIECES = {
+  MapMonsterLifeLeechImmunityMapWorlds: 'from$',
+  MapMonstersStealChargesOnHitMapWorlds: 'r, f',
+  MapPlayerNoLifeESRegenMapWorlds: 't reg',
+  MapPlayersLessCooldownRecovery2MapWorlds: 'rate$',
+  MapPlayerReducedRegen1MapWorlds: 'te o',
+  MapPlayersBlockAndArmour2MapWorlds: 'ur$',
+  MapPlayersReducedAuraEffect2MapWorlds: 'ills$',
+  MapPlayerMaxResists1MapWorlds: 'm resistances$',
+};
 
 /**
  * The fewest characters of pieces that between them match every mod in ids and nothing else.
@@ -130,11 +146,24 @@ function universe(kind) {
 function coverMods(ids, kind = 'regular') {
   const want = new Set(ids);
   if (!want.size) return { pieces: [], extra: [], missing: [] };
-  const { candidates } = universe(kind);
-  const pool = [];
-  for (const id of want) for (const c of candidates.get(id) || []) if ([...c.touches].every((h) => want.has(h))) pool.push(c);
+  const { candidates, texts, has } = universe(kind);
+  // the owner's set pieces for some mods (the ones poe.re uses): used as they are
   const left = new Set(want);
   const pieces = [];
+  const extra = new Set();
+  for (const id of want) {
+    const p = SET_PIECES[id];
+    if (!p || !left.has(id)) continue;
+    const end = p.endsWith('$');
+    const text = end ? p.slice(0, -1) : p;
+    pieces.push(p);
+    for (const t of texts) if (t.lines.some((l) => has(l, text, end))) { left.delete(t.id); if (!want.has(t.id)) extra.add(t.id); }
+  }
+  const pool = [];
+  for (const id of want) for (const c of candidates.get(id) || []) if (!c.foreign && [...c.touches].every((h) => want.has(h))) pool.push(c);
+  // a mod with no piece that's clear of the other kind's mods (the regular "increased number of Rare Monsters" is
+  // a line of a T17 mod) takes one that isn't
+  for (const id of want) if (!pool.some((c) => c.hits.has(id))) for (const c of candidates.get(id) || []) if ([...c.touches].every((h) => want.has(h))) pool.push(c);
   while (left.size) {
     let best = null;
     let bestScore = 0;
@@ -150,10 +179,9 @@ function coverMods(ids, kind = 'regular') {
     for (const h of best.hits) left.delete(h);
   }
   // mods whose whole text is part of another mod: the closest piece, matching a few others too
-  const extra = new Set();
   const missing = [];
   for (const id of left) {
-    const c = (candidates.get(id) || []).slice().sort((a, b) => a.touches.size - b.touches.size || a.piece.length - b.piece.length)[0];
+    const c = (candidates.get(id) || []).slice().sort((a, b) => a.foreign - b.foreign || a.touches.size - b.touches.size || a.piece.length - b.piece.length)[0];
     if (!c) { missing.push(id); continue; }
     pieces.push(c.piece);
     for (const h of c.touches) if (!want.has(h)) extra.add(h);

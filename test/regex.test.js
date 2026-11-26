@@ -11,7 +11,7 @@ function gameSearch(search, text) {
     let s = t.replace(/^"|"$/g, '');
     const neg = s.startsWith('!');
     if (neg) s = s.slice(1);
-    const hit = new RegExp(s, 'i').test(text);
+    const hit = new RegExp(s, 'im').test(text); // the game's $ ends a line (poe.re's pieces rely on it)
     return neg ? !hit : hit;
   });
 }
@@ -226,4 +226,19 @@ test('map regex: every piece has at least 3 letters (2 when it ends a line), so 
       }
     }
   }
+});
+
+test('map pieces stay clear of T17 mods and dashes when they can', () => {
+  const M = require('../src/core/regex/maps.js');
+  const D = require('../src/core/regex/map-mods.json').mods;
+  const ids = ['MapMonsterLifeLeechImmunityMapWorlds', 'MapMonstersStealChargesOnHitMapWorlds', 'MapPlayerNoLifeESRegenMapWorlds', 'MapPlayersLessCooldownRecovery2MapWorlds',
+    'MapPlayerReducedRegen1MapWorlds', 'MapPlayersBlockAndArmour2MapWorlds', 'MapPlayersReducedAuraEffect2MapWorlds', 'MapPlayerMaxResists1MapWorlds'];
+  const r = M.coverMods(ids, 'regular');
+  assert.deepEqual(r.missing, []);
+  assert.ok(r.pieces.every((p) => !p.includes('-')), r.pieces.join('|'));
+  const re = new RegExp(r.pieces.join('|'), 'i');
+  const t17 = D.filter((m) => m.kinds.includes('t17') && !m.kinds.includes('regular') && !ids.includes(m.id));
+  assert.deepEqual(t17.filter((m) => m.lines.some((l) => re.test(l))).map((m) => m.id), []);
+  // a regular mod whose line is inside a T17 mod still gets a piece
+  assert.deepEqual(M.coverMods(['MapNemesisModOnRaresMapWorlds'], 'regular').missing, []);
 });
