@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.177 - 2026-11-27
+
+* [Loot filter] "Import a filter file": copy any loot filter (a friend's, a download, an online filter's file) into your filter folder and use it here.
+* [Loot filter] Each filter keeps its own setup (what you hid and moved). A new filter starts with only what it hides itself; switching back brings your setup back. Your looks, strictness and unique collection are the same for every filter.
+- Loot filter: currency moves between stack tiers with different stack sizes (5, 4, 3, 2) now; each tier keeps its own size.
+* [Price check] A unique's own version is priced: Mageblood by its number of flasks, Lightpoacher and other abyss uniques by their sockets.
+- Price check: Light of Meaning's line is ticked; a corrupted jewel's resistance isn't searched as "any element" any more (Harvest can't change it).
+
 ## 1.0.176 - 2026-11-26
 
 * [Crafting] Opens on a start page: pick a base or import an item. "‹ All bases" takes you back there.

@@ -5,6 +5,7 @@
  */
 
 const path = require('path');
+const fs = require('fs');
 const { DiskCache, JsonStore } = require('../core/cache');
 const { NinjaClient, trendOf, isBigChange } = require('../core/ninja');
 const { GggClient } = require('../core/ggg');
@@ -889,6 +890,50 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   const FILTER_KEYS = ['sizeAdjust', 'alwaysShow', 'collectHide', 'uniqueCollection', 'collectHideBelow', 'collectedHideBases', 'collectMissingBases', 'rankUnidRarity', 'rankStrands', 'mapHide', 'strictness', 'tierPatch', 'overrides', 'economy', 'clusterGrid', 'clusterAuto', 'clusterAutoCells', 'talismans', 'talismanRest', 'baseMatrix', 'baseMatrixOpts', 'baseRanks', 'hiddenGroups', 'campaignHide', 'showAllCurrency', 'rankKinds', 'rankCraftIlvl', 'rankIlvl', 'rankUnidTier',
     'hideFractured', 'hideSynthesised', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'designer',
     'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted'];
+  // what you set up for one filter, kept with that filter: a new filter starts with nothing hidden or moved by the
+  // app (only what the filter itself hides), and switching back brings your setup back. Your looks (Tier
+  // designer), unique collection list, My bases, page layout and pins stay the same for every filter.
+  const SHARED_FILTER_KEYS = new Set(['designer', 'uniqueCollection', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'sizeAdjust', 'strictness',
+    'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted']);
+  const PROFILE_KEYS = FILTER_KEYS.filter((k) => !SHARED_FILTER_KEYS.has(k));
+  // a synced filter can get a new file name when the game downloads it again: kept by its own name
+  function profileKey(base) {
+    if (!base) return null;
+    const f = filters.list().find((x) => x.name === base);
+    return f?.online ? `online:${f.display.replace(/ \(synced from FilterBlade\)$/, '')}` : String(base);
+  }
+  /** You picked another filter: park this one's setup, bring back the other's (or start clean). */
+  function switchFilterProfile(from, to) {
+    const a = profileKey(from), b = profileKey(to);
+    if (!b || a === b) return false;
+    const profiles = { ...(settings.get('filterProfiles') || {}) };
+    if (a) profiles[a] = Object.fromEntries(PROFILE_KEYS.filter((k) => settings.data[k] !== undefined).map((k) => [k, settings.data[k]]));
+    const back = profiles[b] || {};
+    for (const k of PROFILE_KEYS) {
+      if (k in back) settings.data[k] = back[k];
+      else if (k in DEFAULT_SETTINGS) settings.data[k] = structuredClone(DEFAULT_SETTINGS[k]);
+      else delete settings.data[k];
+    }
+    delete profiles[b];
+    settings.data.filterProfiles = profiles;
+    settings.save();
+    viewCache = null;
+    return true;
+  }
+  // the first start with setups per filter: when you had already switched to another filter, your setup was made
+  // on the filter your strictness was set for (the only one), so it's kept for that one and this one starts clean
+  function migrateFilterProfiles() {
+    if (settings.data.filterProfiles) return;
+    const cur = profileKey(settings.get('baseFilter'));
+    const names = Object.keys(settings.get('strictness') || {});
+    const curName = cur?.replace(/^online:/, '').replace(/\.filter$/i, '');
+    if (cur && names.length === 1 && names[0] !== curName) {
+      const other = filters.list().find((f) => f.display.replace(/ \(synced from FilterBlade\)$/, '') === names[0] || f.name.replace(/\.filter$/i, '') === names[0]);
+      if (other) { settings.data.filterProfiles = {}; switchFilterProfile(other.name, settings.get('baseFilter')); return; }
+    }
+    settings.set('filterProfiles', {});
+  }
+  try { migrateFilterProfiles(); } catch (e) { log('filter setups', e.message); }
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
   function exportFilterSettings() {
     const fs = require('fs');
@@ -3315,7 +3360,27 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return files;
   }
 
-  return { atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  // a loot filter's text from anywhere, saved into the filter folder as "<its #name or file name>.filter" and
+  // picked as your filter. Returns the file name.
+  function importFilterFile(text, fromName = '') {
+    const dir = filters.dir();
+    if (!dir) throw new Error('No filter folder yet. Set it in Settings, Loot filter file.');
+    text = String(text || '');
+    if (!/^\s*(Show|Hide|Minimal)\b/m.test(text)) throw new Error('That file isn\'t a loot filter (no Show or Hide rules in it).');
+    const named = (/^#name:(.*)$/m.exec(text.slice(0, 2000))?.[1] || String(fromName).replace(/\.filter$/i, ''))
+      .replace(/[<>:"/\\|?*\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Imported filter';
+    // an online filter's first line would make it look synced from FilterBlade: it's a plain local filter now
+    const body = text.replace(/^\uFEFF?#Online Item Filter\r?\n/, '');
+    let file = `${named}.filter`;
+    for (let n = 2; fs.existsSync(path.join(dir, file)) && fs.readFileSync(path.join(dir, file), 'utf8') !== body; n++) file = `${named} (${n}).filter`;
+    fs.writeFileSync(path.join(dir, file), body);
+    const was = settings.get('baseFilter');
+    switchFilterProfile(was, file);
+    settings.set('baseFilter', file);
+    return file;
+  }
+
+  return { importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

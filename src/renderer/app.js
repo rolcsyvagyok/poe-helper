@@ -988,6 +988,7 @@ function filterFileBox(info, st, redraw) {
         info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.display || f.name.replace(/\.filter$/i, '')))),
       h('span', { class: 'small muted' }, !info.files.length ? 'No .filter files found in the folder below.' : info.base ? (info.lastWrite ? `Written to "${helperName}" ${ago(Date.now() - info.lastWrite.at)}.` : `Will be written to "${helperName}".`) : 'Pick the filter you normally use.'),
       h('span', { class: 'spacer' }),
+      h('button', { class: 'quiet', title: 'Copy a loot filter file (a friend\'s, a download, any .filter) into your filter folder and use it', onclick: () => window.importFilterFile?.(redraw) }, 'Import a filter file'),
       h('button', { class: 'primary', onclick: writeNow, disabled: !info.base }, 'Write filter')),
     h('div', { class: 'row' },
       toggle(st.autoWatchFilter, (v) => call('settings:set', { autoWatchFilter: v }), 'Rewrite automatically when you download a new version of the filter')),

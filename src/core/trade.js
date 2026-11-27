@@ -948,6 +948,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
       const fixed = !!item.advanced && !(m.meta?.rolls || []).some((x) => x.min !== x.max); // a plain copy has no ranges
       if ((variant && fixed) || VARIANT_LINES.some((re) => re.test(m.text || ''))) { m.enabled = true; m.hidden = false; }
     }
+    // Light of Meaning: its one rolled line ("Passive Skills in Radius also grant…") is which version it is
+    if (/^Light of Meaning$/i.test(item.name || '')) for (const m of mods) if (m.id && !m.unmatched && m.group === 'explicit' && /^Passive Skills in Radius also grant/i.test(m.text || '')) { m.enabled = true; m.hidden = false; }
     // Watcher's Eye: the aura mods are the price (the life / mana / energy shield ones hardly matter)
     if (/^Watcher's Eye$/i.test(item.name || '')) for (const m of mods) { m.enabled = /while affected by/i.test(m.text || '') && !m.unmatched && !!m.id; if (m.enabled) m.hidden = false; }
   }
@@ -973,8 +975,8 @@ function prepareSearch(statsJson, item, { tolerance = 0.1 } = {}) {
     // a jewel's base decides what it can roll: Cobalt, Crimson, Viridian, Prismatic, Abyss bases…
     if (/jewel/i.test(cls) && props.base) props.base.on = true;
     // a single fire / cold / lightning resistance (or maximum resistance) can be swapped with Harvest:
-    // the search takes any of the three at that value
-    if (/jewel/i.test(cls)) {
+    // the search takes any of the three at that value. Not on a corrupted jewel: Harvest can't change it
+    if (/jewel/i.test(cls) && !item.flags?.corrupted) {
       const RES = /^(\+\d+(?:\.\d+)?% to (?:maximum )?)(Fire|Cold|Lightning)( Resistance)$/i;
       for (const m of mods) {
         const r = RES.exec(m.text || '');

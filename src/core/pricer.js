@@ -139,6 +139,17 @@ function pickFoulborn(lines, item) {
   return { best: fm.length ? ranked[0] : null, cands: ranked.slice(0, 8), range: null };
 }
 
+/** a "<number> <word>" variant ("4 Flasks" of Mageblood) found in a mod line that has that number and,
+ *  later in the line, that word: "Leftmost 4 Magic Utility Flasks constantly apply…" */
+function countVariant(variant, mods) {
+  const m = /^(\d+) ([a-z' ]+?)s?$/i.exec(String(variant || '').trim());
+  if (!m) return false;
+  // poe.ninja's "1 Jewel" of Lightpoacher and others is "Has 1 Abyssal Socket" on the item
+  const word = /^jewel$/i.test(m[2]) ? '(?:jewel|abyssal socket)' : m[2];
+  const re = new RegExp(`(^|[^\\d.+-])${m[1]}(?![\\d.%])\\D*?\\b${word}s?\\b`, 'i');
+  return mods.some((t) => re.test(t));
+}
+
 function pickUnique(lines, item) {
   if (item.flags?.foulborn && !item.flags.unidentified) { const f = pickFoulborn(lines, item); if (f.cands.length) return f; }
   const name = norm(item.name);
@@ -154,7 +165,8 @@ function pickUnique(lines, item) {
   const usable = (pool.length ? pool : cands).sort((a, b) => a.chaos - b.chaos);
   // Prefer the variant whose name hints match explicit mods (e.g. "1 Jewel", "Vaal Pact")
   const modsText = item.mods.explicit.join('\n').toLowerCase();
-  const variantHit = usable.find((l) => l.variant && modsText.includes(String(l.variant).toLowerCase()));
+  const variantHit = usable.find((l) => l.variant && modsText.includes(String(l.variant).toLowerCase())) ||
+    usable.find((l) => countVariant(l.variant, item.mods.explicit));
   const best = variantHit || (usable.length > 1 ? null : usable[0]);
   // unidentified: which unique it is isn't known, so the list is every unique on the base, most valuable first
   const list = unid ? [...usable].reverse() : usable;

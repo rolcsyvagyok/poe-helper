@@ -199,6 +199,7 @@ async function renderFiltersNow() {
       info.missing ? '' : !info.files.length ? 'No filters found. Download your filter from FilterBlade into the folder set in Settings, Loot filter file.'
         : !info.base ? 'Pick the filter you downloaded from FilterBlade.'
           : info.lastWrite ? `Your version is "${helperName}", saved ${ago(Date.now() - info.lastWrite.at)}. Select it in game once.` : `Changes are saved to "${helperName}". Select it in game once.`),
+    h('button', { class: 'quiet sm', title: 'Copy a loot filter file (a friend\'s, a download, any .filter) into your filter folder and use it here', onclick: () => importFilterFile(() => { FB.type = null; renderFilters(); }) }, 'Import a filter file'),
     h('span', { class: 'spacer' }),
     view?.types?.length ? h('button', { class: 'primary sm', disabled: FB.applyingAll, title: 'Check poe.ninja for every priced category and move every item to the tier its price fits now', onclick: () => applyAllPrices() }, FB.applyingAll ? 'Applying…' : 'Apply all price changes') : null,
     edits ? h('span', { class: 'pill' }, `${edits} ${edits === 1 ? 'change' : 'changes'}`) : null,
@@ -389,11 +390,12 @@ function renderTiers(body, view) {
   // right: tiers
   const search = h('input', { type: 'search', placeholder: `Find a base in ${type.label.toLowerCase()}`, value: FB.search, style: { width: '260px' }, oninput: (e) => { FB.search = e.target.value; drawList(); } });
   const list = h('div', { class: 'fb-tiers' });
-  // stacked currency (Big stacks, Small stacks…): every tier has the same "StackSize >= N" rule, so a base can
-  // move between them like in any tier list; other special tiers (a card only in stacks…) keep their bases
+  // stacked currency (Big stacks, Small stacks…): every tier is a "StackSize >= N" rule, so a base can move
+  // between them like in any tier list (each tier keeps its own stack size: an edited filter has 5, 4, 3, 2);
+  // other special tiers (a card only in stacks…) keep their bases
   const sameRules = (() => {
     const bl = (type.allTiers || type.tiers).filter((x) => x.hasBaseList && !x.generated);
-    return bl.length > 1 && bl.every((x) => x.stackSize) && new Set(bl.map((x) => (x.conditions || []).join('\n'))).size === 1;
+    return bl.length > 1 && bl.every((x) => x.stackSize) && new Set(bl.map((x) => (x.conditions || []).filter((c) => !/^StackSize\b/i.test(String(c).trim())).join('\n'))).size === 1;
   })();
   const movableTier = (t) => t.hasBaseList && !t.generated && (!t.special || sameRules);
   const targets = (type.allTiers || type.tiers).filter(movableTier);
@@ -3061,3 +3063,14 @@ window.showInFilter = (g) => {
 };
 })();
 
+
+// a loot filter file from anywhere: copied into the filter folder and picked
+async function importFilterFile(done) {
+  try {
+    const r = await call('filter:importFile');
+    if (!r) return;
+    toast(`Imported "${r.name.replace(/\.filter$/i, '')}" and picked it as your filter.`);
+    done();
+  } catch { /* toast */ }
+}
+window.importFilterFile = importFilterFile;

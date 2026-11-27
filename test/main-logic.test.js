@@ -819,3 +819,58 @@ test('My collection: ticks the uniques PoE Ladder lists for your league, never u
   svc.settings.patch({ accountName: 'Other#1' });
   assert.ok((await svc.collectionFromStash()).notJoined);
 });
+
+test('a filter file from anywhere is copied into the filter folder and picked', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-imp-'));
+  const fdir = path.join(dir, 'filters'); fs.mkdirSync(fdir);
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  svc.settings.set('filterDir', fdir);
+  const text = '#Online Item Filter\r\n#name:Endgame Very Strict\r\n#version:3.30\r\nShow\r\n  BaseType == "Mirror of Kalandra"\r\n';
+  assert.equal(svc.importFilterFile(text, 'qKdB91CV'), 'Endgame Very Strict.filter');
+  assert.equal(svc.settings.get('baseFilter'), 'Endgame Very Strict.filter');
+  const saved = fs.readFileSync(path.join(fdir, 'Endgame Very Strict.filter'), 'utf8');
+  assert.ok(saved.startsWith('#name:Endgame Very Strict'));
+  assert.ok(svc.filters.list().some((f) => f.name === 'Endgame Very Strict.filter' && !f.online));
+  // the same again: same file; a different one with that name: "(2)"
+  assert.equal(svc.importFilterFile(text, 'x'), 'Endgame Very Strict.filter');
+  assert.equal(svc.importFilterFile(text + 'Hide\r\n', 'x'), 'Endgame Very Strict (2).filter');
+  assert.throws(() => svc.importFilterFile('hello', 'x.txt'), /isn't a loot filter/);
+});
+
+test('each filter keeps its own setup: a new one hides nothing the filter itself doesn\'t', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-prof-'));
+  const fdir = path.join(dir, 'filters'); fs.mkdirSync(fdir);
+  fs.writeFileSync(path.join(fdir, 'Mine.filter'), 'Show\n  BaseType == "Chaos Orb"\n');
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  svc.settings.set('filterDir', fdir);
+  svc.settings.set('baseFilter', 'Mine.filter');
+  svc.settings.set('tierPatch', { moves: { 'currency\tChaos Orb': '__hide__' } });
+  svc.settings.set('campaignHide', { Wands: true });
+  svc.settings.set('designer', { look: 1 });
+  const f = svc.importFilterFile('#name:Other\nShow\n  BaseType == "Divine Orb"\n', 'x.filter');
+  const { DEFAULT_SETTINGS } = require('../src/main/services');
+  assert.deepEqual(svc.settings.get('tierPatch'), DEFAULT_SETTINGS.tierPatch);
+  assert.deepEqual(svc.settings.get('campaignHide'), DEFAULT_SETTINGS.campaignHide);
+  assert.deepEqual(svc.settings.get('designer'), { look: 1 }); // looks are the same for every filter
+  svc.settings.set('mapHide', { x: true });
+  // back to the first: its setup comes back; the second's is kept for later
+  svc.switchFilterProfile(f, 'Mine.filter'); svc.settings.set('baseFilter', 'Mine.filter');
+  assert.deepEqual(svc.settings.get('tierPatch'), { moves: { 'currency\tChaos Orb': '__hide__' } });
+  assert.deepEqual(svc.settings.get('campaignHide'), { Wands: true });
+  assert.deepEqual(svc.settings.get('mapHide'), DEFAULT_SETTINGS.mapHide);
+  svc.switchFilterProfile('Mine.filter', f);
+  assert.deepEqual(svc.settings.get('mapHide'), { x: true });
+});
+
+test('first start with setups per filter: a setup made on the strictness filter stays with it', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-mig-'));
+  const fdir = path.join(dir, 'filters'); fs.mkdirSync(fdir);
+  fs.writeFileSync(path.join(fdir, 'Starter.filter'), 'Show\n  BaseType == "Chaos Orb"\n');
+  fs.writeFileSync(path.join(fdir, 'Endgame.filter'), 'Show\n  BaseType == "Divine Orb"\n');
+  fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'data', 'settings.json'), JSON.stringify({ filterDir: fdir, baseFilter: 'Endgame.filter', strictness: { Starter: 6 }, tierPatch: { moves: { 'currency\tChaos Orb': 't1' }, styles: {}, actions: {} } }));
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  assert.deepEqual(svc.settings.get('tierPatch').moves, {});
+  svc.switchFilterProfile('Endgame.filter', 'Starter.filter');
+  assert.deepEqual(svc.settings.get('tierPatch').moves, { 'currency\tChaos Orb': 't1' });
+});

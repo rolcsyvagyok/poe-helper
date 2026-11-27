@@ -926,7 +926,7 @@ function loginForSession() {
 // ---------------- IPC ----------------
 
 function sanitizedSettings() {
-  const { sessionEnc, history, overrides, ...rest } = services.settings.get();
+  const { sessionEnc, history, overrides, filterProfiles, ...rest } = services.settings.get();
   return { ...rest, sessionSet: !!sessionEnc, keySender: hasKeySender(), hotkeyStatus, version: services.VERSION };
 }
 
@@ -969,6 +969,8 @@ function registerIpc() {
         key: H.normalize(String(m?.key || '')) || '', text: String(m?.text || '').replace(/[\r\n]+/g, ' ').slice(0, 250), send: m?.send !== false,
       })).filter((m) => m.key);
     }
+    // another filter picked: its own setup (what you hid and moved) comes with it
+    if ('baseFilter' in clean && clean.baseFilter && clean.baseFilter !== s.get('baseFilter')) services.switchFilterProfile(s.get('baseFilter'), clean.baseFilter);
     s.patch(clean);
     services.applySettings();
     if ('hotkeyPrice' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyAltClick' in clean || 'hotkeyClick' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
@@ -1069,6 +1071,18 @@ function registerIpc() {
     const sw = services.filters.lastSwitch;
     if (sw && !sw.told) { sw.told = true; applyFilterWatch(); }
     return { dir: services.filters.dir(), files: services.filters.list(), base: s.get('baseFilter'), lastWrite: s.get('lastWrite') || null, missing: basePath ? null : services.filters.missing(), switched: sw && Date.now() - sw.at < 60000 ? sw : null };
+  });
+  // a filter file from anywhere (a friend's, a download, an online filter's file): copied into the filter folder
+  // as a .filter and picked as your filter, so it can be edited here like any other
+  handle('filter:importFile', async () => {
+    if (!services.filters.dir()) throw new Error('No filter folder yet. Set it in Settings, Loot filter file.');
+    const r = await dialog.showOpenDialog(mainWin, { title: 'A loot filter file', defaultPath: services.filters.dir(), properties: ['openFile'], filters: [{ name: 'Loot filters', extensions: ['filter', '*'] }] });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const file = services.importFilterFile(fs.readFileSync(r.filePaths[0], 'utf8'), path.basename(r.filePaths[0]));
+    services.applySettings();
+    applyFilterWatch();
+    try { if (services.filters.basePath()) services.filters.write(); } catch (e) { log('write after import', e.message); }
+    return { name: file };
   });
   handle('filter:overrides', () => services.filters.overrides());
   handle('filter:saveOverrides', (list) => { services.filters.saveOverrides(Array.isArray(list) ? list : []); return services.filters.overrides(); });

@@ -309,6 +309,11 @@ test('jewels: a single or maximum fire / cold / lightning resistance is searched
   const g = q.query.stats.find((x) => x.type === 'count');
   assert.deepEqual(g.filters.map((f) => f.id).sort(), ['explicit.mc', 'explicit.mf', 'explicit.ml']);
   assert.equal(g.filters[0].value.min, 1);
+  // corrupted: Harvest can't change it, so only its own element
+  const c = parseItem('Item Class: Jewels\nRarity: Rare\nVivid Star\nCobalt Jewel\n--------\nItem Level: 83\n--------\n+1% to maximum Lightning Resistance\n--------\nTwice Corrupted\n');
+  const rc = T.prepareSearch(stats, c);
+  assert.ok(!rc.mods.some((x) => x.anyOf));
+  assert.equal(rc.mods.find((x) => /Lightning/.test(x.text)).id, 'explicit.ml');
 });
 
 test("Watcher's Eye: the aura mods are ticked, not the life / mana / ES ones; an unidentified unique searches uniques only", () => {
@@ -942,4 +947,24 @@ test('a not mirrored item is searched "not mirrored"; a mirrored one "mirrored"'
   assert.deepEqual(T.buildQuery(it, r.mods, { props: r.props }).query.filters.misc_filters.filters.fractured_item, { option: 'false' }, 'not fractured');
   // a Manifold Ring: 4 prefixes and 1 suffix allowed, so 1 open prefix and no open suffix
   assert.deepEqual(PF.emptyAffix(it), { prefix: 1, suffix: 0 });
+});
+
+test('a unique with poe.ninja count versions gets the price of its own one', () => {
+  const { pickUnique } = require('../src/core/pricer.js');
+  const L = (n, v, c) => ({ name: n, variant: v, chaos: c, baseType: 'x' });
+  const lines = [L('Mageblood', '2 Flasks', 15408), L('Mageblood', '4 Flasks', 45000), L('Mageblood', '5 Flasks', 276000), L('Lightpoacher', '1 Jewel', 5), L('Lightpoacher', '2 Jewels', 50)];
+  const it = (n, m) => ({ name: n, baseType: 'x', flags: {}, mods: { explicit: m } });
+  assert.equal(pickUnique(lines, it('Mageblood', ['+47 to Dexterity', 'Leftmost 4 Magic Utility Flasks constantly apply their Flask Effects to you'])).best.variant, '4 Flasks');
+  assert.equal(pickUnique(lines, it('Lightpoacher', ['Has 2 Abyssal Sockets'])).best.variant, '2 Jewels');
+});
+
+test('Light of Meaning: its line is ticked', () => {
+  const fs = require('fs'); const path = require('path');
+  const stats = { result: [{ id: 'explicit', entries: [
+    { id: 'explicit.stat_1', text: 'Passive Skills in Radius also grant #% to all Elemental Resistances', type: 'explicit' },
+  ] }] };
+  const it = parseItem(fs.readFileSync(path.join(__dirname, 'fixtures', 'light-of-meaning.txt'), 'utf8'));
+  const m = T.prepareSearch(stats, it).mods.find((x) => /Radius also grant/.test(x.text));
+  assert.equal(m.id, 'explicit.stat_1');
+  assert.ok(m.enabled && !m.hidden);
 });

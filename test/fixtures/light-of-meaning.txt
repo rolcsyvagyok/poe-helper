@@ -1,0 +1,16 @@
+Item Class: Jewels
+Rarity: Unique
+Light of Meaning
+Prismatic Jewel
+--------
+Limited to: 1
+Radius: Large
+--------
+Item Level: 84
+--------
+{ Unique Modifier }
+Passive Skills in Radius also grant +7(5-7)% to all Elemental Resistances
+--------
+While the world sleeps, the faithful work.
+--------
+Place into an allocated Jewel Socket on the Passive Skill Tree. Right click to remove from the Socket.
