@@ -107,3 +107,11 @@ test('chat: nicknames and typos before Claude', () => {
   assert.equal(C.fixTypos('is it visable', V), 'is it visible');
   assert.equal(C.fixTypos('make teir 1 in currancy red', V), 'make tier 1 in currency red');
 });
+
+test('chat: many ways to ask how an item looks', () => {
+  for (const q of ['how does chaos orb looks', 'how chaos looks', 'what does the chaos orb look like', 'show me chaos orb', 'chaos orb look?', 'preview chaos orb']) {
+    const r = run(q);
+    assert.ok(r.looks?.length, q);
+    assert.equal(r.looks[0].base, 'Chaos Orb', q);
+  }
+});

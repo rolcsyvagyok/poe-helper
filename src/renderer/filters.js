@@ -3125,9 +3125,16 @@ function drawChat() {
       // how it drops: the label as in game, each place it's tiered (single and stacks)
       m.looks?.length ? h('div', { class: 'fchat-looks' }, m.looks.slice(0, 12).map((l) => h('div', { class: 'fchat-look' },
         dropLabel(l.base, l.style || {}, { rarity: rarityFor(l.type), game: true, scale: 0.8, hidden: !l.shown }),
-        h('span', { class: 'small muted' }, `${l.shown ? '' : '− hidden · '}${l.where}`)))) : null)) :
+        h('span', { class: 'small muted' }, `${l.shown ? '' : '− hidden · '}${l.where}`),
+        // what the label alone doesn't show: beam, map icon, sound
+        (() => {
+          const st = l.style || {};
+          const bits = [st.beam?.color ? `${st.beam.color.toLowerCase()} beam` : null, st.icon ? `${['big', 'medium', 'small'][st.icon.size] || ''} ${String(st.icon.color || '').toLowerCase()} ${String(st.icon.shape || '').toLowerCase()} icon`.trim() : null,
+            st.sound?.id ? `sound ${st.sound.id}` : st.customSound ? 'your own sound' : null, st.fontSize ? `size ${st.fontSize}` : null].filter(Boolean);
+          return bits.length ? h('span', { class: 'small faint' }, bits.join(' · ')) : null;
+        })()))) : null)) :
       h('div', { class: 'fchat-msg' }, 'Tell me what to change in this filter. Type "help" for what I know.'),
-    FC.busy ? h('div', { class: 'fchat-msg faint' }, st.claude && st.on ? 'Asking Claude…' : 'Working…') : null,
+    FC.busy ? h('div', { class: 'fchat-msg faint' }, 'Working…') : null,
     // not installed or not signed in: what to do, with buttons
     (!st.claude || st.signedIn === false) && window.claudeHelp ? window.claudeHelp(st, async (recheck, test) => {
       if (test) { const t = await call('filter:chatTest').catch((e) => ({ ok: false, text: e.message })); FC.log.push({ text: t.ok ? '✓ Claude answers. Type anything.' : `✕ ${t.text}` }); }

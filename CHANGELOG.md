@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.181 - 2026-11-27
+
+* [Loot filter] Every filter gets its own Giga and Big belts tiers again. A filter you switched to started without them; it gets them now.
+* [Loot filter] Filter chat: "how does Chaos Orb look" (and "show me…", "what does … look like") draws its label everywhere it's tiered, single drops and stacks, with its beam, map icon and sound.
+- Filter chat: everyday words aren't "corrected" into item names any more ("does" stayed "does").
+
 ## 1.0.180 - 2026-11-27
 
 * [Loot filter] Filter chat is easier to find: a blue "Ask the filter chat" button and a round chat button in the corner.

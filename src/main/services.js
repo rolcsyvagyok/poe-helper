@@ -894,8 +894,8 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   // what you set up for one filter, kept with that filter: a new filter starts with nothing hidden or moved by the
   // app (only what the filter itself hides), and switching back brings your setup back. Your looks (Tier
   // designer), unique collection list, My bases, page layout and pins stay the same for every filter.
-  const SHARED_FILTER_KEYS = new Set(['designer', 'uniqueCollection', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'sizeAdjust', 'strictness',
-    'gigaOwnLook', 'bigBeltsOwnLook', 'gigaDone', 'bigBeltsDone', 'gigaDeleted', 'bigBeltsDeleted']);
+  // (the Giga and Big belts tiers are made per filter: each filter gets its own)
+  const SHARED_FILTER_KEYS = new Set(['designer', 'uniqueCollection', 'myBases', 'myBasesStyle', 'categoryLayout', 'filterPins', 'priceReview', 'sizeAdjust', 'strictness']);
   const PROFILE_KEYS = FILTER_KEYS.filter((k) => !SHARED_FILTER_KEYS.has(k));
   // a synced filter can get a new file name when the game downloads it again: kept by its own name
   function profileKey(base) {
@@ -1216,11 +1216,16 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       view.strictness = { level, own: strictness.levelOf(text), levels: strictness.LEVELS, notes: strictness.NOTES };
       viewCache = { sig, view };
     }
-    // 1.0.10: resetting a category used to drop the Giga tier for good; bring it back once
-    if (!settings.get('gigaRestoreV1')) {
-      settings.set('gigaRestoreV1', true);
-      if (settings.get('gigaDone') && !((settings.get('tierPatch') || {}).newTiers || []).some((x) => x.type === 'currency' && x.name === 'Giga')) settings.set('gigaDone', false);
-      if (settings.get('bigBeltsDone') && !((settings.get('tierPatch') || {}).newTiers || []).some((x) => x.name === 'Big belts')) settings.set('bigBeltsDone', false);
+    // 1.0.10: resetting a category used to drop the Giga tier for good; bring it back once.
+    // 1.0.181: Giga and Big belts are kept per filter; a filter picked before that (it started without them) gets them once
+    for (const once of ['gigaRestoreV1', 'gigaPerFilterV1']) {
+      if (settings.get(once)) continue;
+      // (only someone who has switched filters can be missing them)
+      if (once === 'gigaPerFilterV1' && !Object.keys(settings.get('filterProfiles') || {}).length) continue;
+      settings.set(once, true);
+      const nts = (settings.get('tierPatch') || {}).newTiers || [];
+      if (settings.get('gigaDone') && !settings.get('gigaDeleted') && !nts.some((x) => x.type === 'currency' && x.name === 'Giga')) settings.set('gigaDone', false);
+      if (settings.get('bigBeltsDone') && !settings.get('bigBeltsDeleted') && !nts.some((x) => x.name === 'Big belts')) settings.set('bigBeltsDone', false);
     }
     if (!settings.get('gigaDone') && !settings.get('gigaDeleted') && !gigaBusy) { const r = ensureGiga(viewCache.view); if (r?.view) return r.view; }
     if (!settings.get('bigBeltsDone') && !settings.get('bigBeltsDeleted') && !gigaBusy) { const r = ensureBigBelts(viewCache.view); if (r?.view) return r.view; }

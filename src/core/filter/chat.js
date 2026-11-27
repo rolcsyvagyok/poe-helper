@@ -37,7 +37,12 @@ function read(text) {
   if ((m = /^(?:where is|where are|find|which tier is|which tier are)\s+(.+?)(?:\s+in)?$/i.exec(t))) return { kind: 'where', items: m[1] };
   // just answers: is it shown, how does it look
   if ((m = /^(?:is|are|do i see|will i see|can i see)\s+(.+?)\s*(?:visible|shown|hidden|showing)?$/i.exec(t)) && !/^(?:it|that)$/i.test(m[1])) return { kind: 'visible', ...where(m[1]) };
-  if ((m = /^(?:how (?:does|do|will)|what (?:does|do))\s+(.+?)\s+look(?:\s+like)?$/i.exec(t)) || (m = /^(?:show me how|preview|look of|show me the look of|show the look of)\s+(.+?)(?:\s+looks?)?$/i.exec(t))) return { kind: 'look', ...where(m[1]) };
+  // "how does chaos orb look(s)", "how chaos looks", "what does X look like", "show me X", "preview X", "chaos orb look?"
+  if ((m = /^(?:how\s+(?:does|do|will|did|is|are)?\s*|what\s+(?:does|do|is|are)\s+)(.+?)\s+(?:looks?|looking)(?:\s+like)?(?:\s+(?:now|in game|ingame|in the filter))?$/i.exec(t))
+    || (m = /^(?:show me how|show how|preview|look of|show me the look of|show the look of|show me|let me see|what is the look of|whats the look of)\s+(.+?)(?:\s+looks?(?:\s+like)?)?$/i.exec(t))
+    || (m = /^(.+?)\s+looks?$/i.exec(t))) {
+    if (!/^(a|an|the)?\s*(new|own)\b/i.test(m[1])) return { kind: 'look', ...where(m[1].replace(/^(?:the\s+)?(?:look|looks)\s+of\s+/i, '')) };
+  }
   // an empty new tier: "make a new tier called Decks in Currency"
   if ((m = /^(?:make|add|create)\s+(?:a\s+)?new\s+(?:tier|group)\s+(?:called|named)\s+["']?(.+?)["']?\s+in\s+(?:the\s+)?(.+?)(?:\s+category)?$/i.exec(t))) return { kind: 'emptyTier', name: m[1], type: m[2] };
   if ((m = /^(?:make|add|create)\s+(?:a\s+)?new\s+(?:tier|group)\s+in\s+(?:the\s+)?(.+?)(?:\s+category)?\s+(?:called|named)\s+["']?(.+?)["']?$/i.exec(t))) return { kind: 'emptyTier', name: m[2], type: m[1] };
@@ -212,8 +217,15 @@ const TYPE_ALIASES = { cards: 'divination', 'div cards': 'divination', 'divinati
 
 // the words the chat knows, to fix typos in a message before reading it ("seprate", "visable", "currancy")
 const COMMAND_WORDS = 'separate split give make move put send hide show unhide visible shown hidden where which tier tiers category categories group new own called named into from every except other rename stack size font text border background colour color beam icon sound remove look looks like bigger smaller turn off enable disable undo help items item only want never always shows thread threads currency fragments divination cards uniques stacks small big'.split(' ');
+// everyday English, never "fixed" into an item word ("does" isn't "dose", "work" isn't "fork")
+const PLAIN_WORDS = ('what when where which while with without would could should does doing done have having make made this that these those them they their there then than they\'re '
+  + 'your yours mine just only also very much more most less some many each every other others same into onto from about above below over under after before again still even want wants '
+  + 'need needs like likes look looks looking show shows seen work works working does dont doesnt isnt arent cant wont please thanks thank stand stands out keep kept give gave take took '
+  + 'tell know think maybe sure good nice better best worse worst really pretty quite rather item items thing things stuff something anything everything nothing kind type types sort '
+  + 'next first last time times visible hidden shown same color colour colors colours drop drops dropped loot filter filters game ingame page settings change changes changed help').split(' ');
+const CMD = new Set(COMMAND_WORDS);
 function fixTypos(text, view) {
-  const vocab = new Set([...COMMAND_WORDS, ...Object.keys(RGB).flatMap((k) => k.split(' ')), ...SHAPES.map((x) => x.toLowerCase()), ...Object.keys(ALIASES).flatMap((k) => k.split(' '))]);
+  const vocab = new Set([...COMMAND_WORDS, ...PLAIN_WORDS, ...Object.keys(RGB).flatMap((k) => k.split(' ')), ...SHAPES.map((x) => x.toLowerCase()), ...Object.keys(ALIASES).flatMap((k) => k.split(' '))]);
   for (const t of view?.types || []) {
     for (const w of norm(t.label || t.type).split(' ')) vocab.add(w);
     for (const x of tiersOf(t)) for (const b of x.bases || []) for (const w of norm(b).split(' ')) vocab.add(w);
@@ -229,8 +241,9 @@ function fixTypos(text, view) {
       const d = dist(v, w);
       // on a tie the word with the same first letter wins ("visable": visible, not disable)
       if (d < bestD) { best = v; bestD = d; tie = false; } else if (d === bestD && best && v !== best) {
-        const a = best[0] === w[0], b = v[0] === w[0];
-        if (b && !a) { best = v; tie = false; } else if (a === b) tie = true;
+        // then a chat word over an everyday one ("teir": tier, not their)
+        const score = (x) => (x[0] === w[0] ? 2 : 0) + (CMD.has(x) ? 1 : 0);
+        if (score(v) > score(best)) { best = v; tie = false; } else if (score(v) === score(best)) tie = true;
       }
     }
     return best && !tie ? best : tok;
@@ -450,7 +463,7 @@ function resolve(ask, view, { uniques = null, newTiers = [] } = {}) {
         return `${b.name}: ${any ? 'shown' : 'hidden'}${mine.length > 1 || !any ? '\n' + mine.map((r) => `  ${r.shown ? '+ shown' : r.state === 'Off' ? '− off' : '− hidden'}: ${r.where}`).join('\n') : ` (${mine[0].where})`}`;
       })].join('\n') };
     }
-    return { reply: [...pre, `How ${found.map((b) => b.name).join(', ')} ${found.length === 1 ? 'looks' : 'look'} now:`].join('\n'), looks: rows };
+    return { reply: [...pre, `How ${found.map((b) => b.name).join(', ')} ${found.length === 1 ? 'looks' : 'look'} now, everywhere it's tiered (single drops and stacks):`].join('\n'), looks: rows };
   }
   if (['newTier', 'move', 'hide', 'unhide'].includes(ask.kind)) {
     const { found, missing, viaUnique } = findBases(view, ask.items, uniques);

@@ -874,3 +874,22 @@ test('first start with setups per filter: a setup made on the strictness filter 
   svc.switchFilterProfile('Endgame.filter', 'Starter.filter');
   assert.deepEqual(svc.settings.get('tierPatch').moves, { 'currency\tChaos Orb': 't1' });
 });
+
+test('a new filter gets its own Giga and Big belts tiers', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-giga-'));
+  const fdir = path.join(dir, 'filters'); fs.mkdirSync(fdir);
+  const F2 = (name) => `Show # $type->currency $tier->t1exalted\n  BaseType == "Divine Orb" "Mirror of Kalandra"\n  SetFontSize 45\n\nShow # $type->uniques $tier->t1\n  Rarity Unique\n  BaseType == "Heavy Belt" "Leather Belt" "Vaal Regalia"\n  SetFontSize 45\n\nShow # $type->uniques $tier->t2\n  Rarity Unique\n  BaseType == "Glorious Plate"\n  SetFontSize 40\n# ${name}\n`;
+  fs.writeFileSync(path.join(fdir, 'A.filter'), F2('A'));
+  fs.writeFileSync(path.join(fdir, 'B.filter'), F2('B'));
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: () => {} });
+  svc.settings.set('filterDir', fdir);
+  svc.settings.set('baseFilter', 'A.filter');
+  svc.tierViewNow(); svc.tierViewNow();
+  const names = () => ((svc.settings.get('tierPatch') || {}).newTiers || []).map((x) => x.name).sort();
+  assert.ok(names().includes('Big belts'));
+  assert.ok(names().includes('Giga'));
+  svc.switchFilterProfile('A.filter', 'B.filter'); svc.settings.set('baseFilter', 'B.filter');
+  assert.deepEqual(names(), []);
+  svc.tierViewNow(); svc.tierViewNow();
+  assert.deepEqual(names(), ['Big belts', 'Giga'], 'made for B too');
+});
