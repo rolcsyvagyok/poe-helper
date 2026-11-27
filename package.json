@@ -1,13 +1,13 @@
 {
   "name": "poe-helper",
   "productName": "PoE Helper",
-  "version": "1.0.177",
+  "version": "1.0.178",
   "description": "Path of Exile helper: price check overlay, net worth tracking, local loot filter overrides. Built to make as few API calls as possible.",
   "main": "src/main/main.js",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/craft-cluster.test.js test/atlas-shot.test.js test/chat-macros.test.js test/core.test.js test/main-logic.test.js test/tiers.test.js test/hotkeys.test.js test/lab.test.js test/regex.test.js test/beasts.test.js test/items.test.js test/gems.test.js test/pob.test.js test/where.test.js test/pob-trade.test.js test/pob-code.test.js test/trade-watch.test.js test/price-filters.test.js test/designer.test.js test/strictness.test.js test/rate-limiter.test.js test/cluster-auto.test.js test/talismans.test.js test/crafting.test.js test/networth-more.test.js test/blight-maps.test.js test/craft-sim.test.js test/designer-samples.test.js test/networth-compare.test.js test/pob-engine.test.js test/exchange-price.test.js test/filter-version.test.js test/atlas.test.js test/client-log.test.js test/report.test.js",
+    "test": "node --test test/filter-chat.test.js test/craft-cluster.test.js test/atlas-shot.test.js test/chat-macros.test.js test/core.test.js test/main-logic.test.js test/tiers.test.js test/hotkeys.test.js test/lab.test.js test/regex.test.js test/beasts.test.js test/items.test.js test/gems.test.js test/pob.test.js test/where.test.js test/pob-trade.test.js test/pob-code.test.js test/trade-watch.test.js test/price-filters.test.js test/designer.test.js test/strictness.test.js test/rate-limiter.test.js test/cluster-auto.test.js test/talismans.test.js test/crafting.test.js test/networth-more.test.js test/blight-maps.test.js test/craft-sim.test.js test/designer-samples.test.js test/networth-compare.test.js test/pob-engine.test.js test/exchange-price.test.js test/filter-version.test.js test/atlas.test.js test/client-log.test.js test/report.test.js",
     "dist": "node scripts/release-notes.js && electron-builder --win --publish never",
     "dist:dir": "node scripts/release-notes.js && electron-builder --win --dir",
     "dist:linux": "electron-builder --linux AppImage",

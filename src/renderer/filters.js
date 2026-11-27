@@ -199,6 +199,7 @@ async function renderFiltersNow() {
       info.missing ? '' : !info.files.length ? 'No filters found. Download your filter from FilterBlade into the folder set in Settings, Loot filter file.'
         : !info.base ? 'Pick the filter you downloaded from FilterBlade.'
           : info.lastWrite ? `Your version is "${helperName}", saved ${ago(Date.now() - info.lastWrite.at)}. Select it in game once.` : `Changes are saved to "${helperName}". Select it in game once.`),
+    info.base ? h('button', { class: 'quiet sm', 'aria-expanded': FC.open ? 'true' : 'false', title: 'Tell the app what to change: "Separate Stacked Decks into a new tier"', onclick: () => toggleChat() }, 'Chat') : null,
     h('button', { class: 'quiet sm', title: 'Copy a loot filter file (a friend\'s, a download, any .filter) into your filter folder and use it here', onclick: () => importFilterFile(() => { FB.type = null; renderFilters(); }) }, 'Import a filter file'),
     h('span', { class: 'spacer' }),
     view?.types?.length ? h('button', { class: 'primary sm', disabled: FB.applyingAll, title: 'Check poe.ninja for every priced category and move every item to the tier its price fits now', onclick: () => applyAllPrices() }, FB.applyingAll ? 'Applying…' : 'Apply all price changes') : null,
@@ -3061,7 +3062,6 @@ window.showInFilter = (g) => {
   if (/^jewels->cluster/.test(g.type || '')) { FB.goto = null; FB.type = CLUSTER_GRID; FB.cjFocus = null; return; }
   FB.goto = { type: g.type, key: g.key || `${g.type}|${g.tier}`, base: g.base };
 };
-})();
 
 
 // a loot filter file from anywhere: copied into the filter folder and picked
@@ -3074,3 +3074,53 @@ async function importFilterFile(done) {
   } catch { /* toast */ }
 }
 window.importFilterFile = importFilterFile;
+
+// ---------- Chat: tell the app what to change ----------
+// Set phrases always work; with Claude Code installed (your own Claude subscription) anything you type does.
+const FC = { open: false, log: [], busy: false, state: null, el: null };
+async function toggleChat(force) {
+  FC.open = force ?? !FC.open;
+  if (FC.open && !FC.state) FC.state = await call('filter:chatState').catch(() => ({ claude: false, on: false }));
+  drawChat();
+}
+function drawChat() {
+  if (!FC.el) { FC.el = h('div', { class: 'fchat', role: 'dialog', 'aria-label': 'Loot filter chat' }); document.body.append(FC.el); }
+  FC.el.hidden = !FC.open;
+  if (!FC.open) return;
+  const st = FC.state || {};
+  const input = h('textarea', { rows: 2, placeholder: st.claude && st.on ? 'Separate Stacked Decks into a new tier…' : 'e.g. Separate Stacked Decks into a new tier', 'aria-label': 'What to change',
+    onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } } });
+  const send = async () => {
+    const text = input.value.trim();
+    if (!text || FC.busy) return;
+    FC.log.push({ me: true, text });
+    FC.busy = true; drawChat();
+    try {
+      const r = await call('filter:chat', text);
+      FC.log.push({ text: r.reply, via: r.via, looks: r.looks || null });
+      if (r.changed) { FB.type = FB.type || null; renderFilters(); }
+    } catch (e) { FC.log.push({ text: e.message || 'That didn\'t work.' }); }
+    FC.busy = false; drawChat();
+    setTimeout(() => FC.el.querySelector('textarea')?.focus(), 0);
+  };
+  const list = h('div', { class: 'fchat-log', 'aria-live': 'polite' },
+    FC.log.length ? FC.log.map((m) => h('div', { class: 'fchat-msg' + (m.me ? ' me' : '') }, m.text,
+      // how it drops: the label as in game, each place it's tiered (single and stacks)
+      m.looks?.length ? h('div', { class: 'fchat-looks' }, m.looks.slice(0, 12).map((l) => h('div', { class: 'fchat-look' },
+        dropLabel(l.base, l.style || {}, { rarity: rarityFor(l.type), game: true, scale: 0.8, hidden: !l.shown }),
+        h('span', { class: 'small muted' }, `${l.shown ? '' : '− hidden · '}${l.where}`)))) : null)) :
+      h('div', { class: 'fchat-msg' }, 'Tell me what to change in this filter. Type "help" for what I know.'),
+    FC.busy ? h('div', { class: 'fchat-msg faint' }, st.claude && st.on ? 'Asking Claude…' : 'Working…') : null);
+  mount(FC.el,
+    h('div', { class: 'fchat-head' }, h('b', {}, 'Filter chat'),
+      h('span', { class: 'small muted', title: st.claude ? 'Free text goes to Claude Code on this PC, signed in with your own Claude subscription. Set phrases run without it.' : 'Install Claude Code and sign in with your Claude subscription to type anything; set phrases work without it.' },
+        st.claude ? (st.on ? 'Using your Claude' : 'Claude off') : 'Set phrases only'),
+      st.claude ? h('button', { class: 'quiet sm', onclick: async () => { await call('settings:set', { chatAi: !st.on }); FC.state = await call('filter:chatState'); drawChat(); } }, st.on ? 'Turn Claude off' : 'Use Claude') : null,
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'quiet sm', 'aria-label': 'Close the chat', onclick: () => toggleChat(false) }, '×')),
+    list,
+    h('div', { class: 'fchat-in' }, input, h('button', { class: 'primary sm', disabled: FC.busy, onclick: send }, 'Send')));
+  list.scrollTop = list.scrollHeight;
+  if (!FC.busy) setTimeout(() => FC.el.querySelector('textarea')?.focus(), 0);
+}
+})();

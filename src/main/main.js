@@ -1114,6 +1114,8 @@ function registerIpc() {
   handle('update:check', () => updater?.check());
   handle('update:install', () => { quitting = true; return updater?.install() || false; });
   handle('tiers:add', (a) => services.addTier(a || {}));
+  handle('filter:chat', (text) => services.filterChat(String(text || '').slice(0, 1000)));
+  handle('filter:chatState', () => services.chatState());
   handle('tiers:cond', ({ key, field, value } = {}) => services.setTierCondition(String(key), String(field), value ?? null));
   handle('tiers:stack', ({ key, size }) => services.setStackSize(String(key), size == null || size === '' ? null : Number(size)));
   handle('bases:list', () => services.myBases());

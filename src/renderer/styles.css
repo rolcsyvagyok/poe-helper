@@ -2309,3 +2309,15 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .cx-homeq { max-width: 420px; }
 .cx-homegroups { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .cx-homebases { max-height: none; }
+
+/* Loot filter chat */
+.fchat { position: fixed; right: 18px; bottom: 18px; width: min(440px, calc(100vw - 36px)); max-height: min(560px, calc(100vh - 80px)); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--surface, #15161a); border: 1px solid var(--line, #2c2e36); border-radius: var(--r-panel, 12px); box-shadow: 0 12px 40px rgba(0,0,0,.5); z-index: 60; }
+.fchat[hidden] { display: none; }
+.fchat-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line, #2c2e36); }
+.fchat-log { overflow: auto; padding: 10px 12px; display: grid; gap: 8px; align-content: start; min-height: 120px; }
+.fchat-msg { white-space: pre-wrap; font-size: 13px; line-height: 1.45; background: rgba(255,255,255,.04); border-radius: 8px; padding: 8px 10px; justify-self: start; max-width: 92%; }
+.fchat-msg.me { justify-self: end; background: rgba(90,150,255,.16); }
+.fchat-in { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line, #2c2e36); align-items: flex-end; }
+.fchat-in textarea { flex: 1; resize: none; font: inherit; min-height: 0; height: auto; }
+.fchat-looks { display: grid; gap: 8px; margin-top: 8px; }
+.fchat-look { display: grid; gap: 3px; justify-items: start; }

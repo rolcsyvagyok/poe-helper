@@ -138,6 +138,7 @@ const DEFAULT_SETTINGS = {
   filterDir: '',
   baseFilter: '',
   overrides: [],
+  chatAi: true, // Loot filter chat: use Claude Code (your own subscription) for free text when it's installed
   economy: { enabled: false, thresholds: { top: 100, high: 20, mid: 5, hideDivBelow: 0, sounds: { top: 'divine-tink', high: 'chime', mid: 'soft-bell', multi: 'coin' } } },
   autoWatchFilter: true,
   tierPatch: { moves: {}, styles: {}, actions: {} },
@@ -1456,6 +1457,169 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const [patch, tier] = tiers.withNewTier(settings.get('tierPatch') || {}, { type, name: String(name || '').trim() || 'My tier', copyFrom: src.tier, before: before || src.tier });
     return { ...savePatch(patch), tier };
   }
+  // ---------- Loot filter chat ----------
+  // Set phrases run here (core/filter/chat.js). With Claude Code installed and signed in, your own Claude
+  // subscription turns free text into those phrases first; it only ever writes phrases, which run here.
+  const chatUndo = [];
+  const normName = (s) => String(s).toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  async function uniqueBaseMap() {
+    try {
+      const m = new Map();
+      for (const [base, list] of await uniquesByBase()) for (const u of list) m.set(normName(u.name), base);
+      return m;
+    } catch { return null; }
+  }
+  // one phrase: { reply, what? } (what = a change was made)
+  async function chatOne(text, uniques) {
+    const chat = require('../core/filter/chat');
+    const r = chat.resolve(chat.read(text), tierViewNow(), { uniques, newTiers: (settings.get('tierPatch') || {}).newTiers || [] });
+    if (r.reply) return { reply: r.reply, looks: r.looks || null };
+    if (r.op === 'undo') {
+      if (!chatUndo.length) return { reply: 'Nothing to undo from the chat.' };
+      const prev = chatUndo.pop();
+      if (prev.always) settings.set('alwaysShow', prev.always);
+      savePatch(prev.patch);
+      return { reply: `Undone: ${prev.what}`, undone: true };
+    }
+    let what;
+    if (r.op === 'newTier') {
+      const made = addTier({ type: r.type, name: r.name, copyFrom: r.copyFrom, before: r.copyFrom });
+      if (r.bases.length) moveBases(r.type, r.bases, made.tier);
+      what = r.bases.length ? `new tier "${r.name}" in ${r.typeLabel} with ${r.bases.join(', ')} (it has the look of the tier they were in)` : `new tier "${r.name}" in ${r.typeLabel}`;
+    } else if (r.op === 'move') {
+      moveBases(r.type, r.bases, r.to);
+      what = `${r.bases.join(', ')} ${r.to === '__hide__' ? 'hidden' : `moved to ${r.toLabel}`} in ${r.typeLabel}`;
+    } else if (r.op === 'style') {
+      setTierStyle(r.key, r.style);
+      what = `${r.label} has ${r.words} (every item in that tier)`;
+    } else if (r.op === 'styleNew') {
+      const made = addTier({ type: r.type, name: r.name, copyFrom: r.copyFrom, before: r.copyFrom });
+      moveBases(r.type, r.bases, made.tier);
+      setTierStyle(`${r.type}|${made.tier}`, r.style);
+      what = `${r.bases.join(', ')} ${r.bases.length === 1 ? 'has' : 'have'} ${r.words}: in a new tier "${r.name}" in ${r.typeLabel}, so the rest of the tier keeps its look`;
+    } else if (r.op === 'hideAll') {
+      moveMany(r.moves.map((m) => ({ type: m.type, bases: m.bases, to: '__hide__' })));
+      what = `${r.bases.join(', ')} hidden in ${r.moves.map((m) => m.label).join(', ')}`;
+    } else if (r.op === 'unmove') {
+      let p = settings.get('tierPatch') || {};
+      for (const b of r.bases) {
+        if (r.type) p = tiers.withoutMove(p, r.type, b);
+        else for (const [k, to] of Object.entries(p.moves || {})) { const [ty, base] = k.split('\t'); if (base === b && to === '__hide__') p = tiers.withoutMove(p, ty, b); }
+      }
+      savePatch(p);
+      // still hidden by the filter itself: shown in the lowest shown tier (like "Always show")
+      const view = tierViewNow();
+      const shownNow = [];
+      for (const t of view?.types || []) {
+        if (r.type && t.type !== r.type) continue;
+        if (/stacked|leveling/.test(t.type) && !r.type) continue;
+        const hid = r.bases.filter((b) => t.tiers.some((x) => x.bases?.includes(b)) && !t.tiers.some((x) => x.bases?.includes(b) && x.action !== 'Hide' && !x.off));
+        if (hid.length) { setAlwaysShow(t.type, hid, true); shownNow.push(`${hid.join(', ')} in ${t.label || t.type}`); }
+      }
+      what = `${r.bases.join(', ')} shown again in ${r.typeLabel}${shownNow.length ? ` (the filter itself hid ${shownNow.join('; ')}: now always shown)` : ''}`;
+    } else if (r.op === 'action') {
+      setTierAction(r.key, r.action);
+      what = `${r.label} ${r.action === 'Off' ? 'turned off' : r.action === 'Hide' ? 'hidden' : 'shown'}`;
+    } else if (r.op === 'stack') {
+      setStackSize(r.key, r.size);
+      what = `${r.label} at stacks of ${r.size} or more`;
+    } else if (r.op === 'rename') {
+      renameTier({ type: r.type, tier: r.tier, name: r.name });
+      what = `${r.label} renamed to "${r.name}"`;
+    }
+    return { reply: `Done: ${what}.${r.note || ''}`, what };
+  }
+  // several phrases, one Undo for all of them
+  async function chatRun(lines, uniques) {
+    const before = structuredClone(settings.get('tierPatch') || {});
+    const replies = [], whats = [], looks = [];
+    const alwaysBefore = structuredClone(settings.get('alwaysShow') || {});
+    for (const l of lines) {
+      try { const r = await chatOne(l, uniques); replies.push(r.reply); if (r.what) whats.push(r.what); if (r.looks) looks.push(...r.looks); } catch (e) { replies.push(`"${l}": ${e.message}`); }
+    }
+    if (whats.length) { chatUndo.push({ patch: before, always: alwaysBefore, what: whats.join('; ') }); if (chatUndo.length > 30) chatUndo.shift(); }
+    return { reply: replies.join('\n'), looks, changed: whats.length > 0 || replies.some((x) => /^Undone/.test(x)) };
+  }
+
+  // Claude Code on this PC (signed in with your subscription): found once, then remembered for the session
+  let claudeCli;
+  function findClaude() {
+    if (claudeCli !== undefined) return claudeCli;
+    claudeCli = null;
+    try {
+      const { execFileSync } = require('child_process');
+      const os = require('os');
+      const tries = process.platform === 'win32'
+        ? [path.join(os.homedir(), '.local', 'bin', 'claude.exe'), path.join(process.env.APPDATA || '', 'npm', 'claude.cmd')]
+        : [path.join(os.homedir(), '.local', 'bin', 'claude'), '/usr/local/bin/claude', '/opt/homebrew/bin/claude'];
+      try {
+        const out = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['claude'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+        tries.unshift(...out.split(/\r?\n/).map((x) => x.trim()).filter(Boolean));
+      } catch { /* not on PATH */ }
+      claudeCli = tries.find((f) => { try { return fs.statSync(f).isFile(); } catch { return false; } }) || null;
+    } catch { claudeCli = null; }
+    return claudeCli;
+  }
+  function askClaude(system, user) {
+    const exe = findClaude();
+    if (!exe) return Promise.reject(new Error('Claude Code isn\'t installed on this PC.'));
+    const os = require('os');
+    const { spawn } = require('child_process');
+    const sysFile = path.join(os.tmpdir(), `poehelper-chat-${process.pid}.txt`);
+    fs.writeFileSync(sysFile, system, 'utf8');
+    // no tools at all: it only answers with text; the request goes in on stdin
+    const args = ['-p', '--output-format', 'text', '--no-session-persistence', '--max-turns', '1', '--tools', '', '--disallowedTools', 'mcp__*', '--system-prompt-file', sysFile];
+    const isCmd = /\.(cmd|bat)$/i.test(exe);
+    const q = (a) => (a === '' ? '""' : /[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a);
+    return new Promise((resolve, reject) => {
+      const child = isCmd ? spawn(`"${exe}" ${args.map(q).join(' ')}`, { shell: true, windowsHide: true }) : spawn(exe, args, { windowsHide: true });
+      let out = '', err = '';
+      const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } reject(new Error('Claude took too long (over 2 minutes).')); }, 120000);
+      child.stdout.on('data', (d) => { out += d; });
+      child.stderr.on('data', (d) => { err += d; });
+      child.on('error', (e) => { clearTimeout(timer); reject(e); });
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        try { fs.unlinkSync(sysFile); } catch { /* gone */ }
+        if (code === 0 && out.trim()) resolve(out.trim());
+        else reject(new Error((err || out).trim().split(/\r?\n/).slice(-2).join(' ').slice(0, 300) || `Claude stopped (code ${code}). Is it signed in? Run "claude" once in a terminal.`));
+      });
+      child.stdin.end(String(user));
+    });
+  }
+  function chatSystemPrompt(view) {
+    const chat = require('../core/filter/chat');
+    const cats = view.types.map((t) => `- ${t.label || t.type}: ${chat.tierLabels(t).join(' | ')}`).join('\n');
+    return [
+      'You turn a Path of Exile 1 player\'s request about their NeverSink loot filter into commands for the PoE Helper app.',
+      'Answer ONLY with commands, one per line, nothing else. Each line must be one of these forms:',
+      chat.HELP.split('\n').slice(1, -1).map((l) => l.replace(/^•\s*/, '')).join('\n'),
+      'Use exact in-game item names, singular (Stacked Deck, Orb of Alchemy, The Doctor). Uniques are tiered by their base: name the unique, the app finds its base.',
+      'Add "in <category>" when the item is in more than one category. Use tier names exactly as listed below.',
+      'Questions (is it shown, how does it look, where is it) are answered with those commands too.',
+      'You can only change this loot filter with these commands; you can\'t change the app itself. If the request can\'t be done with them or is unclear, answer with one line: SAY: <a short plain-English reply or question>.',
+      'Categories and their tiers in this filter:',
+      cats,
+    ].join('\n');
+  }
+  async function filterChat(text, { ai = true } = {}) {
+    const chat = require('../core/filter/chat');
+    const view = tierViewNow();
+    if (!view) return { reply: 'Choose your filter first (the box at the top of the Loot filter page).', changed: false };
+    const uniques = await uniqueBaseMap();
+    const ask = chat.read(text);
+    // a set phrase runs as it is; anything else goes to Claude when it's there
+    const useAi = ai && settings.get('chatAi') !== false && ask.kind === 'unknown' && findClaude();
+    if (!useAi) return { ...(await chatRun([text], uniques)), via: 'phrases' };
+    let answer;
+    try { answer = await askClaude(chatSystemPrompt(view), text); } catch (e) { return { reply: `Claude: ${e.message}\n\n${chat.HELP}`, changed: false, via: 'claude' }; }
+    const lines = answer.split(/\r?\n/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').replace(/^`+|`+$/g, '').trim()).filter(Boolean).slice(0, 25);
+    const say = lines.filter((l) => /^SAY:/i.test(l)).map((l) => l.replace(/^SAY:\s*/i, ''));
+    const cmds = lines.filter((l) => !/^SAY:/i.test(l) && chat.read(l).kind !== 'unknown' && chat.read(l).kind !== 'help');
+    const r = cmds.length ? await chatRun(cmds, uniques) : { reply: '', changed: false };
+    return { reply: [...say, cmds.length ? `I ran: ${cmds.join(' · ')}` : '', r.reply].filter(Boolean).join('\n') || 'Claude had no change for that.', looks: r.looks, changed: r.changed, via: 'claude' };
+  }
+  const chatState = () => ({ claude: !!findClaude(), on: settings.get('chatAi') !== false });
   function removeTier({ type, tier }) {
     // deleting a default tier yourself keeps it deleted; a reset brings it back
     const nt = ((settings.get('tierPatch') || {}).newTiers || []).find((x) => x.type === type && x.tier === tier);
@@ -3380,7 +3544,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return file;
   }
 
-  return { importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { filterChat, chatState, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

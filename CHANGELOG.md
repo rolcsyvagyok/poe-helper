@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.178 - 2026-11-27
+
+* [Loot filter] Filter chat: press "Chat" and tell the app what to change, like "Separate Stacked Decks into a new tier", "Hide Scroll of Wisdom", "Make Stacked Deck red" or "Is Stacked Deck visible?". Type "help" for the list.
+* [Loot filter] With Claude Code installed and signed in, the chat uses your own Claude subscription, so you can write anything. It can only change your filter, never the app.
+- Filter chat: new tiers (with items or empty), moving and hiding items everywhere they're tiered (stacks too), showing items the filter hid, whole tiers (hide, show, off, stack size, rename), looks (colours, beam, map icon, sound, text size, copy a look), "how does it look" with the drop labels, and Undo.
+
 ## 1.0.177 - 2026-11-27
 
 * [Loot filter] "Import a filter file": copy any loot filter (a friend's, a download, an online filter's file) into your filter folder and use it here.
