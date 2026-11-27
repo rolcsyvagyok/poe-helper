@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.179 - 2026-11-27
+
+* [Loot filter] Filter chat: "Separate Legion Thread, Bestiary Thread and Abyss Thread" gives each its own tier, and small typos in item names are understood.
+* [Settings] Filter chat and Claude: see if Claude Code is found on this PC, check again after installing it, and test that it answers.
+- Filter chat: a message it doesn't understand gets a short reply with examples instead of the whole list.
+
 ## 1.0.178 - 2026-11-27
 
 * [Loot filter] Filter chat: press "Chat" and tell the app what to change, like "Separate Stacked Decks into a new tier", "Hide Scroll of Wisdom", "Make Stacked Deck red" or "Is Stacked Deck visible?". Type "help" for the list.

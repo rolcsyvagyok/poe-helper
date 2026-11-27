@@ -232,7 +232,7 @@ function lockNavigation(win) {
 function openExternal(url) {
   try {
     const u = new URL(url);
-    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com|pobb\.in|pob\.codes|poeprices\.info|poeatlasplanner\.com|maxroll\.gg)$/.test(u.hostname);
+    const ok = u.protocol === 'https:' && /(^|\.)(pathofexile\.com|poe\.ninja|github\.com|poewiki\.net|filterblade\.xyz|poelab\.com|pobb\.in|pob\.codes|poeprices\.info|poeatlasplanner\.com|maxroll\.gg|claude\.com)$/.test(u.hostname);
     if (ok) shell.openExternal(u.toString());
   } catch { /* ignore */ }
 }
@@ -1115,7 +1115,8 @@ function registerIpc() {
   handle('update:install', () => { quitting = true; return updater?.install() || false; });
   handle('tiers:add', (a) => services.addTier(a || {}));
   handle('filter:chat', (text) => services.filterChat(String(text || '').slice(0, 1000)));
-  handle('filter:chatState', () => services.chatState());
+  handle('filter:chatState', (a) => services.chatState(a || {}));
+  handle('filter:chatTest', () => services.chatTest());
   handle('tiers:cond', ({ key, field, value } = {}) => services.setTierCondition(String(key), String(field), value ?? null));
   handle('tiers:stack', ({ key, size }) => services.setStackSize(String(key), size == null || size === '' ? null : Number(size)));
   handle('bases:list', () => services.myBases());

@@ -1482,7 +1482,11 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       return { reply: `Undone: ${prev.what}`, undone: true };
     }
     let what;
-    if (r.op === 'newTier') {
+    if (r.op === 'many') {
+      const done = [];
+      for (const x of r.list) { const made = addTier({ type: x.type, name: x.name, copyFrom: x.copyFrom, before: x.copyFrom }); moveBases(x.type, x.bases, made.tier); done.push(`"${x.name}"`); }
+      what = `${done.length} new tiers in ${r.list[0].typeLabel}, one each: ${done.join(', ')} (each has the look of the tier it was in)`;
+    } else if (r.op === 'newTier') {
       const made = addTier({ type: r.type, name: r.name, copyFrom: r.copyFrom, before: r.copyFrom });
       if (r.bases.length) moveBases(r.type, r.bases, made.tier);
       what = r.bases.length ? `new tier "${r.name}" in ${r.typeLabel} with ${r.bases.join(', ')} (it has the look of the tier they were in)` : `new tier "${r.name}" in ${r.typeLabel}`;
@@ -1610,7 +1614,11 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const ask = chat.read(text);
     // a set phrase runs as it is; anything else goes to Claude when it's there
     const useAi = ai && settings.get('chatAi') !== false && ask.kind === 'unknown' && findClaude();
-    if (!useAi) return { ...(await chatRun([text], uniques)), via: 'phrases' };
+    if (!useAi) {
+      const r = await chatRun([text], uniques);
+      if (ask.kind === 'unknown' && !findClaude()) r.reply += '\nWith Claude Code installed and signed in (your Claude subscription), I\'d understand any wording.';
+      return { ...r, via: 'phrases' };
+    }
     let answer;
     try { answer = await askClaude(chatSystemPrompt(view), text); } catch (e) { return { reply: `Claude: ${e.message}\n\n${chat.HELP}`, changed: false, via: 'claude' }; }
     const lines = answer.split(/\r?\n/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').replace(/^`+|`+$/g, '').trim()).filter(Boolean).slice(0, 25);
@@ -1619,7 +1627,29 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const r = cmds.length ? await chatRun(cmds, uniques) : { reply: '', changed: false };
     return { reply: [...say, cmds.length ? `I ran: ${cmds.join(' · ')}` : '', r.reply].filter(Boolean).join('\n') || 'Claude had no change for that.', looks: r.looks, changed: r.changed, via: 'claude' };
   }
-  const chatState = () => ({ claude: !!findClaude(), on: settings.get('chatAi') !== false });
+  // Settings → Filter chat: is Claude Code here (and which version); recheck after installing it
+  function claudeVersion(exe) {
+    try {
+      const { execFileSync, execSync } = require('child_process');
+      const out = /\.(cmd|bat)$/i.test(exe) ? execSync(`"${exe}" --version`, { encoding: 'utf8', timeout: 15000, windowsHide: true }) : execFileSync(exe, ['--version'], { encoding: 'utf8', timeout: 15000, windowsHide: true });
+      return String(out).trim().split(/\r?\n/)[0].slice(0, 80) || null;
+    } catch { return null; }
+  }
+  let claudeVer = null;
+  function chatState({ recheck = false } = {}) {
+    if (recheck) { claudeCli = undefined; claudeVer = null; }
+    const exe = findClaude();
+    if (exe && !claudeVer) claudeVer = claudeVersion(exe);
+    return { claude: !!exe, path: exe || null, version: claudeVer, on: settings.get('chatAi') !== false };
+  }
+  // a tiny question to see that it answers (signed in); uses a little of your subscription
+  async function chatTest() {
+    const t = Date.now();
+    try {
+      const out = await askClaude('Answer with exactly: OK', 'Say OK');
+      return { ok: /ok/i.test(out), text: out.slice(0, 200), secs: Math.round((Date.now() - t) / 100) / 10 };
+    } catch (e) { return { ok: false, text: e.message }; }
+  }
   function removeTier({ type, tier }) {
     // deleting a default tier yourself keeps it deleted; a reset brings it back
     const nt = ((settings.get('tierPatch') || {}).newTiers || []).find((x) => x.type === type && x.tier === tier);
@@ -3544,7 +3574,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return file;
   }
 
-  return { filterChat, chatState, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { filterChat, chatState, chatTest, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

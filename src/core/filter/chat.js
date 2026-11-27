@@ -47,6 +47,11 @@ function read(text) {
     const [, name] = called(`x${m[2]}`);
     return { kind: 'newTier', ...where(m[1]), name: name || null };
   }
+  // "separate Legion Thread, Bestiary Thread and Abyss Thread": each one its own tier
+  if ((m = /^(?:separate|seperate|seprate|separte|split|split out|pull out|isolate)\s+(.+?)(?:\s+(?:out|apart|from the rest|from others|from the others))?$/i.exec(t)) && !/\s(?:into|to|as)\s/i.test(m[1])) {
+    const [what, name] = (() => { const c = /^(.*?)\s+(?:called|named)\s+["']?(.+?)["']?$/i.exec(m[1]); return c ? [c[1], c[2]] : [m[1], null]; })();
+    return { kind: 'newTier', ...where(what), name, each: !name };
+  }
   if ((m = /^give\s+(.+?)\s+(?:its|their|a)\s+own\s+(?:category|tier|group)(.*)$/i.exec(t))) {
     const [, name] = called(`x${m[2]}`);
     return { kind: 'newTier', ...where(m[1]), name };
@@ -166,6 +171,15 @@ function applyLook(style, change, likeStyle = null) {
 }
 const lookWords = (c) => c.likeItems ? `the look of ${c.likeItems}` : c.preset ? 'a new label colour' : c.part ? `${c.part} colour` : c.fontSize != null ? 'text size' : c.beam ? `a ${c.beam.toLowerCase()} beam` : c.icon ? `a ${c.icon.color.toLowerCase()} ${c.icon.shape.toLowerCase()} icon` : c.sound ? `sound ${c.sound.id}` : c.remove ? `no ${c.remove}` : 'a new look';
 
+// edit distance (typos in item names)
+function dist(a, b) {
+  const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = d[0]; d[0] = i;
+    for (let j = 1; j <= b.length; j++) { const tmp = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = tmp; }
+  }
+  return d[b.length];
+}
 const norm = (s) => String(s || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 // "Stacked Decks" -> "stacked deck", "Orbs of Alchemy" -> "orb of alchemy"
 const singulars = (s) => {
@@ -221,7 +235,19 @@ function findBases(view, text, uniques = null) {
   const idx = baseIndex(view);
   const parts = String(text).split(/\s*,\s*|\s+and\s+|\s*&\s*/i).map((s) => s.trim()).filter(Boolean);
   const found = [], missing = [], viaUnique = [];
-  const look = (p) => singulars(p).map((k) => idx.get(k)).find(Boolean);
+  // typos too ("Beastiery Thread" is Bestiary Thread): the one closest name, if it's close enough
+  const fuzzy = (p) => {
+    const n = norm(p);
+    if (n.length < 4) return null;
+    let best = null, bestD = Infinity, tie = false;
+    for (const [k, v] of idx) {
+      if (Math.abs(k.length - n.length) > 3) continue;
+      const d = dist(k, n);
+      if (d < bestD) { best = v; bestD = d; tie = false; } else if (d === bestD) tie = true;
+    }
+    return best && !tie && bestD <= Math.max(1, Math.floor(n.length / 6)) ? best : null;
+  };
+  const look = (p) => singulars(p).map((k) => idx.get(k)).find(Boolean) || fuzzy(p);
   for (const p of parts) {
     let hit = look(p) || look(p.replace(/^(all|the|every)\s+/i, ''));
     if (!hit && uniques) {
@@ -259,7 +285,7 @@ function resolve(ask, view, { uniques = null, newTiers = [] } = {}) {
     }) };
   }
   if (ask.kind === 'help') return { reply: HELP };
-  if (ask.kind === 'unknown') return { reply: `I didn't understand that. ${HELP}` };
+  if (ask.kind === 'unknown') return { reply: 'I didn\'t understand that. Try "Separate Stacked Deck", "Move Chaos Orb to tier 2", "Hide Scroll of Wisdom", "Make Stacked Deck red" or "Is Stacked Deck visible?". Type "help" for everything I know.' };
   if (ask.kind === 'undo') return { op: 'undo' };
   if (ask.kind === 'where') {
     const { found, missing, viaUnique } = findBases(view, ask.items, uniques);
@@ -349,6 +375,9 @@ function resolve(ask, view, { uniques = null, newTiers = [] } = {}) {
       + (pt.others?.length ? ` Also in ${pt.others.map(typeName).join(', ')}: add "in <category>" for those.` : '');
     const now = (b) => found.find((f) => f.name === b).at.find((a) => a.type.type === t.type)?.tier;
     if (pt.added?.length && ask.kind !== 'newTier' && ask.kind !== 'move') return { reply: `${pt.added.map((b) => b.name).join(', ')} ${pt.added.length === 1 ? 'isn\'t' : 'aren\'t'} in ${typeName(t)}.` };
+    if (ask.kind === 'newTier' && ask.each && bases.length > 1) {
+      return { op: 'many', list: bases.map((b) => { const from = now(b); return { op: 'newTier', type: t.type, typeLabel: typeName(t), bases: [b], name: b.slice(0, 40), copyFrom: !from || from.generated || /^poehelper-/.test(from.tier) ? null : from.tier }; }), note };
+    }
     if (ask.kind === 'newTier') {
       const from = bases.map(now).find((y) => y && !/^poehelper-/.test(y.tier)) || tiersOf(t).find((y) => y.hasBaseList && !y.special && !y.generated && !/^poehelper-/.test(y.tier));
       const name = (ask.name || (bases.length === 1 ? bases[0] : 'My tier')).slice(0, 40);

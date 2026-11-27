@@ -70,3 +70,11 @@ test('chat: looks', () => {
   assert.ok(!('beam' in run('remove the beam from divine orb').style));
   assert.match(run('give divine orb a mauve beam').reply, /don't know the colour/);
 });
+
+test('chat: "separate A, B and C" (typos too) makes a tier each', () => {
+  const r = run('seperate Chaos Orbs, Divne Orb and Stacked Deck');
+  assert.equal(r.op, 'many');
+  assert.deepEqual(r.list.map((x) => x.bases[0]), ['Chaos Orb', 'Divine Orb', 'Stacked Deck']);
+  assert.equal(run('separate chaos orb and stacked deck called Mine').op, 'newTier');
+  assert.equal(run('separate stacked deck').op, 'newTier');
+});

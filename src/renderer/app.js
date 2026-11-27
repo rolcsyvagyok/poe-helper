@@ -972,6 +972,30 @@ let ecoRules = null;
 
 /** The original filter sections, now shown inside tabs of the FilterBlade-style page (filters.js). */
 // The loot filter file: which FilterBlade filter, writing it, the folder (in Settings).
+// Settings → Filter chat: is Claude Code found, which version, does it answer
+function chatSetupBox() {
+  const box = h('div', { class: 'panel stack' });
+  let test = null, busy = false;
+  const draw = async (recheck = false) => {
+    const cs = await call('filter:chatState', { recheck }).catch(() => ({ claude: false }));
+    mount(box,
+      h('div', { class: 'row' },
+        h('span', { class: 'pill' + (cs.claude ? '' : ' bad') }, cs.claude ? '✓ Claude Code found' : '✕ Claude Code not found'),
+        h('span', { class: 'small muted' }, cs.claude ? `${cs.version || 'version unknown'} · ${cs.path}` : 'The chat uses set phrases only.'),
+        h('span', { class: 'spacer' }),
+        h('button', { class: 'quiet sm', onclick: () => draw(true) }, 'Check again'),
+        cs.claude ? h('button', { class: 'sm', disabled: busy, title: 'Asks Claude one tiny question to see it answers (uses a little of your subscription)',
+          onclick: async () => { busy = true; test = null; draw(); test = await call('filter:chatTest').catch((e) => ({ ok: false, text: e.message })); busy = false; draw(); } }, busy ? 'Testing…' : 'Test it') : null),
+      test ? h('div', { class: 'small' + (test.ok ? '' : ' bad') }, test.ok ? `✓ Claude answered in ${test.secs}s. The chat understands any wording.` : `✕ ${test.text}`) : null,
+      cs.claude ? toggle(cs.on, async (v) => { await call('settings:set', { chatAi: v }); draw(); }, 'Use Claude in the filter chat') :
+        h('div', { class: 'small muted' }, 'To use it: install Claude Code, open a terminal (PowerShell) and run ', h('code', {}, 'claude'), ' once to sign in with your Claude account (Pro or Max), then press Check again. ',
+          h('a', { href: 'https://code.claude.com/docs/en/setup', target: '_blank' }, 'How to install Claude Code')),
+      test && !test.ok && cs.claude ? h('div', { class: 'small muted' }, 'Not signed in? Open a terminal, run ', h('code', {}, 'claude'), ' and follow the sign-in, then Test again.') : null);
+  };
+  draw();
+  return box;
+}
+
 function filterFileBox(info, st, redraw) {
   const writeNow = async () => {
     try {
@@ -1491,6 +1515,7 @@ async function renderSettingsNow() {
         h('div', { class: 'row' }, h('button', { onclick: () => call('tray:hide') }, 'Hide to tray now'),
           h('span', { class: 'small muted' }, 'Closing the window also keeps PoE Helper running in the tray, so Alt+E keeps working. Click the tray icon to open it again; right-click it and choose Quit to close it for good.')))),
     section('Loot filter file', 'The FilterBlade filter PoE Helper builds on, and where your version of it is written.', filterFileBox(filterInfo, st, renderSettings)),
+    section('Filter chat and Claude', 'The Loot filter chat knows set phrases on its own. With Claude Code on this PC, signed in with your Claude subscription, it understands any wording. Claude only ever writes those phrases: it can change your filter, never the app.', chatSetupBox()),
     section('Share your loot filter settings', 'Everything you set up for the filter in PoE Helper (tiers and looks, base ranks, my bases, clusters, your rules, category prices, the tier designer, your own sounds) in one file. Someone else imports it and gets your setup; their account, league and filter file stay theirs.',
       h('div', { class: 'panel row', style: { gap: '10px' } },
         h('button', { class: 'primary', onclick: async () => { const p = await call('filterShare:export'); if (p) toast(`Saved to ${p.split(/[\\/]/).pop()}`); } }, 'Export…'),
