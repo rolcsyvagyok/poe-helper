@@ -5,6 +5,14 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.180 - 2026-11-27
+
+* [Loot filter] Filter chat is easier to find: a blue "Ask the filter chat" button and a round chat button in the corner.
+* [Loot filter] The chat knows nicknames (ex, divs, alch, alts, chrome, gcp, decks, small stacks…) and fixes typos ("seprate the beastiery thred") without Claude. "Hide every thread except Legion, Bestiary and Abyss" works too.
+* [Settings] Claude in the chat: buttons to install Claude Code and to sign in, with the steps shown, and whether you're signed in.
+- Filter chat: Claude remembers the last few messages and sees the filter's matching items, so "those three" and short names work; it's only asked when the set phrases can't do it.
+- Filter chat: "abyss, bestiary and legion thread" means all three Threads; a new tier for several items is named after them ("Threads").
+
 ## 1.0.179 - 2026-11-27
 
 * [Loot filter] Filter chat: "Separate Legion Thread, Bestiary Thread and Abyss Thread" gives each its own tier, and small typos in item names are understood.

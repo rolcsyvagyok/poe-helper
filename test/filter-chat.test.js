@@ -78,3 +78,32 @@ test('chat: "separate A, B and C" (typos too) makes a tier each', () => {
   assert.equal(run('separate chaos orb and stacked deck called Mine').op, 'newTier');
   assert.equal(run('separate stacked deck').op, 'newTier');
 });
+
+test('chat: "Abyss, Bestiary and Legion Thread" and "abyss bestiary and legion thread"', () => {
+  const V = { types: [{ type: 'fragments', label: 'Fragments', tiers: [tier('fragments', 't3', ['Abyss Thread', 'Bestiary Thread', 'Legion Thread', 'Blight Thread'])] }] };
+  for (const q of ['separate abyss, bestiary and legion thread into a new tier', 'seperate abyss bestiary and legion thread into a new category']) {
+    const r = C.resolve(C.read(q), V);
+    assert.deepEqual(r.bases, ['Abyss Thread', 'Bestiary Thread', 'Legion Thread'], q);
+    assert.equal(r.name, 'Threads');
+  }
+});
+
+test('chat: hide every Thread except some', () => {
+  const V = { types: [{ type: 'fragments', label: 'Fragments', tiers: [tier('fragments', 't3', ['Abyss Thread', 'Bestiary Thread', 'Legion Thread', 'Blight Thread', 'Ritual Thread', 'Frayed Thread', "Maven's Chisel of Threads"])] }] };
+  for (const q of ['hide every thread except Legion Thread, Beastiery Thread and Abyss Thread', 'make every other thread hidden but legion, bestiary and abyss', 'make every thread but beast legion and abyss hidden']) {
+    const r = C.resolve(C.read(q), V);
+    assert.equal(r.op, 'hideAll', q);
+    assert.deepEqual(r.bases.sort(), ['Blight Thread', 'Frayed Thread', 'Ritual Thread'], q);
+  }
+});
+
+test('chat: nicknames and typos before Claude', () => {
+  const V = { types: [{ type: 'currency', label: 'Currency', tiers: [tier('currency', 't1', ['Exalted Orb', 'Divine Orb']), tier('currency', 't5', ['Orb of Alchemy', 'Scroll of Wisdom'])] }] };
+  const go = (q) => C.resolve(C.read(C.fixTypos(q, V)), V);
+  assert.deepEqual(go('hide wisdoms').bases, ['Scroll of Wisdom']);
+  assert.deepEqual(go('move alch to tier 1').bases, ['Orb of Alchemy']);
+  assert.deepEqual(go('give divs a blue beam').style.beam, { color: 'Blue' });
+  assert.equal(C.fixTypos('hied the wisdom scrolls', V), 'hide the wisdom scrolls');
+  assert.equal(C.fixTypos('is it visable', V), 'is it visible');
+  assert.equal(C.fixTypos('make teir 1 in currancy red', V), 'make tier 1 in currency red');
+});

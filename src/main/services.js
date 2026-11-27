@@ -1585,11 +1585,33 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       child.on('close', (code) => {
         clearTimeout(timer);
         try { fs.unlinkSync(sysFile); } catch { /* gone */ }
+        if (code === 0 && out.trim()) { claudeSignedIn = true; resolve(out.trim()); return; }
+        if (/not logged in|\/login|authenticat|401/i.test(err + out)) claudeSignedIn = false;
         if (code === 0 && out.trim()) resolve(out.trim());
         else reject(new Error((err || out).trim().split(/\r?\n/).slice(-2).join(' ').slice(0, 300) || `Claude stopped (code ${code}). Is it signed in? Run "claude" once in a terminal.`));
       });
       child.stdin.end(String(user));
     });
+  }
+  // Claude gets the last few messages (it doesn't remember on its own) and the filter's items that match the
+  // words used ("thread" -> every Thread with its category and tier), so it can name them exactly
+  const chatHistory = [];
+  function chatUserPrompt(view, text) {
+    const chat = require('../core/filter/chat');
+    const words = [...new Set([text, ...chatHistory.slice(-3).map((h) => h.user)].join(' ').toLowerCase().replace(/[^a-z' ]+/g, ' ').split(/\s+/)
+      .filter((w) => w.length >= 4 && !/^(make|every|other|hide|hidden|show|shown|tier|tiers|them|they|that|this|with|want|from|into|item|items|separate|seperate|except|look|looks|like|what|which|where|visible|category|categories|please|thanks|filter|never|always|stack|stacks|stacked)$/.test(w)))];
+    const stems = words.map((w) => w.replace(/(ies|es|s)$/, '').slice(0, Math.max(4, w.length - 2)));
+    const rows = [];
+    for (const t of view.types) for (const x of (t.allTiers || t.tiers || [])) for (const b of x.bases || []) {
+      const n = b.toLowerCase();
+      if (stems.some((st) => n.includes(st))) rows.push(`${b} — ${t.label || t.type} › ${chat.tierLabels({ ...t, allTiers: [x] })[0] || x.tier}${x.state === 'Hide' ? ' (hidden)' : x.state === 'Off' ? ' (off)' : ''}`);
+    }
+    const hist = chatHistory.slice(-4).map((h) => `Player: ${h.user}\nApp: ${h.reply}`).join('\n');
+    return [
+      hist ? `Earlier in this chat:\n${hist}\n` : '',
+      rows.length ? `Items in this filter matching the words used (exact names, category › tier):\n${[...new Set(rows)].slice(0, 250).join('\n')}\n` : '',
+      `The player now says: ${text}`,
+    ].filter(Boolean).join('\n');
   }
   function chatSystemPrompt(view) {
     const chat = require('../core/filter/chat');
@@ -1598,9 +1620,11 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       'You turn a Path of Exile 1 player\'s request about their NeverSink loot filter into commands for the PoE Helper app.',
       'Answer ONLY with commands, one per line, nothing else. Each line must be one of these forms:',
       chat.HELP.split('\n').slice(1, -1).map((l) => l.replace(/^•\s*/, '')).join('\n'),
-      'Use exact in-game item names, singular (Stacked Deck, Orb of Alchemy, The Doctor). Uniques are tiered by their base: name the unique, the app finds its base.',
+      'Use exact in-game item names, singular (Stacked Deck, Orb of Alchemy, The Doctor), taken from the item list in the message when there is one. Uniques are tiered by their base: name the unique, the app finds its base.',
+      'Read the request generously: the player types fast and misspells ("beastiery" is Bestiary, "beast" can be Bestiary). "Hide every thread but X, Y" means one Hide line for each other item with Thread in its name. Prefer doing it over asking back; ask only when you really can\'t tell.',
       'Add "in <category>" when the item is in more than one category. Use tier names exactly as listed below.',
-      'Questions (is it shown, how does it look, where is it) are answered with those commands too.',
+      'Questions (is it shown, how does it look, where is it) are answered with those commands too. A question about what the chat can do gets a SAY: answer.',
+      'Stacked currency has its own categories ("Currency: Small stacks", "Currency: Big stacks"): add "in Small stacks" to work on stacks.',
       'You can only change this loot filter with these commands; you can\'t change the app itself. If the request can\'t be done with them or is unclear, answer with one line: SAY: <a short plain-English reply or question>.',
       'Categories and their tiers in this filter:',
       cats,
@@ -1611,21 +1635,39 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const view = tierViewNow();
     if (!view) return { reply: 'Choose your filter first (the box at the top of the Loot filter page).', changed: false };
     const uniques = await uniqueBaseMap();
+    // typos fixed first ("seprate the beastiery thred"), with the filter's own item words
+    const fixed = chat.fixTypos(text, view);
+    if (fixed !== text) text = fixed;
     const ask = chat.read(text);
     // a set phrase runs as it is; anything else goes to Claude when it's there
-    const useAi = ai && settings.get('chatAi') !== false && ask.kind === 'unknown' && findClaude();
+    // set phrases first; Claude when they don't understand it or can't find the item
+    let first = null;
+    if (ask.kind !== 'unknown') {
+      first = await chatRun([text], uniques);
+      if (first.changed || !/^I can't find|^I didn't understand/.test(first.reply)) return { ...first, via: 'phrases' };
+    }
+    const useAi = ai && settings.get('chatAi') !== false && findClaude();
+    if (first && !useAi) return { ...first, via: 'phrases' };
     if (!useAi) {
       const r = await chatRun([text], uniques);
       if (ask.kind === 'unknown' && !findClaude()) r.reply += '\nWith Claude Code installed and signed in (your Claude subscription), I\'d understand any wording.';
       return { ...r, via: 'phrases' };
     }
     let answer;
-    try { answer = await askClaude(chatSystemPrompt(view), text); } catch (e) { return { reply: `Claude: ${e.message}\n\n${chat.HELP}`, changed: false, via: 'claude' }; }
+    try { answer = await askClaude(chatSystemPrompt(view), chatUserPrompt(view, text)); } catch (e) {
+      const why = /not logged in|\/login|authenticat|unauthori[sz]ed|401/i.test(e.message)
+        ? 'Claude Code is installed but not signed in. Open PowerShell, run claude, type /login and sign in with your Claude account, then ask again.'
+        : `Claude didn't answer: ${e.message}`;
+      return { reply: first ? `${first.reply}\n${why}` : `${why}\nSet phrases still work: type "help" for the list.`, changed: false, via: 'claude', needLogin: claudeSignedIn === false };
+    }
     const lines = answer.split(/\r?\n/).map((l) => l.replace(/^[-*•\d.)\s]+/, '').replace(/^`+|`+$/g, '').trim()).filter(Boolean).slice(0, 25);
     const say = lines.filter((l) => /^SAY:/i.test(l)).map((l) => l.replace(/^SAY:\s*/i, ''));
     const cmds = lines.filter((l) => !/^SAY:/i.test(l) && chat.read(l).kind !== 'unknown' && chat.read(l).kind !== 'help');
     const r = cmds.length ? await chatRun(cmds, uniques) : { reply: '', changed: false };
-    return { reply: [...say, cmds.length ? `I ran: ${cmds.join(' · ')}` : '', r.reply].filter(Boolean).join('\n') || 'Claude had no change for that.', looks: r.looks, changed: r.changed, via: 'claude' };
+    const reply = [...say, cmds.length ? `I ran: ${cmds.join(' · ')}` : '', r.reply].filter(Boolean).join('\n') || 'Claude had no change for that.';
+    chatHistory.push({ user: text, reply });
+    if (chatHistory.length > 6) chatHistory.shift();
+    return { reply, looks: r.looks, changed: r.changed, via: 'claude' };
   }
   // Settings → Filter chat: is Claude Code here (and which version); recheck after installing it
   function claudeVersion(exe) {
@@ -1636,11 +1678,28 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     } catch { return null; }
   }
   let claudeVer = null;
+  let claudeSignedIn = null; // null: not asked yet
+  // Settings / chat: run the official installer, or open Claude Code to sign in, in a window you can see
+  function claudeWindow(kind) {
+    if (process.platform !== 'win32') throw new Error('This button works on Windows. Install Claude Code from code.claude.com, then run claude in a terminal to sign in.');
+    const { spawn } = require('child_process');
+    if (kind === 'install') {
+      const ps = "Write-Host 'Installing Claude Code with the official installer from claude.ai. This takes a minute and shows no progress...'; irm https://claude.ai/install.ps1 | iex; Write-Host ''; Write-Host 'Done. Close this window, then press Check again in PoE Helper.'";
+      spawn('cmd.exe', ['/c', 'start', '"Install Claude Code"', 'powershell', '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], { detached: true, windowsHide: false, stdio: 'ignore' }).unref();
+      claudeCli = undefined; claudeVer = null;
+      return true;
+    }
+    const exe = findClaude();
+    if (!exe) throw new Error('Claude Code isn\'t installed yet.');
+    spawn('cmd.exe', ['/c', 'start', '"Sign in to Claude"', exe], { detached: true, windowsHide: false, stdio: 'ignore' }).unref();
+    claudeSignedIn = null;
+    return true;
+  }
   function chatState({ recheck = false } = {}) {
     if (recheck) { claudeCli = undefined; claudeVer = null; }
     const exe = findClaude();
     if (exe && !claudeVer) claudeVer = claudeVersion(exe);
-    return { claude: !!exe, path: exe || null, version: claudeVer, on: settings.get('chatAi') !== false };
+    return { claude: !!exe, path: exe || null, version: claudeVer, on: settings.get('chatAi') !== false, signedIn: claudeSignedIn, windows: process.platform === 'win32' };
   }
   // a tiny question to see that it answers (signed in); uses a little of your subscription
   async function chatTest() {
@@ -1648,7 +1707,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     try {
       const out = await askClaude('Answer with exactly: OK', 'Say OK');
       return { ok: /ok/i.test(out), text: out.slice(0, 200), secs: Math.round((Date.now() - t) / 100) / 10 };
-    } catch (e) { return { ok: false, text: e.message }; }
+    } catch (e) { return { ok: false, text: /not logged in|\/login|authenticat|401/i.test(e.message) ? 'Claude Code is installed but not signed in. Open PowerShell, run claude, type /login and sign in, then Test again.' : e.message }; }
   }
   function removeTier({ type, tier }) {
     // deleting a default tier yourself keeps it deleted; a reset brings it back
@@ -3574,7 +3633,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return file;
   }
 
-  return { filterChat, chatState, chatTest, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { filterChat, chatState, chatTest, claudeWindow, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

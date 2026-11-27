@@ -1117,6 +1117,7 @@ function registerIpc() {
   handle('filter:chat', (text) => services.filterChat(String(text || '').slice(0, 1000)));
   handle('filter:chatState', (a) => services.chatState(a || {}));
   handle('filter:chatTest', () => services.chatTest());
+  handle('filter:claudeWindow', (kind) => services.claudeWindow(kind === 'install' ? 'install' : 'login'));
   handle('tiers:cond', ({ key, field, value } = {}) => services.setTierCondition(String(key), String(field), value ?? null));
   handle('tiers:stack', ({ key, size }) => services.setStackSize(String(key), size == null || size === '' ? null : Number(size)));
   handle('bases:list', () => services.myBases());

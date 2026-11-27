@@ -2321,3 +2321,13 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .fchat-in textarea { flex: 1; resize: none; font: inherit; min-height: 0; height: auto; }
 .fchat-looks { display: grid; gap: 8px; margin-top: 8px; }
 .fchat-look { display: grid; gap: 3px; justify-items: start; }
+
+.fchat-btn { display: inline-flex; align-items: center; gap: 6px; }
+.fchat-fab { position: fixed; right: 22px; bottom: 22px; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; z-index: 59; cursor: pointer;
+  background: var(--accent, #4f7dff); color: var(--accent-ink, #fff); border: 2px solid rgba(255,255,255,.25); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.fchat-fab:hover { transform: scale(1.06); }
+.fchat-fab[hidden] { display: none; }
+.claude-help { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--line, #2c2e36); border-radius: 8px; font-size: 13px; }
+.claude-help.warn { border-color: #ff9a1f; }
+.claude-help ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.claude-help .row { gap: 8px; }

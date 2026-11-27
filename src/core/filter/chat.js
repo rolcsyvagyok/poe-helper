@@ -12,6 +12,7 @@ const HELP = [
   '• Separate Stacked Decks into a new tier (… called Decks)',
   '• Move Chaos Orb and Vaal Orb to tier 2   (or: to S tier, to hidden)',
   '• Hide Scroll of Wisdom   /   Show Scroll of Wisdom (back to the filter\'s own tier)',
+  '• Hide every Thread except Legion Thread, Bestiary Thread and Abyss Thread',
   '• Hide tier 7 in Currency   /   Show tier 7 in Currency   /   Turn off tier 6 in Small stacks',
   '• Set the stack size of tier 2 in Small stacks to 5',
   '• Rename My tier in Currency to Decks',
@@ -68,6 +69,10 @@ function read(text) {
   if ((m = /^(hide|show|turn off|switch off|disable|turn on|enable)\s+(?:the\s+)?(tier\s*\S+|t\d+\b.*|.+?\s+tier)(?:\s+(?:in|of)\s+(.+))?$/i.exec(t))) {
     const act = /hide/i.test(m[1]) ? 'Hide' : /off|disable/i.test(m[1]) ? 'Off' : 'Show';
     return { kind: 'tierAction', action: act, tier: m[2].replace(/\s+tier$/i, '').trim(), type: m[3] || null };
+  }
+  // "hide every thread except Legion, Bestiary and Abyss": all items with that word, but those
+  if ((m = /^(?:make\s+)?(?:hide|hidden)?\s*(?:every|all(?: the)?|each)\s+(?:other\s+)?(.+?)\s+(?:hidden\s+)?(?:but|except(?: for)?|apart from|other than|besides)\s+(.+?)(?:\s+hidden)?$/i.exec(t)) && /^(make|hide)/i.test(t)) {
+    return { kind: 'hideExcept', word: m[1].replace(/\s+(items?)$/i, ''), keep: m[2] };
   }
   if ((m = /^(hide|show|unhide)\s+(.+)$/i.exec(t))) return { kind: /hide/i.test(m[1]) && !/unhide/i.test(m[1]) ? 'hide' : 'unhide', ...where(m[2]) };
   if ((m = /^(?:move|put|send)\s+(.+?)\s+(?:to|into|in)\s+(.+)$/i.exec(t))) {
@@ -172,14 +177,66 @@ function applyLook(style, change, likeStyle = null) {
 const lookWords = (c) => c.likeItems ? `the look of ${c.likeItems}` : c.preset ? 'a new label colour' : c.part ? `${c.part} colour` : c.fontSize != null ? 'text size' : c.beam ? `a ${c.beam.toLowerCase()} beam` : c.icon ? `a ${c.icon.color.toLowerCase()} ${c.icon.shape.toLowerCase()} icon` : c.sound ? `sound ${c.sound.id}` : c.remove ? `no ${c.remove}` : 'a new look';
 
 // edit distance (typos in item names)
+// (two swapped letters count as one: "hied" is "hide")
 function dist(a, b) {
-  const d = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    let prev = d[0]; d[0] = i;
-    for (let j = 1; j <= b.length; j++) { const tmp = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = tmp; }
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => { const r = new Array(n + 1).fill(0); r[0] = i; return r; });
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+    const c = a[i - 1] === b[j - 1] ? 0 : 1;
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
   }
-  return d[b.length];
+  return d[m][n];
 }
+
+// ---- what players call things: short names and nicknames, so the set phrases understand them without Claude ----
+const ALIASES = {
+  ex: 'Exalted Orb', exa: 'Exalted Orb', exalt: 'Exalted Orb', exalted: 'Exalted Orb', div: 'Divine Orb', divine: 'Divine Orb', divines: 'Divine Orb',
+  chaos: 'Chaos Orb', c: 'Chaos Orb', alch: 'Orb of Alchemy', alchemy: 'Orb of Alchemy', alc: 'Orb of Alchemy', alt: 'Orb of Alteration', alts: 'Orb of Alteration', alteration: 'Orb of Alteration',
+  trans: 'Orb of Transmutation', transmute: 'Orb of Transmutation', transmutation: 'Orb of Transmutation', aug: 'Orb of Augmentation', augment: 'Orb of Augmentation', augmentation: 'Orb of Augmentation',
+  chance: 'Orb of Chance', chrome: 'Chromatic Orb', chromatic: 'Chromatic Orb', jew: "Jeweller's Orb", jeweller: "Jeweller's Orb", jewellers: "Jeweller's Orb", jeweler: "Jeweller's Orb",
+  fuse: 'Orb of Fusing', fusing: 'Orb of Fusing', fusings: 'Orb of Fusing', scour: 'Orb of Scouring', scouring: 'Orb of Scouring', regret: 'Orb of Regret', regal: 'Regal Orb', vaal: 'Vaal Orb',
+  annul: 'Orb of Annulment', annulment: 'Orb of Annulment', mirror: 'Mirror of Kalandra', gcp: "Gemcutter's Prism", gemcutter: "Gemcutter's Prism", bauble: "Glassblower's Bauble", glassblower: "Glassblower's Bauble",
+  whetstone: "Blacksmith's Whetstone", whet: "Blacksmith's Whetstone", scrap: "Armourer's Scrap", armourer: "Armourer's Scrap", wisdom: 'Scroll of Wisdom', wis: 'Scroll of Wisdom', wisdoms: 'Scroll of Wisdom',
+  portal: 'Portal Scroll', portals: 'Portal Scroll', deck: 'Stacked Deck', decks: 'Stacked Deck', blessed: 'Blessed Orb', ancient: 'Ancient Orb', awakener: "Awakener's Orb", binding: 'Orb of Binding',
+  horizon: 'Orb of Horizons', horizons: 'Orb of Horizons', engineer: "Engineer's Orb", instilling: 'Instilling Orb', enkindling: 'Enkindling Orb', unmaking: 'Orb of Unmaking', hinekora: "Hinekora's Lock",
+  'veiled chaos': 'Veiled Chaos Orb', 'tainted chaos': 'Tainted Chaos Orb', 'eternal orb': 'Eternal Orb', 'sacred orb': 'Sacred Orb', fracturing: 'Fracturing Orb', 'fracturing shard': 'Fracturing Shard',
+  'mirror shard': 'Mirror Shard', 'exalted shard': 'Exalted Shard', 'chaos shard': 'Chaos Shard', 'alch shard': 'Alchemy Shard', 'alt shard': 'Alteration Shard', 'trans shard': 'Transmutation Shard',
+  'beast thread': 'Bestiary Thread', 'delirium orb': null, sextant: null,
+};
+// category nicknames
+const TYPE_ALIASES = { cards: 'divination', 'div cards': 'divination', 'divination cards': 'divination', divs: 'divination', uniques: 'uniques', unique: 'uniques', maps: 'maps', gems: 'gems',
+  frags: 'fragments', fragments: 'fragments', 'small stack': 'currency->stackedthree', 'small stacks': 'currency->stackedthree', 'big stack': 'currency->stackedsix', 'big stacks': 'currency->stackedsix',
+  scarabs: 'currency->scarab', scarab: 'currency->scarab', essences: 'currency->essence', fossils: 'currency->fossil', oils: 'currency->oil', omens: 'currency->trial->omen', splinters: 'currency->splinter' };
+
+// the words the chat knows, to fix typos in a message before reading it ("seprate", "visable", "currancy")
+const COMMAND_WORDS = 'separate split give make move put send hide show unhide visible shown hidden where which tier tiers category categories group new own called named into from every except other rename stack size font text border background colour color beam icon sound remove look looks like bigger smaller turn off enable disable undo help items item only want never always shows thread threads currency fragments divination cards uniques stacks small big'.split(' ');
+function fixTypos(text, view) {
+  const vocab = new Set([...COMMAND_WORDS, ...Object.keys(RGB).flatMap((k) => k.split(' ')), ...SHAPES.map((x) => x.toLowerCase()), ...Object.keys(ALIASES).flatMap((k) => k.split(' '))]);
+  for (const t of view?.types || []) {
+    for (const w of norm(t.label || t.type).split(' ')) vocab.add(w);
+    for (const x of tiersOf(t)) for (const b of x.bases || []) for (const w of norm(b).split(' ')) vocab.add(w);
+  }
+  const words = [...vocab].filter((w) => w.length >= 3);
+  return String(text).replace(/[A-Za-z']{4,}/g, (tok) => {
+    const w = tok.toLowerCase().replace(/'/g, '');
+    if (vocab.has(w) || vocab.has(w.replace(/s$/, '')) || vocab.has(w.replace(/es$/, ''))) return tok;
+    const max = w.length >= 8 ? 2 : 1;
+    let best = null, bestD = max + 1, tie = false;
+    for (const v of words) {
+      if (Math.abs(v.length - w.length) > max) continue;
+      const d = dist(v, w);
+      // on a tie the word with the same first letter wins ("visable": visible, not disable)
+      if (d < bestD) { best = v; bestD = d; tie = false; } else if (d === bestD && best && v !== best) {
+        const a = best[0] === w[0], b = v[0] === w[0];
+        if (b && !a) { best = v; tie = false; } else if (a === b) tie = true;
+      }
+    }
+    return best && !tie ? best : tok;
+  });
+}
+
 const norm = (s) => String(s || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 // "Stacked Decks" -> "stacked deck", "Orbs of Alchemy" -> "orb of alchemy"
 const singulars = (s) => {
@@ -197,6 +254,8 @@ function findType(view, q) {
   if (!q) return null;
   const n = norm(q).replace(/ (category|tiers?)$/, '');
   const list = view.types;
+  const ta = TYPE_ALIASES[n];
+  if (ta && list.some((t) => t.type === ta)) return list.find((t) => t.type === ta);
   // "Currency: Small stacks" is found by "small stacks" too
   const tail = (t) => norm(typeName(t).split(':').pop());
   return list.find((t) => norm(typeName(t)) === n || norm(t.type) === n)
@@ -233,7 +292,15 @@ function baseIndex(view) {
 // uniques: a Map of unique name (norm) -> its base, as the filter tiers uniques by base
 function findBases(view, text, uniques = null) {
   const idx = baseIndex(view);
-  const parts = String(text).split(/\s*,\s*|\s+and\s+|\s*&\s*/i).map((s) => s.trim()).filter(Boolean);
+  let parts = String(text).split(/\s*,\s*|\s+and\s+|\s*&\s*/i).map((s) => s.trim()).filter(Boolean);
+  // "Abyss, Bestiary and Legion Thread": the last word goes with each ("Abyss Thread"…)
+  const tailWord = parts.length > 1 ? parts[parts.length - 1].split(/\s+/).slice(1).pop() : null;
+  if (tailWord) parts = parts.map((p) => (p.split(/\s+/).length === 1 || (!idx.has(norm(p)) && !/\s/.test(p.trim())) ? `${p} ${tailWord}` : p));
+  // "abyss bestiary and legion thread": no commas, the same way
+  if (tailWord && parts.length === 2 && parts[0].split(/\s+/).length > 1 && !singulars(parts[0]).some((k) => idx.has(k))) {
+    const first = parts[0].replace(new RegExp(`\\s+${tailWord}$`, 'i'), '').split(/\s+/);
+    if (first.every((w) => singulars(`${w} ${tailWord}`).some((k) => idx.has(k)))) parts = [...first.map((w) => `${w} ${tailWord}`), parts[1]];
+  }
   const found = [], missing = [], viaUnique = [];
   // typos too ("Beastiery Thread" is Bestiary Thread): the one closest name, if it's close enough
   const fuzzy = (p) => {
@@ -247,7 +314,8 @@ function findBases(view, text, uniques = null) {
     }
     return best && !tie && bestD <= Math.max(1, Math.floor(n.length / 6)) ? best : null;
   };
-  const look = (p) => singulars(p).map((k) => idx.get(k)).find(Boolean) || fuzzy(p);
+  const alias = (p) => { const a = singulars(p).map((k) => ALIASES[k]).find((x) => x !== undefined); return a ? idx.get(norm(a)) : null; };
+  const look = (p) => singulars(p).map((k) => idx.get(k)).find(Boolean) || alias(p) || fuzzy(p);
   for (const p of parts) {
     let hit = look(p) || look(p.replace(/^(all|the|every)\s+/i, ''));
     if (!hit && uniques) {
@@ -334,6 +402,26 @@ function resolve(ask, view, { uniques = null, newTiers = [] } = {}) {
     if (sameTier && (x.bases || []).every((b) => bases.includes(b))) return { op: 'style', key: x.key || `${t.type}|${x.tier}`, style: applyLook(x.style, ask.change, like), label: `${typeName(t)} › ${labelOf(t, x)}`, words: lookWords(ask.change), note };
     return { op: 'styleNew', type: t.type, typeLabel: typeName(t), bases, name: bases.length === 1 ? bases[0].slice(0, 40) : 'My tier', copyFrom: /^poehelper-/.test(x.tier) ? null : x.tier, style: applyLook(x.style, ask.change, like), words: lookWords(ask.change), note };
   }
+  if (ask.kind === 'hideExcept') {
+    const idx = baseIndex(view);
+    // "thread": items with the word Thread (not "Chisel of Threads")
+    const sing = singulars(ask.word).sort((x, y) => x.length - y.length)[0];
+    const all = [...idx.values()].filter((b) => norm(b.name).split(' ').includes(sing));
+    if (!all.length) return { reply: `I can't find an item with "${ask.word}" in its name in your filter's tier lists.` };
+    // what to keep: full names, or a word of each ("legion", "beast" for Bestiary, typos too)
+    const keepWords = norm(ask.keep).split(' ').filter((w) => w.length >= 3 && !['and', 'the', sing, `${sing}s`].includes(w));
+    const keep = new Set(), unknown = [];
+    for (const w of keepWords) {
+      const hit = all.find((b) => norm(b.name).split(' ').some((x) => x === w || x.startsWith(w)))
+        || all.find((b) => { const first = norm(b.name).split(' ')[0]; return dist(first.slice(0, w.length), w) <= (w.length >= 5 ? 2 : 1); });
+      if (hit) keep.add(hit.name); else unknown.push(w);
+    }
+    if (unknown.length) return { reply: `I can't find which ${sing} "${unknown.join('", "')}" is. The ones in your filter: ${all.map((b) => b.name).join(', ')}.` };
+    const hide = all.filter((b) => !keep.has(b.name));
+    if (!hide.length) return { reply: 'Nothing left to hide.' };
+    const moves = view.types.map((ty) => ({ type: ty.type, label: typeName(ty), bases: hide.filter((b) => b.at.some((a) => a.type.type === ty.type && a.tier.hasBaseList && !a.tier.generated)).map((b) => b.name) })).filter((m) => m.bases.length);
+    return { op: 'hideAll', moves, bases: hide.map((b) => b.name), note: keep.size ? ` Kept: ${[...keep].join(', ')}.` : '' };
+  }
   if (ask.kind === 'emptyTier') {
     const t = findType(view, ask.type);
     if (!t) return { reply: `I don't know a category called "${ask.type}".` };
@@ -380,7 +468,9 @@ function resolve(ask, view, { uniques = null, newTiers = [] } = {}) {
     }
     if (ask.kind === 'newTier') {
       const from = bases.map(now).find((y) => y && !/^poehelper-/.test(y.tier)) || tiersOf(t).find((y) => y.hasBaseList && !y.special && !y.generated && !/^poehelper-/.test(y.tier));
-      const name = (ask.name || (bases.length === 1 ? bases[0] : 'My tier')).slice(0, 40);
+      const last = bases.map((b) => b.split(' ').pop());
+      const shared = bases.length > 1 && last.every((w) => w === last[0]) ? `${last[0]}${/s$/.test(last[0]) ? '' : 's'}` : null;
+      const name = (ask.name || (bases.length === 1 ? bases[0] : shared || 'My tier')).slice(0, 40);
       return { op: 'newTier', type: t.type, typeLabel: typeName(t), bases, name, copyFrom: !from || from.generated ? null : from.tier, note };
     }
     // hide: everywhere it's tiered (Currency, its stacks, levelling…), unless a category was named
@@ -421,4 +511,4 @@ function resolve(ask, view, { uniques = null, newTiers = [] } = {}) {
 // a category's tiers, as the chat names them (for Claude's list)
 const tierLabels = (t) => [...new Set(tiersOf(t).filter((x) => x.hasBaseList && !x.generated).map((x) => labelOf(t, x)))];
 
-module.exports = { read, resolve, HELP, singulars, findBases, tierLabels };
+module.exports = { read, resolve, HELP, singulars, findBases, tierLabels, fixTypos, ALIASES };

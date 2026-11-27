@@ -199,7 +199,7 @@ async function renderFiltersNow() {
       info.missing ? '' : !info.files.length ? 'No filters found. Download your filter from FilterBlade into the folder set in Settings, Loot filter file.'
         : !info.base ? 'Pick the filter you downloaded from FilterBlade.'
           : info.lastWrite ? `Your version is "${helperName}", saved ${ago(Date.now() - info.lastWrite.at)}. Select it in game once.` : `Changes are saved to "${helperName}". Select it in game once.`),
-    info.base ? h('button', { class: 'quiet sm', 'aria-expanded': FC.open ? 'true' : 'false', title: 'Tell the app what to change: "Separate Stacked Decks into a new tier"', onclick: () => toggleChat() }, 'Chat') : null,
+    info.base ? h('button', { class: 'primary sm fchat-btn', 'aria-expanded': FC.open ? 'true' : 'false', title: 'Tell the app what to change: "Separate Stacked Decks into a new tier"', onclick: () => toggleChat() }, chatIcon(), 'Ask the filter chat') : null,
     h('button', { class: 'quiet sm', title: 'Copy a loot filter file (a friend\'s, a download, any .filter) into your filter folder and use it here', onclick: () => importFilterFile(() => { FB.type = null; renderFilters(); }) }, 'Import a filter file'),
     h('span', { class: 'spacer' }),
     view?.types?.length ? h('button', { class: 'primary sm', disabled: FB.applyingAll, title: 'Check poe.ninja for every priced category and move every item to the tier its price fits now', onclick: () => applyAllPrices() }, FB.applyingAll ? 'Applying…' : 'Apply all price changes') : null,
@@ -3077,7 +3077,22 @@ window.importFilterFile = importFilterFile;
 
 // ---------- Chat: tell the app what to change ----------
 // Set phrases always work; with Claude Code installed (your own Claude subscription) anything you type does.
-const FC = { open: false, log: [], busy: false, state: null, el: null };
+const FC = { open: false, log: [], busy: false, state: null, el: null, fab: null };
+// a speech bubble
+function chatIcon(size = 16) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('width', size); svg.setAttribute('height', size); svg.setAttribute('aria-hidden', 'true');
+  svg.innerHTML = '<path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="currentColor"/><circle cx="8" cy="11" r="1.5" fill="var(--surface,#1e2027)"/><circle cx="12" cy="11" r="1.5" fill="var(--surface,#1e2027)"/><circle cx="16" cy="11" r="1.5" fill="var(--surface,#1e2027)"/>';
+  return svg;
+}
+// the round chat button in the corner of the Loot filter page
+function drawChatFab() {
+  if (!FC.fab) { FC.fab = h('button', { class: 'fchat-fab', 'aria-label': 'Open the filter chat', title: 'Filter chat: tell the app what to change', onclick: () => toggleChat(true) }, chatIcon(26)); document.body.append(FC.fab); }
+  const page = document.getElementById('page-filters');
+  FC.fab.hidden = FC.open || !(page && page.offsetParent);
+}
+setInterval(() => { try { drawChatFab(); } catch { /* not ready */ } }, 700);
 async function toggleChat(force) {
   FC.open = force ?? !FC.open;
   if (FC.open && !FC.state) FC.state = await call('filter:chatState').catch(() => ({ claude: false, on: false }));
@@ -3086,6 +3101,7 @@ async function toggleChat(force) {
 function drawChat() {
   if (!FC.el) { FC.el = h('div', { class: 'fchat', role: 'dialog', 'aria-label': 'Loot filter chat' }); document.body.append(FC.el); }
   FC.el.hidden = !FC.open;
+  drawChatFab();
   if (!FC.open) return;
   const st = FC.state || {};
   const input = h('textarea', { rows: 2, placeholder: st.claude && st.on ? 'Separate Stacked Decks into a new tier…' : 'e.g. Separate Stacked Decks into a new tier', 'aria-label': 'What to change',
@@ -3098,6 +3114,7 @@ function drawChat() {
     try {
       const r = await call('filter:chat', text);
       FC.log.push({ text: r.reply, via: r.via, looks: r.looks || null });
+      if (r.via === 'claude') FC.state = await call('filter:chatState').catch(() => FC.state);
       if (r.changed) { FB.type = FB.type || null; renderFilters(); }
     } catch (e) { FC.log.push({ text: e.message || 'That didn\'t work.' }); }
     FC.busy = false; drawChat();
@@ -3110,11 +3127,16 @@ function drawChat() {
         dropLabel(l.base, l.style || {}, { rarity: rarityFor(l.type), game: true, scale: 0.8, hidden: !l.shown }),
         h('span', { class: 'small muted' }, `${l.shown ? '' : '− hidden · '}${l.where}`)))) : null)) :
       h('div', { class: 'fchat-msg' }, 'Tell me what to change in this filter. Type "help" for what I know.'),
-    FC.busy ? h('div', { class: 'fchat-msg faint' }, st.claude && st.on ? 'Asking Claude…' : 'Working…') : null);
+    FC.busy ? h('div', { class: 'fchat-msg faint' }, st.claude && st.on ? 'Asking Claude…' : 'Working…') : null,
+    // not installed or not signed in: what to do, with buttons
+    (!st.claude || st.signedIn === false) && window.claudeHelp ? window.claudeHelp(st, async (recheck, test) => {
+      if (test) { const t = await call('filter:chatTest').catch((e) => ({ ok: false, text: e.message })); FC.log.push({ text: t.ok ? '✓ Claude answers. Type anything.' : `✕ ${t.text}` }); }
+      FC.state = await call('filter:chatState', { recheck: !!recheck }); drawChat();
+    }) : null);
   mount(FC.el,
     h('div', { class: 'fchat-head' }, h('b', {}, 'Filter chat'),
       h('span', { class: 'small muted', title: st.claude ? 'Free text goes to Claude Code on this PC, signed in with your own Claude subscription. Set phrases run without it.' : 'Install Claude Code and sign in with your Claude subscription to type anything; set phrases work without it.' },
-        st.claude ? (st.on ? 'Using your Claude' : 'Claude off') : 'Set phrases only (Claude Code not found)'),
+        st.claude ? (!st.on ? 'Claude off' : st.signedIn === false ? 'Claude not signed in: set phrases only' : 'Using your Claude') : 'Set phrases only (Claude Code not found)'),
       st.claude ? null : h('button', { class: 'quiet sm', title: 'Look for Claude Code again (after installing it)', onclick: async () => { FC.state = await call('filter:chatState', { recheck: true }); drawChat(); } }, 'Check again'),
       st.claude ? h('button', { class: 'quiet sm', onclick: async () => { await call('settings:set', { chatAi: !st.on }); FC.state = await call('filter:chatState'); drawChat(); } }, st.on ? 'Turn Claude off' : 'Use Claude') : null,
       h('span', { class: 'spacer' }),

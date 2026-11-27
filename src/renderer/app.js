@@ -972,25 +972,62 @@ let ecoRules = null;
 
 /** The original filter sections, now shown inside tabs of the FilterBlade-style page (filters.js). */
 // The loot filter file: which FilterBlade filter, writing it, the folder (in Settings).
+// Claude Code for the filter chat: what to do next (install / sign in), with buttons. Used in Settings and the chat.
+function claudeHelp(cs, redraw) {
+  const win = (kind) => call('filter:claudeWindow', kind).then(() => toast(kind === 'install' ? 'A window opened with the installer. When it says Done, press Check again.' : 'A window opened with Claude Code. Sign in there, then press Test it.')).catch(() => {});
+  if (!cs.claude) {
+    return h('div', { class: 'claude-help' },
+      h('b', {}, 'Use your Claude subscription in the chat'),
+      h('ol', {},
+        h('li', {}, 'You need a Claude Pro or Max plan.'),
+        h('li', {}, cs.windows === false ? 'Install Claude Code from its website.' : 'Press Install Claude Code. A window opens with the official installer from claude.ai; it shows no progress for a minute.'),
+        h('li', {}, 'When it says Done, close that window and press Check again.'),
+        h('li', {}, 'Then press Sign in.')),
+      h('div', { class: 'row' },
+        cs.windows !== false ? h('button', { class: 'primary sm', onclick: () => win('install') }, 'Install Claude Code') : null,
+        h('button', { class: 'sm', onclick: () => redraw(true) }, 'Check again'),
+        h('a', { href: 'https://code.claude.com/docs/en/setup', target: '_blank', class: 'small' }, 'Install guide')));
+  }
+  if (cs.signedIn !== true) {
+    return h('div', { class: 'claude-help' + (cs.signedIn === false ? ' warn' : '') },
+      h('b', {}, cs.signedIn === false ? '! Claude Code isn\'t signed in' : 'Sign in once'),
+      h('ol', {},
+        h('li', {}, 'Press Sign in. A window opens with Claude Code.'),
+        h('li', {}, 'The first time: pick a colour theme (Enter), then "Claude account with subscription", and sign in on the page that opens in your browser.'),
+        h('li', {}, 'If the window shows a ">" prompt instead, type ', h('code', {}, '/login'), ' and press Enter.'),
+        h('li', {}, 'When it says you\'re signed in, type ', h('code', {}, '/exit'), ' and close the window.'),
+        h('li', {}, 'Press Test it.')),
+      h('div', { class: 'row' },
+        cs.windows !== false ? h('button', { class: 'primary sm', onclick: () => win('login') }, 'Sign in') : null,
+        h('button', { class: 'sm', onclick: () => redraw(false, true) }, 'Test it')));
+  }
+  return null;
+}
+window.claudeHelp = claudeHelp;
+
 // Settings → Filter chat: is Claude Code found, which version, does it answer
 function chatSetupBox() {
   const box = h('div', { class: 'panel stack' });
   let test = null, busy = false;
-  const draw = async (recheck = false) => {
+  const draw = async (recheck = false, runTest = false) => {
+    if (runTest) { busy = true; test = null; }
     const cs = await call('filter:chatState', { recheck }).catch(() => ({ claude: false }));
     mount(box,
       h('div', { class: 'row' },
         h('span', { class: 'pill' + (cs.claude ? '' : ' bad') }, cs.claude ? '✓ Claude Code found' : '✕ Claude Code not found'),
+        cs.claude ? h('span', { class: 'pill' + (cs.signedIn === false ? ' bad' : '') }, cs.signedIn === true ? '✓ Signed in' : cs.signedIn === false ? '✕ Not signed in' : 'Sign-in not checked yet') : null,
         h('span', { class: 'small muted' }, cs.claude ? `${cs.version || 'version unknown'} · ${cs.path}` : 'The chat uses set phrases only.'),
         h('span', { class: 'spacer' }),
         h('button', { class: 'quiet sm', onclick: () => draw(true) }, 'Check again'),
-        cs.claude ? h('button', { class: 'sm', disabled: busy, title: 'Asks Claude one tiny question to see it answers (uses a little of your subscription)',
-          onclick: async () => { busy = true; test = null; draw(); test = await call('filter:chatTest').catch((e) => ({ ok: false, text: e.message })); busy = false; draw(); } }, busy ? 'Testing…' : 'Test it') : null),
+        cs.claude ? h('button', { class: 'sm', disabled: busy, title: 'Asks Claude one tiny question to see it answers (uses a little of your subscription)', onclick: () => draw(false, true) }, busy ? 'Testing…' : 'Test it') : null),
       test ? h('div', { class: 'small' + (test.ok ? '' : ' bad') }, test.ok ? `✓ Claude answered in ${test.secs}s. The chat understands any wording.` : `✕ ${test.text}`) : null,
-      cs.claude ? toggle(cs.on, async (v) => { await call('settings:set', { chatAi: v }); draw(); }, 'Use Claude in the filter chat') :
-        h('div', { class: 'small muted' }, 'To use it: install Claude Code, open a terminal (PowerShell) and run ', h('code', {}, 'claude'), ' once to sign in with your Claude account (Pro or Max), then press Check again. ',
-          h('a', { href: 'https://code.claude.com/docs/en/setup', target: '_blank' }, 'How to install Claude Code')),
-      test && !test.ok && cs.claude ? h('div', { class: 'small muted' }, 'Not signed in? Open a terminal, run ', h('code', {}, 'claude'), ' and follow the sign-in, then Test again.') : null);
+      cs.claude && cs.signedIn === true ? toggle(cs.on, async (v) => { await call('settings:set', { chatAi: v }); draw(); }, 'Use Claude in the filter chat') : null,
+      claudeHelp(cs, draw));
+    if (runTest) {
+      test = await call('filter:chatTest').catch((e) => ({ ok: false, text: e.message }));
+      busy = false;
+      draw();
+    }
   };
   draw();
   return box;
