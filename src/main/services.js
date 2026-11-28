@@ -1739,18 +1739,25 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   let claudeVer = null;
   let claudeSignedIn = null; // null: not asked yet
   // Settings / chat: run the official installer, or open Claude Code to sign in, in a window you can see
+  // a new console window: cmd's start, with the command line passed as written. Node's own quoting turned the
+  // window title into \"Sign in to Claude\" and Windows then looked for a program called "Claude".
+  function openConsole(title, command) {
+    const { spawn } = require('child_process');
+    spawn(process.env.ComSpec || 'cmd.exe', [`/d /s /c start "${title}" ${command}`], { detached: true, windowsHide: false, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
+  }
   function claudeWindow(kind) {
     if (process.platform !== 'win32') throw new Error('This button works on Windows. Install Claude Code from code.claude.com, then run claude in a terminal to sign in.');
-    const { spawn } = require('child_process');
     if (kind === 'install') {
       const ps = "Write-Host 'Installing Claude Code with the official installer from claude.ai. This takes a minute and shows no progress...'; irm https://claude.ai/install.ps1 | iex; Write-Host ''; Write-Host 'Done. Close this window, then press Check again in PoE Helper.'";
-      spawn('cmd.exe', ['/c', 'start', '"Install Claude Code"', 'powershell', '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], { detached: true, windowsHide: false, stdio: 'ignore' }).unref();
+      // the script goes in base64 (-EncodedCommand): no quotes or | for cmd to trip over
+      const enc = Buffer.from(ps, 'utf16le').toString('base64');
+      openConsole('Install Claude Code', `powershell -NoExit -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${enc}`);
       claudeCli = undefined; claudeVer = null;
       return true;
     }
     const exe = findClaude();
     if (!exe) throw new Error('Claude Code isn\'t installed yet.');
-    spawn('cmd.exe', ['/c', 'start', '"Sign in to Claude"', exe], { detached: true, windowsHide: false, stdio: 'ignore' }).unref();
+    openConsole('Sign in to Claude', `"${exe}"`);
     claudeSignedIn = null;
     return true;
   }

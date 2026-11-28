@@ -5,6 +5,10 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.185 - 2026-11-28
+
+* [Loot filter] Fixed: the filter chat's "Sign in" and "Install Claude Code" buttons showed "Claude could not be found" on some PCs.
+
 ## 1.0.184 - 2026-11-28
 
 * [What to farm] What to farm works in PoE2: poe.ninja's PoE2 prices in exalted, one card per league mechanic (Abyss, Breach, Delirium, Ritual, Expedition, Essences, Runes, Soul cores and more), with the 7-day change.
