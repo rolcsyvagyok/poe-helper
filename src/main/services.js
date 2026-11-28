@@ -25,7 +25,7 @@ const VERSION = require('../../package.json').version;
 
 const DEFAULT_SETTINGS = {
   leagueOverride: '',
-  uiTheme: 'midnight', // the app's look: 'midnight' (default), 'atlas', 'hideout' or 'dark'
+  uiTheme: 'wraeclast', // the app's look: 'wraeclast' (PoE1 default), 'vastiri' (PoE2 default), 'midnight', 'atlas', 'hideout' or 'dark'
   accountName: '',
   collectAutoHours: 3, // My collection: tick new uniques from the Unique stash tab every N hours (0: only on the button)
   collectAutoAt: 0,
@@ -134,6 +134,7 @@ const DEFAULT_SETTINGS = {
   tradeAutoSearch: true,
   poepricesOn: false, // poeprices.info is gone (the domain is for sale since late 2026): the price guess is off // uniques and unidentified items are searched at once (Awakened PoE Trade's "smart" first search)
   overviewBgOff: false, // you removed the Overview picture that comes with the app
+  overviewBgOff2: false, // the same for the PoE2 Overview
   tradeSearches: [], // saved trade searches and live searches (Trade searches page), with the price watch
   filterDir: '',
   baseFilter: '',
@@ -953,8 +954,10 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
 
   // Path of Exile 1 and 2 each have their own loot filter and filter setup: switching the game parks one and
   // brings back the other (a first PoE2 start: nothing set up, the PoE2 folder found by itself)
-  const GAME_FILTER_KEYS = [...new Set([...FILTER_KEYS, 'filterDir', 'baseFilter', 'baseFilterName', 'filterProfiles', 'lastWrite', 'forcedNames'])];
-  const GAME_FRESH = { poe2: { baseRanks: {}, gigaDone: true, bigBeltsDone: true, gigaDeleted: true, bigBeltsDeleted: true } };
+  // (chat macros too: the two games have different places to go)
+  const GAME_FILTER_KEYS = [...new Set([...FILTER_KEYS, 'filterDir', 'baseFilter', 'baseFilterName', 'filterProfiles', 'lastWrite', 'forcedNames', 'chatMacros', 'uiTheme'])];
+  // the app's look too: PoE1 mode Wraeclast, PoE2 mode Vastiri
+  const GAME_FRESH = { poe1: { uiTheme: 'wraeclast' }, poe2: { baseRanks: {}, gigaDone: true, bigBeltsDone: true, gigaDeleted: true, bigBeltsDeleted: true, uiTheme: 'vastiri' } };
   function switchGameFilter(from, to) {
     from = from === 'poe2' ? 'poe2' : 'poe1';
     to = to === 'poe2' ? 'poe2' : 'poe1';
@@ -964,6 +967,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const back = parked[to] || { ...(GAME_FRESH[to] || {}), filterProfiles: {} };
     for (const k of GAME_FILTER_KEYS) {
       if (k in back) settings.data[k] = structuredClone(back[k]);
+      else if (k in (GAME_FRESH[to] || {})) settings.data[k] = structuredClone(GAME_FRESH[to][k]);
       else if (k in DEFAULT_SETTINGS) settings.data[k] = structuredClone(DEFAULT_SETTINGS[k]);
       else delete settings.data[k];
     }
@@ -992,7 +996,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     'hotkeyLab', 'hotkeyAltClick', 'hotkeyClick', 'labFavorite', 'labOpacity', 'clipboardMode', 'restoreClipboard', 'overlayCloseOnMouseAway', 'minimizeToTray',
     'appIconStyle', 'regexMaps', 'regexGems', 'regexGemClass', 'regexCampaign', 'regexItems', 'regexFlasks', 'regexGroupAffix', 'regexBeasts', 'regexFavMods',
     'regexTrade', 'regexPresets', 'dailyGggBudget', 'ninjaTtlMin', 'autoSnapshotMin', 'minItemChaos', 'tradeTolerance',
-    'tradeStatus', 'tradeFetchListings', 'tradeAutoSearch', 'tradeSearches', 'overviewBgOff', 'fbSideMini', 'fbSideWidth', 'filterPins', 'autoWatchFilter'];
+    'tradeStatus', 'tradeFetchListings', 'tradeAutoSearch', 'tradeSearches', 'overviewBgOff', 'overviewBgOff2', 'fbSideMini', 'fbSideWidth', 'filterPins', 'autoWatchFilter'];
   const APP_SHARE_KIND = 'poe-helper-app-settings';
   function exportAppSettings() {
     const values = Object.fromEntries(APP_KEYS.filter((k) => settings.get(k) !== undefined).map((k) => [k, settings.get(k)]));
@@ -3694,6 +3698,16 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     switchFilterProfile(was, file);
     settings.set('baseFilter', file);
     return file;
+  }
+
+  // 1.0.183: each game gets its own look (PoE1 Wraeclast, PoE2 Vastiri), once
+  if (!settings.get('gameThemesV1')) {
+    const g = settings.get('game') === 'poe2' ? 'poe2' : 'poe1';
+    const other = g === 'poe2' ? 'poe1' : 'poe2';
+    settings.set('uiTheme', GAME_FRESH[g].uiTheme);
+    const parked = settings.get('gameFilters') || {};
+    if (parked[other]) settings.set('gameFilters', { ...parked, [other]: { ...parked[other], uiTheme: GAME_FRESH[other].uiTheme } });
+    settings.set('gameThemesV1', true);
   }
 
   return { switchGameFilter, poe2, ggg2, gameNow, filterChat, chatState, chatTest, claudeWindow, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };

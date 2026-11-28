@@ -73,8 +73,10 @@ function drawGame() {
   if ($('brandName')) $('brandName').textContent = name;
   document.title = name;
   document.body.dataset.game = g;
-  // PoE2: the price check and Settings only
-  document.querySelectorAll('#nav button[data-page]').forEach((b) => { b.hidden = g === 'poe2' ? !['poe2', 'filters', 'designer', 'settings'].includes(b.dataset.page) : b.dataset.page === 'poe2'; });
+  // prices: chaos in PoE1, exalted in PoE2
+  window.UI.setUnits(g === 'poe2' ? { small: 'ex', big: 'div' } : null);
+  // PoE2: the pages that work for it
+  document.querySelectorAll('#nav button[data-page]').forEach((b) => { b.hidden = g === 'poe2' ? !['dashboard', 'poe2', 'filters', 'designer', 'macros', 'settings'].includes(b.dataset.page) : b.dataset.page === 'poe2'; });
   document.querySelectorAll('#nav .nav-group').forEach((x) => { x.hidden = g === 'poe2'; });
   const sw = $('gameSwitch');
   if (sw) mount(sw, [['poe1', 'PoE1'], ['poe2', 'PoE2']].map(([id, label]) => h('button', { class: 'sm' + (g === id ? ' on' : ''), 'aria-pressed': g === id ? 'true' : 'false', title: id === 'poe2' ? 'Path of Exile 2: the price check, loot filter and tier designer' : 'Path of Exile 1: every page', onclick: () => setGame(id) }, label)));
@@ -86,9 +88,10 @@ async function setGame(g) {
   window.UI.clearArt?.();
   await refreshState();
   S.settings.game = g;
+  window.UI.applyTheme(S.settings.uiTheme); // each game has its own look
   loadNavArt();
   drawGame();
-  go(g === 'poe2' ? 'poe2' : 'dashboard');
+  go('dashboard');
 }
 
 // the Path of Exile 2 page: the league, how to price check, and a box to check a pasted item
@@ -390,12 +393,15 @@ window.pageHead = pageHead;
 const sectionNote = (title, desc) => (!desc ? null : typeof desc === 'string' && desc.length > 70 ? window.UI.infoTip(desc, { label: `About ${title}` }) : h('p', {}, desc));
 // ---------------------------------------------------------------- chat macros
 const MACRO_IDEAS = [['/exit', 'Log out to character select'], ['/hideout', 'Go to your hideout'], ['/kingsmarch', 'Go to Kingsmarch'], ['/menagerie', 'Go to the Menagerie'], ['/delve', 'Go to the Azurite Mine'], ['/heist', 'Go to the Rogue Harbour'], ['/monastery', 'Go to the Monastery of the Keepers'], ['@last ', 'Reply to the last whisper (not sent: type the rest)'], ['/invite @last', 'Party invite the last whisperer'], ['/kick ', 'Leave your party (add your name)'], ['/remaining', 'Monsters left in the area'], ['/deaths', 'How many times you died'], ['/played', 'Time played on this character'], ['/dnd', 'Do not disturb on or off']];
+// Path of Exile 2: no Kingsmarch, Menagerie, Mine, Rogue Harbour or Monastery
+const PLACES_POE1 = /^\/(kingsmarch|menagerie|delve|heist|monastery|remaining)$/;
 async function renderMacros() {
   const page = document.getElementById('page-macros');
   const st = (await call('state:get')).settings;
+  const p2 = st.game === 'poe2';
   const list = (Array.isArray(st.chatMacros) && st.chatMacros.length ? st.chatMacros : [1, 2, 3, 4, 5].map((n) => ({ key: `F${n}`, text: n === 1 ? '/exit' : n === 2 ? '/hideout' : '', send: true }))).map((m) => ({ ...m }));
   const save = async (msg) => { await call('settings:set', { chatMacros: list }); if (msg) toast(msg); };
-  const ideas = h('datalist', { id: 'macro-ideas' }, MACRO_IDEAS.map(([v, l]) => h('option', { value: v }, l)));
+  const ideas = h('datalist', { id: 'macro-ideas' }, MACRO_IDEAS.filter(([v]) => !p2 || !PLACES_POE1.test(v)).map(([v, l]) => h('option', { value: v }, l)));
   const row = (m, i) => h('div', { class: 'macro-row' },
     h('span', { class: 'macro-key' }, window.Hotkey.label(m.key)),
     h('input', { value: m.text || '', list: 'macro-ideas', placeholder: 'e.g. /exit (empty: this key does nothing)', maxlength: 250, 'aria-label': `What ${m.key} types in chat`,
@@ -403,7 +409,7 @@ async function renderMacros() {
     h('label', { class: 'check small', title: 'Off: the text is typed but not sent, so you can finish it (handy for @last replies)' },
       h('input', { type: 'checkbox', checked: m.send !== false, onchange: (e) => { m.send = e.target.checked; save('Saved'); } }), h('span', {}, 'Send')));
   mount(page,
-    pageHead('Chat macros', 'Press a key in game: PoE Helper presses Enter, types your text and presses Enter again, just like typing it yourself. One key press sends one message. The keys only work while Path of Exile is the active window, so F1 to F5 still do their normal thing in every other app.'),
+    pageHead(p2 ? 'Chat macros (PoE2)' : 'Chat macros', (p2 ? 'Path of Exile 2 has its own macros: switching the game swaps them. ' : '') + 'Press a key in game: PoE Helper presses Enter, types your text and presses Enter again, just like typing it yourself. One key press sends one message. The keys only work while Path of Exile is the active window, so F1 to F5 still do their normal thing in every other app.'),
     h('div', { class: 'panel stack', style: { maxWidth: '760px' } },
       toggle(st.chatMacrosOn !== false, async (v) => { await call('settings:set', { chatMacrosOn: v }); toast(v ? 'Chat macros on' : 'Chat macros off'); renderMacros(); }, 'Use chat macros'),
       st.chatMacrosOn !== false ? [ideas, ...list.map(row),
@@ -411,7 +417,7 @@ async function renderMacros() {
           h('input', { type: 'checkbox', checked: st.chatMacroClear !== false, onchange: async (e) => { await call('settings:set', { chatMacroClear: e.target.checked }); toast(e.target.checked ? 'Macros clear the chat line first' : 'Macros type straight away'); } }),
           h('span', {}, 'Press Backspace twice before the text (removes a waiting ^)'))] : h('p', { class: 'small muted' }, 'Off: F1 to F5 are left alone, also in game.'),
       st.keySender === false ? h('p', { class: 'small warn' }, 'Chat macros need the key sender (uiohook-napi), which isn\'t available in this copy.') : null,
-      h('p', { class: 'small faint' }, 'Tip: start typing in a box for ideas like /exit, /hideout, /kingsmarch or @last. Your clipboard is put back after each macro.')));
+      h('p', { class: 'small faint' }, `Tip: start typing in a box for ideas like /exit, /hideout${p2 ? '' : ', /kingsmarch'} or @last. Your clipboard is put back after each macro.`)));
 }
 
 // ---------------------------------------------------------------- trade searches
@@ -591,6 +597,7 @@ function describe(rule) {
 function renderOverview() { return window.UI.keepScroll(() => renderOverviewNow()); }
 async function renderOverviewNow() {
   await refreshState();
+  if (gameOf() === 'poe2') return renderOverview2();
   const el = $('page-dashboard');
   const g = S.usage.ggg;
   const n = S.usage.ninja;
@@ -629,6 +636,41 @@ async function renderOverviewNow() {
         h('div', { class: 'section-head' }, h('h2', {}, 'Recent price checks'), h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, `${window.Hotkey ? window.Hotkey.label(S.settings.hotkeyPrice) : S.settings.hotkeyPrice} over an item`)),
         historyList(S.history.slice(0, 10))),
       null));
+}
+
+// the PoE2 Overview: its own picture, the league and the Divine Orb in exalted, shortcuts, recent checks
+async function renderOverview2() {
+  const el = $('page-dashboard');
+  const st = S.settings;
+  const [bg, d, info] = await Promise.all([call('overviewBg:get').catch(() => null), call('poe2:divine').catch(() => null), call('filter:list').catch(() => null)]);
+  const bgUrl = bg?.url || null;
+  const hist = (st.history2 || []);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const checksToday = hist.filter((r) => r.at >= today.getTime()).length;
+  const filterName = info?.base ? String(info.base).replace(/\.filter$/i, '') : null;
+  const bgButtons = h('div', { class: 'ov-hero-tools' },
+    h('button', { class: 'quiet sm', title: 'Pick a picture from your PC for this page', onclick: async () => { try { await call('overviewBg:pick'); renderOverviewNow(); } catch (e) { toast(cleanErr(e), true); } } }, bgUrl ? 'Change picture' : 'Add a picture'),
+    bg ? h('button', { class: 'quiet sm', onclick: async () => { await call('overviewBg:reset'); renderOverviewNow(); } }, 'Remove') : null);
+  const hk = window.Hotkey ? window.Hotkey.label(st.hotkeyPrice) : st.hotkeyPrice;
+  mount(el,
+    h('div', { class: 'ov-hero' + (bgUrl ? ' with-bg' : '') + (bg?.shipped ? ' shipped' : ''), style: bgUrl ? { backgroundImage: `url("${bgUrl}")` } : null },
+      h('div', { class: 'ov-hero-in' },
+        h('h1', {}, 'Overview'),
+        h('p', { class: 'ov-hero-sub' }, `Path of Exile 2, ${d?.league || 'league not found yet'}${d?.divineEx ? `. A Divine Orb is worth ${fmt(d.divineEx)} exalted right now.` : '.'}`),
+        h('div', { class: 'figures ov-figures' },
+          figure(d?.divineEx ? `${fmt(d.divineEx)} ex` : '–', 'Divine Orb, from poe.ninja'),
+          figure(String(checksToday), `Price checks today (${hk})`))),
+      bgButtons),
+    h('div', { class: 'ov-shortcuts', style: { marginTop: '28px' } },
+      [['poe2', 'Price check', `Hover an item in game and press ${hk}`], ['filters', 'Loot filter', filterName ? `${filterName}: tiers, looks and strictness` : 'Pick your PoE2 filter'], ['designer', 'Tier designer', 'One look for every tier'], ['macros', 'Chat macros', 'F1 to F5 in game']]
+        .map(([page, title, note]) => h('button', { class: 'ov-card', onclick: () => go(page) }, h('b', {}, title), h('span', { class: 'small muted' }, note)))),
+    h('div', { style: { marginTop: '28px', maxWidth: '760px' } },
+      h('div', { class: 'section-head' }, h('h2', {}, 'Recent price checks'), h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => go('poe2') }, 'Open Price check')),
+      !hist.length ? h('div', { class: 'panel empty' }, `Hover an item in game and press ${hk}. Checks show up here.`)
+        : h('div', { class: 'panel', style: { padding: '6px 18px' } }, h('table', {}, h('tbody', {}, hist.slice(0, 10).map((r, i) => h('tr', {},
+          h('td', { style: i === 0 ? { borderTop: 0 } : null }, itemName(r.name, { currency: 'r-Currency', unique: 'r-Unique', rare: 'r-Rare', magic: 'r-Magic' }[r.kind] || '')),
+          h('td', { class: 'r', style: i === 0 ? { borderTop: 0 } : null }, r.total != null ? chaosDiv(r.total, d?.divineEx) : r.chaos != null ? chaosDiv(r.chaos, d?.divineEx) : h('span', { class: 'faint' }, 'no price')),
+          h('td', { class: 'r faint small', style: i === 0 ? { borderTop: 0 } : null }, ago(Date.now() - r.at)))))))));
 }
 
 function historyList(rows) {
@@ -1559,17 +1601,21 @@ async function renderSettingsNow() {
   await refreshState();
   const st = S.settings;
   const el = $('page-settings');
+  // Path of Exile 2: only what PoE2 mode uses (no net worth, Path of Building, lab or PoE1 price server)
+  const p2 = st.game === 'poe2';
   let leagues = [];
-  try { leagues = await call('leagues:list'); } catch { /* offline */ }
+  try { leagues = await call(p2 ? 'poe2:leagues' : 'leagues:list'); } catch { /* offline */ }
   const field = (label, input, help) => h('label', { class: 'field' }, label, input, help ? h('span', { class: 'help' }, help) : null);
   const set = (key, transform = (v) => v) => (e) => call('settings:set', { [key]: transform(e.target.type === 'checkbox' ? e.target.checked : e.target.value) }).then(() => toast('Saved'));
   const sid = h('input', { type: 'password', placeholder: st.sessionSet ? 'Saved and encrypted' : '32 characters', autocomplete: 'off', style: { flex: 1 } });
 
   mount(el,
-    pageHead('Settings'),
+    pageHead(p2 ? 'Settings (PoE2)' : 'Settings', p2 ? 'Only what Path of Exile 2 mode uses. Switch to PoE1 for the rest.' : undefined),
     h('div', { class: 'cols', style: { alignItems: 'start' } },
       h('div', {},
-        section('Your account', 'Only needed for net worth.',
+        p2 ? section('Your account', 'Marks your own listings in trade searches.',
+          h('div', { class: 'panel stack' },
+            field('Account name', h('input', { value: st.accountName || '', placeholder: 'YourName#1234', onchange: set('accountName', (v) => v.trim()) }), 'Include the #number shown on pathofexile.com.'))) : section('Your account', 'Only needed for net worth.',
           h('div', { class: 'panel stack' },
             field('Account name', h('input', { value: st.accountName || '', placeholder: 'YourName#1234', onchange: set('accountName', (v) => v.trim()) }), 'Include the #number shown on pathofexile.com.'),
             field('POESESSID', h('div', { class: 'row', style: { flexWrap: 'nowrap' } }, sid,
@@ -1587,9 +1633,9 @@ async function renderSettingsNow() {
         section('Requests', 'How much the app may ask of GGG and poe.ninja.',
           h('div', { class: 'panel stack' },
             field('Speed', h('select', { onchange: set('rateSafety', Number) }, [[0.3, 'Gentle (a third of what GGG allows)'], [0.5, 'Normal (half of what GGG allows)'], [0.7, 'Faster (most of what GGG allows)']].map(([v, l]) => h('option', { value: v, selected: Number(st.rateSafety) === v }, l)))),
-            field('Keep prices for (minutes)', h('input', { type: 'number', min: 5, value: st.ninjaTtlMin, onchange: set('ninjaTtlMin', Number) }), 'poe.ninja updates about every 15 minutes, so lower values only add downloads.'),
+            p2 ? null : field('Keep prices for (minutes)', h('input', { type: 'number', min: 5, value: st.ninjaTtlMin, onchange: set('ninjaTtlMin', Number) }), 'poe.ninja updates about every 15 minutes, so lower values only add downloads.'),
             field('Your name or link for request headers', h('input', { value: st.contact || '', placeholder: 'Optional, for example github.com/you', onchange: set('contact', (v) => v.trim()) })),
-            h('details', {}, h('summary', {}, 'Price server address'),
+            p2 ? h('span', { class: 'help' }, 'PoE2 prices are fetched from poe.ninja at most once an hour.') : h('details', {}, h('summary', {}, 'Price server address'),
               h('div', { class: 'stack', style: { marginTop: '8px' } }, h('input', { value: st.ninjaBaseUrl, onchange: set('ninjaBaseUrl', (v) => v.trim()), 'aria-label': 'Price server address' }), h('span', { class: 'help' }, 'Change only if you run your own caching proxy for poe.ninja.'))))),
         section('Updates', 'PoE Helper checks GitHub for a new version at start and every 4 hours, downloads it in the background, and installs it when you restart.',
           h('div', { class: 'panel row', style: { gap: '14px' } }, updateBox()))),
@@ -1598,12 +1644,12 @@ async function renderSettingsNow() {
           h('div', { class: 'panel' }, themePicker())),
         section('Price check', null,
           h('div', { class: 'panel stack' },
-            field('League', h('select', { onchange: set('leagueOverride') }, h('option', { value: '' }, `Follow the current league (${st.leagueOverride ? 'automatic' : S.league || 'automatic'})`), leagues.map((l) => h('option', { value: l.id, selected: st.leagueOverride === l.id }, l.name || l.id)))),
+            p2 ? field('League', h('select', { onchange: set('league2') }, h('option', { value: '' }, 'Follow the current league (automatic)'), leagues.map((l) => h('option', { value: l.id, selected: st.league2 === l.id }, l.text || l.id))), 'Path of Exile 2 league for prices and trade searches.') : field('League', h('select', { onchange: set('leagueOverride') }, h('option', { value: '' }, `Follow the current league (${st.leagueOverride ? 'automatic' : S.league || 'automatic'})`), leagues.map((l) => h('option', { value: l.id, selected: st.leagueOverride === l.id }, l.name || l.id)))),
             hotkeyField('hotkeyPrice', 'Price check hotkey', st, st.keySender ? 'Hover an item in game and press it. The price check pops up next to the item.' : 'Press Ctrl+C on the item first, then this hotkey.', 'Alt+E'),
-            toggle(st.pobCompareOn !== false, (v) => call('settings:set', { pobCompareOn: v }).then(() => { toast(v ? 'The price check compares with your build' : 'The price check only prices'); renderSettings(); }), 'Show what the item does to my build in the price check (like the item tester). Off: Path of Building isn\'t run, so the price check is a little faster'),
+            p2 ? null : toggle(st.pobCompareOn !== false, (v) => call('settings:set', { pobCompareOn: v }).then(() => { toast(v ? 'The price check compares with your build' : 'The price check only prices'); renderSettings(); }), 'Show what the item does to my build in the price check (like the item tester). Off: Path of Building isn\'t run, so the price check is a little faster'),
             hotkeyField('hotkeyAltClick', 'Alt + left click', st, 'Press it in game: one Alt + left click where your mouse is. Only while Path of Exile is in front.', ''),
             hotkeyField('hotkeyClick', 'Left click', st, 'Press it in game: one left click where your mouse is. One click per press, as GGG allows.', ''),
-            hotkeyField('hotkeyLab', 'Daily lab overlay', st, 'Opens today\'s Labyrinth layout from poelab in game: press it, pick 1-4. Press it again (or Esc) to hide.', 'Alt+L'),
+            p2 ? null : hotkeyField('hotkeyLab', 'Daily lab overlay', st, 'Opens today\'s Labyrinth layout from poelab in game: press it, pick 1-4. Press it again (or Esc) to hide.', 'Alt+L'),
             toggle(st.overlayCloseOnMouseAway !== false, (v) => call('settings:set', { overlayCloseOnMouseAway: v }).then(() => toast('Saved')), 'Close the price check when I move the mouse away, until I use it (Esc always closes it)'),
             h('div', { class: 'row small' }, h('span', { class: 'muted' }, st.overlayPos ? 'The price check opens where you last dragged it.' : 'The price check opens next to the item. Drag it by its top bar to choose a fixed place.'),
               st.overlayPos ? h('button', { class: 'quiet sm', onclick: async () => { await call('overlay:resetPos'); toast('The price check opens next to the item again'); renderSettings(); } }, 'Open next to the item again') : null),
@@ -1620,7 +1666,7 @@ async function renderSettingsNow() {
               h('button', { class: 'sm', onclick: async () => { const n = await call('font:pick'); if (n) { await window.UI.loadUserFont(); toast(`Item labels now use ${n}`); renderSettings(); } } }, 'Choose font file'),
               st.labelFontPath ? h('button', { class: 'quiet sm', onclick: async () => { await call('font:clear'); toast('Back to the bundled font. Restart the app to see it everywhere.'); renderSettings(); } }, 'Reset') : null),
               'The game uses Fontin SmallCaps. It is free from exljbris.com but can\'t be shipped with this app; download it and pick the .otf file here for an exact match.'))),
-        section('Net worth', null,
+        p2 ? null : section('Net worth', null,
           h('div', { class: 'panel stack' },
             field('Client.txt', h('input', { value: st.clientLogPath || '', placeholder: '…\\Path of Exile\\logs\\Client.txt', onchange: set('clientLogPath', (v) => v.trim()) }), 'Automatic snapshots pause when this file goes quiet for 15 minutes, which means you stopped playing.'),
             field('Skip stacks worth less than (chaos)', h('input', { type: 'number', min: 0, value: st.minItemChaos, onchange: set('minItemChaos', Number) })))))),
@@ -1630,7 +1676,7 @@ async function renderSettingsNow() {
         toggle(!!st.minimizeToTray, (v) => call('settings:set', { minimizeToTray: v }).then(() => toast(v ? 'Minimizing now hides PoE Helper in the tray' : 'Minimizing keeps PoE Helper in the taskbar')), 'Minimize to the tray instead of the taskbar'),
         h('div', { class: 'row' }, h('button', { onclick: () => call('tray:hide') }, 'Hide to tray now'),
           h('span', { class: 'small muted' }, 'Closing the window also keeps PoE Helper running in the tray, so Alt+E keeps working. Click the tray icon to open it again; right-click it and choose Quit to close it for good.')))),
-    section('Loot filter file', 'The FilterBlade filter PoE Helper builds on, and where your version of it is written.', filterFileBox(filterInfo, st, renderSettings)),
+    section('Loot filter file', p2 ? 'Your Path of Exile 2 filter PoE Helper builds on, and where your version of it is written.' : 'The FilterBlade filter PoE Helper builds on, and where your version of it is written.', filterFileBox(filterInfo, st, renderSettings)),
     section('Filter chat and Claude', 'The Loot filter chat knows set phrases on its own. With Claude Code on this PC, signed in with your Claude subscription, it understands any wording. Claude only ever writes those phrases: it can change your filter, never the app.', chatSetupBox()),
     section('Share your loot filter settings', 'Everything you set up for the filter in PoE Helper (tiers and looks, base ranks, my bases, clusters, your rules, category prices, the tier designer, your own sounds) in one file. Someone else imports it and gets your setup; their account, league and filter file stay theirs.',
       h('div', { class: 'panel row', style: { gap: '10px' } },
@@ -1676,4 +1722,4 @@ window.poe.on('pob:buildsChanged', () => { if (currentPage === 'pob') window.Pob
 window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'designer') go('designer'); });
 
 // the page to start on: the price check when the app is switched to Path of Exile 2
-call('state:get').then((st) => go(st?.settings?.game === 'poe2' ? 'poe2' : 'dashboard')).catch(() => go('dashboard'));
+go('dashboard');

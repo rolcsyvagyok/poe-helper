@@ -90,14 +90,20 @@ test('switching the game parks one game\'s filter setup and brings back the othe
   assert.deepEqual(svc.settings.get('tierPatch'), { moves: {}, styles: {}, actions: {} });
   assert.deepEqual(svc.settings.get('baseRanks'), {});
   assert.equal(svc.settings.get('gigaDone'), true);
+  // each game has its own look and chat macros
+  assert.equal(svc.settings.get('uiTheme'), 'vastiri');
+  svc.settings.set('chatMacros', [{ key: 'F1', text: '/hideout', send: true }]);
   svc.settings.set('baseFilter', 'PoE2.filter');
   svc.switchGameFilter('poe2', 'poe1'); svc.settings.set('game', 'poe1');
   assert.equal(svc.settings.get('baseFilter'), 'Mine.filter');
   assert.equal(svc.settings.get('filterDir'), path.join(dir, 'poe1'));
   assert.deepEqual(svc.settings.get('tierPatch'), { moves: { 'currency\tChaos Orb': '__hide__' } });
   assert.deepEqual(svc.settings.get('designer'), { look: 1 });
+  assert.equal(svc.settings.get('uiTheme'), 'wraeclast');
+  assert.equal(svc.settings.get('chatMacros')[0].text, '/exit');
   svc.switchGameFilter('poe1', 'poe2');
   assert.equal(svc.settings.get('baseFilter'), 'PoE2.filter');
+  assert.equal(svc.settings.get('chatMacros')[0].text, '/hideout');
 });
 
 test('the Tier designer restyles PoE2 tiers S to E as Tier 1 to 6', () => {

@@ -488,9 +488,12 @@ function registerHotkeys({ quiet = false } = {}) {
   // one price check hotkey; with "Compare items with my build" on it also shows what the item does to your build
   // copied with Ctrl+Alt+C (mod tiers, prefix/suffix, roll ranges), as Awakened PoE Trade does: the defaults use them
   tryReg('hotkeyPrice', (acc) => priceCheck({ advanced: true, accelerator: acc, compare: services.settings.get('pobCompareOn') !== false }));
-  tryReg('hotkeyLab', () => toggleLab());
-  tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
-  tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
+  // the Labyrinth and Path of Building are PoE1's: their keys stay free in PoE2 mode
+  if (s.get('game') !== 'poe2') {
+    tryReg('hotkeyLab', () => toggleLab());
+    tryReg('hotkeySnapshot', () => pobSnapshotNotify('hotkey'));
+    tryReg('hotkeyPobTest', (acc) => pobTestHotkey(acc));
+  }
   // one click per press, only while the game is in front (anywhere else the key does nothing)
   const clickKey = (alt) => (acc) => {
     const fg = require('./foreground');
@@ -978,10 +981,10 @@ function registerIpc() {
     if ('baseFilter' in clean && clean.baseFilter && clean.baseFilter !== s.get('baseFilter')) services.switchFilterProfile(s.get('baseFilter'), clean.baseFilter);
     s.patch(clean);
     services.applySettings();
-    if ('hotkeyPrice' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyAltClick' in clean || 'hotkeyClick' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
+    if (gameSwitched || 'hotkeyPrice' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyAltClick' in clean || 'hotkeyClick' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
     if ('game' in clean) { const name = clean.game === 'poe2' ? 'PoE2 Helper' : 'PoE1 Helper'; try { mainWin?.setTitle(name); tray?.setToolTip(name); } catch { /* no window */ } }
-    if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
+    if ('uiTheme' in clean || gameSwitched) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
     if ('autoSnapshotMin' in clean || 'clientLogPath' in clean) applyAutoSnapshot();
     if (gameSwitched || 'baseFilter' in clean || 'filterDir' in clean || 'autoWatchFilter' in clean || 'hideFractured' in clean || 'hideSynthesised' in clean) {
@@ -1017,6 +1020,8 @@ function registerIpc() {
   handle('trade:bulk', (args) => P().tradeBulk(args || {}));
   handle('poe2:leagues', () => services.poe2.leagues());
   handle('poe2:league', () => services.poe2.getLeague());
+  // the PoE2 Overview: the league and a Divine Orb in exalted (poe.ninja, cached an hour)
+  handle('poe2:divine', async () => { const league = await services.poe2.getLeague(); return { league, divineEx: await services.poe2.ninja2.divineInEx(league).catch(() => null) }; });
   handle('poe2:check', (text) => services.poe2.priceText(String(text || '').slice(0, 20000)));
   handle('price:guess', (args) => services.pricePredict(args || {}));
 
@@ -1550,15 +1555,18 @@ function registerIpc() {
     return appIconImage().resize({ width: 64, height: 64, quality: 'best' }).toDataURL();
   });
   // the Overview's background picture: yours, kept in the app's folder (never shipped with the app)
-  const overviewBgPath = () => path.join(app.getPath('userData'), 'overview-bg.jpg');
+  // each game has its own (PoE2: overview-bg2.jpg, overviewBgOff2)
+  const bgP2 = () => s.get('game') === 'poe2';
+  const overviewBgPath = () => path.join(app.getPath('userData'), bgP2() ? 'overview-bg2.jpg' : 'overview-bg.jpg');
+  const bgOffKey = () => (bgP2() ? 'overviewBgOff2' : 'overviewBgOff');
   // yours if you picked one, else the one that comes with the app (unless you removed it)
   const overviewBgData = () => {
     try {
       const own = overviewBgPath();
-      const shipped = path.join(ASSETS, 'overview-bg.jpg');
-      const file = fs.existsSync(own) ? own : !s.get('overviewBgOff') && fs.existsSync(shipped) ? shipped : null;
+      const shipped = path.join(ASSETS, bgP2() ? 'overview-bg2.jpg' : 'overview-bg.jpg');
+      const file = fs.existsSync(own) ? own : !s.get(bgOffKey()) && fs.existsSync(shipped) ? shipped : null;
       if (!file) return null;
-      return { url: `data:image/jpeg;base64,${fs.readFileSync(file).toString('base64')}`, shipped: file === shipped, credit: file === shipped ? 'The Abbey in the Oakwood, Caspar David Friedrich (1810), public domain' : null };
+      return { url: `data:image/jpeg;base64,${fs.readFileSync(file).toString('base64')}`, shipped: file === shipped, credit: null };
     } catch { return null; }
   };
   // 1.0.55: the test picture put in place by hand on the owner's PC before the painting came with the app
@@ -1574,10 +1582,10 @@ function registerIpc() {
     if (img.isEmpty()) throw new Error('That picture could not be read. Try a .jpg or .png file.');
     const { width } = img.getSize();
     fs.writeFileSync(overviewBgPath(), (width > 2400 ? img.resize({ width: 2400, quality: 'best' }) : img).toJPEG(86));
-    s.set('overviewBgOff', false);
+    s.set(bgOffKey(), false);
     return overviewBgData();
   });
-  handle('overviewBg:reset', () => { try { fs.unlinkSync(overviewBgPath()); } catch { /* none */ } s.set('overviewBgOff', true); return null; });
+  handle('overviewBg:reset', () => { try { fs.unlinkSync(overviewBgPath()); } catch { /* none */ } s.set(bgOffKey(), true); return null; });
   handle('appIcon:style', (style) => {
     s.set('appIconStyle', style === 'classic' ? 'classic' : 'flask');
     s.set('customAppIcon', false);

@@ -5,6 +5,16 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.183 - 2026-11-28
+
+* PoE1 and PoE2 each have their own look: Wraeclast (leather, old gold and rust) in PoE1, Vastiri (cold stone, bronze and rune blue) in PoE2. Settings → Appearance has the others.
+* PoE2 has its own Overview: the league, the Divine Orb in exalted, shortcuts and your recent price checks, with a new picture for each game.
+* [Chat macros] Chat macros work in PoE2, with their own F1 to F5 list.
+* [Settings] Settings in PoE2 mode only show what PoE2 uses.
+- New Overview pictures, painted for PoE Helper: a ruined cathedral on a sea cliff (PoE1) and a desert temple under an eclipse (PoE2). Each game can have its own picture of yours.
+- In PoE2 mode the lab and Path of Building hotkeys are off, so those keys are free in game.
+- PoE2 chat macro ideas leave out PoE1 places (Kingsmarch, Menagerie, Mine…).
+
 ## 1.0.182 - 2026-11-28
 
 * [Settings] Path of Exile 2: a PoE1 / PoE2 switch at the top of the menu. In PoE2 mode the app is "PoE2 Helper" with a price check, loot filter and Tier designer for PoE2.
