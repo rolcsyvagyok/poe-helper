@@ -195,6 +195,9 @@ function pobSection(pb) {
 
 function render(p) {
   current = p;
+  // Path of Exile 2 prices in exalted and divine orbs
+  window.UI.setUnits(p.units || null);
+  document.body.dataset.game = p.game || 'poe1';
   if (p.loading) {
     mount(root, header(null), h('div', { class: 'ov-body' }, h('div', { class: 'muted' }, h('span', { class: 'spin' }), ' Pricing')));
     return fit();
@@ -262,12 +265,12 @@ function render(p) {
     const conf = { high: ['good', 'Plenty of listings', '●'], medium: ['warn', 'Some listings', '◐'], low: ['bad', 'Few listings', '○'], range: ['warn', 'Versions differ', '◐'], exchange: ['warn', 'Bulk exchange', '◐'] }[price.confidence] || ['', '', ''];
     // the price is the hero: big, in the header, with how sure it is under it
     // (no poe.ninja price yet: the bulk exchange's fair price, the 3rd cheapest seller online)
-    const src = price.source === 'exchange' ? `Bulk exchange: the 3rd cheapest of ${price.sellers} sellers online, ${Math.max(1, Math.round((Date.now() - price.exchangeAt) / 60000))} min ago. poe.ninja has no price for it yet.` : divine && price.chaos >= divine ? `${fmt(price.chaos)} chaos on poe.ninja` : 'poe.ninja price';
+    const src = price.source === 'exchange' ? `Bulk exchange: the 3rd cheapest of ${price.sellers} sellers online, ${Math.max(1, Math.round((Date.now() - price.exchangeAt) / 60000))} min ago. poe.ninja has no price for it yet.` : divine && price.chaos >= divine ? `${fmt(price.chaos)} ${p.units?.smallName || 'chaos'} on poe.ninja` : 'poe.ninja price';
     priceEl = h('div', { class: 'ov-hprice', title: src },
       h('span', { class: 'big' }, window.UI.money(price.chaos, divine)),
       conf[1] ? h('span', { class: `ov-conf ${conf[0]}` }, h('span', { 'aria-hidden': 'true' }, conf[2]), ` ${conf[1]}`) : null);
     if (price.stackSize > 1) body.append(h('div', { class: 'small' }, `Your stack of ${price.stackSize} is worth `, h('b', {}, chaosDiv(price.totalChaos, divine))));
-    if (price.range && !(item.rarity === 'Unique' && item.flags?.unidentified)) body.append(h('div', { class: 'small muted' }, item.flags?.unidentified ? `Uniques on this base sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Identify it to know which one it is.` : `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} chaos. Check the mods.`));
+    if (price.range && !(item.rarity === 'Unique' && item.flags?.unidentified)) body.append(h('div', { class: 'small muted' }, item.flags?.unidentified ? `Uniques on this base sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} ${p.units?.smallName || 'chaos'}. Identify it to know which one it is.` : `Versions of this unique sell for ${fmt(price.range[0])} to ${fmt(price.range[1])} ${p.units?.smallName || 'chaos'}. Check the mods.`));
     // an unidentified unique: every unique on its base, most valuable first (thin listings marked)
     const unidUnique = item.rarity === 'Unique' && item.flags?.unidentified;
     if (price.matches?.length > 1 && !unidUnique && !/Map$/i.test(price.category || '')) { // maps: the tier decides, the list only repeats it
@@ -397,7 +400,9 @@ function render(p) {
   body.append(...(p.bulk ? [bulkBox] : []), ...(p.guess ? [guessBox] : []));
   // the mods and the search first; "Show in loot filter" and the other buttons at the bottom
   // the loot filter line last: the price and the search come first
-  body.append(tradeBox, strip, ...(filterNote.childNodes.length ? [filterNote] : []), ...(changeBox ? [changeBox] : []), actions, quickBox);
+  // Path of Exile 2: the price, the search, and whether your filter shows it (with "Show in loot filter")
+  if (p.game === 'poe2') body.append(tradeBox, ...(filterHit ? [strip] : []));
+  else body.append(tradeBox, strip, ...(filterNote.childNodes.length ? [filterNote] : []), ...(changeBox ? [changeBox] : []), actions, quickBox);
   // the mod picker opens right away for anything sold on the trade site; only "Search" asks GGG
   if (p.warrant) openMerc(tradeBox, p.warrant);
   else if (p.tradeable) openTrade(tradeBox);
@@ -560,11 +565,13 @@ async function bulkSection(box) {
     return fit();
   }
   if (!r) { box.style.display = 'none'; return fit(); }
-  let tab = r.chaos.length ? 'chaos' : 'divine';
+  // the currencies sellers want: chaos and divine (PoE1), exalted and divine (PoE2)
+  const [cur1, cur2] = r.currencies || ['chaos', 'divine'];
+  let tab = r[cur1]?.length ? cur1 : cur2;
   const list = h('div', { class: 'tp-listings' });
   const tabs = h('div', { class: 'row', style: { gap: '4px' } });
   const draw = () => {
-    mount(tabs, ['chaos', 'divine'].map((c) => h('button', { class: 'sm' + (tab === c ? ' primary' : ''), disabled: !r[c].length, onclick: () => { tab = c; draw(); } }, `Pay ${c} (${r[c].length})`)));
+    mount(tabs, [cur1, cur2].map((c) => h('button', { class: 'sm' + (tab === c ? ' primary' : ''), disabled: !r[c].length, onclick: () => { tab = c; draw(); } }, `Pay ${c} (${r[c].length})`)));
     mount(list, r[tab].length ? r[tab].map((x) => h('div', { class: 'tp-li' + (x.mine ? ' mine' : '') },
       h('span', { class: 'tp-price' }, `${each(x.each)} ${tab}`, h('span', { class: 'faint' }, ' each')),
       h('span', { class: 'faint', title: `Pays ${x.pay} ${tab} for ${x.get}` }, `${x.pay}:${x.get}`),
@@ -580,7 +587,7 @@ async function bulkSection(box) {
   const fair = !current?.price?.chaos && r.estimate ? h('div', { class: 'small' }, 'Fair price: ', h('b', {}, `${each(r.estimate.chaos)} chaos each`), h('span', { class: 'faint' }, ` (the 3rd cheapest of ${r.estimate.sellers} sellers online; poe.ninja has no price yet)`)) : null;
   mount(box, fair,
     h('div', { class: 'row', style: { gap: '8px' } }, h('span', { class: 't' }, 'Live exchange'),
-      h('span', { class: 'small' }, [best('chaos'), best('divine')].filter(Boolean).map((t) => `from ${t}`).join(' · ') || 'no sellers online'),
+      h('span', { class: 'small' }, [best(cur1), best(cur2)].filter(Boolean).map((t) => `from ${t}`).join(' · ') || 'no sellers online'),
       h('span', { class: 'spacer' }), h('button', { class: 'sm', onclick: () => call('shell:open', r.url) }, 'Open on trade site')),
     tabs, list, h('div', { class: 'small faint' }, 'Sellers online now, cheapest first; 1 trade request, none again within 3 minutes.'));
   draw();

@@ -36,18 +36,21 @@ const FRACTURED_STYLE = { fontSize: 40, text: [255, 255, 255, 255], border: [210
 const HELPER_SUFFIX = ' (helper)';
 const MARK = '#### POE-HELPER';
 
-function candidateFilterDirs() {
+// game: 'poe1' (My Games/Path of Exile) or 'poe2' (My Games/Path of Exile 2)
+function candidateFilterDirs(game = 'poe1') {
   const home = os.homedir();
+  const folder = game === 'poe2' ? 'Path of Exile 2' : 'Path of Exile';
+  const steamId = game === 'poe2' ? '2694490' : '238960';
   const docs = ['Documents', path.join('OneDrive', 'Documents'), path.join('OneDrive', 'Dokumentumok'), 'Dokumentumok'];
-  const dirs = docs.map((d) => path.join(home, d, 'My Games', 'Path of Exile'));
+  const dirs = docs.map((d) => path.join(home, d, 'My Games', folder));
   // Steam Proton (Linux / Steam Deck)
-  dirs.push(path.join(home, '.steam', 'steam', 'steamapps', 'compatdata', '238960', 'pfx', 'drive_c', 'users', 'steamuser', 'Documents', 'My Games', 'Path of Exile'));
-  dirs.push(path.join(home, '.local', 'share', 'Steam', 'steamapps', 'compatdata', '238960', 'pfx', 'drive_c', 'users', 'steamuser', 'Documents', 'My Games', 'Path of Exile'));
+  dirs.push(path.join(home, '.steam', 'steam', 'steamapps', 'compatdata', steamId, 'pfx', 'drive_c', 'users', 'steamuser', 'Documents', 'My Games', folder));
+  dirs.push(path.join(home, '.local', 'share', 'Steam', 'steamapps', 'compatdata', steamId, 'pfx', 'drive_c', 'users', 'steamuser', 'Documents', 'My Games', folder));
   return dirs;
 }
 
-function detectFilterDir() {
-  return candidateFilterDirs().find((d) => {
+function detectFilterDir(game = 'poe1') {
+  return candidateFilterDirs(game).find((d) => {
     try { return fs.statSync(d).isDirectory(); } catch { return false; }
   }) || null;
 }
@@ -1101,7 +1104,12 @@ class FilterManager {
   }
 
   dir() {
-    return this.store.get('filterDir') || detectFilterDir();
+    return this.store.get('filterDir') || detectFilterDir(this.game());
+  }
+
+  /** 'poe2' when the app is set to Path of Exile 2: its own folder, and only the PoE2-safe parts of the build. */
+  game() {
+    return this.store.get('game') === 'poe2' ? 'poe2' : 'poe1';
   }
 
   list() {
@@ -1209,6 +1217,7 @@ class FilterManager {
   }
 
   writeNow() {
+    if (this.game() === 'poe2') return this.writeNow2();
     const base = this.basePath();
     const patch0 = this.store.get('tierPatch') || {};
     const baseText = this.readBase();
@@ -1305,6 +1314,47 @@ class FilterManager {
     return target;
   }
 
+  /**
+   * Path of Exile 2: your tier moves, looks and actions, the strictness, your own rules and My bases, on a fresh
+   * copy of the filter. None of the PoE1-only parts (base ranks, cluster jewels, talismans, campaign hiding…):
+   * their item names are PoE1's, and the game refuses a filter with names it doesn't know.
+   */
+  writeNow2() {
+    const base = this.basePath();
+    const patch0 = this.store.get('tierPatch') || {};
+    const baseText = this.readBase();
+    const check = nameChecker(baseText, [...this.verifiedNames2 || []]);
+    const forced = new Set(this.store.get('forcedNames') || []);
+    const fix = (v) => (forced.has(v) ? v : check.fix(v));
+    const moves = {};
+    for (const [k, to] of Object.entries(patch0.moves || {})) {
+      const [type, b] = k.split('\t');
+      const ok = fix(b);
+      if (ok) moves[`${type}\t${ok}`] = to;
+    }
+    const patch = withStrictness(baseText, { ...patch0, moves }, levelFor(this.store.get('strictness'), baseText, base));
+    let text = applyTierPatch(baseText, patch);
+    if (this.store.get('showAllCurrency')) text = showAllCurrency(text, new Set(Object.entries(patch.actions || {}).filter(([, a]) => a === 'Hide').map(([k]) => k)));
+    if (text.startsWith('#Online Item Filter')) text = text.replace(/^(#(Online Item Filter|[a-zA-Z]+:[^\n]*)\r?\n)+/, '');
+    const myBases = (this.store.get('myBases') || []).filter((e) => e.enabled !== false && e.base).map((e) => myBaseRule(e, this.store.get('myBasesStyle') || MY_BASES_STYLE));
+    const hidden = hiddenBaseRules(baseText, patch, {});
+    const overrides = [...myBases, ...this.overrides(), ...hidden].map((r) => cleanRule(r, fix)).filter(Boolean);
+    this.lastDropped = [...check.dropped].filter((v) => !forced.has(v));
+    const droppedKey = this.lastDropped.join('\u0001');
+    if (this.lastDropped.length && droppedKey !== this.lastDroppedLogged) this.log('left out unknown item names', this.lastDropped.join(', '));
+    this.lastDroppedLogged = droppedKey;
+    let out = finalCheck(buildHelperFilter({ baseText: text, overrides, economy: [], header: { baseName: onlineFilterName(base) || path.basename(base) } }), fix, this.log);
+    const sizes = this.store.get('sizeAdjust');
+    if (sizes && Object.values(sizes).some((v) => Number(v))) out = adjustSizes(out, sizes);
+    const target = helperPathFor(base);
+    const tmp = target + '.tmp';
+    fs.writeFileSync(tmp, out, 'utf8');
+    fs.renameSync(tmp, target);
+    this.copySounds(path.dirname(target), [...overrides, ...Object.values(patch.styles || {}).map((style) => ({ style }))]);
+    this.store.set('lastWrite', { at: Date.now(), target, leftOut: this.lastDropped.slice(0, 50) });
+    return target;
+  }
+
   /** Copy the app's tink files the rules use into "<filter folder>/poehelper-sounds/". */
   copySounds(filterDir, rules) {
     if (!this.soundsDir) return;
@@ -1377,4 +1427,4 @@ class FilterManager {
   }
 }
 
-module.exports = { idModsFirst, voicesTop, showMissingUniques, magicBlue, insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };
+module.exports = { idModsFirst, voicesTop, showMissingUniques, magicBlue, insertAfterItemTiers, adjustSizes, collectedRules, unidTierRarities, rankStrandTiers, fragmentsAsCurrency, mapHideRules, fixedLookOf, categoryIconShapes, iconShapeOf, colourLifeforce, rankFatedTiers, rankUnidTiers, rankGroupOf, RANKED_NAMES, rareTierMoves, unidTierRules, disableUnidTiers, UNID_TIERS, showAllCurrency, campaignHideRules, CAMPAIGN_CLASSES, matrixRules, MATRIX_NAMES, RANKED_NAMES, NOT_RANKED_GROUPS, FRACTURED_STYLE, FRACTURED_TOP_STYLE, hiddenBaseRules, rankRules, RANKS, RANK_LOOKS, RANK_KINDS, myBaseRule, MY_BASES_STYLE, nameChecker, cleanRule, nameKey, onlineFilterName, FilterManager, buildHelperFilter, economyRules, quickRule, detectFilterDir, candidateFilterDirs, listFilters, helperPathFor, TIER_STYLES, TIER_LOOKS, DEFAULT_TIER_SOUNDS, SOUNDS, SOUND_SUBDIR, soundStyle, soundChoiceOf, MARK };

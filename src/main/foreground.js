@@ -38,7 +38,7 @@ function poeInFront() {
   try {
     const h = a.fg();
     if (!h) return false;
-    return read(a.cls, h) === 'POEWindowClass' || /^Path of Exile$/.test(read(a.title, h));
+    return read(a.cls, h) === 'POEWindowClass' || /^Path of Exile( 2)?$/.test(read(a.title, h));
   } catch { return null; }
 }
 

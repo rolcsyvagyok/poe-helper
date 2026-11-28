@@ -8,6 +8,7 @@
  *   tradeStats GET /api/trade/data/stats               (cached 7 days, only when you build a rare search)
  *   search     POST /api/trade/search/{league}         (only when you click "Search" in the overlay)
  *   fetch      GET /api/trade/fetch/{ids}?query={id}   (only if you ask for listings; max 10 per call)
+ *   (Path of Exile 2: the same under /api/trade2, leagues as "poe2/{league}"; one client per game)
  *
  * Leagues and prices come from poe.ninja, so normal price checks make ZERO calls to GGG.
  * Every call is counted, rate limited via GGG's headers, and blocked once the
@@ -25,7 +26,12 @@ class BudgetExceededError extends Error {}
 class AuthError extends Error {}
 
 class GggClient {
-  constructor({ cache, fetchImpl, userAgent, getSessionId, getAccountName, usage, dailyBudget = 300, limiter, log = () => {} }) {
+  constructor({ cache, fetchImpl, userAgent, getSessionId, getAccountName, usage, dailyBudget = 300, limiter, log = () => {}, game = 'poe1' }) {
+    // Path of Exile 2 uses the same trade site under /trade2 and /api/trade2, with "poe2/" before the league
+    this.game = game === 'poe2' ? 'poe2' : 'poe1';
+    this.T = this.game === 'poe2' ? 'trade2' : 'trade';
+    this.realm = this.game === 'poe2' ? 'poe2/' : '';
+    this.ck = this.game === 'poe2' ? 'ggg2' : 'ggg';
     this.cache = cache;
     this.fetch = fetchImpl || globalThis.fetch;
     this.userAgent = userAgent;
@@ -160,6 +166,7 @@ class GggClient {
 
   /** GGG's own list of the main leagues (public, no login), cached 3 hours: has a new league from its first minute. */
   async leagues() {
+    if (this.game === 'poe2') return this.leagues2();
     const key = 'ggg_leagues';
     if (this.cache.isFresh(key, 3 * 60 * 60 * 1000)) return this.cache.get(key).data;
     try {
@@ -174,13 +181,29 @@ class GggClient {
     }
   }
 
+  /** Path of Exile 2's trade leagues ({ id, text }), cached 6 hours: the ids the trade site takes. */
+  async leagues2() {
+    const key = 'ggg2_leagues';
+    if (this.cache.isFresh(key, 6 * 60 * 60 * 1000)) return this.cache.get(key).data;
+    try {
+      const json = await this._request('leagues', `${WEB}/api/trade2/data/leagues`);
+      const list = (json?.result || []).filter((l) => !l.realm || l.realm === 'poe2');
+      this.cache.set(key, list);
+      return list;
+    } catch (e) {
+      const stale = this.cache.get(key);
+      if (stale) return stale.data;
+      throw e;
+    }
+  }
+
   // ---------- Trade (rares, on demand) ----------
 
   async tradeStats({ maxAge = STATS_TTL } = {}) {
-    const key = 'ggg_trade_stats';
+    const key = `${this.ck}_trade_stats`;
     if (this.cache.isFresh(key, maxAge)) return this.cache.get(key).data;
     try {
-      const json = await this._request('trade-data', `${WEB}/api/trade/data/stats`);
+      const json = await this._request('trade-data', `${WEB}/api/${this.T}/data/stats`);
       this.cache.set(key, json);
       return json;
     } catch (e) {
@@ -192,10 +215,10 @@ class GggClient {
 
   /** The trade site's item names and their exchange tags ("Chaos Orb" -> "chaos"), cached like the stats. */
   async tradeStatic() {
-    const key = 'ggg_trade_static';
+    const key = `${this.ck}_trade_static`;
     if (this.cache.isFresh(key, STATS_TTL)) return this.cache.get(key).data;
     try {
-      const json = await this._request('trade-data', `${WEB}/api/trade/data/static`);
+      const json = await this._request('trade-data', `${WEB}/api/${this.T}/data/static`);
       this.cache.set(key, json);
       return json;
     } catch (e) {
@@ -207,10 +230,10 @@ class GggClient {
 
   /** The trade site's list of item names (bases, uniques, gems with their transfigured "discriminator"), cached like the stats. */
   async tradeItems() {
-    const key = 'ggg_trade_items';
+    const key = `${this.ck}_trade_items`;
     if (this.cache.isFresh(key, STATS_TTL)) return this.cache.get(key).data;
     try {
-      const json = await this._request('trade-data', `${WEB}/api/trade/data/items`);
+      const json = await this._request('trade-data', `${WEB}/api/${this.T}/data/items`);
       this.cache.set(key, json);
       return json;
     } catch (e) {
@@ -228,7 +251,7 @@ class GggClient {
     const safety = maxWaitMs != null ? INTERACTIVE_SAFETY : undefined;
     const wait = this.limiter?.waitTime?.('trade-exchange', safety != null ? { safety } : {}) || 0;
     if (maxWaitMs != null && wait > maxWaitMs) throw new Error(`The trade site asks to wait ${Math.ceil(wait / 1000)} seconds before the next exchange search. Try again then.`);
-    const res = await this._request('trade-exchange', `${WEB}/api/trade/exchange/${encodeURIComponent(league)}`, { method: 'POST', body, safety });
+    const res = await this._request('trade-exchange', `${WEB}/api/${this.T}/exchange/${this.realm}${encodeURIComponent(league)}`, { method: 'POST', body, safety });
     if (!this._exchangeCache) this._exchangeCache = new Map();
     this._exchangeCache.set(key, { at: Date.now(), res });
     if (this._exchangeCache.size > 50) this._exchangeCache.delete(this._exchangeCache.keys().next().value);
@@ -236,7 +259,7 @@ class GggClient {
   }
 
   exchangeUrl(league, queryId) {
-    return `${WEB}/trade/exchange/${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
+    return `${WEB}/${this.T}/exchange/${this.realm}${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
   }
 
   async tradeSearch(league, query, { login = false, maxWaitMs = null } = {}) {
@@ -249,7 +272,7 @@ class GggClient {
     const safety = maxWaitMs != null ? INTERACTIVE_SAFETY : undefined;
     const wait = this.limiter?.waitTime?.('trade-search', safety != null ? { safety } : {}) || 0;
     if (maxWaitMs != null && wait > maxWaitMs) throw new Error(`The trade site asks to wait ${Math.ceil(wait / 1000)} seconds before the next search. Try again then.`);
-    const res = await this._request('trade-search', `${WEB}/api/trade/search/${encodeURIComponent(league)}`, { method: 'POST', body: query, withSession: login ? 'optional' : false, safety });
+    const res = await this._request('trade-search', `${WEB}/api/${this.T}/search/${this.realm}${encodeURIComponent(league)}`, { method: 'POST', body: query, withSession: login ? 'optional' : false, safety });
     if (!this._searchCache) this._searchCache = new Map();
     this._searchCache.set(key, { at: Date.now(), res });
     if (this._searchCache.size > 50) this._searchCache.delete(this._searchCache.keys().next().value);
@@ -266,7 +289,7 @@ class GggClient {
     const key = `${queryId}|${slice.join(',')}`;
     const hit = this._fetchCache?.get(key);
     if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.res;
-    const res = await this._request('trade-fetch', `${WEB}/api/trade/fetch/${slice.join(',')}?query=${encodeURIComponent(queryId)}`, interactive ? { safety: INTERACTIVE_SAFETY } : {});
+    const res = await this._request('trade-fetch', `${WEB}/api/${this.T}/fetch/${slice.join(',')}?query=${encodeURIComponent(queryId)}${this.game === 'poe2' ? '&realm=poe2' : ''}`, interactive ? { safety: INTERACTIVE_SAFETY } : {});
     if (!this._fetchCache) this._fetchCache = new Map();
     this._fetchCache.set(key, { at: Date.now(), res });
     if (this._fetchCache.size > 100) this._fetchCache.delete(this._fetchCache.keys().next().value);
@@ -307,7 +330,7 @@ class GggClient {
   }
 
   tradeUrl(league, queryId) {
-    return `${WEB}/trade/search/${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
+    return `${WEB}/${this.T}/search/${this.realm}${encodeURIComponent(league)}/${encodeURIComponent(queryId)}`;
   }
 
   snapshot() {

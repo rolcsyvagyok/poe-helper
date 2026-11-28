@@ -1,0 +1,1 @@
+These Path of Exile 2 item copies are from Sidekick's parser tests (github.com/Sidekick-Poe/Sidekick, MIT licence, Copyright (c) 2020 Dominique Alexandre).

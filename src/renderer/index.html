@@ -9,8 +9,10 @@
 <body>
   <div class="app">
     <aside class="rail">
-      <div class="name"><img id="brandIcon" class="brand-icon" alt="" width="30" height="30" src="../../assets/icon-mark.png"><span>PoE Helper</span></div>
+      <div class="name"><img id="brandIcon" class="brand-icon" alt="" width="30" height="30" src="../../assets/icon-mark.png"><span id="brandName">PoE1 Helper</span></div>
+      <div id="gameSwitch" class="game-switch" role="group" aria-label="Which game"></div>
       <nav id="nav" aria-label="Pages">
+        <button data-page="poe2" data-icon="search" data-game="poe2" hidden>Price check</button>
         <button data-page="dashboard" data-icon="eye" data-art="Exalted Orb" class="active">Overview</button>
         <div class="nav-group">Loot</div>
         <button data-page="filters" data-icon="drop" data-art="Chaos Orb">Loot filter</button>
@@ -34,6 +36,7 @@
     </aside>
     <main class="main">
       <section class="page active" id="page-dashboard"></section>
+      <section class="page" id="page-poe2"></section>
       <section class="page" id="page-networth"></section>
       <section class="page" id="page-farm"></section>
       <section class="page" id="page-atlas"></section>

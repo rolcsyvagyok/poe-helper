@@ -96,7 +96,7 @@ function drawNow() {
       h('span', { style: { flex: 1 } }, D.state.missing
         ? `Your filter${D.state.missing.name ? ` "${D.state.missing.name}"` : ''} isn't in the filter folder any more (the game may have saved it under a new name when it synced). Pick it again on the Loot filter page and its tiers show up here.`
         : !D.state.hasFilter ? 'Choose your FilterBlade filter on the Loot filter page first; the designer works on its tiers.'
-          : 'Your filter has no tiers named Tier 1 to Tier 6, so there is nothing for a design to restyle.'),
+          : S.settings?.game === 'poe2' ? 'Your filter has no tiers named S to E, so there is nothing for a design to restyle.' : 'Your filter has no tiers named Tier 1 to Tier 6, so there is nothing for a design to restyle.'),
       h('button', { class: 'primary sm', onclick: () => document.querySelector('button[data-page="filters"]')?.click() }, 'Open Loot filter')) : null,
     gallery(),
     h('section', { class: 'section' },
@@ -153,9 +153,12 @@ function gigaOf(levels) {
   return { fontSize: 45, text: [255, 215, 0, 255], border: [255, 215, 0, 255], background: [...base, 255], sound: { id: 6, volume: 300 }, beam: { color: beam }, icon: { size: 0, color: beam, shape: 'Star' } };
 }
 
+// PoE2's NeverSink tiers are S to E: Tier 1 is S, Tier 6 is E
+const lvName = (lv) => (S.settings?.game === 'poe2' ? `Tier ${lv} (${'SABCDE'[lv - 1] || lv})` : `Tier ${lv}`);
+
 function miniPreview(levels) {
   return h('div', { class: 'ground dz-mini' },
-    dropLabel(SAMPLE.giga, gigaOf(levels), { scale: 0.52, rarity: 'Currency' }),
+    S.settings?.game === 'poe2' ? null : dropLabel(SAMPLE.giga, gigaOf(levels), { scale: 0.52, rarity: 'Currency' }),
     [1, 2, 3].map((lv) => dropLabel(SAMPLE[lv], levels[lv], { scale: 0.52, rarity: 'Currency' })));
 }
 
@@ -187,14 +190,15 @@ function gallery() {
         h('button', { class: D.presetId === t.id ? 'sm' : 'primary sm', onclick: () => { D.levels = themeSounds(clone(t.levels)); D.presetId = t.id; D.level = 1; D.groups = null; persist(); draw(); applySoon(0); } }, D.presetId === t.id ? 'Use it again' : 'Use this theme'),
         own ? h('button', { class: 'danger sm', onclick: async () => { await call('designer:deleteTheme', t.id); D.state = await call('designer:state'); draw(); } }, 'Delete') : null)));
   return h('section', { class: 'section', style: { marginTop: 0 } },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with FilterBlade\'s Divine sound. Tier 2 plays game sound 1 and Tiers 3 to 6 game sound 2, unless you pick another sound for a tier. Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.')),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Themes'), h('p', {}, 'Every theme keeps Tier 1 as a white label with FilterBlade\'s Divine sound. Tier 2 plays game sound 1 and Tiers 3 to 6 game sound 2, unless you pick another sound for a tier.' + (S.settings?.game === 'poe2' ? '' : ' Your Giga tier (Mirror level) takes the reverse: Tier 1\'s colour as the background with gold text.'))),
     h('div', { class: 'dz-gallery' }, randomCard(), D.state.presets.map((t) => card(t, false)), D.state.themes.map((t) => card(t, true))));
 }
 
 // ---------------------------------------------------------------- loot pile preview
 function pile() {
   const stage = h('div', { class: 'ground dz-pile', role: 'group', 'aria-label': 'Preview of all tiers on the ground' },
-    h('div', { class: 'dz-drop', style: { left: PILE.giga[0] + '%', top: PILE.giga[1] + '%', cursor: 'default' }, title: 'Giga: follows Tier 1, reversed' }, dropLabel(SAMPLE.giga, gigaOf(D.levels), { rarity: 'Currency', scale: 0.82 })),
+    // Giga (Mirror level) is a PoE1 tier: not in Path of Exile 2
+    S.settings?.game === 'poe2' ? null : h('div', { class: 'dz-drop', style: { left: PILE.giga[0] + '%', top: PILE.giga[1] + '%', cursor: 'default' }, title: 'Giga: follows Tier 1, reversed' }, dropLabel(SAMPLE.giga, gigaOf(D.levels), { rarity: 'Currency', scale: 0.82 })),
     [6, 5, 4, 3, 2, 1].map((lv) => {
       const [x, y] = PILE[lv];
       const st = D.levels[lv] || {};
@@ -208,7 +212,7 @@ function pile() {
   const tabs = h('div', { class: 'dz-levels' }, [1, 2, 3, 4, 5, 6].map((lv) => h('button', {
     class: D.level === lv ? 'active' : '',
     onclick: () => { D.level = lv; draw(); },
-  }, h('span', { class: 'n' }, `Tier ${lv}`), h('span', { class: 'd' }, LEVEL_NOTE[lv]))));
+  }, h('span', { class: 'n' }, lvName(lv)), h('span', { class: 'd' }, LEVEL_NOTE[lv]))));
   return h('div', { class: 'stack', style: { gap: '10px' } }, stage, tabs);
 }
 
@@ -260,7 +264,7 @@ function editor() {
 
   return h('div', { class: 'panel dz-editor' },
     h('div', { class: 'row' },
-      h('h2', { style: { margin: 0 } }, `Tier ${lv}`), h('span', { class: 'small muted' }, LEVEL_NOTE[lv]),
+      h('h2', { style: { margin: 0 } }, lvName(lv)), h('span', { class: 'small muted' }, LEVEL_NOTE[lv]),
       h('span', { class: 'spacer' }),
       null),
     locked ? h('p', { class: 'small muted' }, 'Tier 1 stays a white label with a white beam and a white star, and keeps FilterBlade\'s own sound. You can still change its text colour, or switch the lock off.') : null,

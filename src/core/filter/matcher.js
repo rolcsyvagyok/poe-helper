@@ -114,6 +114,7 @@ function evalCondition(c, item, assumed) {
     case 'StackSize': return numCond(c.op, v, item.stack?.current ?? 1);
     case 'GemLevel': return numCond(c.op, v, item.gemLevel);
     case 'MapTier': return numCond(c.op, v, item.mapTier);
+    case 'WaystoneTier': return numCond(c.op, v, item.waystoneTier ?? item.mapTier);
     case 'Corrupted': return boolCond(v, item.flags?.corrupted);
     // 3.30: normal items have an unidentified item tier, and the game doesn't count them as identified
     case 'Identified': return boolCond(v, !item.flags?.unidentified && rarityOf(item) !== 'Normal');

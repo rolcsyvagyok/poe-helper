@@ -41,10 +41,13 @@ function fmt(n, digits = 1) {
   return n.toFixed(abs < 1 ? 2 : digits).replace(/\.0+$/, '');
 }
 
+// the price units: chaos and divine (Path of Exile 1), exalted and divine (Path of Exile 2's popup)
+const UNITS = { small: 'c', big: 'div' };
+function setUnits(u) { UNITS.small = u?.small || 'c'; UNITS.big = u?.big || 'div'; }
 function chaosDiv(chaos, divine) {
   if (chaos == null) return '–';
-  if (divine && Math.abs(chaos) >= divine) return `${fmt(chaos / divine, 2)} div`;
-  return `${fmt(chaos)}c`;
+  if (divine && Math.abs(chaos) >= divine) return `${fmt(chaos / divine, 2)} ${UNITS.big}`;
+  return UNITS.small === 'c' ? `${fmt(chaos)}c` : `${fmt(chaos)} ${UNITS.small}`;
 }
 
 function ago(ms) {
@@ -334,6 +337,8 @@ function setUserIcons(list) {
 // in-game item pictures: item name -> image URL on GGG's server (from poe.ninja's data)
 const artUrls = new Map();
 function setArt(map) { for (const [k, v] of Object.entries(map || {})) artUrls.set(k, v); }
+// the other game: its own pictures (PoE2's Divine Orb is not PoE1's)
+function clearArt() { artUrls.clear(); picCache.clear(); }
 const hasArt = (name) => artUrls.has(name);
 function icon(id, { size = 16, title = null, fallback = 'box' } = {}) {
   const span = document.createElement('span');
@@ -465,7 +470,7 @@ function money(chaos, divine, { sign = false } = {}) {
   const b = document.createElement('b');
   b.textContent = `${sign ? (neg ? '−' : '+') : neg ? '−' : ''}${useDiv ? fmt(abs / divine, 2) : fmt(abs)}`;
   const u = document.createElement('small');
-  u.textContent = useDiv ? 'div' : 'c';
+  u.textContent = useDiv ? UNITS.big : UNITS.small;
   span.append(b, u);
   return span;
 }
@@ -519,5 +524,5 @@ function infoTip(text, { label = 'About this' } = {}) {
   document.addEventListener('mousedown', hide, true);
   document.addEventListener('scroll', hide, true);
 })();
-window.UI = { itemPic, money, infoTip, UI_THEMES, applyTheme, gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
+window.UI = { clearArt, setUnits, itemPic, money, infoTip, UI_THEMES, applyTheme, gameSoundMap, setGameSounds, setArt, hasArt, setUserIcons, fileToBase64, fileDropZone, soundPath, soundIdFromPath, soundDropZone, isUserSound, icon, ICON_NAMES, keepScroll, loadUserFont, h, mount, fmt, chaosDiv, ago, rarityClass, toast, call, dropLabel, normalizeStyle, playSound, soundButton, GAME_COLOURS };
 })();

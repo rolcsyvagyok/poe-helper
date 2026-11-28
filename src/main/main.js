@@ -160,7 +160,7 @@ function createMainWindow() {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#16181d',
-    title: 'PoE Helper',
+    title: services?.settings?.get('game') === 'poe2' ? 'PoE2 Helper' : 'PoE1 Helper',
     icon: path.join(__dirname, '..', '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     autoHideMenuBar: true,
     show: false,
@@ -380,15 +380,16 @@ async function runPriceCheck(text, { compare = false } = {}) {
   // the comparison only on its own hotkey and only when it's switched on: the normal price check never starts PoB
   const wantPob = compare && services.settings.get('pobCompareOn') !== false && /Rarity:\s*(Normal|Magic|Rare|Unique)/i.test(text) && !/^Rarity:\s*Unique[\s\S]*?\nMap Tier:/i.test(text);
   try {
-    const result = await services.priceText(text);
-    showOverlayAtCursor({ ...result, text, league: await services.getLeague(), pob: wantPob ? { loading: true } : null });
+    const poe2 = services.gameNow() === 'poe2';
+    const result = poe2 ? await services.poe2.priceText(text) : await services.priceText(text);
+    showOverlayAtCursor({ ...result, text, league: poe2 ? await services.poe2.getLeague() : await services.getLeague(), pob: wantPob && !poe2 ? { loading: true } : null });
     mainWin?.webContents.send('history:updated');
   } catch (e) {
     log('price check failed', e.message);
     showOverlayAtCursor({ error: e.message });
     return;
   }
-  if (wantPob) {
+  if (wantPob && services.gameNow() !== 'poe2') {
     const r = await pobCompareFor(text);
     if (r.error) log('price check compare', r.error);
     overlay?.webContents.send('overlay:pob', r);
@@ -634,7 +635,7 @@ function hideToTray() {
 
 function createTray() {
   tray = new Tray(trayImage());
-  tray.setToolTip('PoE Helper');
+  tray.setToolTip(services?.settings?.get('game') === 'poe2' ? 'PoE2 Helper' : 'PoE1 Helper');
   rebuildTrayMenu();
   tray.on('click', () => mainWin.show());
 }
@@ -758,6 +759,7 @@ setInterval(collectedTick, 3 * 60 * 60 * 1000);
 // My collection: tick new uniques from your Unique stash tab (through PoE Ladder, not GGG) every few hours (Off in My collection)
 async function collectionAutoTick() {
   try {
+    if (services.gameNow() === 'poe2') return;
     const hours = Number(services.settings.get('collectAutoHours') ?? 3);
     if (!(hours > 0) || !String(services.settings.get('accountName') || '').trim()) return;
     if (Date.now() - (services.settings.get('collectAutoAt') || 0) < hours * 60 * 60 * 1000) return;
@@ -970,15 +972,19 @@ function registerIpc() {
       })).filter((m) => m.key);
     }
     // another filter picked: its own setup (what you hid and moved) comes with it
+    // the other game: its own loot filter and setup (before anything else, so the rest lands on that game's)
+    const gameSwitched = 'game' in clean && (clean.game === 'poe2' ? 'poe2' : 'poe1') !== (s.get('game') === 'poe2' ? 'poe2' : 'poe1');
+    if (gameSwitched) { services.switchGameFilter(s.get('game'), clean.game); s.set('game', clean.game === 'poe2' ? 'poe2' : 'poe1'); }
     if ('baseFilter' in clean && clean.baseFilter && clean.baseFilter !== s.get('baseFilter')) services.switchFilterProfile(s.get('baseFilter'), clean.baseFilter);
     s.patch(clean);
     services.applySettings();
     if ('hotkeyPrice' in clean || 'hotkeyLab' in clean || 'hotkeySnapshot' in clean || 'hotkeyPobTest' in clean || 'hotkeyAltClick' in clean || 'hotkeyClick' in clean || 'pobCompareOn' in clean || 'chatMacros' in clean || 'chatMacrosOn' in clean) { hotkeysPaused = false; registerHotkeys(); }
     if ('clipboardMode' in clean) startClipboardWatcher();
+    if ('game' in clean) { const name = clean.game === 'poe2' ? 'PoE2 Helper' : 'PoE1 Helper'; try { mainWin?.setTitle(name); tray?.setToolTip(name); } catch { /* no window */ } }
     if ('uiTheme' in clean) for (const w of BrowserWindow.getAllWindows()) { try { w.webContents.send('uiTheme:changed', s.get('uiTheme')); } catch { /* closed */ } }
     if ('startWithWindows' in clean) applyLoginItem();
     if ('autoSnapshotMin' in clean || 'clientLogPath' in clean) applyAutoSnapshot();
-    if ('baseFilter' in clean || 'filterDir' in clean || 'autoWatchFilter' in clean || 'hideFractured' in clean || 'hideSynthesised' in clean) {
+    if (gameSwitched || 'baseFilter' in clean || 'filterDir' in clean || 'autoWatchFilter' in clean || 'hideFractured' in clean || 'hideSynthesised' in clean) {
       applyFilterWatch();
       if (services.filters.basePath()) { try { services.filters.write(); } catch (e) { log('write after choosing filter', e.message); } }
     }
@@ -1003,10 +1009,15 @@ function registerIpc() {
   });
   handle('hotkeys:resume', () => { clearTimeout(pauseTimer); hotkeysPaused = false; return registerHotkeys({ quiet: true }); });
 
-  handle('trade:prepare', (text) => services.tradePrepare(text));
-  handle('trade:search', (args) => services.tradeSearch(args));
-  handle('trade:openSite', async (args) => { const url = await services.tradeSiteUrl(args || {}); shell.openExternal(url); return url; });
-  handle('trade:bulk', (args) => services.tradeBulk(args || {}));
+  // the price check's trade panel: Path of Exile 2's own search when the app is switched to PoE2
+  const P = () => (services.gameNow() === 'poe2' ? services.poe2 : services);
+  handle('trade:prepare', (text) => P().tradePrepare(text));
+  handle('trade:search', (args) => P().tradeSearch(args));
+  handle('trade:openSite', async (args) => { const url = await P().tradeSiteUrl(args || {}); shell.openExternal(url); return url; });
+  handle('trade:bulk', (args) => P().tradeBulk(args || {}));
+  handle('poe2:leagues', () => services.poe2.leagues());
+  handle('poe2:league', () => services.poe2.getLeague());
+  handle('poe2:check', (text) => services.poe2.priceText(String(text || '').slice(0, 20000)));
   handle('price:guess', (args) => services.pricePredict(args || {}));
 
   handle('networth:tabs', async (force) => services.ggg.stashTabs(await services.getLeague(), { force: !!force }));

@@ -2331,3 +2331,9 @@ td.cj-here .cj-cell { box-shadow: 0 0 0 2px #4a90d9; }
 .claude-help.warn { border-color: #ff9a1f; }
 .claude-help ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .claude-help .row { gap: 8px; }
+
+/* PoE1 Helper / PoE2 Helper switch, under the name */
+.game-switch { display: flex; gap: 4px; margin: 6px 0 10px; padding: 0 4px; }
+.game-switch button { flex: 1; }
+.game-switch button.on { background: var(--accent, #4f7dff); color: var(--accent-ink, #fff); border-color: transparent; }
+#nav [hidden] { display: none !important; }

@@ -19,6 +19,11 @@ the release steps, CHANGELOG.md what each version changed (written for players),
 - `src/core/` — pure logic, unit-tested: item parser, pricer, trade, filter engine, regex, lab, pob-code (build codes), pob-trade (weighted trade queries).
   - `price-filters.js` + `trade.prepareSearch`: the price check's search, modelled on Awakened PoE Trade (MIT): pseudo totals, Q20 defences/DPS, starting ticks, crafting-base preset. The hotkey copies with Ctrl+Alt+C; `item.modMeta` holds tier / prefix-suffix / roll ranges, and `plainItemText` gives Path of Building the plain copy.
 - `src/core/filter/strictness.js` + `strictness.json`: FilterBlade's strictness levels done in the app. Rebuild the JSON with `node scripts/build-strictness.js <7 FilterBlade downloads, Soft first>` when NeverSink changes them. Only the change from the download's own level ("# TYPE: 2-…") is applied, under the owner's own tier actions; stored per filter name in `settings.strictness`.
+- Path of Exile 2 (Settings → game switch, `settings.game`): the price check (`src/main/poe2.js`, `src/core/poe2/`) and the loot filter.
+  - Each game has its own filter and filter setup: `switchGameFilter` in services.js parks every filter key in `settings.gameFilters[game]` and brings back the other's.
+  - The filter folder is `My Games/Path of Exile 2`. `FilterManager.writeNow2` builds a PoE2 filter with only the game-neutral parts (tier patch, strictness, own rules, My bases, sizes); never the PoE1 rules, whose item names would stop the game loading the filter.
+  - PoE2 strictness: `strictness2.json`, rebuilt with `node scripts/build-strictness.js --poe2 <7 NeverSink PoE2 filters, Soft first>`; a filter is told apart by its header (`isPoe2Filter`).
+  - Tier prices come from poe.ninja's PoE2 lists in exalted (`listsForType2`); the Loot filter page uses `CATEGORIES2`.
 - `src/pob/` — Lua run inside the user's own Path of Building install.
   - `SimpleGraphic.lua`: stubs for PoB's graphics host.
   - `host.lua`: the headless PoB host, one op per request.

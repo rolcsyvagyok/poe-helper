@@ -4,6 +4,9 @@ A Path of Exile 1 desktop helper with an in-game overlay. It combines a price ch
 
 ## Features
 
+**PoE1 Helper or PoE2 Helper**
+- The switch under the app's name picks the game. **PoE1** has every page below. **PoE2** is the price check for Path of Exile 2 (more later): the same hotkey and popup, prices from poe.ninja's PoE2 lists in exalted and divine orbs, and the PoE2 trade site's search (runes, desecrated mods, waystone tier, DPS, defences). Its page also takes a pasted item and lets you pick the PoE2 league.
+
 **Price check overlay**
 - Hover an item and press **`Alt+E`** (change it in Settings by pressing the keys you want), or just `Ctrl+C` it with clipboard mode on. The price check pops up next to the item without taking focus from the game, so you can hover the next item and press Alt+E again. Esc or moving the mouse away closes it; once your mouse has been on the popup it stays open until Esc or ✕. Drag it by its top bar and the next popup opens in the same place (Settings resets it); 📌 keeps it open. The overlay shows the poe.ninja price, divine conversion, stack total and how confident the price is.
 - Handles currency and every stackable category (scarabs, essences, fossils, oils, omens, tattoos, runegrafts, embers, djinn coins…), divination cards, gems (level, quality, corruption), uniques (5L/6L pricing, variant ranges, unidentified bases), maps and influenced bases by item level.
@@ -88,6 +91,9 @@ A Path of Exile 1 desktop helper with an in-game overlay. It combines a price ch
 | Atlas tree data | GGG's atlastree-export on GitHub (raw.githubusercontent.com) | at most once a week | 0 GGG |
 | Newest NeverSink version | api.github.com releases | at most once a day | 0 GGG |
 | Net worth snapshot | GGG `get-stash-items` | 1 per **selected** tab; reused if you snapshot again within 60 s | N GGG |
+| PoE2 prices | poe.ninja `/poe2/api/economy` (exchange and item lists) | only the lists an item needs, each at most once an hour | 0 GGG |
+| PoE2 leagues, stat and item lists | GGG `/api/trade2/data/…` | leagues every 6 h, the lists at most once a week | ≤3 GGG / week |
+| PoE2 trade search | GGG `/api/trade2/search/poe2/…` (+ `/fetch`) | only when you press **Search** (a unique searches at once) | 1–2 GGG |
 
 Guards on every GGG request:
 - GGG's `X-Rate-Limit-*` headers are parsed and followed at **50 %** of the allowed rate (configurable). `Retry-After` is honoured.
@@ -190,5 +196,6 @@ The Overview background (`assets/overview-bg.jpg`) is *The Abbey in the Oakwood*
 ## Credits
 
 - The price check's search is modelled on [Awakened PoE Trade](https://github.com/SnosMe/awakened-poe-trade) (MIT).
+- The Path of Exile 2 price check follows [Exiled Exchange 2](https://github.com/Kvan7/Exiled-Exchange-2) (MIT) and [Sidekick](https://github.com/Sidekick-Poe/Sidekick) (MIT) in how it starts a search; its PoE2 test items are from Sidekick's tests. Prices come from poe.ninja's Path of Exile 2 lists.
 - Mercenary Warrants are searched the way Awakened PoE Trade does it, with its build and support data (src/core/merc-data.json, made by scripts/build-merc-data.js; MIT).
 - `src/core/special-mod-names.json` (mod names that only a league mechanic, essence or influence gives) comes from [PoE Overlay Community Fork](https://github.com/PoE-Overlay-Community/PoE-Overlay-Community-Fork)'s `mod-icons.json`, MIT License, Copyright (c) 2020 Nicklas Ronge.

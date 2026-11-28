@@ -5,6 +5,18 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.182 - 2026-11-28
+
+* [Settings] Path of Exile 2: a PoE1 / PoE2 switch at the top of the menu. In PoE2 mode the app is "PoE2 Helper" with a price check, loot filter and Tier designer for PoE2.
+* PoE2 price check: the same hotkey and popup, priced from poe.ninja's PoE2 lists in exalted and divines, with the trade search on the PoE2 trade site.
+* [Loot filter] PoE2 loot filter: pick NeverSink's (or FilterBlade's) PoE2 filter from My Games\Path of Exile 2 and change tiers, looks, strictness and new tiers like in PoE1. The filter chat works too.
+* [Tier designer] The Tier designer works on PoE2 filters: tiers S to E are Tier 1 to 6.
+- PoE1 and PoE2 each keep their own filter, tiers, looks, strictness and design. Switching the game never changes the other one.
+- PoE2 filters get only the parts that work in PoE2: no base ranks, cluster jewels, talismans, Giga or other PoE1 items, which would stop the game loading the filter.
+- PoE2 item pictures (Divine Orb and the rest) are PoE2's own.
+- The PoE2 price check popup shows whether your PoE2 filter shows the item, with "Show in loot filter".
+- PoE2 price check: runes, desecrated mods, spirit, rune sockets and waystone tiers are read; resistances, life and chaos resistance are searched as totals.
+
 ## 1.0.181 - 2026-11-27
 
 * [Loot filter] Every filter gets its own Giga and Big belts tiers again. A filter you switched to started without them; it gets them now.

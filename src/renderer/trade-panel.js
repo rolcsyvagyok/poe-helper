@@ -12,6 +12,9 @@ const GROUPS = [
   ['fractured', 'Fractured'],
   ['explicit', 'Explicit'],
   ['crafted', 'Crafted'],
+  // Path of Exile 2: runes and soul cores in the item's sockets, desecrated mods
+  ['rune', 'Runes'],
+  ['desecrated', 'Desecrated'],
   ['scourge', 'Scourge'],
   ['crucible', 'Crucible'],
   // league mods the trade site lists on their own (they start ticked)
@@ -69,7 +72,7 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   // the mod's tier (T1 is the best) as a small badge: blue for the top tiers, orange for low ones, the number says it too
   function tierBadge(m) {
     const t = m.meta?.tier;
-    if (t == null || !['explicit', 'crafted', 'fractured', 'implicit'].includes(m.group)) return null;
+    if (t == null || !['explicit', 'crafted', 'fractured', 'implicit', 'desecrated'].includes(m.group)) return null;
     const cls = t <= 2 ? 'top' : t <= 4 ? 'mid' : 'low';
     return h('span', { class: `tp-tier ${cls}`, title: `Tier ${t} of this mod (T1 is the best)` }, `T${t}`);
   }
@@ -245,8 +248,8 @@ function renderPanel(box, prep, { text, divine, onFit }) {
     const cb = h('input', { type: 'checkbox', checked: !!d.on, 'aria-label': `Search by ${d.label}`, onchange: (e) => { d.on = e.target.checked; row.classList.toggle('on', d.on); } });
     const minIn = h('input', { type: 'number', step: 'any', value: d.min ?? '', placeholder: 'min', 'aria-label': `Lowest ${d.label}` });
     minIn.addEventListener('input', () => { d.min = num(minIn.value); if (!d.on) { d.on = true; cb.checked = true; row.classList.add('on'); } });
-    const row = h('div', { class: 'tp-mod' + (d.on ? ' on' : ''), title: `${d.label} at 20% quality: ${d.value}. Its armour mods are counted in this number.` },
-      h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, `${d.label} ${d.value}`, h('span', { class: 'faint' }, ' at 20% quality'))), minIn, h('span', { class: 'tp-dash' }), h('span', { class: 'tp-num-empty' }));
+    const row = h('div', { class: 'tp-mod' + (d.on ? ' on' : ''), title: `${d.label}${d.note ?? ' at 20% quality'}: ${d.value}. Its armour mods are counted in this number.` },
+      h('label', { class: 'tp-mod-main' }, cb, h('span', { class: 'tp-text' }, `${d.label} ${d.value}`, h('span', { class: 'faint' }, d.note ?? ' at 20% quality'))), minIn, h('span', { class: 'tp-dash' }), h('span', { class: 'tp-num-empty' }));
     topRows.push(row);
   }
   // maps: quantity, rarity, pack size
@@ -271,7 +274,11 @@ function renderPanel(box, prep, { text, divine, onFit }) {
   rangeRow('quality', 'Quality');
   rangeRow('gemLevel', 'Gem level');
   rangeRow('storedExp', 'Stored experience (million)');
-  rangeRow('mapTier', 'Map tier');
+  rangeRow('mapTier', prep.game === 'poe2' ? 'Waystone tier' : 'Map tier');
+  // Path of Exile 2
+  rangeRow('runeSockets', 'Rune sockets');
+  rangeRow('gemSockets', 'Gem sockets');
+  rangeRow('spirit', 'Spirit');
   // an Inscribed Ultimatum: its reward, its sacrifice, the unique it gives, its challenge: each a tick (top of the panel)
   if (props.ultimatum?.show) {
     const u = props.ultimatum;

@@ -149,9 +149,13 @@ function withLevelSound(st, level) {
   return { ...rest, sound: { id, volume: 300 } };
 }
 
-/** "t1", "t1exalted", "t3boss", "t4c" -> number; "restex", "tnew", "twisdom" -> null */
+/** "t1", "t1exalted", "t3boss", "t4c" -> number; "restex", "tnew", "twisdom" -> null.
+ *  NeverSink's PoE2 filter names its tiers S, A, B, C, D, E: Tier 1 to 6. */
+const LETTER_LEVELS = { s: 1, a: 2, b: 3, c: 4, d: 5, e: 6 };
 function tierLevel(tierName) {
-  const m = /^t(\d)(?!\d)/i.exec(String(tierName || ''));
+  const n = String(tierName || '');
+  if (LETTER_LEVELS[n.toLowerCase()] && n.length === 1) return LETTER_LEVELS[n.toLowerCase()];
+  const m = /^t(\d)(?!\d)/i.exec(n);
   return m ? Number(m[1]) : null;
 }
 
@@ -437,7 +441,9 @@ function clusterLooks(get) {
 // the item a preview shows for each tier: from your own currency tiers, the best-known one in each
 const WELL_KNOWN = ['Mirror of Kalandra', 'Divine Orb', 'Exalted Orb', 'Chaos Orb', 'Orb of Annulment', 'Vaal Orb', 'Regal Orb', 'Orb of Alchemy',
   'Orb of Scouring', 'Gemcutter\'s Prism', 'Orb of Fusing', 'Chromatic Orb', 'Jeweller\'s Orb', 'Orb of Alteration', 'Orb of Chance', 'Blessed Orb',
-  'Orb of Regret', 'Orb of Transmutation', 'Orb of Augmentation', 'Armourer\'s Scrap', 'Blacksmith\'s Whetstone', 'Portal Scroll', 'Scroll of Wisdom'];
+  'Orb of Regret', 'Orb of Transmutation', 'Orb of Augmentation', 'Armourer\'s Scrap', 'Blacksmith\'s Whetstone', 'Portal Scroll', 'Scroll of Wisdom',
+  // Path of Exile 2
+  'Perfect Exalted Orb', 'Greater Exalted Orb', 'Perfect Chaos Orb', 'Greater Chaos Orb', 'Artificer\'s Orb', 'Lesser Jeweller\'s Orb', 'Greater Orb of Transmutation'];
 const DEFAULT_SAMPLES = { giga: 'Mirror of Kalandra', 1: 'Divine Orb', 2: 'Exalted Orb', 3: 'Chaos Orb', 4: 'Orb of Alchemy', 5: 'Orb of Fusing', 6: 'Orb of Transmutation' };
 /** view: the filter's tier view -> { giga, 1, …, 6 }: an item from each of your currency tiers (a tier with none keeps the default). */
 function sampleItems(view) {

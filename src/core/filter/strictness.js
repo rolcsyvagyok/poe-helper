@@ -6,6 +6,12 @@
  * FilterBlade choices stay, and your own tier changes in the app win over the strictness.
  */
 const DATA = require('./strictness.json');
+// Path of Exile 2: NeverSink's PoE2 filter has its own tiers (strictness2.json, built with --poe2)
+const DATA2 = require('./strictness2.json');
+
+/** A filter made for Path of Exile 2 (NeverSink's says so in its header). */
+const isPoe2Filter = (text) => /for Path of Exile 2\b|FilterBlade\.xyz\?game=Poe2/i.test(String(text || '').slice(0, 3000));
+const dataFor = (text) => (isPoe2Filter(text) ? DATA2 : DATA);
 
 const LEVELS = DATA.levels;
 const STATE = { S: 'Show', H: 'Hide', O: 'Off' };
@@ -30,7 +36,7 @@ function strictnessActions(text, level) {
   if (level == null || !(level >= 0 && level < LEVELS.length)) return {};
   const from = levelOf(text);
   const out = {};
-  for (const [key, states] of Object.entries(DATA.tiers)) {
+  for (const [key, states] of Object.entries(dataFor(text).tiers)) {
     const to = states[level];
     if (from != null && states[from] === to) continue;
     out[key] = STATE[to];
@@ -59,4 +65,4 @@ function withStrictness(text, patch = {}, level = null) {
   return { ...patch, actions: { ...sa, ...(patch.actions || {}) } };
 }
 
-module.exports = { filterKey, levelFor, LEVELS, NOTES, levelOf, strictnessActions, withStrictness, VERSION: DATA.version };
+module.exports = { isPoe2Filter, VERSION2: DATA2.version, filterKey, levelFor, LEVELS, NOTES, levelOf, strictnessActions, withStrictness, VERSION: DATA.version };

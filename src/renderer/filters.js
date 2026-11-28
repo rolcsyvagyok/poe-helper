@@ -6,7 +6,12 @@
 const { h, mount, ago, toast, call, dropLabel, soundButton, playSound, GAME_COLOURS } = window.UI;
 
 const FB = { newTier: false, tab: 'tiers', priceColors: false, collapsed: new Set(), names: {}, catQuery: '', catTimer: null, openGroups: new Set(), closedGroups: new Set(), closedSections: new Set(), review: null, reviewSel: new Set(), reviewOpen: new Set(), reviewBusy: false, tab: 'tiers', type: null, selected: new Set(), search: '', editing: null, draft: null, prices: {}, showSuggestions: false };
-const fmtC = (c) => (c == null || !Number.isFinite(c) ? '' : c < 0.01 ? '<0.01c' : c >= 100 ? `${Math.round(c)}c` : c >= 10 ? `${c.toFixed(0)}c` : c >= 1 ? `${c.toFixed(1).replace(/\.0$/, '')}c` : `${c.toFixed(2).replace(/0$/, '')}c`);
+// prices: chaos in PoE1, exalted in PoE2
+const fmtC = (c) => {
+  if (c == null || !Number.isFinite(c)) return '';
+  const u = S.settings?.game === 'poe2' ? ' ex' : 'c';
+  return c < 0.01 ? `<0.01${u}` : c >= 100 ? `${Math.round(c)}${u}` : c >= 10 ? `${c.toFixed(0)}${u}` : c >= 1 ? `${c.toFixed(1).replace(/\.0$/, '')}${u}` : `${c.toFixed(2).replace(/0$/, '')}${u}`;
+};
 const HIDE = '__hide__';
 const HIDDEN_TIER = window.TierNames.HIDDEN_TIER;
 const COLOURS = Object.keys(GAME_COLOURS);
@@ -171,6 +176,9 @@ function splitTiers(view) {
 async function renderFiltersNow() {
   if (FB.tab === 'rules' || FB.tab === 'price' || FB.tab === 'file') FB.tab = 'tiers'; // tabs that moved or went away
   await refreshState();
+  // Path of Exile 2: the tiers, strictness and chat (the price review and item check are PoE1's)
+  const p2 = isP2();
+  if (p2) FB.tab = 'tiers';
   const el = $('page-filters');
   const info = await call('filter:list');
   let view = null;
@@ -196,13 +204,13 @@ async function renderFiltersNow() {
       info.files.map((f) => h('option', { value: f.name, selected: f.name === info.base }, f.display || f.name.replace(/\.filter$/i, '')))),
     info.missing ? h('span', { class: 'pill bad', title: info.missing.file }, `${info.missing.name ? `"${info.missing.name}"` : 'Your filter'} is no longer in the folder. Pick it again here.`) : null,
     h('span', { class: 'small muted' },
-      info.missing ? '' : !info.files.length ? 'No filters found. Download your filter from FilterBlade into the folder set in Settings, Loot filter file.'
+      info.missing ? '' : !info.files.length ? (p2 ? 'No filters found. Download a PoE2 filter from FilterBlade (or NeverSink\'s PoE2 filter) into Documents\\My Games\\Path of Exile 2, or use "Import a filter file".' : 'No filters found. Download your filter from FilterBlade into the folder set in Settings, Loot filter file.')
         : !info.base ? 'Pick the filter you downloaded from FilterBlade.'
           : info.lastWrite ? `Your version is "${helperName}", saved ${ago(Date.now() - info.lastWrite.at)}. Select it in game once.` : `Changes are saved to "${helperName}". Select it in game once.`),
     info.base ? h('button', { class: 'primary sm fchat-btn', 'aria-expanded': FC.open ? 'true' : 'false', title: 'Tell the app what to change: "Separate Stacked Decks into a new tier"', onclick: () => toggleChat() }, chatIcon(), 'Ask the filter chat') : null,
     h('button', { class: 'quiet sm', title: 'Copy a loot filter file (a friend\'s, a download, any .filter) into your filter folder and use it here', onclick: () => importFilterFile(() => { FB.type = null; renderFilters(); }) }, 'Import a filter file'),
     h('span', { class: 'spacer' }),
-    view?.types?.length ? h('button', { class: 'primary sm', disabled: FB.applyingAll, title: 'Check poe.ninja for every priced category and move every item to the tier its price fits now', onclick: () => applyAllPrices() }, FB.applyingAll ? 'Applying…' : 'Apply all price changes') : null,
+    view?.types?.length && !p2 ? h('button', { class: 'primary sm', disabled: FB.applyingAll, title: 'Check poe.ninja for every priced category and move every item to the tier its price fits now', onclick: () => applyAllPrices() }, FB.applyingAll ? 'Applying…' : 'Apply all price changes') : null,
     edits ? h('span', { class: 'pill' }, `${edits} ${edits === 1 ? 'change' : 'changes'}`) : null,
     edits ? h('button', { class: 'quiet sm', onclick: async () => { if (confirm('Undo all tier moves and look changes?')) { await call('tiers:reset', { all: true }); toast('All changes undone'); renderFilters(); } } }, 'Undo all') : null);
 
@@ -277,7 +285,7 @@ async function renderFiltersNow() {
       previewBox);
   })();
 
-  const tabs = h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['check', 'Check an item']].map(([id, label]) =>
+  const tabs = p2 ? null : h('div', { class: 'fb-tabs', role: 'tablist' }, [['tiers', 'Tiers'], ['review', 'Price review'], ['check', 'Check an item']].map(([id, label]) =>
     h('button', { role: 'tab', 'aria-selected': FB.tab === id ? 'true' : 'false', class: FB.tab === id ? 'active' : '', onclick: () => { FB.tab = id; renderFilters(); } }, label)),
     h('span', { class: 'spacer' }),
     view?.types?.length ? h('button', { class: 'primary sm fb-update-btn', title: 'Compare every tier with poe.ninja, see what would move, and move it', onclick: openPriceUpdate }, window.UI.icon('refresh', { size: 15 }), 'Update prices') : null);
@@ -287,7 +295,7 @@ async function renderFiltersNow() {
   if (FB.tab === 'tiers') fillMoved(movedBox);
   // tier moves for items the game doesn't have any more (last league's scarabs…): offered for removal, never removed on their own
   const staleBox = h('div');
-  call('tiers:stale').then((list) => {
+  if (!p2) call('tiers:stale').then((list) => {
     if (!list?.length) return;
     const names = list.map((m) => m.name);
     mount(staleBox, h('div', { class: 'panel fb-stale', role: 'status' },
@@ -299,7 +307,7 @@ async function renderFiltersNow() {
   }).catch(() => {});
   // a FilterBlade filter older than NeverSink's newest release: point to FilterBlade (shown until you update or hide it)
   const ageBox = h('div');
-  call('filter:age').then((a) => {
+  if (!p2) call('filter:age').then((a) => {
     if (!a?.old || localStorage.getItem('fbAgeHidden') === `${info.base}|${a.version}|${a.latest || ''}`) return;
     mount(ageBox, h('div', { class: 'panel fb-stale', role: 'status' },
       h('div', {}, h('b', {}, `Your FilterBlade filter is from ${a.month || 'an old version'}: update it on FilterBlade`),
@@ -308,7 +316,7 @@ async function renderFiltersNow() {
         h('button', { class: 'sm', onclick: () => window.open('https://www.filterblade.xyz/?game=Poe1') }, 'Open FilterBlade'),
         h('button', { class: 'quiet sm', onclick: () => { try { localStorage.setItem('fbAgeHidden', `${info.base}|${a.version}|${a.latest || ''}`); } catch { /* */ } ageBox.replaceChildren(); } }, 'Not now'))));
   }).catch(() => {});
-  const show = () => { mount(el, pageHead('Loot filter', 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, ageBox, staleBox, movedBox, body); if (FB.reviewModal) el.append(priceUpdateModal()); };
+  const show = () => { mount(el, pageHead(p2 ? 'Loot filter (PoE2)' : 'Loot filter', p2 ? 'Your Path of Exile 2 filter (NeverSink\'s or FilterBlade\'s), with your own tiers and looks on top. The original file is never changed.' : 'Your FilterBlade filter, with your own tiers and looks on top. The original file is never changed.', themeMenu(themes, !!view?.types?.length)), fileBar, strictBar, tabs, ageBox, staleBox, movedBox, body); if (FB.reviewModal) el.append(priceUpdateModal()); };
   // the tier pages are built first and put on screen in one go: showing an empty page while the
   // cluster or base data loads made the page collapse, which threw you back to the top
   if (FB.tab === 'tiers' && info.base && !info.missing && view?.types?.length) {
@@ -2055,7 +2063,7 @@ async function renderMyBases(body, view) {
 const PRICED_GROUPS = new Set(['Currency', 'Fragments', 'League mechanics']);
 function pricedGroup(type) {
   const cat = categoryOf(type);
-  const group = CATEGORIES.find(([, cats]) => cats.some((c) => c.id === cat?.id))?.[0];
+  const group = baseCats().find(([, cats]) => cats.some((c) => c.id === cat?.id))?.[0];
   // divination cards have a market price of their own too (gems don't: their tiers go by level and quality)
   return PRICED_GROUPS.has(group) || cat?.id === 'divination';
 }
@@ -2138,14 +2146,66 @@ const CATEGORIES = [
   ]],
 ];
 
+// Path of Exile 2: NeverSink's PoE2 filter has its own categories (pictures from PoE2's poe.ninja lists)
+const CATEGORIES2 = [
+  ['Currency', [
+    { id: 'currency', name: 'Currency', match: ['currency'], art: 'Divine Orb', icon: 'coin' },
+    { id: 'splinters', name: 'Splinters', match: ['currency->splinter'], icon: 'shard' },
+    { id: 'fragments', name: 'Fragments & tablets', match: ['fragments'], icon: 'shard' },
+    { id: 'sockets', name: 'Runes, soul cores & idols', match: ['sockets'], icon: 'gem' },
+    { id: 'xeno', name: 'Alloys, fluxes & wombgifts', match: ['xenotiering', 'legacytemp'], icon: 'star' },
+    { id: 'verisium', name: 'Verisium', match: ['verisium'], icon: 'rock' },
+  ]],
+  ['League mechanics', [
+    { id: 'delirium', name: 'Distilled emotions', match: ['currency->emotions'], icon: 'orb' },
+    { id: 'breach', name: 'Catalysts', match: ['currency->catalysts'], icon: 'bolt' },
+    { id: 'essence', name: 'Essences', match: ['currency->essence'], icon: 'flame' },
+    { id: 'ritual', name: 'Omens', match: ['currency->omen'], icon: 'eye' },
+    { id: 'relics', name: 'Relics', match: ['relics'], icon: 'key' },
+  ]],
+  ['Gems', [
+    { id: 'gems', name: 'Gems', match: ['gems'], order: ['gems->uncut', 'gems->lineage', 'gems'], icon: 'gem' },
+  ]],
+  ['Waystones', [
+    { id: 'waystones', name: 'Waystones', match: ['waystones', 'waystone'], icon: 'map' },
+    { id: 'mapitems', name: 'Keys & other map items', match: ['miscmapitemsextra', 'maplike'], icon: 'key' },
+  ]],
+  ['Rare items', [
+    { id: 'raretiers', name: 'Rares by base', match: ['rr', 'ut->rare'], icon: 'sword' },
+    { id: 'magic', name: 'Magic by base', match: ['ut->magic'], icon: 'sparkle' },
+    { id: 'crafting', name: 'Crafting bases', match: ['endgame->normalcraft', 'endgame->jewellery', 'endgame->salvagable', 'rare->salvagable'], icon: 'hammer' },
+    { id: 'special', name: 'Special bases', match: ['exoticbases', 'exotic', 'exoticmods', 'chancing'], icon: 'bolt' },
+    { id: 'highlight', name: 'Highlight rares', match: ['decorators'], icon: 'sparkle' },
+    { id: 'hiders', name: 'Hiding rules', match: ['hidelayer', 'conditionalhide', 'lowstrictnessshowlayer', 'endgame->conditionalhiders', 'waystone->hiders'], icon: 'eye' },
+  ]],
+  ['Jewels, flasks & charms', [
+    { id: 'jewels', name: 'Jewels', match: ['jewels'], icon: 'hex' },
+    { id: 'flasks', name: 'Flasks', match: ['endgame->flasks'], icon: 'flask' },
+    { id: 'charms', name: 'Charms', match: ['endgame->charms'], icon: 'flask' },
+  ]],
+  ['Uniques & more', [
+    { id: 'uniques', name: 'Unique items', match: ['uniques'], icon: 'crown' },
+    { id: 'gold', name: 'Gold', match: ['gold'], icon: 'coins' },
+  ]],
+  ['Campaign', [
+    { id: 'leveling', name: 'Campaign & Leveling', match: ['leveling'], icon: 'leaf' },
+    { id: 'levelingcurrency', name: 'Levelling currency', match: ['currency->leveling'], icon: 'leaf' },
+  ]],
+  ['Miscellaneous', [
+    { id: 'quest', name: 'Quest items', match: ['questlikeexception', 'questlike'], icon: 'book' },
+    { id: 'misc', name: 'Miscellaneous', match: [], icon: 'box' },
+  ]],
+];
+const isP2 = () => S.settings?.game === 'poe2';
+const baseCats = () => (isP2() ? CATEGORIES2 : CATEGORIES);
+
 // ---- your own layout on top of the defaults (Edit categories) ----
 // categoryLayout = { names: {catId: name}, assign: {type: catId}, custom: [{id, name, section}], order: {section: [catId]} }
 const layout = () => S.settings.categoryLayout || {};
-const SECTION_TITLES = CATEGORIES.map(([t]) => t);
 /** Sections with your names, your new categories and your order applied. */
 function effectiveCategories() {
   const L = layout();
-  return CATEGORIES.map(([title, cats]) => {
+  return baseCats().map(([title, cats]) => {
     const mine = (L.custom || []).filter((c) => c.section === title).map((c) => ({ id: c.id, name: c.name, match: [], art: null, icon: 'box', custom: true }));
     let list = [...cats, ...mine].map((c) => ({ ...c, name: L.names?.[c.id] || c.name, defaultName: c.name }));
     const order = L.order?.[title];
@@ -2204,7 +2264,7 @@ function subLabel(t, cat) {
   if (t.type === m) return segs.join(', ') || (t.label.toLowerCase() === cat.name.toLowerCase() ? 'General' : t.label);
   return segs.slice(m.split('->').length - 1).join(', ') || t.label;
 }
-const artNames = () => [...new Set(ALL_CATS.flatMap((c) => [].concat(c.art || [])))];
+const artNames = () => [...new Set((isP2() ? baseCats().flatMap(([, cats]) => cats) : ALL_CATS).flatMap((c) => [].concat(c.art || [])))];
 /** Icon for a FilterBlade category: yours, else the game picture, else a line icon. */
 function catIconId(cat) {
   const own = S.settings.categoryIcons?.[`cat:${cat.id}`];
@@ -3051,6 +3111,8 @@ async function renderReview(body, { only = null, popup = false } = {}) {
 }
 
 window.renderFilters = renderFilters;
+// the other game: another filter, so nothing picked or priced carries over
+window.resetFilterPage = () => { artRequested = false; FB.type = null; FB.prices = {}; FB.selected.clear(); FB.search = ''; FB.strictPreview = null; FB.unlisted = null; FB.goto = null; };
 // from the price check: open the tier an item is in, with the item picked and the tier in view
 window.showInFilter = (g) => {
   FB.tab = 'tiers';

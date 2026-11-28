@@ -138,6 +138,8 @@ const DEFAULT_SETTINGS = {
   filterDir: '',
   baseFilter: '',
   overrides: [],
+  game: 'poe1', // which game the app is for: 'poe1' (everything) or 'poe2' (the price check)
+  league2: null, // Path of Exile 2 league for prices and trade (null: the running challenge league)
   chatAi: true, // Loot filter chat: use Claude Code (your own subscription) for free text when it's installed
   economy: { enabled: false, thresholds: { top: 100, high: 20, mid: 5, hideDivBelow: 0, sounds: { top: 'divine-tink', high: 'chime', mid: 'soft-bell', multi: 'coin' } } },
   autoWatchFilter: true,
@@ -226,6 +228,11 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
 
   const pricer = new Pricer({ ninja, getLeague });
 
+  // Path of Exile 2: its own trade client (the same limiter and daily count) and price check
+  const ggg2 = new GggClient({ cache, fetchImpl, userAgent: userAgent(), usage, dailyBudget: settings.get('dailyGggBudget'), limiter, log, getSessionId: () => secrets.decrypt(settings.get('sessionEnc')), getAccountName: () => settings.get('accountName'), game: 'poe2' });
+  const poe2 = require('./poe2').createPoe2({ ggg2, settings, cache, fetchImpl, userAgent: userAgent(), log, filterInfo: (item) => filterInfoFor(item) });
+  const gameNow = () => (settings.get('game') === 'poe2' ? 'poe2' : 'poe1');
+
   // 1.0.3 retired the "Price tiers" tab: its highlights sat on top of your tiers. Switch them off once.
   if (!settings.get('economyRetired')) {
     const eco = settings.get('economy');
@@ -268,22 +275,15 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     ninja.ttlMs = Math.max(5, Number(settings.get('ninjaTtlMin')) || 20) * 60000;
     ggg.userAgent = userAgent();
     ggg.dailyBudget = Math.max(1, Number(settings.get('dailyGggBudget')) || 300);
+    ggg2.dailyBudget = ggg.dailyBudget;
     limiter.safety = Math.min(0.9, Math.max(0.2, Number(settings.get('rateSafety')) || 0.5));
     leagueCache = null;
   }
 
   // ---------- operations used by IPC ----------
 
-  async function priceText(text) {
-    const item = readItem(text);
-    if (!item) return { error: 'Clipboard does not contain a Path of Exile item.' };
-    const kind = classify(item);
-    let price = await pricer.price(item).catch((e) => ({ error: e.message }));
-    // no poe.ninja price (new currency): the bulk exchange's fair price from the last hour or day, if there is one
-    if (price && price.chaos == null && ['currency', 'fragment', 'divination'].includes(kind)) {
-      const ex = exchangeCached(item.typeLine || item.baseType || item.name);
-      if (ex?.chaos) price = { ...price, error: undefined, found: true, confidence: 'exchange', chaos: ex.chaos, source: 'exchange', sellers: ex.sellers, exchangeAt: ex.at, stackSize: item.stack?.current || 1, totalChaos: Math.round(ex.chaos * (item.stack?.current || 1) * 100) / 100 };
-    }
+  /** Which rule of your filter the item hits, and where that is on the Loot filter page. */
+  function filterInfoFor(item) {
     let filterHit = null;
     let filterWhere = null;
     try {
@@ -298,6 +298,20 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
         });
       }
     } catch { /* no filter configured */ }
+    return { filterHit, filterWhere };
+  }
+
+  async function priceText(text) {
+    const item = readItem(text);
+    if (!item) return { error: 'Clipboard does not contain a Path of Exile item.' };
+    const kind = classify(item);
+    let price = await pricer.price(item).catch((e) => ({ error: e.message }));
+    // no poe.ninja price (new currency): the bulk exchange's fair price from the last hour or day, if there is one
+    if (price && price.chaos == null && ['currency', 'fragment', 'divination'].includes(kind)) {
+      const ex = exchangeCached(item.typeLine || item.baseType || item.name);
+      if (ex?.chaos) price = { ...price, error: undefined, found: true, confidence: 'exchange', chaos: ex.chaos, source: 'exchange', sellers: ex.sellers, exchangeAt: ex.at, stackSize: item.stack?.current || 1, totalChaos: Math.round(ex.chaos * (item.stack?.current || 1) * 100) / 100 };
+    }
+    const { filterHit, filterWhere } = filterInfoFor(item);
     let tradeable = ['rare', 'magic', 'unique', 'normal', 'gem', 'unique-map', 'map'].includes(kind) || /^corpses$/i.test(item.itemClass || '');
     const entry = { at: Date.now(), name: item.name !== item.typeLine && item.name ? `${item.name} ${item.typeLine}` : item.typeLine, kind, chaos: price.chaos ?? null, total: price.totalChaos ?? null };
     const hist = [entry, ...(settings.get('history') || [])].slice(0, 100);
@@ -651,7 +665,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   /** `preview: true` builds the tiers for display even while they are switched off. */
   async function regenerateEconomy({ preview = false } = {}) {
     const eco = settings.get('economy');
-    if (!eco?.enabled && !preview) {
+    if ((!eco?.enabled && !preview) || gameNow() === 'poe2') {
       filters.setEconomy([]);
       return [];
     }
@@ -714,6 +728,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   /** names: item names, or "name\tcategory" so the right poe.ninja list is looked in first */
   const CARD_ICON = 'https://web.poecdn.com/image/Art/2DItems/Divination/InventoryIcon.png';
   async function categoryArt(names = []) {
+    if (gameNow() === 'poe2') return poe2.art(names).catch(() => ({}));
     const league = await getLeague();
     const hinted = [];
     const want = new Set();
@@ -855,7 +870,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   // What a fresh install has, except what is yours and not a choice about looks or behaviour: your
   // account and session, league, the filter you picked, your history and net worth, saved themes, the
   // game sound copies, the lab pages, and the one-time upgrades that already ran.
-  const RESET_KEEPS = ['accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
+  const RESET_KEEPS = ['game', 'league2', 'accountName', 'sessionEnc', 'contact', 'leagueOverride', 'labLast', 'labFavorite', 'labPages', 'labIndex', 'labOverlayBounds',
     'gameSounds', 'gameDir', 'versionSeen', 'notesShownFor', 'forcedNames', 'startWithWindows', 'dailyGggBudget', 'rateSafety', 'ninjaBaseUrl', 'ninjaTtlMin',
     'clientLogPath', 'selectedTabs', 'selectedTabIds', 'filterDir', 'baseFilter', 'baseFilterName', 'history', 'designerThemes', 'themes', 'priceReviewLog', 'trayHintShown',
     'economyRetired', 'gigaRestoreV1', 'tinkToGame6', 'gigaLookV3', 'bigBeltsLookV2', 't1BorderText', 'ranksV1', 'ranksV2', 'ranksV3', 'ranksV4', 'ownTierFixV1', 'fullLooksV1', 'fbVisibilityV1', 'rareRanksFbV1', 'stackedDesignV1', 'threadsTieredV1', 'myChoiceV1', 'rareThemeV1', 'veiledKindV1', 'midnightV1', 'rareTiersV2', 'rareYellowV1', 'sixSocketWhiteV1', 'clusterDesignV1', 'stackedDeckStacksV1'];
@@ -935,6 +950,30 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     settings.set('filterProfiles', {});
   }
   try { migrateFilterProfiles(); } catch (e) { log('filter setups', e.message); }
+
+  // Path of Exile 1 and 2 each have their own loot filter and filter setup: switching the game parks one and
+  // brings back the other (a first PoE2 start: nothing set up, the PoE2 folder found by itself)
+  const GAME_FILTER_KEYS = [...new Set([...FILTER_KEYS, 'filterDir', 'baseFilter', 'baseFilterName', 'filterProfiles', 'lastWrite', 'forcedNames'])];
+  const GAME_FRESH = { poe2: { baseRanks: {}, gigaDone: true, bigBeltsDone: true, gigaDeleted: true, bigBeltsDeleted: true } };
+  function switchGameFilter(from, to) {
+    from = from === 'poe2' ? 'poe2' : 'poe1';
+    to = to === 'poe2' ? 'poe2' : 'poe1';
+    if (from === to) return false;
+    const parked = { ...(settings.get('gameFilters') || {}) };
+    parked[from] = Object.fromEntries(GAME_FILTER_KEYS.filter((k) => settings.data[k] !== undefined).map((k) => [k, settings.data[k]]));
+    const back = parked[to] || { ...(GAME_FRESH[to] || {}), filterProfiles: {} };
+    for (const k of GAME_FILTER_KEYS) {
+      if (k in back) settings.data[k] = structuredClone(back[k]);
+      else if (k in DEFAULT_SETTINGS) settings.data[k] = structuredClone(DEFAULT_SETTINGS[k]);
+      else delete settings.data[k];
+    }
+    delete parked[to];
+    settings.data.gameFilters = parked;
+    settings.save();
+    viewCache = null;
+    filters.lastDropped = [];
+    return true;
+  }
   const SHARE_KIND = 'poe-helper-loot-filter-settings';
   function exportFilterSettings() {
     const fs = require('fs');
@@ -1201,7 +1240,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       const view = viewAtLevel(text, patch, level);
       // scrolls and lifeforce always get their own colours in the written filter: show them that way here
       const { fixedLookOf } = require('../core/filter/manager');
-      for (const t of view.types) for (const x of t.tiers) {
+      if (gameNow() !== 'poe2') for (const t of view.types) for (const x of t.tiers) {
         const f = x.bases?.length && x.bases.every((b) => fixedLookOf([b])?.base === b) && new Set(x.bases.map((b) => fixedLookOf([b]).base)).size === 1 ? fixedLookOf(x.bases) : null;
         if (!f || x.action !== 'Show') continue;
         const st = { ...(x.style || {}), background: f.background, text: f.text, ...(f.border ? { border: f.border } : {}), ...(f.fontSize ? { fontSize: f.fontSize } : {}) };
@@ -1214,8 +1253,11 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       const sa = strictness.strictnessActions(text, level);
       for (const t of view.types) for (const x of t.tiers) if (sa[x.key]) x.origState = sa[x.key];
       view.strictness = { level, own: strictness.levelOf(text), levels: strictness.LEVELS, notes: strictness.NOTES };
+      view.game = gameNow();
       viewCache = { sig, view };
     }
+    // Path of Exile 2: none of the PoE1 upgrades below (Giga, Big belts…: PoE1 items)
+    if (gameNow() === 'poe2') return viewCache.view;
     // 1.0.10: resetting a category used to drop the Giga tier for good; bring it back once.
     // 1.0.181: Giga and Big belts are kept per filter; a filter picked before that (it started without them) gets them once
     for (const once of ['gigaRestoreV1', 'gigaPerFilterV1']) {
@@ -1468,6 +1510,15 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   const chatUndo = [];
   const normName = (s) => String(s).toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   async function uniqueBaseMap() {
+    if (gameNow() === 'poe2') {
+      // PoE2's uniques by base, from its poe.ninja lists
+      try {
+        const d = await poe2.tierPriceData('uniques');
+        const m = new Map();
+        for (const rows of Object.values(d?.data || {})) for (const r of rows || []) if (r.baseType) m.set(normName(r.name), r.baseType);
+        return m;
+      } catch { return null; }
+    }
     try {
       const m = new Map();
       for (const [base, list] of await uniquesByBase()) for (const u of list) m.set(normName(u.name), base);
@@ -1622,7 +1673,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const chat = require('../core/filter/chat');
     const cats = view.types.map((t) => `- ${t.label || t.type}: ${chat.tierLabels(t).join(' | ')}`).join('\n');
     return [
-      'You turn a Path of Exile 1 player\'s request about their NeverSink loot filter into commands for the PoE Helper app.',
+      `You turn a Path of Exile ${gameNow() === 'poe2' ? '2' : '1'} player's request about their NeverSink loot filter into commands for the PoE Helper app.`,
       'Answer ONLY with commands, one per line, nothing else. Each line must be one of these forms:',
       chat.HELP.split('\n').slice(1, -1).map((l) => l.replace(/^•\s*/, '')).join('\n'),
       'Use exact in-game item names, singular (Stacked Deck, Orb of Alchemy, The Doctor), taken from the item list in the message when there is one. Uniques are tiered by their base: name the unique, the app finds its base.',
@@ -1861,6 +1912,12 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     const view = tierViewNow();
     const t = view?.types.find((x) => x.type === type);
     if (!t) throw new Error('Category not found in your filter.');
+    if (gameNow() === 'poe2') {
+      const d = await poe2.tierPriceData(type);
+      if (!d) return { supported: false, type, game: 'poe2' };
+      const res = tierPricing.analyse(t, tierPricing.priceIndex(type, d.data));
+      return { supported: true, type, league: d.league, ageMs: 0, divine: d.divine, game: 'poe2', units: { small: 'ex', big: 'div' }, filterUpdated: null, ...res };
+    }
     const cats = tierPricing.categoriesForType(type);
     if (!cats.length) return { supported: false, type };
     const league = await getLeague();
@@ -2282,6 +2339,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return { league, tabs: [...TAB.map(([n]) => n), 'Other'], on: settings.get('collectHide') !== false, max: Number(settings.get('collectHideBelow') ?? 5), hiddenBases: [...hiddenBases], uniques: [...byName.values()] };
   }
   async function refreshCollected(write = true) {
+    if (gameNow() === 'poe2') return { hidden: [] };
     const have = settings.get('uniqueCollection') || {};
     const max = Number(settings.get('collectHideBelow') ?? 5);
     const idx = await uniquesByBase();
@@ -3061,7 +3119,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   /** 3.30 threads (Abyss Thread, Breach Thread...): FilterBlade has them all in one fragment tier. Once,
    *  they are put into the fragment tiers by their poe.ninja price (the price review keeps them right after). */
   async function tierThreads() {
-    if (settings.get('threadsTieredV1') || !filters.basePath()) return [];
+    if (gameNow() === 'poe2' || settings.get('threadsTieredV1') || !filters.basePath()) return [];
     const r = await priceReview({ types: ['fragments'] });
     const c = r.categories.find((x) => x.type === 'fragments');
     const moves = (c?.moves || []).filter((m) => /\bThread$/.test(m.base)).map((m) => ({ ...m, type: 'fragments' }));
@@ -3072,7 +3130,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   }
   async function autoTierRun() {
     const cfg = reviewCfg();
-    if (!autoTierWanted() || !filters.basePath()) return [];
+    if (gameNow() === 'poe2' || !autoTierWanted() || !filters.basePath()) return [];
     const r = await priceReview();
     const moves = r.categories.filter((c) => c.auto).flatMap((c) => c.moves.map((m) => ({ ...m, type: c.type })));
     // cluster jewels by price (Loot filter → Cluster jewels), in the same run and the same undo
@@ -3638,7 +3696,7 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return file;
   }
 
-  return { filterChat, chatState, chatTest, claudeWindow, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
+  return { switchGameFilter, poe2, ggg2, gameNow, filterChat, chatState, chatTest, claudeWindow, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };
 }
 
 function slimItem(item) {

@@ -5,7 +5,7 @@ const S = { settings: {}, league: '', divine: null, usage: null, history: [], so
 const $ = (id) => document.getElementById(id);
 
 // ---------------- navigation ----------------
-const pages = { dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), atlas: () => window.AtlasView.render(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, collection: () => window.CollectionView.render(), regex: () => window.RegexView.renderRegexPage(), craft: () => window.CraftView.render(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
+const pages = { poe2: renderPoe2, dashboard: renderOverview, networth: renderNetworth, farm: () => window.Farm.renderFarm(), atlas: () => window.AtlasView.render(), lab: () => window.LabView.renderLabPage(), macros: renderMacros, trade: renderTrade, collection: () => window.CollectionView.render(), regex: () => window.RegexView.renderRegexPage(), craft: () => window.CraftView.render(), pob: () => window.PobView.render(), filters: renderFilters, designer: renderDesigner, settings: renderSettings };
 let currentPage = 'dashboard';
 
 // menu icons
@@ -18,11 +18,15 @@ document.querySelectorAll('#nav button[data-icon]').forEach((b) => {
   b.textContent = '';
   b.append(h('span', { class: 'nav-ic', 'aria-hidden': 'true' }, navIcon(b)), h('span', { class: 'nav-label' }, label));
 });
-window.poe.call('art:icons', [...document.querySelectorAll('#nav button[data-art]')].map((b) => b.dataset.art)).then((map) => {
-  if (!map || !Object.keys(map).length) return;
-  window.UI.setArt(map);
-  document.querySelectorAll('#nav button[data-art]').forEach((b) => b.querySelector('.nav-ic')?.replaceChildren(navIcon(b)));
-}).catch(() => {});
+// the menu's item pictures (again after a game switch: PoE2 has its own)
+function loadNavArt() {
+  window.poe.call('art:icons', [...document.querySelectorAll('#nav button[data-art]')].map((b) => b.dataset.art)).then((map) => {
+    if (!map || !Object.keys(map).length) return;
+    window.UI.setArt(map);
+    document.querySelectorAll('#nav button[data-art]').forEach((b) => b.querySelector('.nav-ic')?.replaceChildren(navIcon(b)));
+  }).catch(() => {});
+}
+loadNavArt();
 // Path of Building's own icon, from the Path of Building.exe on this PC (nothing of PoB's ships with the app)
 function pobNavIcon() {
   window.poe.call('pob:icon').then((url) => {
@@ -59,8 +63,81 @@ function setBrandIcon() {
   call('appIcon:get', 'mark').then((u) => { const el = document.getElementById('brandIcon'); if (el && u) { el.src = u; el.classList.toggle('boxed', !!S.settings?.customAppIcon || S.settings?.appIconStyle === 'classic'); } }).catch(() => {});
 }
 
+// ---------- PoE1 Helper / PoE2 Helper ----------
+// The app is for Path of Exile 1 (every page) or Path of Exile 2 (the price check, for now). The switch sits
+// under the name; the name says which one is on.
+const gameOf = () => (S.settings?.game === 'poe2' ? 'poe2' : 'poe1');
+function drawGame() {
+  const g = gameOf();
+  const name = g === 'poe2' ? 'PoE2 Helper' : 'PoE1 Helper';
+  if ($('brandName')) $('brandName').textContent = name;
+  document.title = name;
+  document.body.dataset.game = g;
+  // PoE2: the price check and Settings only
+  document.querySelectorAll('#nav button[data-page]').forEach((b) => { b.hidden = g === 'poe2' ? !['poe2', 'filters', 'designer', 'settings'].includes(b.dataset.page) : b.dataset.page === 'poe2'; });
+  document.querySelectorAll('#nav .nav-group').forEach((x) => { x.hidden = g === 'poe2'; });
+  const sw = $('gameSwitch');
+  if (sw) mount(sw, [['poe1', 'PoE1'], ['poe2', 'PoE2']].map(([id, label]) => h('button', { class: 'sm' + (g === id ? ' on' : ''), 'aria-pressed': g === id ? 'true' : 'false', title: id === 'poe2' ? 'Path of Exile 2: the price check, loot filter and tier designer' : 'Path of Exile 1: every page', onclick: () => setGame(id) }, label)));
+}
+async function setGame(g) {
+  if (gameOf() === g) return;
+  await call('settings:set', { game: g });
+  window.resetFilterPage?.();
+  window.UI.clearArt?.();
+  await refreshState();
+  S.settings.game = g;
+  loadNavArt();
+  drawGame();
+  go(g === 'poe2' ? 'poe2' : 'dashboard');
+}
+
+// the Path of Exile 2 page: the league, how to price check, and a box to check a pasted item
+let poe2Paste = '';
+async function renderPoe2() {
+  await refreshState();
+  const el = $('page-poe2');
+  const [leagues, league] = await Promise.all([call('poe2:leagues').catch(() => []), call('poe2:league').catch(() => null)]);
+  const hist = (S.settings.history2 || []).slice(0, 15);
+  const hk = S.settings.hotkeyPrice || 'Ctrl+D';
+  const box = h('textarea', { rows: 8, class: 'co-paste', placeholder: 'Or paste an item here (Ctrl+C on it in game) and press Check', value: poe2Paste, 'aria-label': 'Item text', oninput: (e) => { poe2Paste = e.target.value; } });
+  const out = h('div', { class: 'stack' });
+  const check = async () => {
+    const text = box.value.trim();
+    if (!text) return;
+    mount(out, h('div', { class: 'muted small' }, h('span', { class: 'spin' }), ' Pricing'));
+    try {
+      const r = await call('poe2:check', text);
+      if (r.error) { mount(out, h('div', { class: 'muted' }, r.error)); return; }
+      window.UI.setUnits(r.units);
+      const p = r.price || {};
+      const tradeBox = h('div', { class: 'panel' });
+      mount(out,
+        h('div', { class: 'row', style: { gap: '10px', alignItems: 'baseline' } },
+          h('b', {}, r.item.name && r.item.name !== r.item.typeLine ? `${r.item.name}, ${r.item.typeLine}` : r.item.typeLine),
+          h('span', { class: 'small muted' }, [r.item.rarity, r.item.itemLevel ? `item level ${r.item.itemLevel}` : null].filter(Boolean).join(' · ')),
+          h('span', { class: 'spacer' }),
+          p.found ? h('span', { class: 'big' }, window.UI.money(p.chaos, p.divine)) : h('span', { class: 'small muted' }, r.tradeable ? 'Search the trade site below' : 'poe.ninja has no price for it')),
+        r.tradeable ? tradeBox : null);
+      if (r.tradeable) await window.TradePanel.mount(tradeBox, { text, divine: p.divine, onFit: () => {} });
+    } catch (e) { mount(out, h('div', { class: 'muted' }, String(e?.message || e))); }
+  };
+  mount(el,
+    pageHead('Price check (Path of Exile 2)', `Hover an item in Path of Exile 2 and press ${hk}: its price pops up, with the trade search under it. The same hotkey as for Path of Exile 1; switch the game at the top left.`),
+    h('section', { class: 'panel stack' },
+      h('div', { class: 'row', style: { gap: '10px' } },
+        h('span', { class: 'cx-lbl' }, 'League'),
+        h('select', { 'aria-label': 'Path of Exile 2 league', onchange: async (e) => { await call('settings:set', { league2: e.target.value || null }); S.settings.league2 = e.target.value || null; toast('League saved'); } },
+          h('option', { value: '', selected: !S.settings.league2 }, `Automatic${league && !S.settings.league2 ? ` (${league})` : ''}`),
+          leagues.map((l) => h('option', { value: l.id, selected: S.settings.league2 === l.id }, l.text || l.id)))),
+      h('div', { class: 'small muted' }, 'Prices come from poe.ninja (Path of Exile 2), in exalted and divine orbs. Searches go to the Path of Exile 2 trade site, only when you press Search.')),
+    h('section', { class: 'panel stack' }, box, h('div', { class: 'row' }, h('button', { class: 'primary', onclick: check }, 'Check')), out),
+    hist.length ? h('section', { class: 'panel stack' }, h('b', {}, 'Recent checks'),
+      h('div', { class: 'ov-list' }, hist.map((x) => h('div', { class: 'li' }, h('span', {}, x.name), h('span', { class: 'spacer' }), h('span', { class: 'muted small' }, x.chaos != null ? `${x.chaos} ex` : '–'))))) : null);
+}
+
 async function refreshState() {
   Object.assign(S, await call('state:get'));
+  drawGame();
   if (!S.sounds.length) S.sounds = await call('sounds:list').catch(() => []);
   window.UI.setGameSounds(window.UI.gameSoundMap(S.settings));
   window.UI.applyTheme(S.settings.uiTheme);
@@ -68,7 +145,9 @@ async function refreshState() {
   if (!S.iconsLoaded) { S.userIcons = await call('icons:list').catch(() => []); UI.setUserIcons(S.userIcons); S.iconsLoaded = true; }
   const u = S.usage?.ggg?.today;
   mount($('sideFoot'),
-    h('div', {}, h('span', { class: 'league-chip' }, S.league), S.settings.leagueOverride ? '' : h('span', { class: 'faint' }, ' (auto)')),
+    gameOf() === 'poe2'
+      ? h('div', {}, h('span', { class: 'league-chip' }, S.settings.league2 || 'PoE2'), S.settings.league2 ? '' : h('span', { class: 'faint' }, ' (auto)'))
+      : h('div', {}, h('span', { class: 'league-chip' }, S.league), S.settings.leagueOverride ? '' : h('span', { class: 'faint' }, ' (auto)')),
     themeDots(),
     versionLine());
   if (!S.ver) {
@@ -1596,4 +1675,5 @@ window.poe.on('history:updated', () => { if (currentPage === 'dashboard') refres
 window.poe.on('pob:buildsChanged', () => { if (currentPage === 'pob') window.PobView?.render(); });
 window.poe.on('gameSounds:changed', (r) => { S.settings.gameSounds = r; window.UI.setGameSounds(window.UI.gameSoundMap(S.settings)); if (currentPage === 'designer') go('designer'); });
 
-go('dashboard');
+// the page to start on: the price check when the app is switched to Path of Exile 2
+call('state:get').then((st) => go(st?.settings?.game === 'poe2' ? 'poe2' : 'dashboard')).catch(() => go('dashboard'));
