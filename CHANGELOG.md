@@ -5,6 +5,12 @@ and used as the text of the GitHub release, so write it for players. Lines start
 "What's new" list shown after an update (only what a player needs to know); `[Place]` at the start adds a
 button to that page. Lines starting with `- ` are the full notes.
 
+## 1.0.184 - 2026-11-28
+
+* [What to farm] What to farm works in PoE2: poe.ninja's PoE2 prices in exalted, one card per league mechanic (Abyss, Breach, Delirium, Ritual, Expedition, Essences, Runes, Soul cores and more), with the 7-day change.
+* The Wraeclast and Vastiri looks are gone again: the app is back to Midnight (Settings → Appearance has the others).
+- PoE2 What to farm: click a mechanic for every item's price and its price history. Only poe.ninja is asked, at most once an hour per list.
+
 ## 1.0.183 - 2026-11-28
 
 * PoE1 and PoE2 each have their own look: Wraeclast (leather, old gold and rust) in PoE1, Vastiri (cold stone, bronze and rune blue) in PoE2. Settings → Appearance has the others.

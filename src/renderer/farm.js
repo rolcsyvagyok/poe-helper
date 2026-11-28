@@ -131,5 +131,7 @@
       farm.movers.length > 10 ? h('button', { class: 'sm quiet', style: { margin: '8px 0 60px' }, onclick: () => { showAllMovers = !showAllMovers; renderFarm(); } }, showAllMovers ? 'Show fewer' : `Show all ${farm.movers.length}`) : null);
   }
 
-  window.Farm = { renderFarm, priceGraph, graphButton, trendBadge, pct };
+  // the other game: other prices and mechanics
+  const reset = () => { farm = null; detail = null; openId = null; q = ''; };
+  window.Farm = { reset, renderFarm, priceGraph, graphButton, trendBadge, pct };
 })();

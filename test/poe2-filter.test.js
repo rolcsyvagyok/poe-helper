@@ -90,8 +90,7 @@ test('switching the game parks one game\'s filter setup and brings back the othe
   assert.deepEqual(svc.settings.get('tierPatch'), { moves: {}, styles: {}, actions: {} });
   assert.deepEqual(svc.settings.get('baseRanks'), {});
   assert.equal(svc.settings.get('gigaDone'), true);
-  // each game has its own look and chat macros
-  assert.equal(svc.settings.get('uiTheme'), 'vastiri');
+  // each game has its own chat macros
   svc.settings.set('chatMacros', [{ key: 'F1', text: '/hideout', send: true }]);
   svc.settings.set('baseFilter', 'PoE2.filter');
   svc.switchGameFilter('poe2', 'poe1'); svc.settings.set('game', 'poe1');
@@ -99,7 +98,6 @@ test('switching the game parks one game\'s filter setup and brings back the othe
   assert.equal(svc.settings.get('filterDir'), path.join(dir, 'poe1'));
   assert.deepEqual(svc.settings.get('tierPatch'), { moves: { 'currency\tChaos Orb': '__hide__' } });
   assert.deepEqual(svc.settings.get('designer'), { look: 1 });
-  assert.equal(svc.settings.get('uiTheme'), 'wraeclast');
   assert.equal(svc.settings.get('chatMacros')[0].text, '/exit');
   svc.switchGameFilter('poe1', 'poe2');
   assert.equal(svc.settings.get('baseFilter'), 'PoE2.filter');
@@ -131,4 +129,33 @@ test('PoE2 item pictures come from PoE2\'s own poe.ninja lists', async () => {
   assert.ok(asked.every((u) => u.includes('/poe2/')));
   const u = await n.art('L', ['Headhunter'], { uniques: true });
   assert.equal(u.Headhunter, 'https://web.poecdn.com/gen/image/hh2.png');
+});
+
+test('What to farm in PoE2: league mechanics from poe.ninja\'s PoE2 lists, in exalted, with the 7-day change', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-p2farm-'));
+  const asked = [];
+  const fetchImpl = async (url) => {
+    asked.push(url);
+    const type = /type=(\w+)/.exec(url)?.[1];
+    const body = type === 'Currency' ? { core: { primary: 'divine', rates: { exalted: 200 }, items: [{ id: 'divine', name: 'Divine Orb' }] }, lines: [] }
+      : type === 'Ritual' ? { core: { primary: 'exalted' }, items: [{ id: 'omen-light', name: 'Omen of Light', image: '/gen/omen.png' }, { id: 'omen-amel', name: 'Omen of Amelioration', image: '/gen/omen2.png' }],
+        lines: [{ id: 'omen-light', primaryValue: 300, volumePrimaryValue: 40, sparkline: { totalChange: 50, data: [0, 10, 20, 30, 40, 45, 50] } }, { id: 'omen-amel', primaryValue: 20, volumePrimaryValue: 100, sparkline: { totalChange: -10, data: [0, -5, -10] } }] }
+        : { lines: [] };
+    return { ok: true, json: async () => body };
+  };
+  const svc = createServices({ dataDir: path.join(dir, 'data'), secrets: { encrypt: (x) => x, decrypt: (x) => x }, fetchImpl, log: () => {} });
+  svc.settings.set('game', 'poe2');
+  svc.settings.set('league2', 'Dawn');
+  const d = await svc.farmDashboard();
+  assert.equal(d.league, 'Dawn');
+  assert.equal(d.divine, 200);
+  const ritual = d.groups.find((g) => g.name === 'Ritual');
+  assert.ok(ritual && ritual.count === 2);
+  assert.equal(ritual.top[0].name, 'Omen of Light');
+  assert.equal(ritual.top[0].chaos, 300);
+  assert.equal(ritual.top[0].change, 50);
+  assert.equal(ritual.icon, 'https://web.poecdn.com/gen/omen2.png');
+  assert.ok(asked.every((u) => u.includes('/poe2/')), 'only PoE2 lists');
+  const g = await svc.farmGroup(ritual.id);
+  assert.equal(g.items.length, 2);
 });

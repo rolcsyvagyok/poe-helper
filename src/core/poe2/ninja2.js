@@ -174,7 +174,31 @@ function createNinja2({ fetchImpl, cache, userAgent = 'poe-helper', log = () => 
     return out;
   }
 
-  return { price, divineInEx, exchange, items, rows, art };
+  /**
+   * One list for "What to farm": [{ name, chaos (in exalted), icon, volume, listingCount, sparkline }], the same shape
+   * as the PoE1 poe.ninja lists, so the page's grouping and 7-day trends work on it.
+   */
+  async function farmRows(league, type) {
+    const abs = (u) => (!u ? null : String(u).startsWith('/') ? `https://web.poecdn.com${u}` : String(u));
+    const spark = (l) => { const s = l.sparkline || l.sparkLine || l.lowConfidenceSparkline || l.lowConfidenceSparkLine; return s && Array.isArray(s.data) ? s : null; };
+    if (UNIQUE_TYPES.includes(type)) {
+      const list = await items(league, type);
+      return (list?.lines || []).map((l) => ({ name: l.name, chaos: l.exaltedValue != null ? Number(l.exaltedValue) : Number(l.primaryValue), icon: abs(l.icon), volume: null, listingCount: l.listingCount ?? null, sparkline: spark(l), variant: l.variant || null }))
+        .filter((r) => r.name && Number.isFinite(r.chaos));
+    }
+    const list = await exchange(league, type);
+    const byId = new Map([...(list?.core?.items || []), ...(list?.items || [])].map((x) => [x.id, x]));
+    const out = [];
+    for (const l of list?.lines || []) {
+      const meta = byId.get(l.id);
+      const ex = exValue(list, l);
+      if (!meta?.name || ex == null) continue;
+      out.push({ name: meta.name, chaos: ex, icon: abs(meta.image || meta.icon), volume: l.volumePrimaryValue != null ? Math.round(Number(l.volumePrimaryValue)) : null, listingCount: null, sparkline: spark(l) });
+    }
+    return out;
+  }
+
+  return { price, divineInEx, exchange, items, rows, art, farmRows };
 }
 
 /** The poe.ninja lists that price a NeverSink PoE2 filter category ("currency->omen" -> Ritual). */

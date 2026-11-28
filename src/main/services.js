@@ -25,7 +25,7 @@ const VERSION = require('../../package.json').version;
 
 const DEFAULT_SETTINGS = {
   leagueOverride: '',
-  uiTheme: 'wraeclast', // the app's look: 'wraeclast' (PoE1 default), 'vastiri' (PoE2 default), 'midnight', 'atlas', 'hideout' or 'dark'
+  uiTheme: 'midnight', // the app's look: 'midnight' (default), 'atlas', 'hideout' or 'dark'
   accountName: '',
   collectAutoHours: 3, // My collection: tick new uniques from the Unique stash tab every N hours (0: only on the button)
   collectAutoAt: 0,
@@ -955,9 +955,8 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
   // Path of Exile 1 and 2 each have their own loot filter and filter setup: switching the game parks one and
   // brings back the other (a first PoE2 start: nothing set up, the PoE2 folder found by itself)
   // (chat macros too: the two games have different places to go)
-  const GAME_FILTER_KEYS = [...new Set([...FILTER_KEYS, 'filterDir', 'baseFilter', 'baseFilterName', 'filterProfiles', 'lastWrite', 'forcedNames', 'chatMacros', 'uiTheme'])];
-  // the app's look too: PoE1 mode Wraeclast, PoE2 mode Vastiri
-  const GAME_FRESH = { poe1: { uiTheme: 'wraeclast' }, poe2: { baseRanks: {}, gigaDone: true, bigBeltsDone: true, gigaDeleted: true, bigBeltsDeleted: true, uiTheme: 'vastiri' } };
+  const GAME_FILTER_KEYS = [...new Set([...FILTER_KEYS, 'filterDir', 'baseFilter', 'baseFilterName', 'filterProfiles', 'lastWrite', 'forcedNames', 'chatMacros'])];
+  const GAME_FRESH = { poe2: { baseRanks: {}, gigaDone: true, bigBeltsDone: true, gigaDeleted: true, bigBeltsDeleted: true } };
   function switchGameFilter(from, to) {
     from = from === 'poe2' ? 'poe2' : 'poe1';
     to = to === 'poe2' ? 'poe2' : 'poe1';
@@ -2474,6 +2473,31 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     { id: 'incursion', name: 'Incursion', src: [['Vial']], art: null },
     { id: 'incubator', name: 'Incubation', src: [['Incubator']], art: null },
   ];
+  // Path of Exile 2: its league mechanics and the poe.ninja PoE2 lists their loot is on (prices in exalted)
+  const FARM_GROUPS2 = [
+    { id: 'p2abyss', name: 'Abyss', src: [['Abyss']], artTop: true },
+    { id: 'p2breach', name: 'Breach', src: [['Breach']], artTop: true },
+    { id: 'p2delirium', name: 'Delirium', src: [['Delirium']], artTop: true },
+    { id: 'p2ritual', name: 'Ritual', src: [['Ritual']], artTop: true },
+    { id: 'p2expedition', name: 'Expedition', src: [['Expedition']], artTop: true },
+    { id: 'p2essence', name: 'Essences', src: [['Essences']], artTop: true },
+    { id: 'p2runes', name: 'Runes', src: [['Runes']], artTop: true },
+    { id: 'p2soulcores', name: 'Soul cores', src: [['SoulCores']], artTop: true },
+    { id: 'p2idols', name: 'Idols', src: [['Idols']], artTop: true },
+    { id: 'p2verisium', name: 'Verisium', src: [['Verisium']], artTop: true },
+    { id: 'p2bosses', name: 'Pinnacle bosses and fragments', src: [['Fragments']], artTop: true },
+    { id: 'p2tablets', name: 'Precursor tablets', src: [['PrecursorTablets']], artTop: true },
+  ];
+  // where "What to farm" reads its prices: PoE1's poe.ninja lists, or PoE2's in PoE2 mode
+  async function farmSource() {
+    if (gameNow() === 'poe2') {
+      const league = await poe2.getLeague();
+      const n2 = poe2.ninja2;
+      return { league, groups: FARM_GROUPS2, divine: await n2.divineInEx(league).catch(() => null), list: (c) => n2.farmRows(league, c), age: (c) => { const e = cache.get(`ninja2_${/^(Unique|Precursor)/.test(c) ? 'it' : 'ex'}_${league}_${c}`); return e?.savedAt ? Date.now() - e.savedAt : 0; } };
+    }
+    const league = await getLeague();
+    return { league, groups: FARM_GROUPS, divine: await ninja.divinePrice(league).catch(() => null), list: (c) => ninja.category(league, c), age: (c) => ninja.cachedAge(league, c) || 0 };
+  }
   /** A mechanic's items from the poe.ninja lists (one line per name, the most traded one). */
   async function farmItems(g, load) {
     const byName = new Map();
@@ -2488,8 +2512,8 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return [...byName.values()];
   }
   async function farmDashboard() {
-    const league = await getLeague();
-    const divine = await ninja.divinePrice(league).catch(() => null);
+    const src = await farmSource();
+    const { league, divine } = src;
     const slim = (l) => {
       const trend = trendOf(l.sparkline, l.chaos);
       return { name: l.name, chaos: l.chaos, icon: l.icon || null, volume: l.volume ?? l.listingCount ?? null, change: trend?.change ?? null, old: trend?.old ?? null, points: trend?.points || null, big: isBigChange(trend) };
@@ -2498,12 +2522,12 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     let ageMs = 0;
     const load = async (c) => {
       if (lists[c]) return lists[c];
-      try { lists[c] = await ninja.category(league, c); ageMs = Math.max(ageMs, ninja.cachedAge(league, c) || 0); } catch (e) { log('farm', c, e.message); lists[c] = []; }
+      try { lists[c] = await src.list(c); ageMs = Math.max(ageMs, src.age(c)); } catch (e) { log('farm', c, e.message); lists[c] = []; }
       return lists[c];
     };
     const groups = [];
     const allMovers = [];
-    for (const g of FARM_GROUPS) {
+    for (const g of src.groups) {
       const items = await farmItems(g, load);
       if (!items.length) continue;
       const rows = items.map(slim);
@@ -2524,11 +2548,13 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
       for (const r of rows) if (r.big) allMovers.push({ ...r, group: g.name });
       // the card's picture: the mechanic's own item (a catalyst for Ultimatum), else its most valuable one
       const artRow = g.art && !g.art.startsWith('*') ? rows.find((r) => r.name === g.art && r.icon) : null;
-      groups.push({ id: g.id, name: g.name, art: g.art, icon: artRow?.icon || null, count: rows.length, change, typical: typical[Math.floor(typical.length / 2)] ?? null, top, up, down });
+      // PoE2: the most traded item's picture (none of PoE1's art names)
+      const topIcon = g.artTop ? ([...rows].filter((r) => r.icon).sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0) || b.chaos - a.chaos)[0]?.icon || null) : null;
+      groups.push({ id: g.id, name: g.name, art: g.art || null, icon: artRow?.icon || topIcon, count: rows.length, change, typical: typical[Math.floor(typical.length / 2)] ?? null, top, up, down });
     }
     groups.sort((a, b) => (b.change ?? -1e9) - (a.change ?? -1e9));
     allMovers.sort((a, b) => Math.abs(Math.log((b.chaos + 0.1) / ((b.old ?? b.chaos) + 0.1))) - Math.abs(Math.log((a.chaos + 0.1) / ((a.old ?? a.chaos) + 0.1))));
-    return { league, divine, ageMs, groups, movers: allMovers.slice(0, 40) };
+    return { league, divine, ageMs, groups, movers: allMovers.slice(0, 40), game: gameNow() };
   }
   /** Every item of one mechanic, most valuable first: { id, name, league, divine, items: [...] } */
   // ---- Atlas strategies: farms with an atlas tree, threads, map kind and what each session earned ----
@@ -2911,12 +2937,12 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     };
   }
   async function farmGroup(id) {
-    const g = FARM_GROUPS.find((x) => x.id === id);
+    const src = await farmSource();
+    const g = src.groups.find((x) => x.id === id);
     if (!g) throw new Error('Unknown mechanic');
-    const league = await getLeague();
-    const divine = await ninja.divinePrice(league).catch(() => null);
+    const { league, divine } = src;
     const lists = {};
-    const load = async (c) => { if (!lists[c]) { try { lists[c] = await ninja.category(league, c); } catch (e) { log('farm', c, e.message); lists[c] = []; } } return lists[c]; };
+    const load = async (c) => { if (!lists[c]) { try { lists[c] = await src.list(c); } catch (e) { log('farm', c, e.message); lists[c] = []; } } return lists[c]; };
     const items = (await farmItems(g, load)).map((l) => {
       const trend = trendOf(l.sparkline, l.chaos);
       return { name: l.name, chaos: l.chaos, icon: l.icon || null, volume: l.volume ?? l.listingCount ?? null, change: trend?.change ?? null, old: trend?.old ?? null, points: trend?.points || null };
@@ -3700,14 +3726,11 @@ function createServices({ dataDir, secrets, fetchImpl, webFetch = null, log = co
     return file;
   }
 
-  // 1.0.183: each game gets its own look (PoE1 Wraeclast, PoE2 Vastiri), once
-  if (!settings.get('gameThemesV1')) {
-    const g = settings.get('game') === 'poe2' ? 'poe2' : 'poe1';
-    const other = g === 'poe2' ? 'poe1' : 'poe2';
-    settings.set('uiTheme', GAME_FRESH[g].uiTheme);
+  // 1.0.184: the Wraeclast and Vastiri looks (1.0.183) are gone: back to Midnight, one look for both games
+  if (/^(wraeclast|vastiri)$/.test(settings.get('uiTheme') || '')) settings.set('uiTheme', 'midnight');
+  {
     const parked = settings.get('gameFilters') || {};
-    if (parked[other]) settings.set('gameFilters', { ...parked, [other]: { ...parked[other], uiTheme: GAME_FRESH[other].uiTheme } });
-    settings.set('gameThemesV1', true);
+    if (Object.values(parked).some((p) => p && 'uiTheme' in p)) settings.set('gameFilters', Object.fromEntries(Object.entries(parked).map(([g, p]) => { const { uiTheme, ...rest } = p || {}; return [g, rest]; })));
   }
 
   return { switchGameFilter, poe2, ggg2, gameNow, filterChat, chatState, chatTest, claudeWindow, importFilterFile, switchFilterProfile, atlasFromShots, addGuidePresetsForTest: (tree) => addGuidePresets(tree), addPresetsForTest: (l, tree) => addPresets(l, tree), papPresetsFrom, syncGuideSites, atlasCopy, strictnessPreview, reportFiles, setAlwaysShow, atlasView, atlasThreads, atlasList, atlasSave, atlasRemove, atlasLinks, filterAge, staleMoves, dropStaleMoves, farmGroup, unlistedItems, collectionFromStash, collectionList, setSizeAdjust, refreshCollected, collectionFor, setCollected, rareLooksFromTheme, setTierStyles, setMapHide, tierThreads, tradeSiteUrl, exportAppSettings, importAppSettings, undoImportAppSettings, canUndoAppImport, APP_KEYS, setStrictness, tradeBulk, pricePredict, refreshLeague, tradeSearchList, tradeSearchSave, tradeSearchRemove, tradeSearchMove, tradeSearchCheck, tradeWatchTick, exportFilterSettings, importFilterSettings, undoImportFilterSettings, canUndoImport, setTierCondition, defaultRanks, regexMapTrade, regexMapView, regexMapBuild, regexBeastView, regexBeastBuild, regexItemBases, regexItemView, regexItemBuild, regexCampaignView, regexCampaignBuild, regexGemView, regexGemBuild, setCampaignHide, setShowAllCurrency, regexSavePreset, regexDeletePreset, setBaseRanks, setRankKind, autoRanks, resetAll, undoResetAll, canUndoReset, gameSoundsState, extractGameSounds, refreshGameSounds, labLayout, LAB_DIFFS, clusterView, setCluster, setClusterAuto, warrantAnalyze, talismanView, setTalisman, clusterAutoRun, baseMatrixView, setBaseMatrix, setBaseMatrixOpts, farmDashboard, setStackSize, parsePrice, currencyUnits, changelog, versionInfo, myBases, addMyBase, updateMyBase, removeMyBase, setMyBasesStyle, addTier, removeTier, renameTier, categoryArt, userIconsDir, listIcons, importIcon, deleteIcon, listSounds, importSound, soundData, autoTierWanted, readItem, magicBaseOf, tierInfoFor, SOUNDS, DEFAULT_TIER_SOUNDS, settings, snapshots, usage, cache, ninja, ggg, limiter, pricer, networth, filters, getLeague, applySettings, priceText, tradePrepare, tradeSearch, regenerateEconomy, quickFilter, usageSnapshot, tierViewNow, tierPrices, setTierAction, tierSuggest, designerState, designerSaveDraft, designerApply, designerUndo, designerSaveTheme, designerDeleteTheme, priceReview, applyReviewMoves, undoLastReview, autoTierRun, moveBases, setTierStyle, resetTiers, themes, saveTheme, applyTheme, deleteTheme, importTheme, exportTheme, VERSION };

@@ -76,7 +76,7 @@ function drawGame() {
   // prices: chaos in PoE1, exalted in PoE2
   window.UI.setUnits(g === 'poe2' ? { small: 'ex', big: 'div' } : null);
   // PoE2: the pages that work for it
-  document.querySelectorAll('#nav button[data-page]').forEach((b) => { b.hidden = g === 'poe2' ? !['dashboard', 'poe2', 'filters', 'designer', 'macros', 'settings'].includes(b.dataset.page) : b.dataset.page === 'poe2'; });
+  document.querySelectorAll('#nav button[data-page]').forEach((b) => { b.hidden = g === 'poe2' ? !['dashboard', 'poe2', 'farm', 'filters', 'designer', 'macros', 'settings'].includes(b.dataset.page) : b.dataset.page === 'poe2'; });
   document.querySelectorAll('#nav .nav-group').forEach((x) => { x.hidden = g === 'poe2'; });
   const sw = $('gameSwitch');
   if (sw) mount(sw, [['poe1', 'PoE1'], ['poe2', 'PoE2']].map(([id, label]) => h('button', { class: 'sm' + (g === id ? ' on' : ''), 'aria-pressed': g === id ? 'true' : 'false', title: id === 'poe2' ? 'Path of Exile 2: the price check, loot filter and tier designer' : 'Path of Exile 1: every page', onclick: () => setGame(id) }, label)));
@@ -85,10 +85,10 @@ async function setGame(g) {
   if (gameOf() === g) return;
   await call('settings:set', { game: g });
   window.resetFilterPage?.();
+  window.Farm?.reset?.();
   window.UI.clearArt?.();
   await refreshState();
   S.settings.game = g;
-  window.UI.applyTheme(S.settings.uiTheme); // each game has its own look
   loadNavArt();
   drawGame();
   go('dashboard');
@@ -329,6 +329,7 @@ const NOTE_PLACES = [
   [/Trade searches/i, 'Trade searches', { page: 'trade' }],
   [/Settings/, 'Settings', { page: 'settings' }],
   [/Chat macros/, 'Chat macros', { page: 'macros' }],
+  [/What to farm/, 'What to farm', { page: 'farm' }],
   [/Crafting/, 'Crafting', { page: 'craft' }],
 ];
 function noteGo(t) {
@@ -662,7 +663,7 @@ async function renderOverview2() {
           figure(String(checksToday), `Price checks today (${hk})`))),
       bgButtons),
     h('div', { class: 'ov-shortcuts', style: { marginTop: '28px' } },
-      [['poe2', 'Price check', `Hover an item in game and press ${hk}`], ['filters', 'Loot filter', filterName ? `${filterName}: tiers, looks and strictness` : 'Pick your PoE2 filter'], ['designer', 'Tier designer', 'One look for every tier'], ['macros', 'Chat macros', 'F1 to F5 in game']]
+      [['poe2', 'Price check', `Hover an item in game and press ${hk}`], ['filters', 'Loot filter', filterName ? `${filterName}: tiers, looks and strictness` : 'Pick your PoE2 filter'], ['designer', 'Tier designer', 'One look for every tier'], ['farm', 'What to farm', 'League mechanics by poe.ninja prices'], ['macros', 'Chat macros', 'F1 to F5 in game']]
         .map(([page, title, note]) => h('button', { class: 'ov-card', onclick: () => go(page) }, h('b', {}, title), h('span', { class: 'small muted' }, note)))),
     h('div', { style: { marginTop: '28px', maxWidth: '760px' } },
       h('div', { class: 'section-head' }, h('h2', {}, 'Recent price checks'), h('span', { class: 'spacer' }), h('button', { class: 'quiet sm', onclick: () => go('poe2') }, 'Open Price check')),
